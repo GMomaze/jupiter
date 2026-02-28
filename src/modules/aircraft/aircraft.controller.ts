@@ -12,7 +12,7 @@ import {
 } from '../../models/index.ts';
 
 export class AircraftController {
-
+ 
   static async index(req: Request, res: Response) {
     try {
       const aircraft = await Aircraft.findAll({
