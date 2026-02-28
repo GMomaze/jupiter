@@ -1,4 +1,4 @@
-// knexfile.ts
+// knexfile.js
 import 'dotenv/config';
 
 export default {
