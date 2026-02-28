@@ -1,0 +1,29 @@
+<div id="modal" class="modal-overlay">
+  <div class="modal-content">
+    <h3>Install New Component</h3>
+    <form hx-post="/aircraft/<%= aircraftId %>/components" 
+          hx-target="#component-list" 
+          hx-swap="innerHTML"
+          hx-on::after-request="closeModal()">
+      
+      <label>Component Model</label>
+      <select name="componentModelId" required>
+        <% models.forEach(model => { %>
+          <option value="<%= model.id %>"><%= model.model_name %></option>
+        <% }) %>
+      </select>
+
+      <label>Serial Number</label>
+      <input type="text" name="serialNumber" required>
+
+      <label>TSO at Install (Hours)</label>
+      <input type="number" step="0.01" name="tsoAtInstall" value="0.00">
+
+      <label>TSN at Install (Hours)</label>
+      <input type="number" step="0.01" name="tsnAtInstall" value="0.00">
+
+      <button type="submit" class="btn-primary">Confirm Installation</button>
+      <button type="button" onclick="closeModal()">Cancel</button>
+    </form>
+  </div>
+</div>

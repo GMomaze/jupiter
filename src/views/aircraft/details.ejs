@@ -1,0 +1,12 @@
+<div class="status-section">
+  <h1 GG-AIRCRAFT STATUS</h1>
+  <label>Current Status:</label>
+  <span class="badge badge-info"><%= aircraft.status %></span>
+
+  <% if (aircraft.status === 'REGISTERED') { %>
+    <form hx-post="/aircraft/<%= aircraft.id %>/activate" hx-target=".status-section">
+      <input type="text" name="reason" placeholder="Reason for activation" required>
+      <button type="submit">Activate Aircraft</button>
+    </form>
+  <% } %>
+</div>

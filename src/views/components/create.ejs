@@ -1,0 +1,15 @@
+<form hx-post="/components" hx-ext="json-enc" class="space-y-4">
+  <input type="text" name="part_number" placeholder="P/N" required>
+  <input type="text" name="serial_number" placeholder="S/N" required>
+  
+  <div id="condition-container">
+    <%- include('../../partials/rf-select-container', { 
+        tableName: 'rf_component_condition',
+        label: 'Component Condition',
+        fieldName: 'condition_id',
+        allowCreate: true
+    }) %>
+  </div>
+
+  <button type="submit" class="btn-primary">Add to Inventory</button>
+</form>

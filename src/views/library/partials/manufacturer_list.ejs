@@ -1,0 +1,20 @@
+<div class="space-y-2">
+  <% if (manufacturers.length === 0) { %>
+    <p class="text-xs text-slate-500 italic font-medium">
+      No OEMs registered for this asset type.
+    </p>
+  <% } %>
+
+  <% manufacturers.forEach(m => { %>
+    <div 
+      class="manuf-card relative p-4 border-2 border-slate-100 rounded-lg shadow-sm hover:border-slate-400 transition-all group cursor-pointer bg-white"
+      hx-get="/library/manufacturer/<%= m.id %>/asset-type/<%= assetTypeId %>/models"
+      hx-target="#model-container"
+      hx-swap="innerHTML"
+    >
+      <h3 class="font-black text-slate-900 uppercase text-sm">
+        <%= m.name %>
+      </h3>
+    </div>
+  <% }) %>
+</div>

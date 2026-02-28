@@ -1,0 +1,54 @@
+<div class="p-6">
+  <h1 class="text-2xl font-bold mb-6 text-slate-800">Quality Assurance Review</h1>
+
+  <div id="qa-error-container"></div>
+
+  <% if (reviewPacks.length === 0) { %>
+    <div class="p-8 text-center border-2 border-dashed rounded text-slate-400">
+      No workpacks currently awaiting final closure.
+    </div>
+  <% } %>
+
+  <% reviewPacks.forEach(wp => { %>
+    <% 
+      const total = parseInt(wp.total_tasks) || 0;
+      const locked = parseInt(wp.locked_tasks) || 0;
+      const progress = total > 0 ? (locked / total) * 100 : 0;
+      const canClose = total > 0 && locked === total;
+    %>
+    <div class="p-6 bg-white border rounded-lg shadow-sm mb-6 transition-opacity" id="wp-card-<%= wp.id %>">
+      <div class="flex justify-between items-center mb-4">
+        <div>
+          <h3 class="font-bold text-lg text-slate-900">Work Order: <%= wp.work_order_number %></h3>
+          <p class="text-xs text-slate-500 font-mono uppercase tracking-tight"><%= wp.status_code %> • <%= wp.registration %></p>
+        </div>
+        <div class="text-right">
+          <span class="text-sm font-bold <%= canClose ? 'text-green-600' : 'text-amber-600' %>">
+            <%= locked %> / <%= total %> Tasks Locked
+          </span>
+        </div>
+      </div>
+      
+      <div class="w-full bg-slate-100 h-4 rounded-full overflow-hidden mb-6 border">
+        <div class="transition-all duration-700 ease-out <%= canClose ? 'bg-green-500' : 'bg-amber-500' %> h-full" 
+             style="width: <%= progress %>%"></div>
+      </div>
+      
+      <div class="flex justify-between items-center border-t pt-4">
+        <a href="/workpacks/<%= wp.id %>/tasks" class="text-blue-600 hover:underline text-sm font-medium">
+          View Integrity Report →
+        </a>
+
+        <button 
+          class="px-6 py-2 rounded font-bold transition-all 
+                 <%= canClose ? 'bg-slate-900 text-white hover:bg-black shadow-md' : 'bg-slate-200 text-slate-400 cursor-not-allowed' %>"
+          <%= !canClose ? 'disabled' : '' %>
+          hx-put="/workpacks/<%= wp.id %>/close"
+          hx-target="body"
+          hx-confirm="Finalize Closure: This will reset TSO for all linked components and update aircraft hours. Proceed?">
+          CLOSE WORKPACK
+        </button>
+      </div>
+    </div>
+  <% }) %>
+</div>

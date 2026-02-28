@@ -1,0 +1,138 @@
+<%- include('../partials/header') %>
+
+<main class="p-6 bg-slate-50 min-h-screen">
+
+  <div class="flex justify-between items-start mb-8 bg-white p-6 rounded-xl border shadow-sm">
+    <div>
+      <nav class="text-sm text-slate-500 mb-2">
+        <a href="/workpacks/planner" class="hover:text-blue-600">Planner</a> / 
+        <span class="text-slate-800">Navigator</span>
+      </nav>
+
+      <h1 class="text-3xl font-bold text-slate-900">
+        WO: <%= pack.work_order_number %>
+      </h1>
+
+      <p class="text-slate-600 font-medium">
+        Aircraft:
+        <span class="text-blue-600">
+          <%= pack.Aircraft?.registration || '' %>
+        </span>
+      </p>
+    </div>
+
+    <div class="text-right">
+      <p class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">
+        Current Lifecycle
+      </p>
+
+      <span class="px-4 py-1.5 rounded-full font-bold text-sm border 
+        <%= pack.WorkpackStatus?.code === 'DRAFT' ? 'bg-slate-100 text-slate-600 border-slate-300' : 
+           pack.WorkpackStatus?.code === 'CLOSED' ? 'bg-green-100 text-green-700 border-green-300' : 
+           'bg-blue-100 text-blue-700 border-blue-300' %>">
+        <%= pack.WorkpackStatus?.code %>
+      </span>
+    </div>
+  </div>
+
+  <div class="bg-white rounded-xl border shadow-sm overflow-hidden">
+    <table class="w-full text-left border-collapse">
+      <thead class="bg-slate-50 border-b">
+        <tr>
+          <th class="px-6 py-4 text-xs font-bold text-slate-500 uppercase">Sequence</th>
+          <th class="px-6 py-4 text-xs font-bold text-slate-500 uppercase">Task Identification</th>
+          <th class="px-6 py-4 text-xs font-bold text-slate-500 uppercase">Current Status</th>
+          <th class="px-6 py-4 text-xs font-bold text-slate-500 uppercase">Actions</th>
+        </tr>
+      </thead>
+
+      <tbody class="divide-y">
+
+        <% if (!tasks || tasks.length === 0) { %>
+          <tr>
+            <td colspan="4" class="px-6 py-12 text-center text-slate-400 italic">
+              No tasks currently assigned to this work pack.
+            </td>
+          </tr>
+        <% } %>
+
+        <% if (tasks) { %>
+          <% tasks.forEach((task, index) => { %>
+            <tr class="hover:bg-slate-50 transition-colors">
+
+              <td class="px-6 py-4 font-mono text-slate-400 text-sm">
+                #<%= (index + 1).toString().padStart(3, '0') %>
+              </td>
+
+              <td class="px-6 py-4">
+                <p class="font-bold text-slate-900"><%= task.title %></p>
+                <p class="text-sm text-slate-500 truncate max-w-md">
+                  <%= task.description %>
+                </p>
+              </td>
+
+              <td class="px-6 py-4">
+                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold border
+                  <%= task.status === 'LOCKED' ? 'bg-green-50 text-green-700 border-green-200' : 
+                     task.status === 'SIGNED' ? 'bg-amber-50 text-amber-700 border-amber-200' : 
+                     'bg-slate-50 text-slate-600 border-slate-200' %>">
+                  <%= task.status %>
+                </span>
+              </td>
+
+              <td class="px-6 py-4">
+
+                <% if (pack.WorkpackStatus?.code === 'DRAFT') { %>
+
+                  <button 
+                    hx-delete="/workpacks/<%= pack.id %>/tasks/<%= task.id %>"
+                    hx-confirm="Remove this task from the work order?"
+                    hx-headers='{"x-csrf-token":"<%= csrfToken %>"}'
+                    class="text-red-600 hover:text-red-800 text-sm font-bold">
+                    Remove
+                  </button>
+
+                <% } else { %>
+
+                  <span class="text-slate-300 text-xs italic">
+                    Read-only (Issued)
+                  </span>
+
+                <% } %>
+
+              </td>
+
+            </tr>
+          <% }) %>
+        <% } %>
+
+      </tbody>
+    </table>
+  </div>
+
+  <div class="mt-6 flex justify-between items-center">
+
+    <p class="text-sm text-slate-500">
+      Total Work Items:
+      <span class="font-bold text-slate-900">
+        <%= tasks ? tasks.length : 0 %>
+      </span>
+    </p>
+
+    <% if (pack.WorkpackStatus?.code === 'DRAFT' && tasks && tasks.length > 0) { %>
+
+      <button 
+        hx-post="/workpacks/<%= pack.id %>/issue"
+        hx-confirm="Are you sure? This will lock the task list and move this pack to the hangar."
+        hx-headers='{"x-csrf-token":"<%= csrfToken %>"}'
+        class="bg-blue-600 text-white px-6 py-2 rounded-lg font-bold shadow-md hover:bg-blue-700 transition-all">
+        ISSUE WORK PACK
+      </button>
+
+    <% } %>
+
+  </div>
+
+</main>
+
+<%- include('../partials/footer') %>

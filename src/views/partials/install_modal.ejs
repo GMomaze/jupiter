@@ -1,0 +1,45 @@
+<div id="install-modal" class="modal-overlay">
+    <div class="modal-content">
+        <h3>Install New Component</h3>
+        <form hx-post="/assets/install" 
+              hx-target="#modal-message" 
+              hx-swap="innerHTML">
+            
+            <input type="hidden" name="aircraft_id" value="<%= aircraft.id %>">
+
+            <div class="form-group">
+                <label>Component Model</label>
+                <select name="model_id" required>
+                    <% models.forEach(model => { %>
+                        <option value="<%= model.id %>"><%= model.model_name %> (<%= model.manufacturer_name %>)</option>
+                    <% }) %>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label>Serial Number</label>
+                <input type="text" name="serial_number" placeholder="S/N" required>
+            </div>
+
+            <div class="form-grid">
+                <div class="form-group">
+                    <label>TSN at Install (Hours)</label>
+                    <input type="number" step="0.1" name="tsn_at_install" value="0" required>
+                </div>
+                <div class="form-group">
+                    <label>TSO at Install (Hours)</label>
+                    <input type="number" step="0.1" name="tso_at_install" value="0" required>
+                </div>
+            </div>
+
+            <p class="helper-text">Note: System will lock this to Airframe Hours: <strong><%= aircraft.total_time_hours %></strong></p>
+
+            <div id="modal-message"></div>
+
+            <div class="modal-actions">
+                <button type="button" onclick="closeModal()">Cancel</button>
+                <button type="submit" class="btn-primary">Finalize Installation</button>
+            </div>
+        </form>
+    </div>
+</div>

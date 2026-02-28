@@ -1,0 +1,47 @@
+<div class="p-4 bg-slate-50 border border-dashed border-slate-300 rounded-lg">
+    <h3 class="text-sm font-black uppercase mb-4 text-slate-700">New Model DNA</h3>
+    <form 
+        hx-post="/library/model" 
+        hx-target="#model-container" 
+        hx-swap="innerHTML"
+        hx-on::after-request="document.getElementById('requirement-container').innerHTML = '<p class=\'text-xs text-slate-400 italic font-medium\'>Select a model to view interval rules.</p>'"
+        class="space-y-4"
+    >
+        
+        <input type="hidden" name="manufacturer_id" value="<%= manufacturer_id %>">
+
+        <div>
+            <label class="block text-[10px] font-black uppercase text-slate-500 mb-1">Model Name</label>
+            <input type="text" name="model_name" class="w-full p-2 border rounded text-sm focus:ring-2 focus:ring-slate-800 outline-none" placeholder="e.g. IO-360-A1A" required>
+        </div>
+        
+        <div class="grid grid-cols-2 gap-2">
+            <div>
+                <label class="block text-[10px] font-black uppercase text-slate-500 mb-1">TBO Hours</label>
+                <input type="number" name="default_tbo_hours" class="w-full p-2 border rounded text-sm" placeholder="2000">
+            </div>
+            <div>
+                <label class="block text-[10px] font-black uppercase text-slate-500 mb-1">TBO Months</label>
+                <input type="number" name="default_tbo_months" class="w-full p-2 border rounded text-sm" placeholder="144">
+            </div>
+        </div>
+
+        <div class="flex items-center gap-2">
+            <input type="checkbox" id="is_life_limited" name="is_life_limited" class="w-4 h-4">
+            <label for="is_life_limited" class="text-[10px] font-black uppercase text-slate-500">Life Limited Component</label>
+        </div>
+
+        <button type="submit" class="w-full bg-slate-900 text-white p-3 rounded font-bold text-xs uppercase tracking-widest hover:bg-blue-600 transition-colors cursor-pointer">
+            Save to Library
+        </button>
+
+        <button 
+            type="button" 
+            hx-get="/library/manufacturer/<%= manufacturer_id %>/models" 
+            hx-target="#model-container"
+            class="w-full text-[10px] font-bold text-slate-400 uppercase mt-2 cursor-pointer border-none bg-transparent hover:text-slate-600 transition-colors"
+        >
+            Cancel
+        </button>
+    </form>
+</div>

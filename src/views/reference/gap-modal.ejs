@@ -1,0 +1,45 @@
+<div id="modal-backdrop" class="fixed inset-0 bg-gray-900/50 backdrop-blur-sm flex items-center justify-center z-50">
+  <div class="bg-white rounded-lg shadow-xl w-full max-w-md p-6 border-t-4 border-blue-600">
+    <div class="flex justify-between items-center mb-4">
+      <h3 class="text-lg font-bold text-gray-800">New <%= tableName.replace('rf_', '').replace('_', ' ') %></h3>
+      <button onclick="document.getElementById('modal-backdrop').remove()" class="text-gray-400 hover:text-gray-600">&times;</button>
+    </div>
+
+    <form hx-post="/reference/<%= tableName %>/gap-create" 
+          hx-swap="none"
+          hx-on::after-request="if(event.detail.successful) document.getElementById('modal-backdrop').remove()">
+      
+      <div class="space-y-4">
+        <div>
+          <label class="block text-xs font-bold text-gray-500 uppercase">Code (Immutable)</label>
+          <input type="text" name="code" required 
+                 class="w-full border rounded p-2 bg-gray-50 focus:ring-2 focus:ring-blue-500 uppercase"
+                 placeholder="E.G. B737_NG">
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-gray-500 uppercase">Label</label>
+          <input type="text" name="label" required 
+                 class="w-full border rounded p-2 focus:ring-2 focus:ring-blue-500"
+                 placeholder="E.G. Boeing 737 Next Gen">
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-gray-500 uppercase">Description</label>
+          <textarea name="description" rows="3" 
+                    class="w-full border rounded p-2 focus:ring-2 focus:ring-blue-500"></textarea>
+        </div>
+      </div>
+
+      <div class="flex justify-end gap-3 mt-6">
+        <button type="button" 
+                onclick="document.getElementById('modal-backdrop').remove()"
+                class="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded">Cancel</button>
+        <button type="submit" 
+                class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 font-bold">
+          Create & Select
+        </button>
+      </div>
+    </form>
+  </div>
+</div>

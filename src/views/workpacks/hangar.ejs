@@ -1,0 +1,77 @@
+<%- include('../partials/header') %>
+
+<main class="space-y-6 p-6 max-w-6xl mx-auto">
+
+  <% if (!user?.roles?.includes('ENGINEER')) { %>
+    <div class="bg-red-100 text-red-700 p-4 rounded">
+      Access Restricted — Engineer Role Required
+    </div>
+  <% } %>
+
+  <% if (user?.roles?.includes('ENGINEER')) { %>
+
+    <h1 class="text-2xl font-bold mb-6">Hangar Floor</h1>
+
+    <% if (activePacks.length === 0) { %>
+      <div class="p-8 text-center border-2 border-dashed rounded text-gray-500">
+        No active workpacks currently in the hangar.
+      </div>
+    <% } %>
+
+    <% activePacks.forEach(wp => { %>
+      <div class="p-4 bg-white border shadow-sm rounded-lg flex justify-between items-center">
+
+        <!-- LEFT SIDE -->
+        <div>
+          <h2 class="text-xl font-bold">
+            <%= wp.work_order_number %> — <%= wp.registration %>
+          </h2>
+
+          <div class="mt-2">
+            <%- include('../partials/status-badge', { status: wp.status_code }) %>
+          </div>
+        </div>
+
+        <!-- RIGHT SIDE ACTIONS -->
+        <div class="flex gap-3 items-center">
+
+          <!-- START WORK -->
+          <% if (wp.status_code === 'ISSUED') { %>
+            <button
+              hx-post="/workpacks/<%= wp.id %>/start"
+              hx-confirm="Confirm starting maintenance on <%= wp.work_order_number %>?"
+              hx-swap="none"
+              class="bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded font-bold transition-colors"
+            >
+              START WORK
+            </button>
+          <% } %>
+
+          <!-- EXECUTION -->
+          <% if (wp.status_code === 'IN_PROGRESS') { %>
+            <a
+              href="/workpacks/<%= wp.id %>/execution"
+              class="inline-block bg-slate-900 hover:bg-black text-white px-6 py-2 rounded font-bold transition-colors"
+            >
+              EXECUTION COCKPIT
+            </a>
+          <% } %>
+
+          <!-- VIEW TASKS (ALWAYS READ-ONLY SAFE) -->
+          <a
+            href="/workpacks/<%= wp.id %>/tasks"
+            class="inline-block bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded font-bold transition-colors"
+          >
+            VIEW TASKS
+          </a>
+
+        </div>
+
+      </div>
+    <% }) %>
+
+  <% } %>
+
+</main>
+
+<%- include('../partials/footer') %>

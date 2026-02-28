@@ -1,0 +1,23 @@
+<div class="modal-backdrop">
+  <div class="modal-content">
+    <h2 class="text-xl mb-4">Edit Reference</h2>
+    <form hx-patch="/reference/<%= tableName %>/<%= item.id %>" hx-swap="none">
+      <div class="mb-4">
+        <label>Code (Immutable)</label>
+        <input type="text" value="<%= item.code %>" disabled class="bg-gray-200 cursor-not-allowed">
+      </div>
+      <div class="mb-4">
+        <label>Label</label>
+        <input type="text" name="label" value="<%= item.label %>" required>
+      </div>
+      <div class="mb-4">
+        <label>Description</label>
+        <textarea name="description"><%= item.description %></textarea>
+      </div>
+      <div class="flex justify-end gap-2">
+        <button type="button" onclick="closeModal()">Cancel</button>
+        <button type="submit" class="btn-primary">Save Changes</button>
+      </div>
+    </form>
+  </div>
+</div>

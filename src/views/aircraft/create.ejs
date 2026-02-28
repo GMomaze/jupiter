@@ -1,0 +1,92 @@
+<%- include('../partials/header') %>
+
+<main class="max-w-3xl mx-auto py-10 px-4">
+
+  <div class="mb-8">
+    <h1 class="text-3xl font-black text-slate-900">Register Aircraft</h1>
+    <p class="text-xs font-bold text-slate-500 uppercase tracking-widest mt-1">
+      Asset Type: AIRFRAME
+    </p>
+  </div>
+
+  <form action="/aircraft" method="POST" class="space-y-6">
+
+    <!-- Registration -->
+    <div>
+      <label class="block text-xs font-bold uppercase text-slate-600 mb-1">
+        Registration
+      </label>
+      <input
+        type="text"
+        name="registration"
+        required
+        class="w-full border border-slate-300 rounded px-3 py-2 text-sm"
+        placeholder="ZS-RGP"
+      />
+    </div>
+
+    <!-- Serial Number -->
+    <div>
+      <label class="block text-xs font-bold uppercase text-slate-600 mb-1">
+        Serial Number
+      </label>
+      <input
+        type="text"
+        name="serial_number"
+        required
+        class="w-full border border-slate-300 rounded px-3 py-2 text-sm"
+      />
+    </div>
+
+    <!-- Manufacturer -->
+    <div>
+      <label class="block text-xs font-bold uppercase text-slate-600 mb-1">
+        Manufacturer
+      </label>
+
+      <select
+        name="manufacturer_id"
+        id="manufacturer-select"
+        class="w-full border border-slate-300 rounded px-3 py-2 text-sm"
+        required
+        hx-get=""
+        hx-target="#model-select"
+        hx-trigger="change"
+        hx-swap="innerHTML"
+        onchange="this.setAttribute('hx-get', '/aircraft/manufacturer/' + this.value + '/models')"
+      >
+        <option value="">Select Manufacturer</option>
+        <% manufacturers.forEach(m => { %>
+          <option value="<%= m.id %>"><%= m.name %></option>
+        <% }) %>
+      </select>
+    </div>
+
+    <!-- Model -->
+    <div>
+      <label class="block text-xs font-bold uppercase text-slate-600 mb-1">
+        Model
+      </label>
+
+      <select
+        id="model-select"
+        name="model_id"
+        class="w-full border border-slate-300 rounded px-3 py-2 text-sm"
+        required
+      >
+        <option value="">Select Model</option>
+      </select>
+    </div>
+
+    <button
+      type="submit"
+      class="bg-slate-800 text-white px-6 py-2 rounded text-sm font-bold hover:bg-slate-700"
+    >
+      Register Aircraft
+    </button>
+
+  </form>
+
+</main>
+
+<%- include('../partials/footer') %>

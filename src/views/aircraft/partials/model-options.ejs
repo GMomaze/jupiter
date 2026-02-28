@@ -1,0 +1,7 @@
+<option value="">Select Model</option>
+
+<% models.forEach(model => { %>
+  <option value="<%= model.id %>">
+    <%= model.model_name %>
+  </option>
+<% }) %>

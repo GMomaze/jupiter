@@ -1,0 +1,62 @@
+<div class="dashboard-container">
+  <h2>🛫 Fleet Maintenance Health</h2>
+
+  <div class="summary-grid" hx-get="/projection/summary" hx-trigger="load, componentChanged from:body">
+    <% summary.forEach(stat => { %>
+      <div class="stat-card status-<%= stat.maintenance_status.toLowerCase() %>">
+        <label><%= stat.maintenance_status %></label>
+        <span class="count"><%= stat.count %></span>
+      </div>
+    <% }) %>
+  </div>
+
+  <hr>
+
+  <table class="admin-table">
+    <thead>
+      <tr>
+        <th>Tail #</th>
+        <th>Component</th>
+        <th>S/N</th>
+        <th>Actual TSO</th>
+        <th>TBO Limit</th>
+        <th>Remaining</th>
+        <th>Status</th>
+      </tr>
+    </thead>
+    <tbody id="due-list-body">
+      <% dueList.forEach(item => { %>
+        <tr>
+          <td><strong><%= item.tail_number %></strong></td>
+          <td><%= item.model_name %> (<%= item.category_name %>)</td>
+          <td><code><%= item.serial_number %></code></td>
+          <td><%= item.current_actual_tso %> hrs</td>
+          <td><%= item.tbo_hours %> hrs</td>
+          <td class="math-cell <%= item.hours_remaining < 50 ? 'text-danger' : '' %>">
+            <%= item.hours_remaining %> hrs
+          </td>
+          <td>
+            <span class="badge badge-<%= item.maintenance_status.toLowerCase() %>">
+              <%= item.maintenance_status %>
+            </span>
+          </td>
+        </tr>
+      <% }) %>
+    </tbody>
+  </table>
+</div>
+
+<style>
+  .stat-card { padding: 1rem; border-radius: 8px; text-align: center; border: 2px solid #ccc; }
+  .status-normal { border-color: #28a745; background: #e8f5e9; }
+  .status-critical { border-color: #ffc107; background: #fff3e0; }
+  .status-expired { border-color: #dc3545; background: #ffebee; }
+  
+  .badge { padding: 4px 8px; border-radius: 4px; font-weight: bold; font-size: 0.8rem; }
+  .badge-normal { background: #28a745; color: white; }
+  .badge-critical { background: #ffc107; color: black; }
+  .badge-expired { background: #dc3545; color: white; }
+  
+  .math-cell { font-family: monospace; font-weight: bold; }
+  .text-danger { color: #dc3545; }
+</style>

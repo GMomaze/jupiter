@@ -1,0 +1,174 @@
+<%- include('../partials/header') %>
+
+<main class="max-w-7xl mx-auto py-10 px-4 sm:px-6 lg:px-8">
+
+  <% if (!user?.roles?.includes('PLANNER')) { %>
+    <div class="bg-red-100 text-red-700 p-4 rounded mb-6">
+      Access Restricted — Planner Role Required
+    </div>
+  <% } %>
+
+  <% if (user?.roles?.includes('PLANNER')) { %>
+
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+
+    <!-- CREATE WORKPACK -->
+    <section class="bg-gray-50 p-4 border rounded shadow-sm">
+      <h2 class="font-bold mb-4 text-slate-700 uppercase text-xs tracking-wider">
+        Create Workpack
+      </h2>
+
+      <form method="POST" action="/workpacks" class="space-y-3">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+
+        <input
+          type="text"
+          name="work_order_number"
+          required
+          class="w-full border p-2 rounded text-sm focus:ring-2 focus:ring-slate-500 outline-none"
+        />
+
+        <select
+          name="aircraft_id"
+          required
+          class="w-full border p-2 rounded text-sm focus:ring-2 focus:ring-slate-500 outline-none"
+        >
+          <option value="">Select Aircraft</option>
+          <% aircraft.forEach(a => { %>
+            <option value="<%= a.id %>"><%= a.registration %></option>
+          <% }) %>
+        </select>
+
+        <button
+          type="submit"
+          class="w-full bg-slate-800 text-white text-xs font-bold py-2 rounded hover:bg-black transition-colors"
+        >
+          CREATE DRAFT WORKPACK
+        </button>
+      </form>
+    </section>
+
+    <!-- UNASSIGNED TASKS -->
+    <section class="bg-gray-50 p-4 border rounded shadow-sm">
+      <h2 class="font-bold mb-4 text-slate-700 uppercase text-xs tracking-wider">
+        Unassigned Tasks
+      </h2>
+
+      <% if (unassignedTasks.length === 0) { %>
+        <p class="text-xs text-slate-500 italic">
+          No unassigned tasks available.
+        </p>
+      <% } %>
+
+      <% unassignedTasks.forEach(task => { %>
+        <div class="bg-white p-3 mb-2 border rounded shadow-sm flex justify-between items-center">
+          <span class="text-sm font-medium text-slate-900">
+            <%= task.title %>
+          </span>
+
+          <!-- ✅ FORM-BASED HTMX SUBMISSION (DETERMINISTIC) -->
+          <form
+            hx-post="/workpacks/<%= task.id %>/add"
+            hx-trigger="change from:select"
+            hx-swap="none"
+            class="inline"
+          >
+            <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+
+            <select
+              name="workpack_id"
+              required
+              class="text-xs border p-1 rounded bg-slate-50 outline-none"
+            >
+              <option value="">Assign to Draft Pack…</option>
+
+              <% workpacks
+                .filter(wp =>
+                  wp.WorkpackStatus.code === 'DRAFT' &&
+                  wp.aircraft_id === task.aircraft_id
+                )
+                .forEach(wp => { %>
+
+                <option value="<%= wp.id %>">
+                  #<%= wp.work_order_number %> (<%= wp.Aircraft.registration %>)
+                </option>
+
+              <% }) %>
+            </select>
+          </form>
+        </div>
+      <% }) %>
+    </section>
+
+    <!-- DRAFT WORKPACKS -->
+    <section class="md:col-span-2 space-y-6 mt-4">
+      <h2 class="font-bold text-slate-700 uppercase text-xs tracking-wider border-b pb-2">
+        Draft Workpacks
+      </h2>
+
+      <% const drafts = workpacks.filter(wp => wp.WorkpackStatus.code === 'DRAFT'); %>
+
+      <% drafts.forEach(wp => { %>
+        <div class="bg-white border rounded-lg p-5 shadow-sm">
+
+          <div class="flex justify-between items-start mb-4">
+            <div>
+              <h3 class="font-black text-xl text-slate-900">
+                #<%= wp.work_order_number %>
+              </h3>
+              <p class="text-xs font-bold text-slate-500 uppercase mt-1">
+                <%= wp.Aircraft.registration %>
+              </p>
+            </div>
+
+            <%- include('../partials/status-badge', { status: wp.WorkpackStatus.code }) %>
+          </div>
+
+          <div class="mt-4 border-t border-b border-slate-50 py-4">
+            <% if (wp.TaskCards?.length > 0) { %>
+              <% wp.TaskCards.forEach(task => { %>
+                <div class="flex justify-between items-center bg-slate-50 p-2 rounded border">
+                  <span class="text-sm text-slate-700">
+                    <%= task.title %>
+                  </span>
+
+                  <button 
+                    hx-post="/workpacks/<%= wp.id %>/<%= task.id %>/remove"
+                    hx-swap="none"
+                    hx-headers='{"x-csrf-token":"<%= csrfToken %>"}'
+                    class="text-[10px] font-bold text-red-500 hover:text-red-700 uppercase"
+                  >
+                    Remove
+                  </button>
+                </div>
+              <% }) %>
+            <% } else { %>
+              <p class="text-xs text-slate-400 italic">
+                No tasks assigned yet.
+              </p>
+            <% } %>
+          </div>
+
+          <div class="mt-6">
+            <form method="POST" action="/workpacks/<%= wp.id %>/issue">
+              <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+              <button
+                type="submit"
+                class="w-full bg-slate-800 text-white text-xs font-bold py-3 rounded hover:bg-black"
+              >
+                ISSUE WORKPACK
+              </button>
+            </form>
+          </div>
+
+        </div>
+      <% }) %>
+    </section>
+
+  </div>
+
+  <% } %>
+
+</main>
+
+<%- include('../partials/footer') %>

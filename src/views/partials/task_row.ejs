@@ -1,0 +1,95 @@
+<div 
+  class="bg-white border rounded-xl p-6 shadow-sm flex justify-between items-center" 
+  id="task-<%= task.id %>"
+>
+
+  <!-- LEFT SIDE -->
+  <div class="flex-1">
+    <div class="flex items-center gap-3 mb-1">
+      <span class="text-xs font-mono px-2 py-0.5 bg-slate-100 rounded text-slate-600">
+        ID: <%= task.id.slice(0,8) %>
+      </span>
+      <h3 class="font-bold text-lg text-slate-800">
+        <%= task.title %>
+      </h3>
+    </div>
+    <p class="text-slate-600 text-sm">
+      <%= task.description %>
+    </p>
+  </div>
+
+  <!-- RIGHT SIDE -->
+  <div class="flex items-center gap-4">
+
+    <!-- STATUS -->
+    <div class="text-right mr-4">
+      <p class="text-[10px] uppercase text-slate-400 font-bold">
+        Status
+      </p>
+
+      <%- include('../partials/status-badge', { status: task.status }) %>
+    </div>
+
+    <!-- ACTIONS -->
+    <div>
+
+      <!-- SIGN (ENGINEER ONLY) -->
+      <% if (
+          task.status === 'OPEN' &&
+          pack?.WorkpackStatus.code === 'IN_PROGRESS' &&
+          user?.roles?.includes('ENGINEER')
+        ) { %>
+
+        <button
+          hx-post="/workpacks/tasks/<%= task.id %>/sign"
+          hx-target="#task-<%= task.id %>"
+          hx-swap="outerHTML"
+          hx-confirm="Confirm signing this task?"
+          class="bg-slate-900 text-white px-4 py-2 rounded font-bold hover:bg-black"
+        >
+          Sign Task
+        </button>
+
+      <!-- LOCK (SUPERVISOR ONLY) -->
+      <% } else if (
+          task.status === 'SIGNED' &&
+          pack?.WorkpackStatus.code === 'IN_PROGRESS' &&
+          user?.roles?.includes('SUPERVISOR')
+        ) { %>
+
+        <button
+          hx-post="/workpacks/tasks/<%= task.id %>/lock"
+          hx-target="#task-<%= task.id %>"
+          hx-swap="outerHTML"
+          hx-confirm="Confirm locking and verifying this task?"
+          class="bg-green-600 text-white px-4 py-2 rounded font-bold hover:bg-green-700"
+        >
+          Lock & Verify
+        </button>
+
+      <!-- LOCKED (FINAL STATE) -->
+      <% } else if (task.status === 'LOCKED') { %>
+
+        <div class="text-green-600">
+          <svg class="w-8 h-8" fill="currentColor" viewBox="0 0 20 20">
+            <path fill-rule="evenodd" 
+              d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" 
+              clip-rule="evenodd">
+            </path>
+          </svg>
+        </div>
+
+      <!-- READ-ONLY (ALL OTHER CASES) -->
+      <% } else { %>
+
+        <span class="text-xs text-slate-400 font-bold uppercase">
+          No Action Available
+        </span>
+
+      <% } %>
+
+    </div>
+
+  </div>
+
+</div>

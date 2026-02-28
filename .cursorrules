@@ -1,0 +1,5 @@
+Category,Instruction for Gemini
+Architecture,"""Follow Modular Monolith patterns. Logic resides in src/modules/<domain>, and UI resides in src/views using EJS/HTMX."""
+Data Flow,"""Use Zod for schema validation and Knex for all PostgreSQL queries. Do not use raw SQL for standard CRUD."""
+UI Pattern,"""Prioritize server-driven UI with HTMX and Alpine.js. Avoid heavy client-side state management."""
+Testing,"""Follow 'Leaf-to-Root' deletion order in tests. Use Vitest for logic and Playwright for E2E flows."""

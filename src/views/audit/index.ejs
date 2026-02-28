@@ -1,0 +1,36 @@
+<section class="audit-viewer">
+  <h2>Immutable System Audit Log</h2>
+
+  <form method="GET" action="/audit" class="filter-bar">
+    <input type="text" name="table" placeholder="Filter by Table" value="<%= filters.table || '' %>">
+    <button type="submit">Filter</button>
+  </form>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Timestamp</th>
+        <th>Actor</th>
+        <th>Table</th>
+        <th>Action</th>
+        <th>Data</th>
+      </tr>
+    </thead>
+    <tbody>
+      <% logs.forEach(log => { %>
+        <tr>
+          <td><%= log.created_at.toLocaleString() %></td>
+          <td><%= log.actor_name || 'System' %></td>
+          <td><code><%= log.table_name %></code></td>
+          <td><span class="badge-<%= log.action.toLowerCase() %>"><%= log.action %></span></td>
+          <td>
+            <details>
+              <summary>View Payload</summary>
+              <pre><%= JSON.stringify({ old: log.old_values, new: log.new_values }, null, 2) %></pre>
+            </details>
+          </td>
+        </tr>
+      <% }) %>
+    </tbody>
+  </table>
+</section>

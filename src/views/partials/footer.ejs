@@ -1,0 +1,23 @@
+<footer class="mt-10 p-6 text-center text-gray-500 text-sm">
+    &copy; 2026 Jupiter Aviation Maintenance Management
+</footer>
+
+<script>
+let inactivityTimer;
+
+function resetTimer() {
+    clearTimeout(inactivityTimer);
+    inactivityTimer = setTimeout(() => {
+        window.location.href = '/logout';
+    }, 30 * 60 * 1000); // 30 min
+}
+
+['click','mousemove','keydown'].forEach(evt =>
+    document.addEventListener(evt, resetTimer)
+);
+
+resetTimer();
+</script>
+
+</body>
+</html>

@@ -1,0 +1,47 @@
+<%- include('../partials/header') %>
+
+<main class="p-6 bg-slate-50 min-h-screen max-w-6xl mx-auto">
+
+  <% if (!user?.roles?.includes('ENGINEER')) { %>
+    <div class="bg-red-100 text-red-700 p-4 rounded mb-6">
+      Access Restricted — Engineer Role Required
+    </div>
+  <% } %>
+
+  <% if (user?.roles?.includes('ENGINEER')) { %>
+
+    <div class="flex justify-between items-center mb-8">
+      <div>
+        <h1 class="text-3xl font-bold text-slate-900">
+          Execution Cockpit
+        </h1>
+        <p class="text-slate-500">
+          WO: <%= pack.work_order_number %> • <%= pack.Aircraft.registration %>
+        </p>
+      </div>
+
+      <%- include('../partials/status-badge', { status: pack.WorkpackStatus.code }) %>
+    </div>
+
+    <div class="grid gap-4">
+      <% tasks.forEach(task => { %>
+        <%- include('../partials/task_row', { task, pack, user }) %>
+      <% }) %>
+    </div>
+
+    <% if (pack.WorkpackStatus.code === 'IN_PROGRESS') { %>
+      <div class="mt-12 border-t pt-8 flex justify-end">
+        <a 
+          href="/workpacks/qa"
+          class="bg-blue-600 text-white px-8 py-3 rounded-lg font-bold hover:bg-blue-700"
+        >
+          Proceed to QA Review →
+        </a>
+      </div>
+    <% } %>
+
+  <% } %>
+
+</main>
+
+<%- include('../partials/footer') %>

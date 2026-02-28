@@ -1,0 +1,75 @@
+<%- include('../partials/header') %>
+
+<main class="max-w-6xl mx-auto py-10 px-6">
+
+  <div class="flex justify-between items-center mb-8">
+    <h1 class="text-3xl font-bold text-gray-900">Fleet</h1>
+
+    <% if (user?.roles?.includes('PLANNER')) { %>
+      <a href="/aircraft/create"
+         class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">
+        + Add Aircraft
+      </a>
+    <% } %>
+  </div>
+
+  <div class="bg-white shadow rounded-lg overflow-hidden">
+    <table class="min-w-full divide-y divide-gray-200">
+
+      <thead class="bg-gray-50">
+        <tr>
+          <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+            Registration
+          </th>
+          <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+            Manufacturer
+          </th>
+          <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+            Model
+          </th>
+          <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+            Serial
+          </th>
+          <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+            Status
+          </th>
+        </tr>
+      </thead>
+
+      <tbody class="bg-white divide-y divide-gray-200">
+
+        <% aircraft.forEach(ac => { %>
+          <tr class="hover:bg-gray-50 cursor-pointer"
+              onclick="window.location='/aircraft/view/<%= ac.id %>'">
+
+            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+              <%= ac.registration %>
+            </td>
+
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
+              <%= ac.ComponentModel?.Manufacturer?.name || '—' %>
+            </td>
+
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
+              <%= ac.ComponentModel?.model_name || '—' %>
+            </td>
+
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
+              <%= ac.serial_number %>
+            </td>
+
+            <td class="px-6 py-4 whitespace-nowrap text-sm">
+              <%- include('../partials/status-badge', { status: ac.status }) %>
+            </td>
+
+          </tr>
+        <% }) %>
+
+      </tbody>
+
+    </table>
+  </div>
+
+</main>
+
+<%- include('../partials/footer') %>

@@ -1,0 +1,25 @@
+<table class="min-w-full border">
+  <thead>
+    <tr>
+      <th>Code</th>
+      <th>Label</th>
+      <th>Status</th>
+      <th>Actions</th>
+    </tr>
+  </thead>
+  <tbody>
+    <% items.forEach(item => { %>
+      <tr>
+        <td><%= item.code %></td>
+        <td><%= item.label %></td>
+        <td><%= item.is_active ? '✅' : '❌' %></td>
+        <td>
+          <% if (!item.system_locked) { %>
+            <button hx-delete="/reference/<%= tableName %>/<%= item.id %>" 
+                    hx-confirm="Deactivate this record?">Deactivate</button>
+          <% } %>
+        </td>
+      </tr>
+    <% }) %>
+  </tbody>
+</table>

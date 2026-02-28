@@ -1,0 +1,22 @@
+<div class="flex flex-col gap-1" id="<%= fieldName %>-container">
+  <label class="font-bold text-xs text-gray-600 uppercase"><%= label %></label>
+  <div class="flex gap-2">
+    <select name="<%= fieldName %>" 
+            id="<%= fieldName %>-select"
+            class="border p-2 flex-grow bg-white"
+            hx-get="/reference/<%= tableName %>/options" 
+            hx-trigger="refresh-<%= tableName %> from:body"
+            hx-target="this">
+      <%- include('./rf-options', { items, selectedId: null }) %>
+    </select>
+
+    <% if (allowCreate) { %>
+      <button type="button" 
+              class="bg-blue-600 hover:bg-blue-700 text-white px-3 rounded text-lg"
+              hx-get="/reference/<%= tableName %>/gap-modal" 
+              hx-target="#modal-container">
+        +
+      </button>
+    <% } %>
+  </div>
+</div>

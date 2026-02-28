@@ -1,0 +1,5 @@
+<% items.forEach(item => { %>
+  <option value="<%= item.id %>" <%= item.id === selectedId ? 'selected' : '' %>>
+    <%= item.label %> (<%= item.code %>)
+  </option>
+<% }) %>

@@ -1,0 +1,35 @@
+<main class="p-6">
+  <h1 class="text-2xl font-bold mb-6">Staff Management</h1>
+
+  <table class="w-full border shadow-sm rounded">
+    <thead>
+      <tr class="bg-gray-100 border-b">
+        <th class="p-3 text-left">Name</th>
+        <th class="p-3 text-left">Email</th>
+        <% allRoles.forEach(role => { %>
+          <th class="p-3 text-center text-xs uppercase"><%= role.label %></th>
+        <% }) %>
+      </tr>
+    </thead>
+    <tbody>
+      <% users.forEach(user => { %>
+        <tr class="border-b hover:bg-gray-50">
+          <td class="p-3 font-semibold"><%= user.full_name %></td>
+          <td class="p-3 text-gray-600"><%= user.email %></td>
+          
+          <% allRoles.forEach(role => { %>
+            <td class="p-3 text-center">
+              <input type="checkbox" 
+                     name="roleId" 
+                     value="<%= role.id %>"
+                     hx-post="/auth/staff/toggle-role"
+                     hx-vals='{"userId": "<%= user.id %>", "roleId": "<%= role.id %>"}'
+                     hx-headers='{"x-csrf-token": "<%= csrfToken %>"}'
+                     <%= user.roles && user.roles.includes(role.code) ? 'checked' : '' %>>
+            </td>
+          <% }) %>
+        </tr>
+      <% }) %>
+    </tbody>
+  </table>
+</main>

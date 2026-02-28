@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Jupiter Maintenance System</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/htmx/1.9.10/htmx.min.js"></script>
+</head>
+
+<body class="bg-gray-100" hx-headers='{"x-csrf-token":"<%= csrfToken %>"}'>
+
+<nav class="bg-slate-800 text-white p-4 shadow-lg">
+    <div class="max-w-7xl mx-auto flex justify-between items-center">
+
+        <!-- LEFT SIDE -->
+        <div class="flex items-center space-x-8">
+            <a href="/" class="font-black text-xl tracking-tighter uppercase hover:text-slate-300">
+                Jupiter
+            </a>
+
+            <div class="space-x-6 text-xs font-bold uppercase tracking-widest">
+                <a href="/library" class="hover:text-slate-300">Library</a>
+                <a href="/aircraft" class="hover:text-slate-300">Fleet</a>
+                <a href="/workpacks" class="hover:text-slate-300">Workpacks</a>
+            </div>
+        </div>
+
+        <!-- RIGHT SIDE (User + Logout) -->
+        <% if (user) { %>
+            <div class="flex items-center space-x-4 text-xs uppercase tracking-widest">
+
+                <span class="text-slate-300">
+                    <%= user.full_name || user.email %>
+                </span>
+
+                <form method="POST" action="/auth/logout">
+                    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                    <button
+                        type="submit"
+                        class="bg-slate-700 hover:bg-slate-600 text-white px-3 py-1 rounded transition duration-200"
+                    >
+                        Logout
+                    </button>
+                </form>
+
+            </div>
+        <% } %>
+
+    </div>
+</nav>

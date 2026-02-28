@@ -1,0 +1,43 @@
+<div class="p-4 bg-blue-50 border border-blue-400 rounded-lg shadow-inner">
+    <h3 class="text-sm font-black uppercase mb-4 text-blue-900 tracking-tight">Edit Maintenance Rule</h3>
+    
+    <form hx-put="/library/requirement/<%= requirement.id %>" 
+          hx-target="#requirement-container" 
+          class="space-y-4">
+        
+        <input type="hidden" name="model_id" value="<%= requirement.model_id %>">
+
+        <div>
+            <label class="block text-[10px] font-black uppercase text-slate-500 mb-1 tracking-widest">Rule Title</label>
+            <input type="text" name="title" value="<%= requirement.title %>" class="w-full p-2 border border-slate-200 rounded text-sm outline-none focus:ring-2 focus:ring-blue-500" required>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+            <div>
+                <label class="block text-[10px] font-black uppercase text-slate-500 mb-1 tracking-widest">Interval (Hours)</label>
+                <input type="number" name="interval_hours" value="<%= requirement.interval_hours %>" class="w-full p-2 border border-slate-200 rounded text-sm outline-none">
+            </div>
+            <div>
+                <label class="block text-[10px] font-black uppercase text-slate-500 mb-1 tracking-widest">Interval (Months)</label>
+                <input type="number" name="interval_months" value="<%= requirement.interval_months %>" class="w-full p-2 border rounded text-sm outline-none">
+            </div>
+        </div>
+
+        <div>
+            <label class="block text-[10px] font-black uppercase text-slate-500 mb-1 tracking-widest">Description</label>
+            <textarea name="description" class="w-full p-2 border border-slate-200 rounded text-sm resize-none outline-none" rows="3"><%= requirement.description %></textarea>
+        </div>
+
+        <div class="flex flex-col gap-2 pt-2">
+            <button type="submit" class="w-full bg-blue-600 text-white py-3 rounded font-black text-xs uppercase tracking-widest hover:bg-slate-900 transition-all cursor-pointer">
+                Update Rule
+            </button>
+            <button type="button" 
+                    hx-get="/library/model/<%= requirement.model_id %>/requirements" 
+                    hx-target="#requirement-container"
+                    class="text-[10px] font-bold text-slate-400 uppercase py-2 cursor-pointer hover:text-slate-600 transition-colors">
+                Cancel
+            </button>
+        </div>
+    </form>
+</div>

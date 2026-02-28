@@ -1,0 +1,23 @@
+<main class="p-6">
+  <div class="flex justify-between items-center mb-4">
+    <h1 class="text-2xl font-bold capitalize">Manage: <%= tableName.replace('rf_', '').replace('_', ' ') %></h1>
+    
+    <% if (ability.can('create', tableName)) { %>
+      <button 
+        hx-get="/reference/<%= tableName %>/new" 
+        hx-target="#modal-container" 
+        class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded shadow transition">
+        Add New
+      </button>
+    <% } %>
+  </div>
+
+  <div id="reference-table" 
+       hx-get="/reference/<%= tableName %>" 
+       hx-trigger="referenceUpdated from:body" 
+       hx-target="this">
+    <%- include('../partials/reference-table-body', { items, tableName }) %>
+  </div>
+</main>
+
+<div id="modal-container"></div>

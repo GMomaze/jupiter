@@ -1,0 +1,130 @@
+<%- include('../partials/header') %>
+
+<main class="max-w-7xl mx-auto py-10 px-4 sm:px-6 lg:px-8">
+  <div class="mb-10">
+    <h1 class="text-4xl font-black text-slate-900 tracking-tight">
+      Maintenance Library
+    </h1>
+    <p class="text-xs font-bold text-slate-500 tracking-[0.2em] uppercase mt-2">
+      Asset Hierarchy & Regulatory Intervals
+    </p>
+  </div>
+
+  <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
+
+    <!-- COLUMN 1: ASSET TYPE -->
+    <section class="bg-slate-50 p-4 border-t-4 border-slate-400 shadow-sm h-fit">
+      <h2 class="font-black mb-4 text-slate-900 uppercase text-[10px] tracking-widest border-b pb-2">
+        1. Asset Type
+      </h2>
+
+      <div class="space-y-2">
+        <% assetTypes.forEach(type => { %>
+          <div 
+            class="asset-card relative p-4 border-2 border-slate-100 rounded-lg shadow-sm hover:border-slate-400 transition-all group cursor-pointer bg-white"
+            data-asset-id="<%= type.id %>"
+            hx-get="/library/asset-type/<%= type.id %>/manufacturers"
+            hx-target="#manufacturer-container"
+            hx-swap="innerHTML"
+          >
+            <h3 class="font-black text-slate-900 uppercase text-sm transition-colors">
+              <%= type.code %>
+            </h3>
+
+            <div class="flex gap-2 mt-2">
+              <span class="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-slate-100 text-slate-600">
+                <%= type.description || '' %>
+              </span>
+            </div>
+          </div>
+        <% }) %>
+      </div>
+    </section>
+
+    <!-- COLUMN 2: OEM -->
+    <section class="bg-white p-4 border-t-4 border-slate-400 shadow-sm h-fit">
+      <h2 class="font-black mb-4 text-slate-900 uppercase text-[10px] tracking-widest border-b pb-2">
+        2. OEM
+      </h2>
+
+      <div id="manufacturer-container" class="min-h-[100px]">
+        <p class="text-xs text-slate-400 italic font-medium">
+          Select an asset type...
+        </p>
+      </div>
+    </section>
+
+    <!-- COLUMN 3: MODEL -->
+    <section class="bg-white p-4 border-t-4 border-slate-300 shadow-sm h-fit">
+      <h2 class="font-black mb-4 text-slate-900 uppercase text-[10px] tracking-widest border-b pb-2">
+        3. Model
+      </h2>
+
+      <div id="model-container" class="min-h-[100px]">
+        <p class="text-xs text-slate-400 italic font-medium">
+          Select an OEM...
+        </p>
+      </div>
+    </section>
+
+    <!-- COLUMN 4: RULES -->
+    <section class="bg-white p-4 border-t-4 border-slate-300 shadow-sm h-fit">
+      <h2 class="font-black mb-4 text-slate-900 uppercase text-[10px] tracking-widest border-b pb-2">
+        4. Rules
+      </h2>
+
+      <div id="requirement-container" class="min-h-[100px]">
+        <p class="text-xs text-slate-400 italic font-medium">
+          Select a model...
+        </p>
+      </div>
+    </section>
+
+  </div>
+</main>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+
+  const assetCards = document.querySelectorAll('.asset-card');
+
+  assetCards.forEach(card => {
+    card.addEventListener('click', function () {
+
+      // Reset all cards
+      assetCards.forEach(c => {
+        c.classList.remove('bg-slate-800','border-slate-800');
+        c.classList.add('bg-white','border-slate-100');
+
+        const t = c.querySelector('h3');
+        if (t) t.classList.remove('text-white');
+      });
+
+      // Highlight selected
+      this.classList.remove('bg-white','border-slate-100');
+      this.classList.add('bg-slate-800','border-slate-800');
+
+      const title = this.querySelector('h3');
+      if (title) title.classList.add('text-white');
+
+      // Reset downstream containers
+      const modelContainer = document.getElementById('model-container');
+      const requirementContainer = document.getElementById('requirement-container');
+
+      if (modelContainer) {
+        modelContainer.innerHTML =
+          '<p class="text-xs text-slate-400 italic font-medium">Select OEM...</p>';
+      }
+
+      if (requirementContainer) {
+        requirementContainer.innerHTML =
+          '<p class="text-xs text-slate-400 italic font-medium">Select model...</p>';
+      }
+
+    });
+  });
+
+});
+</script>
+
+<%- include('../partials/footer') %>

@@ -1,0 +1,47 @@
+<table class="w-full border-collapse">
+  <thead>
+    <tr class="bg-gray-100">
+      <th class="p-2 border text-left">Code</th>
+      <th class="p-2 border text-left">Label</th>
+      <th class="p-2 border text-left">Actions</th>
+    </tr>
+  </thead>
+  <tbody>
+    <% items.forEach(item => { %>
+      <tr class="border-b hover:bg-gray-50 transition">
+        <td class="p-2 font-mono text-sm"><%= item.code %></td>
+        <td class="p-2"><%= item.label %></td>
+        <td class="p-2">
+          <% if (ability.can('update', tableName)) { %>
+            <button hx-get="/reference/<%= tableName %>/<%= item.id %>/edit" 
+                    hx-target="#modal-container" 
+                    class="text-blue-600 hover:underline">
+              Edit
+            </button>
+          <% } %>
+          
+          <% if (!item.system_locked && ability.can('deactivate', tableName)) { %>
+            <button hx-delete="/reference/<%= tableName %>/<%= item.id %>" 
+                    hx-confirm="Are you sure you want to deactivate <%= item.code %>?"
+                    hx-target="closest tr"
+                    hx-swap="outerHTML swap:1s"
+                    class="ml-3 text-red-600 hover:underline">
+              Deactivate
+            </button>
+          <% } %>
+
+          <% if (item.system_locked) { %>
+            <span class="ml-3 text-xs text-gray-400 italic cursor-help" title="System protected record">
+              Locked
+            </span>
+          <% } %>
+        </td>
+      </tr>
+    <% }) %>
+    <% if (items.length === 0) { %>
+      <tr>
+        <td colspan="3" class="p-4 text-center text-gray-500">No active records found.</td>
+      </tr>
+    <% } %>
+  </tbody>
+</table>

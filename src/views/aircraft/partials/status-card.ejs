@@ -1,0 +1,23 @@
+<div class="card p-4 border-l-4 <%= status === 'ACTIVE' ? 'border-green-500' : 'border-blue-500' %>">
+  <p class="text-sm uppercase font-bold text-gray-500">Current Lifecycle State</p>
+  <h3 class="text-2xl font-mono"><%= status %></h3>
+
+  <div class="mt-4 flex gap-2">
+    <% if (status === 'REGISTERED') { %>
+      <button hx-post="/aircraft/<%= id %>/transition" 
+              hx-vals='{"status": "ACTIVE", "reason": "Airworthiness Certificate Issued"}'
+              hx-target="#status-section"
+              class="btn-success">
+        Move to Active
+      </button>
+    <% } else if (status === 'ACTIVE') { %>
+      <button hx-post="/aircraft/<%= id %>/transition" 
+              hx-vals='{"status": "RETIRED", "reason": "End of Life / Salvage"}'
+              hx-confirm="Are you sure? Retirement is permanent."
+              hx-target="#status-section"
+              class="btn-danger">
+        Retire Aircraft
+      </button>
+    <% } %>
+  </div>
+</div>

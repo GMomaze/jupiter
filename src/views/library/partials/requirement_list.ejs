@@ -1,0 +1,69 @@
+<div class="flex justify-between items-center mb-4 border-b border-slate-100 pb-2">
+    <span class="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Interval Rules</span>
+    
+    <button 
+        class="text-[10px] font-bold bg-blue-50 text-blue-700 hover:bg-blue-600 hover:text-white px-2 py-1 rounded transition-all uppercase border border-blue-100 cursor-pointer active:scale-95"
+        hx-get="/library/model/<%= modelId %>/requirement/new"
+        hx-target="#requirement-container"
+        onclick="console.log('>>> [BROWSER] Requesting new form for Model: <%= modelId %>')"
+    >
+        + Add Rule
+    </button>
+</div>
+
+<div class="space-y-3">
+    <% if (requirements && requirements.length > 0) { %>
+        <% requirements.forEach(req => { %>
+            <div class="group relative p-4 bg-white border border-slate-200 rounded-lg shadow-sm hover:border-blue-300 transition-colors">
+                
+                <div class="absolute top-4 right-4 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button 
+                        hx-get="/library/requirement/<%= req.id %>/edit" 
+                        hx-target="#requirement-container"
+                        class="text-[10px] font-black uppercase text-blue-600 hover:underline cursor-pointer"
+                    >
+                        Edit
+                    </button>
+                    <button 
+                        hx-delete="/library/requirement/<%= req.id %>" 
+                        hx-target="#requirement-container"
+                        hx-confirm="Are you sure you want to delete this rule?"
+                        hx-vals='{"model_id": "<%= modelId %>"}'
+                        class="text-[10px] font-black uppercase text-red-600 hover:underline cursor-pointer"
+                    >
+                        Delete
+                    </button>
+                </div>
+
+                <div class="mb-2">
+                    <h4 class="text-sm font-black text-slate-800 uppercase tracking-tight pr-16"><%= req.title %></h4>
+                </div>
+                
+                <div class="flex flex-wrap gap-2 mt-2">
+                    <% if (req.interval_hours) { %>
+                        <div class="flex items-center bg-slate-800 text-white rounded overflow-hidden">
+                            <span class="text-[9px] font-black px-1.5 py-1 bg-slate-600">HRS</span>
+                            <span class="text-[10px] font-bold px-2 py-1"><%= req.interval_hours %></span>
+                        </div>
+                    <% } %>
+                    <% if (req.interval_months) { %>
+                        <div class="flex items-center bg-blue-900 text-white rounded overflow-hidden">
+                            <span class="text-[9px] font-black px-1.5 py-1 bg-blue-700">MON</span>
+                            <span class="text-[10px] font-bold px-2 py-1"><%= req.interval_months %></span>
+                        </div>
+                    <% } %>
+                </div>
+
+                <% if (req.description) { %>
+                    <p class="text-[11px] text-slate-500 mt-3 leading-relaxed border-l-2 border-slate-100 pl-2">
+                        <%= req.description %>
+                    </p>
+                <% } %>
+            </div>
+        <% }) %>
+    <% } else { %>
+        <div class="py-10 text-center border-2 border-dashed border-slate-100 rounded-lg">
+            <p class="text-xs text-slate-400 italic font-medium">No interval rules defined.</p>
+        </div>
+    <% } %>
+</div>

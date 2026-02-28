@@ -1,0 +1,14 @@
+<% logs.forEach(log => { %>
+  <tr>
+    <td><%= new Date(log.created_at).toLocaleString() %></td>
+    <td><code><%= log.table_name %></code></td>
+    <td><strong><%= log.action %></strong></td>
+    <td><%= log.actor_id || 'SYSTEM' %></td>
+    <td>
+      <details>
+        <summary class="text-blue-600 cursor-pointer">View Delta</summary>
+        <pre class="text-xs bg-gray-50 p-2"><%= JSON.stringify({ old: log.old_values, new: log.new_values }, null, 2) %></pre>
+      </details>
+    </td>
+  </tr>
+<% }) %>
