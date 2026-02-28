@@ -2,23 +2,43 @@ name: Jupiter CI
 
 on:
   pull_request:
-    branches: [ main ]
+  push:
+    branches:
+      - main
 
 jobs:
   test:
     runs-on: ubuntu-latest
 
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: jupiter_test
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: jupiter_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U jupiter_test"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
 
-      - name: Setup Node
-        uses: actions/setup-node@v4
+    env:
+      DATABASE_URL: postgres://jupiter_test:postgres@localhost:5432/jupiter_test
+      NODE_ENV: test
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
         with:
           node-version: 20
 
-      - name: Install Dependencies
-        run: npm install
+      - run: npm install
 
-      - name: Run Tests
-        run: npm run test
+      - run: npx knex migrate:latest
+      - run: npx knex seed:run
+
+      - run: npm run test
