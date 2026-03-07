@@ -14,12 +14,13 @@ router.use(ensureAuthenticated);
  */
 router.get('/', async (req, res, next) => {
   try {
+
     const assetTypes = await LibraryService.getAssetTypes();
 
-    // Render existing dashboard view
     res.render('library/dashboard', {
-      assetTypes,
+      assetTypes
     });
+
   } catch (error) {
     next(error);
   }
@@ -27,10 +28,10 @@ router.get('/', async (req, res, next) => {
 
 /**
  * GET /library/asset-type/:id/manufacturers
- * Returns manufacturers filtered by asset type
  */
 router.get('/asset-type/:id/manufacturers', async (req, res, next) => {
   try {
+
     const { id } = req.params;
 
     const manufacturers =
@@ -39,20 +40,65 @@ router.get('/asset-type/:id/manufacturers', async (req, res, next) => {
     res.render('library/partials/manufacturer_list', {
       manufacturers,
       assetTypeId: id,
+      layout: false
     });
+
   } catch (error) {
     next(error);
   }
 });
 
 /**
- * GET /library/manufacturer/:manufacturerId/asset-type/:assetTypeId/models
- * Returns models filtered by manufacturer + asset type
+ * GET /library/asset-type/:assetTypeId/manufacturer/new
+ */
+router.get('/asset-type/:assetTypeId/manufacturer/new', async (req, res, next) => {
+  try {
+
+    const { assetTypeId } = req.params;
+
+    res.render('library/partials/manufacturer_form', {
+      assetTypeId,
+      layout: false
+    });
+
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * POST /library/manufacturer
+ */
+router.post('/manufacturer', requirePermission('LIBRARY_EDIT'), async (req, res, next) => {
+  try {
+
+    const { assetTypeId, name } = req.body;
+
+    await LibraryService.createManufacturer(assetTypeId, name);
+
+    const manufacturers =
+      await LibraryService.getManufacturersByAssetType(assetTypeId);
+
+    res.render('library/partials/manufacturer_list', {
+      manufacturers,
+      assetTypeId,
+      layout: false
+    });
+
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * GET MODELS
  */
 router.get(
   '/manufacturer/:manufacturerId/asset-type/:assetTypeId/models',
   async (req, res, next) => {
+
     try {
+
       const { manufacturerId, assetTypeId } = req.params;
 
       const models =
@@ -63,39 +109,72 @@ router.get(
 
       res.render('library/partials/model_list', {
         models,
+        manufacturerId,
+        assetTypeId,
+        layout: false
       });
+
     } catch (error) {
       next(error);
     }
+
   }
 );
 
 /**
- * GET /library/model/:id
- * Model detail page
+ * GET MODEL RULES
  */
 router.get('/model/:id', async (req, res, next) => {
+
   try {
+
     const { id } = req.params;
 
     const model = await LibraryService.getModelById(id);
     const requirements = await LibraryService.getModelRequirements(id);
 
-    res.render('library/model-detail', {
+    res.render('library/partials/requirement_list', {
       model,
+      modelId: model.id,
       requirements,
+      layout: false
     });
+
   } catch (error) {
     next(error);
   }
+
 });
 
 /**
- * POST /library/model
- * Create new model
+ * GET MODEL EDIT FORM
+ */
+router.get('/model/:id/edit', async (req, res, next) => {
+
+  try {
+
+    const { id } = req.params;
+
+    const model = await LibraryService.getModelById(id);
+
+    res.render('library/partials/model_edit_form', {
+      model,
+      layout: false
+    });
+
+  } catch (error) {
+    next(error);
+  }
+
+});
+
+/**
+ * CREATE MODEL
  */
 router.post('/model', requirePermission('LIBRARY_EDIT'), async (req, res, next) => {
+
   try {
+
     const {
       manufacturer_id,
       asset_type_id,
@@ -109,88 +188,124 @@ router.post('/model', requirePermission('LIBRARY_EDIT'), async (req, res, next) 
       manufacturer_id,
       asset_type_id,
       model_name,
-      default_tbo_hours: default_tbo_hours
-        ? Number(default_tbo_hours)
-        : undefined,
-      default_tbo_months: default_tbo_months
-        ? Number(default_tbo_months)
-        : undefined,
-      is_life_limited: is_life_limited === 'true',
+      default_tbo_hours: default_tbo_hours ? Number(default_tbo_hours) : undefined,
+      default_tbo_months: default_tbo_months ? Number(default_tbo_months) : undefined,
+      is_life_limited: is_life_limited === 'true' || is_life_limited === 'on'
     });
 
     res.redirect('/library');
+
   } catch (error) {
     next(error);
   }
+
 });
 
 /**
- * POST /library/model/:id/update
+ * UPDATE MODEL
  */
 router.post('/model/:id/update', requirePermission('LIBRARY_EDIT'), async (req, res, next) => {
+
   try {
+
     const { id } = req.params;
 
     const {
       model_name,
       default_tbo_hours,
       default_tbo_months,
-      is_life_limited,
+      is_life_limited
     } = req.body;
 
     await LibraryService.updateModel(id, {
       model_name,
-      default_tbo_hours: default_tbo_hours
-        ? Number(default_tbo_hours)
-        : undefined,
-      default_tbo_months: default_tbo_months
-        ? Number(default_tbo_months)
-        : undefined,
-      is_life_limited: is_life_limited === 'true',
+      default_tbo_hours: default_tbo_hours ? Number(default_tbo_hours) : undefined,
+      default_tbo_months: default_tbo_months ? Number(default_tbo_months) : undefined,
+      is_life_limited: is_life_limited === 'true' || is_life_limited === 'on'
     });
 
-    res.redirect(`/library/model/${id}`);
+    const model = await LibraryService.getModelById(id);
+
+    res.render('library/partials/model_edit_form', {
+      model,
+      layout: false
+    });
+
   } catch (error) {
     next(error);
   }
+
 });
 
 /**
- * POST /library/requirement
+ * GET REQUIREMENT EDIT FORM
+ */
+router.get('/requirement/:id/edit', async (req, res, next) => {
+
+  try {
+
+    const { id } = req.params;
+
+    const requirement =
+      await LibraryService.getRequirementById(id);
+
+    res.render('library/partials/requirement_edit_form', {
+      requirement,
+      layout: false
+    });
+
+  } catch (error) {
+    next(error);
+  }
+
+});
+
+/**
+ * CREATE REQUIREMENT
  */
 router.post('/requirement', requirePermission('LIBRARY_EDIT'), async (req, res, next) => {
+
   try {
+
     const {
       model_id,
       title,
       interval_hours,
       interval_months,
-      description,
+      description
     } = req.body;
 
     await LibraryService.createRequirement({
       model_id,
       title,
-      interval_hours: interval_hours
-        ? Number(interval_hours)
-        : undefined,
-      interval_months: interval_months
-        ? Number(interval_months)
-        : undefined,
-      description,
+      interval_hours: interval_hours ? Number(interval_hours) : undefined,
+      interval_months: interval_months ? Number(interval_months) : undefined,
+      description
     });
 
-    res.redirect(`/library/model/${model_id}`);
+    const model = await LibraryService.getModelById(model_id);
+    const requirements = await LibraryService.getModelRequirements(model_id);
+
+    res.render('library/partials/requirement_list', {
+      model,
+      modelId: model_id,
+      requirements,
+      layout: false
+    });
+
   } catch (error) {
     next(error);
   }
+
 });
 
 /**
- * POST /library/requirement/:id/update
+ * UPDATE REQUIREMENT
  */
 router.post('/requirement/:id/update', requirePermission('LIBRARY_EDIT'), async (req, res, next) => {
+
   try {
+
     const { id } = req.params;
 
     const {
@@ -198,40 +313,58 @@ router.post('/requirement/:id/update', requirePermission('LIBRARY_EDIT'), async 
       interval_hours,
       interval_months,
       description,
-      model_id,
+      model_id
     } = req.body;
 
     await LibraryService.updateRequirement(id, {
       title,
-      interval_hours: interval_hours
-        ? Number(interval_hours)
-        : undefined,
-      interval_months: interval_months
-        ? Number(interval_months)
-        : undefined,
-      description,
+      interval_hours: interval_hours ? Number(interval_hours) : undefined,
+      interval_months: interval_months ? Number(interval_months) : undefined,
+      description
     });
 
-    res.redirect(`/library/model/${model_id}`);
+    const model = await LibraryService.getModelById(model_id);
+    const requirements = await LibraryService.getModelRequirements(model_id);
+
+    res.render('library/partials/requirement_list', {
+      model,
+      modelId: model_id,
+      requirements,
+      layout: false
+    });
+
   } catch (error) {
     next(error);
   }
+
 });
 
 /**
- * POST /library/requirement/:id/delete
+ * DELETE REQUIREMENT
  */
 router.post('/requirement/:id/delete', requirePermission('LIBRARY_EDIT'), async (req, res, next) => {
+
   try {
+
     const { id } = req.params;
     const { model_id } = req.body;
 
     await LibraryService.deleteRequirement(id);
 
-    res.redirect(`/library/model/${model_id}`);
+    const model = await LibraryService.getModelById(model_id);
+    const requirements = await LibraryService.getModelRequirements(model_id);
+
+    res.render('library/partials/requirement_list', {
+      model,
+      modelId: model_id,
+      requirements,
+      layout: false
+    });
+
   } catch (error) {
     next(error);
   }
+
 });
 
 export default router;

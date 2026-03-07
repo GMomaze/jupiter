@@ -1,7 +1,7 @@
 <div class="p-4 bg-slate-50 border-2 border-dashed border-slate-300 rounded-lg">
     <h3 class="text-[10px] font-black uppercase mb-4 text-slate-500 tracking-widest">Register New OEM</h3>
     <form hx-post="/library/manufacturer" hx-target="#manufacturer-container" class="space-y-4">
-        <input type="hidden" name="category_id" value="<%= categoryId %>">
+        <input type="hidden" name="assetTypeId" value="<%= assetTypeId %>">
         
         <div>
             <label class="block text-[9px] font-black text-slate-400 uppercase mb-1">Manufacturer Name</label>
@@ -11,7 +11,7 @@
         <div class="flex gap-2">
             <button type="submit" class="flex-1 bg-slate-800 text-white py-2 rounded font-black text-[10px] uppercase cursor-pointer hover:bg-black transition-colors">Save</button>
             <button type="button" 
-                    hx-get="/library/category/<%= categoryId %>/manufacturers" 
+                    hx-get="/library/asset-type/<%= assetTypeId %>/manufacturers" 
                     hx-target="#manufacturer-container"
                     class="flex-1 bg-white border border-slate-200 text-slate-400 py-2 rounded font-black text-[10px] uppercase cursor-pointer">Cancel</button>
         </div>

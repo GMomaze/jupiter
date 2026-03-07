@@ -1,0 +1,30 @@
+<%- include('../partials/header') %>
+
+<main class="max-w-7xl mx-auto py-32 px-4">
+  <div class="max-w-md mx-auto text-center">
+    <div class="mb-8">
+      <span class="inline-block p-6 bg-slate-100 rounded-2xl">
+        <svg class="w-12 h-12 text-slate-900" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 15v2m0 0v3m0-3h3m-3 0H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+      </span>
+    </div>
+
+    <h1 class="text-7xl font-black text-slate-900 tracking-tighter mb-2">403</h1>
+    <p class="text-[10px] font-bold text-slate-500 tracking-[0.3em] uppercase mb-8">
+      Access Restricted
+    </p>
+
+    <div class="bg-white border-2 border-slate-100 p-6 rounded-xl shadow-sm mb-10">
+      <p class="text-sm text-slate-600 leading-relaxed">
+        Your account lacks the <span class="font-mono font-bold text-slate-900 bg-slate-100 px-1.5 py-0.5 rounded"><%= permission %></span> permission required to access this resource.
+      </p>
+    </div>
+
+    <a href="/library" class="inline-block bg-slate-900 text-white px-10 py-4 rounded-lg font-black text-[11px] uppercase tracking-widest hover:bg-black transition-all shadow-lg active:scale-95">
+      Return to Dashboard
+    </a>
+  </div>
+</main>
+
+<%- include('../partials/footer') %>

@@ -18,8 +18,8 @@ import { sequelize } from './models/index.js';
 // Auth & Core Setup
 // ===============================
 import { setupAuth } from './modules/auth/auth.config.js';
-// FIX: Updated to the consolidated middleware file
 import { ensureAuthenticated } from './middleware/auth.middleware.js';
+import { refreshRBAC } from './middleware/rbacRefresh.middleware.js';
 
 // ===============================
 // Domain Routes
@@ -51,6 +51,11 @@ app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
 
 // ===============================
+// Trust proxy
+// ===============================
+app.set('trust proxy', 1);
+
+// ===============================
 // Core Middleware
 // ===============================
 app.use(express.json());
@@ -73,16 +78,20 @@ app.use(
     store: new PgSession({
       pool,
       tableName: 'sessions',
+      createTableIfMissing: true,
       pruneSessionInterval: 60 * 15,
     }),
     name: 'jupiter.sid',
     secret: process.env.SESSION_SECRET || 'jupiter_dev_secret',
     resave: false,
-    saveUninitialized: false,
+    saveUninitialized: true,
     rolling: true,
+    proxy: true,
     cookie: {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
+      secure:
+        process.env.NODE_ENV === 'production' &&
+        process.env.HTTPS === 'true',
       sameSite: 'lax',
       maxAge: 24 * 60 * 60 * 1000,
     },
@@ -90,38 +99,29 @@ app.use(
 );
 
 // ===============================
-// Passport Setup (MUST be before custom health checks)
+// Session Safety Middleware
+// Prevent Passport crash if session missing
+// ===============================
+app.use((req: any, res, next) => {
+  if (!req.session) {
+    console.warn('⚠️ Request without session detected');
+  }
+  next();
+});
+
+// ===============================
+// Passport Setup
 // ===============================
 setupAuth();
+
 app.use(passport.initialize());
 app.use(passport.session());
 
 // ===============================
-// Auto-Destroy Corrupted Sessions
+// RBAC Refresh Middleware
+// Ensures permissions are always fresh
 // ===============================
-app.use((req: any, res, next) => {
-  if (process.env.NODE_ENV === 'test') return next();
-
-  try {
-    if (req.session && req.session.passport && !req.user) {
-      console.warn('⚠️ Invalid passport session detected. Destroying.');
-      return req.session.destroy(() => {
-        res.clearCookie('jupiter.sid');
-        return res.redirect('/auth/login');
-      });
-    }
-    next();
-  } catch (err) {
-    console.warn('⚠️ Session parse failure. Destroying.');
-    if (req.session) {
-      return req.session.destroy(() => {
-        res.clearCookie('jupiter.sid');
-        return res.redirect('/auth/login');
-      });
-    }
-    next();
-  }
-});
+app.use(refreshRBAC);
 
 // ===============================
 // Flash & Timeout
@@ -142,21 +142,24 @@ app.use((req, res, next) => {
   ) {
     return next();
   }
+
   return csrfProtection(req, res, next);
 });
 
 // ===============================
 // res.locals
 // ===============================
-app.use((req, res, next) => {
+app.use((req: any, res, next) => {
   res.locals.messages = req.flash();
   res.locals.user = req.user || null;
+
   res.locals.csrfToken =
     process.env.NODE_ENV === 'test'
       ? 'test-token'
       : typeof req.csrfToken === 'function'
       ? req.csrfToken()
       : null;
+
   next();
 });
 
@@ -194,7 +197,7 @@ app.use('/audit', ensureAuthenticated, auditRoutes);
 app.use('/', mainRouter);
 
 // ===============================
-// HTTPS Enforcement (Production)
+// HTTPS Enforcement
 // ===============================
 if (process.env.NODE_ENV === 'production') {
   app.use((req, res, next) => {
@@ -205,9 +208,11 @@ if (process.env.NODE_ENV === 'production') {
   });
 }
 
-// Log DB User for context
-sequelize.query('SELECT current_user').then(([rows]) => {
-  console.log('DB USER:', rows);
+// ===============================
+// DB Identity Logging
+// ===============================
+sequelize.query('SELECT current_user, session_user').then(([rows]) => {
+  console.log('DB IDENTITY-:', rows);
 });
 
 export default app;

@@ -3,31 +3,31 @@
  * PURPOSE: Seeds the library with a base model and its maintenance requirements.
  */
 
-import { Knex } from 'knex';
+import type { Knex } from 'knex';
 
 export async function seed(knex: Knex): Promise<void> {
   // Clear existing data
   await knex('maintenance_requirements').del();
 
-  // Get a model ID (Boeing 737-800 from 01_reference_seed)
-  const model = await knex('component_models').where('model_name', '737-800').first();
+  // Get a model ID (Cessna from 01_reference_seed)
+  const model = await knex('component_models').where('model_name', '172A').first();
 
   if (model) {
     await knex('maintenance_requirements').insert([
       {
         id: knex.raw('gen_random_uuid()'),
         model_id: model.id,
-        title: 'Weekly Check',
-        interval_hours: 150,
+        title: '50Hr Inspection',
+        interval_hours: 50,
         interval_months: null,
-        description: 'Routine visual inspection of flight controls and tires.'
+        description: 'Oil Change.Routine visual inspection of flight controls and tires.'
       },
       {
         id: knex.raw('gen_random_uuid()'),
         model_id: model.id,
-        title: 'A-Check',
-        interval_hours: 500,
-        interval_months: 6,
+        title: 'MPI',
+        interval_hours: 100,
+        interval_months: 12,
         description: 'Detailed inspection of internal systems and lubrication.'
       }
     ]);

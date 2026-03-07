@@ -39,7 +39,7 @@ async function startServer() {
       'SELECT current_user, session_user'
     );
 
-    console.log('DB IDENTITY:', rows);
+    console.log('DB IDENTITY-:', rows);
   } catch (err) {
     console.error('DB identity check failed:', err);
   }

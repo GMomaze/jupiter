@@ -1,7 +1,7 @@
 <div class="p-4 bg-slate-50 border border-slate-800 rounded-lg shadow-inner">
     <h3 class="text-sm font-black uppercase mb-4 text-slate-900 underline decoration-blue-500">Edit Model DNA</h3>
     
-    <form hx-put="/library/model/<%= model.id %>" 
+    <form hx-post="/library/model/<%= model.id %>/update" 
           hx-target="#model-container" 
           hx-swap="innerHTML"
           class="space-y-4">
@@ -16,30 +16,31 @@
         <div class="grid grid-cols-2 gap-2">
             <div>
                 <label class="block text-[10px] font-bold text-slate-400">Hours TBO</label>
-                <input type="number" name="default_tbo_hours" value="<%= model.default_tbo_hours %>" class="w-full p-2 border rounded text-sm" placeholder="Hours">
+                <input type="number" name="default_tbo_hours" value="<%= model.default_tbo_hours %>" class="w-full p-2 border rounded text-sm">
             </div>
             <div>
                 <label class="block text-[10px] font-bold text-slate-400">Months TBO</label>
-                <input type="number" name="default_tbo_months" value="<%= model.default_tbo_months %>" class="w-full p-2 border rounded text-sm" placeholder="Months">
+                <input type="number" name="default_tbo_months" value="<%= model.default_tbo_months %>" class="w-full p-2 border rounded text-sm">
             </div>
         </div>
 
         <div class="flex items-center gap-2">
-            <input type="checkbox" id="edit_is_life_limited" name="is_life_limited" <%= model.is_life_limited ? 'checked' : '' %> class="w-4 h-4">
-            <label for="edit_is_life_limited" class="text-[10px] font-black uppercase text-slate-500">Life Limited</label>
+            <input type="checkbox" name="is_life_limited" <%= model.is_life_limited ? 'checked' : '' %>>
+            <label class="text-[10px] font-black uppercase text-slate-500">Life Limited</label>
         </div>
 
         <div class="flex gap-2 pt-2">
-            <button type="submit" class="flex-1 bg-slate-900 text-white py-2 rounded font-bold text-xs uppercase hover:bg-blue-600 transition-colors">
+            <button type="submit" class="flex-1 bg-slate-900 text-white py-2 rounded font-bold text-xs uppercase hover:bg-blue-600">
                 Update
             </button>
             
             <button type="button" 
-                    hx-get="/library/manufacturer/<%= model.manufacturer_id %>/models" 
+                    hx-get="/library/manufacturer/<%= model.manufacturer_id %>/asset-type/<%= model.asset_type_id %>/models" 
                     hx-target="#model-container"
-                    class="flex-1 bg-slate-200 text-slate-600 py-2 rounded font-bold text-xs uppercase cursor-pointer">
+                    class="flex-1 bg-slate-200 text-slate-600 py-2 rounded font-bold text-xs uppercase">
                 Cancel
             </button>
         </div>
+
     </form>
 </div>
