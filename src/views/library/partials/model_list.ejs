@@ -1,69 +1,63 @@
 <div class="space-y-2">
+
   <% if (models.length === 0) { %>
-    <p class="text-xs text-slate-500 italic font-medium">No models registered for this manufacturer.</p>
+    <p class="text-xs text-slate-500 italic font-medium">
+      No models registered for this manufacturer.
+    </p>
   <% } %>
 
   <% models.forEach(model => { %>
-    <div 
-      class="model-card relative p-4 border-2 border-slate-100 rounded-lg shadow-sm hover:border-slate-400 transition-all group cursor-pointer bg-white"
-      hx-get="/library/model/<%= model.id %>/requirements"
-      hx-target="#requirement-container"
-      onclick="
-        /* 1. Reset all cards in this column */
-        document.querySelectorAll('.model-card').forEach(c => {
-          c.classList.remove('bg-slate-800', 'border-slate-800');
-          c.classList.add('bg-white', 'border-slate-100');
-          
-          const title = c.querySelector('h3');
-          if(title) title.classList.remove('text-white');
-          
-          const badges = c.querySelectorAll('.tbo-badge');
-          badges.forEach(b => {
-            b.classList.remove('bg-slate-600', 'text-slate-100');
-            b.classList.add('bg-slate-100', 'text-slate-600');
-          });
-        });
 
-        /* 2. Highlight this card */
-        this.classList.remove('bg-white', 'border-slate-100');
-        this.classList.add('bg-slate-800', 'border-slate-800');
-        
-        /* 3. Style text and badges inside active card */
-        const activeTitle = this.querySelector('h3');
-        if(activeTitle) activeTitle.classList.add('text-white');
-        
-        const activeBadges = this.querySelectorAll('.tbo-badge');
-        activeBadges.forEach(b => {
-          b.classList.remove('bg-slate-100', 'text-slate-600');
-          b.classList.add('bg-slate-600', 'text-slate-100');
-        });
-      "
+    <div 
+      class="model-card relative p-4 border-2 border-slate-100 rounded-lg shadow-sm hover:border-slate-400 transition-all cursor-pointer bg-white"
+
+      hx-get="/library/model/<%= model.id %>"
+      hx-target="#requirement-container"
+      hx-swap="innerHTML"
     >
+
       <button 
         class="absolute top-2 right-2 text-slate-300 hover:text-blue-400 cursor-pointer z-20 transition-colors"
         hx-get="/library/model/<%= model.id %>/edit"
         hx-target="#model-container"
-        onclick="event.stopPropagation();"
+        hx-swap="innerHTML"
       >
-        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4"
+          fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round"
+            stroke-width="2"
+            d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 
+               2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 
+               3.732z" />
         </svg>
       </button>
 
       <div>
-        <h3 class="font-black text-slate-900 uppercase text-sm pr-6 transition-colors">
+
+        <h3 class="font-black text-slate-900 uppercase text-sm pr-6">
           <%= model.model_name %>
         </h3>
-        
+
         <div class="flex gap-2 mt-2">
-          <span class="tbo-badge px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-slate-100 text-slate-600 transition-colors">
+
+          <% if (model.default_tbo_hours) { %>
+          <span class="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-slate-100 text-slate-600">
             TBO: <%= model.default_tbo_hours %>h
           </span>
-          <span class="tbo-badge px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-slate-100 text-slate-600 transition-colors">
+          <% } %>
+
+          <% if (model.default_tbo_months) { %>
+          <span class="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-slate-100 text-slate-600">
             <%= model.default_tbo_months %>m
           </span>
+          <% } %>
+
         </div>
+
       </div>
+
     </div>
+
   <% }) %>
+
 </div>

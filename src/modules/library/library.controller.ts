@@ -7,9 +7,9 @@ export class LibraryController {
    */
   static async renderDashboard(req: Request, res: Response) {
     try {
-      console.log('>>> [GET] /library - Loading Dashboard Categories');
-      const categories = await LibraryService.getCategories();
-      res.render('library/dashboard', { categories });
+      console.log('>>> [GET] /library - Loading Dashboard');
+      const assetTypes = await LibraryService.getAssetTypes();
+      res.render('library/dashboard', { assetTypes });
     } catch (error: any) {
       console.error('>>> Dashboard Error:', error.message);
       res.status(500).send(error.message);
@@ -17,13 +17,17 @@ export class LibraryController {
   }
 
   /**
-   * ACTION: API to get manufacturers for a specific category
+   * ACTION: API to get manufacturers for a specific asset type
    */
   static async getManufacturers(req: Request, res: Response) {
     try {
-      const { categoryId } = req.params;
-      const manufacturers = await LibraryService.getManufacturersByCategoryId(categoryId);
-      res.render('library/partials/manufacturer_list', { manufacturers, categoryId, layout: false });
+      const { id } = req.params; // Using 'id' to match the route /asset-type/:id/manufacturers
+      const manufacturers = await LibraryService.getManufacturersByAssetType(id);
+      res.render('library/partials/manufacturer_list', { 
+        manufacturers, 
+        assetTypeId: id, 
+        layout: false 
+      });
     } catch (error: any) {
       console.error('>>> getManufacturers Error:', error.message);
       res.status(500).send(error.message);
@@ -35,9 +39,13 @@ export class LibraryController {
    */
   static async renderManufacturerForm(req: Request, res: Response) {
     try {
-      const { categoryId } = req.params;
-      res.render('library/partials/manufacturer_form', { categoryId, layout: false });
+      const { assetTypeId } = req.params;
+      res.render('library/partials/manufacturer_form', { 
+        assetTypeId, 
+        layout: false 
+      });
     } catch (error: any) {
+      console.error('>>> renderManufacturerForm Error:', error.message);
       res.status(500).send(error.message);
     }
   }
@@ -47,27 +55,17 @@ export class LibraryController {
    */
   static async createManufacturer(req: Request, res: Response) {
     try {
-      const { category_id, name } = req.body;
-      await LibraryService.createManufacturer(category_id, name);
-      const manufacturers = await LibraryService.getManufacturersByCategoryId(category_id);
-      res.render('library/partials/manufacturer_list', { manufacturers, categoryId: category_id, layout: false });
+      const { assetTypeId, name } = req.body;
+      await LibraryService.createManufacturer(assetTypeId, name);
+      const manufacturers = await LibraryService.getManufacturersByAssetType(assetTypeId);
+      res.render('library/partials/manufacturer_list', { 
+        manufacturers, 
+        assetTypeId, 
+        layout: false 
+      });
     } catch (error: any) {
+      console.error('>>> createManufacturer Error:', error.message);
       res.status(500).send(error.message);
-    }
-  }
-
-  /**
-   * ACTION: Delete a manufacturer
-   */
-  static async deleteManufacturer(req: Request, res: Response) {
-    try {
-      const { manufacturerId } = req.params;
-      const { category_id } = req.body;
-      await LibraryService.deleteManufacturer(manufacturerId);
-      const manufacturers = await LibraryService.getManufacturersByCategoryId(category_id);
-      res.render('library/partials/manufacturer_list', { manufacturers, categoryId: category_id, layout: false });
-    } catch (error: any) {
-      res.status(500).send("Cannot delete manufacturer with active models.");
     }
   }
 
@@ -76,10 +74,16 @@ export class LibraryController {
    */
   static async getModels(req: Request, res: Response) {
     try {
-      const { manufacturerId } = req.params;
-      const models = await LibraryService.getModelsByManufacturer(manufacturerId);
-      res.render('library/partials/model_list', { models, layout: false });
+      const { manufacturerId, assetTypeId } = req.params;
+      const models = await LibraryService.getModelsByManufacturerAndAssetType(manufacturerId, assetTypeId);
+      res.render('library/partials/model_list', { 
+        models, 
+        manufacturerId, 
+        assetTypeId, 
+        layout: false 
+      });
     } catch (error: any) {
+      console.error('>>> getModels Error:', error.message);
       res.status(500).send(error.message);
     }
   }
@@ -89,29 +93,15 @@ export class LibraryController {
    */
   static async getRequirements(req: Request, res: Response) {
     try {
-      const { modelId } = req.params;
-      const requirements = await LibraryService.getModelRequirements(modelId);
+      const { id } = req.params;
+      const requirements = await LibraryService.getModelRequirements(id);
       res.render('library/partials/requirement_list', { 
         requirements, 
-        modelId, 
+        modelId: id, 
         layout: false 
       });
     } catch (error: any) {
-      res.status(500).send(error.message);
-    }
-  }
-
-  /**
-   * ACTION: Renders the form to add a new model
-   */
-  static async renderModelForm(req: Request, res: Response) {
-    try {
-      const { manufacturer_id } = req.query;
-      res.render('library/partials/model_form', { 
-        manufacturer_id, 
-        layout: false 
-      });
-    } catch (error: any) {
+      console.error('>>> getRequirements Error:', error.message);
       res.status(500).send(error.message);
     }
   }
@@ -121,30 +111,28 @@ export class LibraryController {
    */
   static async createModel(req: Request, res: Response) {
     try {
-      const { manufacturer_id, model_name, default_tbo_hours, default_tbo_months, is_life_limited } = req.body;
+      const { 
+        manufacturer_id, 
+        asset_type_id, 
+        model_name, 
+        default_tbo_hours, 
+        default_tbo_months, 
+        is_life_limited 
+      } = req.body;
+
       await LibraryService.createModel({
         manufacturer_id,
+        asset_type_id,
         model_name,
-        default_tbo_hours: default_tbo_hours ? parseFloat(default_tbo_hours) : undefined,
-        default_tbo_months: default_tbo_months ? parseInt(default_tbo_months) : undefined,
-        is_life_limited: is_life_limited === 'on'
+        default_tbo_hours: default_tbo_hours ? Number(default_tbo_hours) : undefined,
+        default_tbo_months: default_tbo_months ? Number(default_tbo_months) : undefined,
+        is_life_limited: is_life_limited === 'true' || is_life_limited === 'on'
       });
-      const models = await LibraryService.getModelsByManufacturer(manufacturer_id);
+
+      const models = await LibraryService.getModelsByManufacturerAndAssetType(manufacturer_id, asset_type_id);
       res.render('library/partials/model_list', { models, layout: false });
     } catch (error: any) {
-      res.status(500).send(error.message);
-    }
-  }
-
-  /**
-   * ACTION: Renders the edit form for an existing model
-   */
-  static async renderEditForm(req: Request, res: Response) {
-    try {
-      const { modelId } = req.params;
-      const model = await LibraryService.getModelById(modelId);
-      res.render('library/partials/model_edit_form', { model, layout: false });
-    } catch (error: any) {
+      console.error('>>> createModel Error:', error.message);
       res.status(500).send(error.message);
     }
   }
@@ -154,35 +142,33 @@ export class LibraryController {
    */
   static async updateModel(req: Request, res: Response) {
     try {
-      const { modelId } = req.params;
-      const { manufacturer_id, model_name, default_tbo_hours, default_tbo_months, is_life_limited } = req.body;
-      await LibraryService.updateModel(modelId, {
+      const { id } = req.params;
+      const { 
+        manufacturer_id, 
+        asset_type_id, 
+        model_name, 
+        default_tbo_hours, 
+        default_tbo_months, 
+        is_life_limited 
+      } = req.body;
+
+      await LibraryService.updateModel(id, {
         model_name,
-        default_tbo_hours: default_tbo_hours ? parseFloat(default_tbo_hours) : undefined,
-        default_tbo_months: default_tbo_months ? parseInt(default_tbo_months) : undefined,
-        is_life_limited: is_life_limited === 'on'
+        default_tbo_hours: default_tbo_hours ? Number(default_tbo_hours) : undefined,
+        default_tbo_months: default_tbo_months ? Number(default_tbo_months) : undefined,
+        is_life_limited: is_life_limited === 'true' || is_life_limited === 'on'
       });
-      const models = await LibraryService.getModelsByManufacturer(manufacturer_id);
+
+      const models = await LibraryService.getModelsByManufacturerAndAssetType(manufacturer_id, asset_type_id);
       res.render('library/partials/model_list', { models, layout: false });
     } catch (error: any) {
+      console.error('>>> updateModel Error:', error.message);
       res.status(500).send(error.message);
     }
   }
 
   /**
-   * ACTION: Renders the form to add a new requirement
-   */
-  static async renderRequirementForm(req: Request, res: Response) {
-    try {
-      const { modelId } = req.params;
-      res.render('library/partials/requirement_form', { modelId, layout: false });
-    } catch (error: any) {
-      res.status(500).send(error.message);
-    }
-  }
-
-  /**
-   * ACTION: Create a new maintenance requirement
+   * ACTION: Create a new requirement
    */
   static async createRequirement(req: Request, res: Response) {
     try {
@@ -190,8 +176,8 @@ export class LibraryController {
       await LibraryService.createRequirement({
         model_id,
         title,
-        interval_hours: interval_hours ? parseFloat(interval_hours) : undefined,
-        interval_months: interval_months ? parseInt(interval_months) : undefined,
+        interval_hours: interval_hours ? Number(interval_hours) : undefined,
+        interval_months: interval_months ? Number(interval_months) : undefined,
         description
       });
       const requirements = await LibraryService.getModelRequirements(model_id);
@@ -201,19 +187,7 @@ export class LibraryController {
         layout: false 
       });
     } catch (error: any) {
-      res.status(500).send(error.message);
-    }
-  }
-
-  /**
-   * ACTION: Renders the edit form for a requirement
-   */
-  static async renderRequirementEditForm(req: Request, res: Response) {
-    try {
-      const { requirementId } = req.params;
-      const requirement = await LibraryService.getRequirementById(requirementId);
-      res.render('library/partials/requirement_edit_form', { requirement, layout: false });
-    } catch (error: any) {
+      console.error('>>> createRequirement Error:', error.message);
       res.status(500).send(error.message);
     }
   }
@@ -223,17 +197,22 @@ export class LibraryController {
    */
   static async updateRequirement(req: Request, res: Response) {
     try {
-      const { requirementId } = req.params;
+      const { id } = req.params;
       const { model_id, title, interval_hours, interval_months, description } = req.body;
-      await LibraryService.updateRequirement(requirementId, {
+      await LibraryService.updateRequirement(id, {
         title,
-        interval_hours: interval_hours ? parseFloat(interval_hours) : undefined,
-        interval_months: interval_months ? parseInt(interval_months) : undefined,
+        interval_hours: interval_hours ? Number(interval_hours) : undefined,
+        interval_months: interval_months ? Number(interval_months) : undefined,
         description
       });
       const requirements = await LibraryService.getModelRequirements(model_id);
-      res.render('library/partials/requirement_list', { requirements, modelId: model_id, layout: false });
+      res.render('library/partials/requirement_list', { 
+        requirements, 
+        modelId: model_id, 
+        layout: false 
+      });
     } catch (error: any) {
+      console.error('>>> updateRequirement Error:', error.message);
       res.status(500).send(error.message);
     }
   }
@@ -243,12 +222,17 @@ export class LibraryController {
    */
   static async deleteRequirement(req: Request, res: Response) {
     try {
-      const { requirementId } = req.params;
+      const { id } = req.params;
       const { model_id } = req.body; 
-      await LibraryService.deleteRequirement(requirementId);
+      await LibraryService.deleteRequirement(id);
       const requirements = await LibraryService.getModelRequirements(model_id);
-      res.render('library/partials/requirement_list', { requirements, modelId: model_id, layout: false });
+      res.render('library/partials/requirement_list', { 
+        requirements, 
+        modelId: model_id, 
+        layout: false 
+      });
     } catch (error: any) {
+      console.error('>>> deleteRequirement Error:', error.message);
       res.status(500).send(error.message);
     }
   }

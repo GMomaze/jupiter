@@ -1,20 +1,32 @@
 <div class="space-y-2">
+
   <% if (manufacturers.length === 0) { %>
     <p class="text-xs text-slate-500 italic font-medium">
       No OEMs registered for this asset type.
     </p>
   <% } %>
 
-  <% manufacturers.forEach(m => { %>
-    <div 
-      class="manuf-card relative p-4 border-2 border-slate-100 rounded-lg shadow-sm hover:border-slate-400 transition-all group cursor-pointer bg-white"
-      hx-get="/library/manufacturer/<%= m.id %>/asset-type/<%= assetTypeId %>/models"
+  <% manufacturers.forEach(mfr => { %>
+
+    <div
+      class="manufacturer-card relative p-4 border-2 border-slate-100 rounded-lg shadow-sm hover:border-slate-400 transition-all cursor-pointer bg-white"
+
+      hx-get="/library/manufacturer/<%= mfr.id %>/asset-type/<%= assetTypeId %>/models"
       hx-target="#model-container"
       hx-swap="innerHTML"
+
+      hx-on::before-request="
+        document.getElementById('requirement-container').innerHTML =
+        '<p class=&quot;text-xs text-slate-400 italic font-medium&quot;>Select model...</p>';
+      "
     >
+
       <h3 class="font-black text-slate-900 uppercase text-sm">
-        <%= m.name %>
+        <%= mfr.name %>
       </h3>
+
     </div>
+
   <% }) %>
+
 </div>

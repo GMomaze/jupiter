@@ -1,6 +1,5 @@
 /**
- * PATH: C:\GMO\Projects\jupiter\src\modules\library\library.service.ts
- * PURPOSE: Service for managing the component and requirement library.
+ * PATH: src/modules/library/library.service.ts
  */
 
 import {
@@ -11,68 +10,133 @@ import {
 } from '../../models/index.js';
 
 export class LibraryService {
+
   /**
-   * Fetch all asset types (AIRFRAME, ENGINE, etc.)
+   * Fetch asset types
    */
   static async getAssetTypes() {
+
     return AssetType.findAll({
-      order: [['code', 'ASC']],
+      order: [['code', 'ASC']]
     });
+
   }
 
   /**
-   * Fetch manufacturers that have models for a specific asset type.
+   * Fetch manufacturers filtered by asset type
    */
   static async getManufacturersByAssetType(assetTypeId: string) {
-    return Manufacturer.findAll({
+
+    console.log("LIBRARY:getManufacturersByAssetType", assetTypeId);
+
+    const manufacturers = await Manufacturer.findAll({
+
       include: [
         {
           model: ComponentModel,
-          where: { asset_type_id: assetTypeId },
+          required: true,
           attributes: [],
-        },
+          where: {
+            asset_type_id: assetTypeId
+          }
+        }
       ],
+
       attributes: ['id', 'name'],
+
       order: [['name', 'ASC']],
-      distinct: true,
+
+      group: ['Manufacturer.id']
+
     });
+
+    return manufacturers;
+
   }
 
   /**
-   * Fetch models filtered by manufacturer + asset type.
+   * Create manufacturer
+   */
+  static async createManufacturer(assetTypeId: string, name: string) {
+
+    const manufacturer = await Manufacturer.create({
+      name,
+      code: name.replace(/\s+/g, "_").toUpperCase()
+    });
+
+    /**
+     * Create generic model to link manufacturer to asset type
+     */
+    await ComponentModel.create({
+      manufacturer_id: manufacturer.id,
+      asset_type_id: assetTypeId,
+      model_name: "GENERIC"
+    });
+
+    return manufacturer;
+
+  }
+
+  /**
+   * Delete manufacturer
+   */
+  static async deleteManufacturer(manufacturerId: string) {
+
+    const deleted = await Manufacturer.destroy({
+      where: { id: manufacturerId }
+    });
+
+    return deleted > 0;
+
+  }
+
+  /**
+   * Fetch models filtered by manufacturer and asset type
    */
   static async getModelsByManufacturerAndAssetType(
     manufacturerId: string,
     assetTypeId: string
   ) {
+
     return ComponentModel.findAll({
+
       where: {
         manufacturer_id: manufacturerId,
-        asset_type_id: assetTypeId,
+        asset_type_id: assetTypeId
       },
-      order: [['model_name', 'ASC']],
+
+      order: [['model_name', 'ASC']]
+
     });
+
   }
 
   /**
-   * Fetch single model by ID
+   * Fetch single model
    */
   static async getModelById(id: string) {
+
     return ComponentModel.findByPk(id);
+
   }
 
   /**
-   * Fetch maintenance requirements for a model
+   * Fetch model requirements
    */
   static async getModelRequirements(modelId: string) {
+
     return MaintenanceRequirement.findAll({
+
       where: { model_id: modelId },
-      order: [['interval_hours', 'ASC']],
+
+      order: [['interval_hours', 'ASC']]
+
     });
+
   }
 
   /**
-   * CREATE: Add a new model
+   * Create model
    */
   static async createModel(data: {
     manufacturer_id: string;
@@ -82,18 +146,20 @@ export class LibraryService {
     default_tbo_months?: number;
     is_life_limited?: boolean;
   }) {
+
     return ComponentModel.create({
       manufacturer_id: data.manufacturer_id,
       asset_type_id: data.asset_type_id,
       model_name: data.model_name,
       default_tbo_hours: data.default_tbo_hours ?? null,
       default_tbo_months: data.default_tbo_months ?? null,
-      is_life_limited: data.is_life_limited ?? false,
+      is_life_limited: data.is_life_limited ?? false
     });
+
   }
 
   /**
-   * UPDATE: Update existing model
+   * Update model
    */
   static async updateModel(
     id: string,
@@ -104,21 +170,24 @@ export class LibraryService {
       is_life_limited?: boolean;
     }
   ) {
-    await ComponentModel.update(
-      {
-        model_name: data.model_name,
-        default_tbo_hours: data.default_tbo_hours ?? null,
-        default_tbo_months: data.default_tbo_months ?? null,
-        is_life_limited: data.is_life_limited ?? false,
-      },
-      { where: { id } }
-    );
+
+    await ComponentModel.update({
+
+      model_name: data.model_name,
+      default_tbo_hours: data.default_tbo_hours ?? null,
+      default_tbo_months: data.default_tbo_months ?? null,
+      is_life_limited: data.is_life_limited ?? false
+
+    }, {
+      where: { id }
+    });
 
     return ComponentModel.findByPk(id);
+
   }
 
   /**
-   * CREATE maintenance requirement
+   * Create maintenance requirement
    */
   static async createRequirement(data: {
     model_id: string;
@@ -127,17 +196,21 @@ export class LibraryService {
     interval_months?: number;
     description?: string;
   }) {
+
     return MaintenanceRequirement.create({
+
       model_id: data.model_id,
       title: data.title,
       interval_hours: data.interval_hours ?? null,
       interval_months: data.interval_months ?? null,
-      description: data.description ?? null,
+      description: data.description ?? null
+
     });
+
   }
 
   /**
-   * UPDATE maintenance requirement
+   * Update requirement
    */
   static async updateRequirement(
     id: string,
@@ -148,27 +221,33 @@ export class LibraryService {
       description?: string;
     }
   ) {
-    await MaintenanceRequirement.update(
-      {
-        title: data.title,
-        interval_hours: data.interval_hours ?? null,
-        interval_months: data.interval_months ?? null,
-        description: data.description ?? null,
-      },
-      { where: { id } }
-    );
+
+    await MaintenanceRequirement.update({
+
+      title: data.title,
+      interval_hours: data.interval_hours ?? null,
+      interval_months: data.interval_months ?? null,
+      description: data.description ?? null
+
+    }, {
+      where: { id }
+    });
 
     return MaintenanceRequirement.findByPk(id);
+
   }
 
   /**
-   * DELETE maintenance requirement
+   * Delete requirement
    */
   static async deleteRequirement(id: string) {
+
     const deleted = await MaintenanceRequirement.destroy({
-      where: { id },
+      where: { id }
     });
 
     return deleted > 0;
+
   }
+
 }
