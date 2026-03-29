@@ -7,10 +7,107 @@ import {
   WorkpackStatus,
   Aircraft,
   TaskCard,
+  TaskTemplate,
+  User,
   sequelize
 } from '../../models/index.js';
 
 export class WorkpackController {
+  private static getFriendlyErrorMessage(error: any) {
+    if (error?.message === 'WORKPACK_ALREADY_EXISTS') {
+      return 'A workpack with that work order number already exists.';
+    }
+
+    if (error?.message === 'VALIDATION_FAILED: Aircraft already has DRAFT.') {
+      return 'This aircraft already has a draft workpack.';
+    }
+
+    if (error?.message === 'ONLY_DRAFT_WORKPACKS_CAN_BE_DELETED') {
+      return 'Only draft workpacks can be deleted.';
+    }
+
+    if (error?.name === 'SequelizeUniqueConstraintError') {
+      return 'A workpack with that work order number already exists.';
+    }
+
+    if (error?.message === 'TASK_TEMPLATE_NOT_COMPATIBLE_WITH_AIRCRAFT') {
+      return 'That task template does not match the selected aircraft.';
+    }
+
+    if (error?.message === 'TASK_TEMPLATE_ALREADY_ADDED_TO_WORKPACK') {
+      return 'That task template has already been added to this draft workpack.';
+    }
+
+    return error?.message || 'Something went wrong.';
+  }
+
+  private static respondAfterTaskAction(req: Request, res: Response, task: any) {
+    if (!req.headers['hx-request']) {
+      const returnTo = req.get('referer') || '/workpacks/hangar';
+      return res.redirect(returnTo);
+    }
+
+    return res.set('HX-Refresh', 'true').status(204).send();
+  }
+
+  private static async renderTaskRowResponse(req: Request, res: Response, task: any) {
+    const hydratedTask = await TaskCard.findByPk(task.id, {
+      include: [
+        {
+          model: User,
+          as: 'Assignee',
+          attributes: ['id', 'full_name', 'email']
+        },
+        {
+          model: User,
+          as: 'MechanicCompleter',
+          attributes: ['id', 'full_name', 'email']
+        },
+        {
+          model: User,
+          as: 'EngineerCertifier',
+          attributes: ['id', 'full_name', 'email']
+        }
+      ]
+    });
+
+    const packs = await Workpack.findAll({
+      include: [
+        { model: WorkpackStatus },
+        {
+          model: TaskCard,
+          where: { id: task.id },
+          include: [
+            {
+              model: User,
+              as: 'Assignee',
+              attributes: ['id', 'full_name', 'email']
+            },
+            {
+              model: User,
+              as: 'MechanicCompleter',
+              attributes: ['id', 'full_name', 'email']
+            },
+            {
+              model: User,
+              as: 'EngineerCertifier',
+              attributes: ['id', 'full_name', 'email']
+            }
+          ]
+        }
+      ],
+      order: [['updated_at', 'DESC']]
+    });
+
+    const pack = packs[0] || null;
+
+    return res.render('partials/task_row', {
+      task: hydratedTask || task,
+      pack,
+      user: req.user,
+      layout: false
+    });
+  }
 
   /* ============================================================
      INDEX
@@ -66,9 +163,22 @@ export class WorkpackController {
       order: [['registration', 'ASC']]
     });
 
+    const taskTemplates = await TaskTemplate.findAll({
+      where: { is_active: true },
+      include: [
+        {
+          model: Aircraft,
+          as: 'Aircraft',
+          attributes: ['id', 'registration']
+        }
+      ],
+      order: [['scope', 'ASC'], ['title', 'ASC']]
+    });
+
     res.render('workpacks/planner', {
       workpacks,
       unassignedTasks,
+      taskTemplates,
       aircraft,
       user: req.user
     });
@@ -113,7 +223,26 @@ export class WorkpackController {
       include: [
         { model: WorkpackStatus },
         { model: Aircraft },
-        { model: TaskCard }
+        {
+          model: TaskCard,
+          include: [
+            {
+              model: User,
+              as: 'Assignee',
+              attributes: ['id', 'full_name', 'email']
+            },
+            {
+              model: User,
+              as: 'MechanicCompleter',
+              attributes: ['id', 'full_name', 'email']
+            },
+            {
+              model: User,
+              as: 'EngineerCertifier',
+              attributes: ['id', 'full_name', 'email']
+            }
+          ]
+        }
       ]
     });
 
@@ -121,13 +250,7 @@ export class WorkpackController {
       return res.status(404).send('Workpack not found');
     }
 
-    let tasks = (pack as any).TaskCards || [];
-
-    if (user?.roles?.includes('ENGINEER')) {
-      tasks = tasks.filter((t: any) =>
-        !t.assigned_to || t.assigned_to === user.id
-      );
-    }
+    const tasks = (pack as any).TaskCards || [];
 
     res.render('workpacks/execution', {
       pack,
@@ -186,7 +309,26 @@ export class WorkpackController {
       include: [
         { model: WorkpackStatus },
         { model: Aircraft },
-        { model: TaskCard }
+        {
+          model: TaskCard,
+          include: [
+            {
+              model: User,
+              as: 'Assignee',
+              attributes: ['id', 'full_name', 'email']
+            },
+            {
+              model: User,
+              as: 'MechanicCompleter',
+              attributes: ['id', 'full_name', 'email']
+            },
+            {
+              model: User,
+              as: 'EngineerCertifier',
+              attributes: ['id', 'full_name', 'email']
+            }
+          ]
+        }
       ]
     });
 
@@ -225,7 +367,14 @@ export class WorkpackController {
       res.redirect('/workpacks/planner');
 
     } catch (error: any) {
-      res.status(400).send(error.message);
+      const friendlyMessage = WorkpackController.getFriendlyErrorMessage(error);
+
+      if (req.headers['hx-request']) {
+        return res.status(400).send(friendlyMessage);
+      }
+
+      req.flash('error', friendlyMessage);
+      return res.redirect('/workpacks/planner');
     }
   }
 
@@ -306,21 +455,109 @@ export class WorkpackController {
   static async handleTaskSign(req: Request, res: Response) {
 
     const actorId = (req as any).user?.id;
-    const role = (req as any).user?.roles?.[0];
 
     try {
 
       const task = await WorkpackService.signTask(
         req.params.taskId,
-        actorId,
-        role
+        actorId
       );
 
-      res.render('partials/task_row', {
-        task,
-        user: req.user,
-        layout: false
-      });
+      return this.respondAfterTaskAction(req, res, task);
+
+    } catch (error: any) {
+      res.status(400).send(error.message);
+    }
+  }
+
+  static async handleAddTemplateTask(req: Request, res: Response) {
+
+    const { templateId } = req.params;
+    const { workpack_id } = req.body;
+    const actorId = (req as any).user?.id;
+
+    try {
+      await WorkpackService.addTaskFromTemplate(workpack_id, templateId, actorId);
+      res.setHeader('HX-Refresh', 'true');
+      res.status(200).send();
+    } catch (error: any) {
+      res.status(400).send(WorkpackController.getFriendlyErrorMessage(error));
+    }
+  }
+
+  static async handleDeleteDraft(req: Request, res: Response) {
+
+    const actorId = (req as any).user?.id;
+
+    try {
+      await WorkpackService.deleteDraft(req.params.id, actorId);
+
+      if (req.headers['hx-request']) {
+        return res.set('HX-Refresh', 'true').status(204).send();
+      }
+
+      return res.redirect('/workpacks/planner');
+    } catch (error: any) {
+      const friendlyMessage = WorkpackController.getFriendlyErrorMessage(error);
+
+      if (req.headers['hx-request']) {
+        return res.status(400).send(friendlyMessage);
+      }
+
+      req.flash('error', friendlyMessage);
+      return res.redirect('/workpacks/planner');
+    }
+  }
+
+  static async handleTaskStart(req: Request, res: Response) {
+
+    const actorId = (req as any).user?.id;
+
+    try {
+
+      const task = await WorkpackService.startTask(
+        req.params.taskId,
+        actorId
+      );
+
+      return this.respondAfterTaskAction(req, res, task);
+
+    } catch (error: any) {
+      res.status(400).send(error.message);
+    }
+  }
+
+  static async handleTaskComplete(req: Request, res: Response) {
+
+    const actorId = (req as any).user?.id;
+
+    try {
+
+      const task = await WorkpackService.completeTask(
+        req.params.taskId,
+        actorId
+      );
+
+      return this.respondAfterTaskAction(req, res, task);
+
+    } catch (error: any) {
+      res.status(400).send(error.message);
+    }
+  }
+
+  static async handleTaskWorkNote(req: Request, res: Response) {
+
+    const actorId = (req as any).user?.id;
+
+    try {
+
+      const task = await WorkpackService.saveWorkPerformed(
+        req.params.taskId,
+        req.body.work_performed ?? '',
+        actorId
+      );
+
+      return this.respondAfterTaskAction(req, res, task);
 
     } catch (error: any) {
       res.status(400).send(error.message);
@@ -330,21 +567,15 @@ export class WorkpackController {
   static async handleTaskLock(req: Request, res: Response) {
 
     const actorId = (req as any).user?.id;
-    const role = (req as any).user?.roles?.[0];
 
     try {
 
       const task = await WorkpackService.lockTask(
         req.params.taskId,
-        actorId,
-        role
+        actorId
       );
 
-      res.render('partials/task_row', {
-        task,
-        user: req.user,
-        layout: false
-      });
+      return this.respondAfterTaskAction(req, res, task);
 
     } catch (error: any) {
       res.status(400).send(error.message);

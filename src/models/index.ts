@@ -16,6 +16,7 @@ export { AircraftComponent } from './core/AircraftComponent.js';
 export { WorkpackStatus } from './core/WorkpackStatus.js';
 export { Workpack } from './core/Workpack.js';
 export { TaskCard } from './core/TaskCard.js';
+export { TaskTemplate } from './core/TaskTemplate.js';
 export { WorkpackTask } from './core/WorkpackTask.js';
 export { User } from './core/User.js';
 

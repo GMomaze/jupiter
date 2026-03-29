@@ -2,13 +2,19 @@
 
 <main class="max-w-7xl mx-auto py-10 px-4 sm:px-6 lg:px-8">
 
-  <% if (!user?.roles?.includes('PLANNER')) { %>
+  <% if (messages && messages.error && messages.error.length) { %>
+    <div class="mb-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
+      <%= messages.error[0] %>
+    </div>
+  <% } %>
+
+  <% if (!user?.roles?.some(role => role.code === 'PLANNER')) { %>
     <div class="bg-red-100 text-red-700 p-4 rounded mb-6">
       Access Restricted — Planner Role Required
     </div>
   <% } %>
 
-  <% if (user?.roles?.includes('PLANNER')) { %>
+  <% if (user?.roles?.some(role => role.code === 'PLANNER')) { %>
 
   <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
 
@@ -48,6 +54,87 @@
       </form>
     </section>
 
+    <!-- TASK TEMPLATES -->
+    <section class="bg-gray-50 p-4 border rounded shadow-sm">
+      <h2 class="font-bold mb-4 text-slate-700 uppercase text-xs tracking-wider">
+        Task Templates
+      </h2>
+
+      <% if (!taskTemplates || taskTemplates.length === 0) { %>
+        <p class="text-xs text-slate-500 italic">
+          No task templates available yet.
+        </p>
+      <% } %>
+
+      <% taskTemplates.forEach(template => { %>
+        <div class="bg-white p-3 mb-2 border rounded shadow-sm flex justify-between items-center gap-3">
+          <div>
+            <div class="flex items-center gap-2 mb-1">
+              <span class="text-[10px] font-bold uppercase tracking-wide px-2 py-1 rounded
+                <%= template.scope === 'GLOBAL' ? 'bg-slate-100 text-slate-700' :
+                    template.scope === 'MODEL' ? 'bg-blue-100 text-blue-700' :
+                    'bg-amber-100 text-amber-700' %>">
+                <%= template.scope %>
+              </span>
+              <span class="text-sm font-medium text-slate-900">
+                <%= template.title %>
+              </span>
+            </div>
+
+            <p class="text-xs text-slate-500">
+              <%= template.description %>
+            </p>
+
+            <% if (template.scope === 'AIRCRAFT' && template.Aircraft) { %>
+              <p class="mt-1 text-[11px] text-slate-400">
+                Aircraft-specific: <%= template.Aircraft.registration %>
+              </p>
+            <% } %>
+          </div>
+
+          <form
+            hx-post="/workpacks/templates/<%= template.id %>/add"
+            hx-swap="none"
+            class="flex items-center gap-2"
+          >
+            <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+
+            <select
+              name="workpack_id"
+              required
+              class="text-xs border p-1 rounded bg-slate-50 outline-none"
+            >
+              <option value="">Add to Draft Pack…</option>
+
+              <% workpacks
+                .filter(wp => {
+                  if (wp.WorkpackStatus.code !== 'DRAFT') return false;
+                  if (wp.TaskCards?.some(task => task.template_source_id === template.id)) return false;
+                  if (template.scope === 'GLOBAL') return true;
+                  if (template.scope === 'MODEL') return wp.Aircraft?.model_id === template.aircraft_model_id;
+                  if (template.scope === 'AIRCRAFT') return wp.aircraft_id === template.aircraft_id;
+                  return false;
+                })
+                .forEach(wp => { %>
+
+                <option value="<%= wp.id %>">
+                  #<%= wp.work_order_number %> (<%= wp.Aircraft.registration %>)
+                </option>
+
+              <% }) %>
+            </select>
+
+            <button
+              type="submit"
+              class="rounded bg-slate-800 px-3 py-1 text-[10px] font-bold uppercase tracking-wide text-white hover:bg-black"
+            >
+              Add
+            </button>
+          </form>
+        </div>
+      <% }) %>
+    </section>
+
     <!-- UNASSIGNED TASKS -->
     <section class="bg-gray-50 p-4 border rounded shadow-sm">
       <h2 class="font-bold mb-4 text-slate-700 uppercase text-xs tracking-wider">
@@ -55,9 +142,10 @@
       </h2>
 
       <% if (unassignedTasks.length === 0) { %>
-        <p class="text-xs text-slate-500 italic">
-          No unassigned tasks available.
-        </p>
+        <div class="rounded border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
+          No unassigned tasks are currently available.
+          Existing task cards have likely already been assigned to earlier workpacks, so they cannot be reused automatically here.
+        </div>
       <% } %>
 
       <% unassignedTasks.forEach(task => { %>
@@ -69,9 +157,8 @@
           <!-- ✅ FORM-BASED HTMX SUBMISSION (DETERMINISTIC) -->
           <form
             hx-post="/workpacks/<%= task.id %>/add"
-            hx-trigger="change from:select"
             hx-swap="none"
-            class="inline"
+            class="flex items-center gap-2"
           >
             <input type="hidden" name="_csrf" value="<%= csrfToken %>">
 
@@ -95,6 +182,13 @@
 
               <% }) %>
             </select>
+
+            <button
+              type="submit"
+              class="rounded bg-slate-800 px-3 py-1 text-[10px] font-bold uppercase tracking-wide text-white hover:bg-black"
+            >
+              Add
+            </button>
           </form>
         </div>
       <% }) %>
@@ -150,15 +244,28 @@
           </div>
 
           <div class="mt-6">
-            <form method="POST" action="/workpacks/<%= wp.id %>/issue">
-              <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-              <button
-                type="submit"
-                class="w-full bg-slate-800 text-white text-xs font-bold py-3 rounded hover:bg-black"
-              >
-                ISSUE WORKPACK
-              </button>
-            </form>
+            <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <form method="POST" action="/workpacks/<%= wp.id %>/issue">
+                <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                <button
+                  type="submit"
+                  class="w-full bg-slate-800 text-white text-xs font-bold py-3 rounded hover:bg-black"
+                >
+                  ISSUE WORKPACK
+                </button>
+              </form>
+
+              <form method="POST" action="/workpacks/<%= wp.id %>/delete">
+                <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                <button
+                  type="submit"
+                  onclick="return confirm('Delete this draft workpack and release its tasks back to planning?')"
+                  class="w-full bg-red-50 text-red-700 border border-red-200 text-xs font-bold py-3 rounded hover:bg-red-100"
+                >
+                  DELETE DRAFT
+                </button>
+              </form>
+            </div>
           </div>
 
         </div>

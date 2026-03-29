@@ -3,11 +3,17 @@ import { pool } from '../../config/database.js';
 
 export class PdfService {
   static async generateCRS(workpackId: string): Promise<Buffer> {
-    // 1. Fetch Pack and Aircraft Meta (Using 'total_time_hours' from DNA)
+    // 1. Fetch Pack and Aircraft Meta using normalized aircraft -> component_model
     const { rows: packs } = await pool.query(
-      `SELECT w.*, a.registration, a.model, a.serial_number, a.total_time_hours as release_hours
+      `SELECT
+         w.*,
+         a.registration,
+         a.serial_number,
+         a.total_time_hours as release_hours,
+         cm.model_name as aircraft_model
        FROM workpacks w 
        JOIN aircraft a ON w.aircraft_id = a.id 
+       LEFT JOIN component_models cm ON a.model_id = cm.id
        WHERE w.id = $1`, [workpackId]
     );
 
@@ -17,8 +23,8 @@ export class PdfService {
       `SELECT t.title, t.description, al.actor_id, al.created_at as signed_date
        FROM task_cards t
        JOIN workpack_tasks wt ON t.id = wt.task_id
-       JOIN audit_log al ON al.row_id = t.id::text
-       WHERE wt.workpack_id = $1 AND al.new_values->>'status' = 'LOCKED'
+       JOIN audit_log al ON al.row_id = t.id
+       WHERE wt.workpack_id = $1 AND al.new_values->>'status' = 'CERTIFIED_BY_ENGINEER'
        ORDER BY t.created_at ASC`, 
       [workpackId]
     );
@@ -43,7 +49,7 @@ export class PdfService {
       // Aircraft Block
       doc.moveDown().fontSize(14).text('Aircraft Identification', { underline: true });
       doc.fontSize(12).text(`Registration: ${pack.registration}`);
-      doc.text(`Model: ${pack.model} | S/N: ${pack.serial_number}`);
+      doc.text(`Model: ${pack.aircraft_model || 'Unknown Model'} | S/N: ${pack.serial_number}`);
       doc.text(`Airframe Hours at Release: ${pack.release_hours}`);
 
       // Maintenance Summary
@@ -54,7 +60,7 @@ export class PdfService {
         tasks.forEach((t, i) => {
           doc.moveDown(0.5).fontSize(10).text(`${i+1}. ${t.title}`);
           const signDate = t.signed_date ? new Date(t.signed_date).toLocaleString() : 'N/A';
-          doc.fontSize(8).fillColor('gray').text(`Final QA by: ${t.actor_id} on ${signDate}`).fillColor('black');
+          doc.fontSize(8).fillColor('gray').text(`Engineer certification by: ${t.actor_id} on ${signDate}`).fillColor('black');
         });
       }
 

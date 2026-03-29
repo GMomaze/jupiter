@@ -27,6 +27,10 @@ router.post('/login', (req, res, next) => {
       return res.redirect('/auth/login');
     }
 
+    if (!req.session && (req as any).sessionStore?.generate) {
+      (req as any).sessionStore.generate(req);
+    }
+
     req.login(user, (loginErr) => {
       if (loginErr) return next(loginErr);
 

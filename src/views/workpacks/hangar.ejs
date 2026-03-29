@@ -2,13 +2,13 @@
 
 <main class="space-y-6 p-6 max-w-6xl mx-auto">
 
-  <% if (!user?.roles?.includes('ENGINEER')) { %>
+  <% if (!user?.roles?.some(role => role.code === 'ENGINEER' || role.code === 'MECHANIC')) { %>
     <div class="bg-red-100 text-red-700 p-4 rounded">
-      Access Restricted — Engineer Role Required
+      Access Restricted - Engineer or Mechanic Role Required
     </div>
   <% } %>
 
-  <% if (user?.roles?.includes('ENGINEER')) { %>
+  <% if (user?.roles?.some(role => role.code === 'ENGINEER' || role.code === 'MECHANIC')) { %>
 
     <h1 class="text-2xl font-bold mb-6">Hangar Floor</h1>
 
@@ -20,35 +20,29 @@
 
     <% activePacks.forEach(wp => { %>
       <div class="p-4 bg-white border shadow-sm rounded-lg flex justify-between items-center">
-
-        <!-- LEFT SIDE -->
         <div>
           <h2 class="text-xl font-bold">
-            <%= wp.work_order_number %> — <%= wp.registration %>
+            <%= wp.work_order_number %> - <%= wp.Aircraft?.registration || '' %>
           </h2>
 
           <div class="mt-2">
-            <%- include('../partials/status-badge', { status: wp.status_code }) %>
+            <%- include('../partials/status-badge', { status: wp.WorkpackStatus?.code || '' }) %>
           </div>
         </div>
 
-        <!-- RIGHT SIDE ACTIONS -->
         <div class="flex gap-3 items-center">
-
-          <!-- START WORK -->
-          <% if (wp.status_code === 'ISSUED') { %>
+          <% if (wp.WorkpackStatus?.code === 'ISSUED') { %>
             <button
               hx-post="/workpacks/<%= wp.id %>/start"
-              hx-confirm="Confirm starting maintenance on <%= wp.work_order_number %>?"
+              hx-confirm="Confirm moving <%= wp.work_order_number %> into work?"
               hx-swap="none"
               class="bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded font-bold transition-colors"
             >
-              START WORK
+              ENTER HANGAR
             </button>
           <% } %>
 
-          <!-- EXECUTION -->
-          <% if (wp.status_code === 'IN_PROGRESS') { %>
+          <% if (wp.WorkpackStatus?.code === 'IN_PROGRESS') { %>
             <a
               href="/workpacks/<%= wp.id %>/execution"
               class="inline-block bg-slate-900 hover:bg-black text-white px-6 py-2 rounded font-bold transition-colors"
@@ -57,16 +51,13 @@
             </a>
           <% } %>
 
-          <!-- VIEW TASKS (ALWAYS READ-ONLY SAFE) -->
           <a
             href="/workpacks/<%= wp.id %>/tasks"
             class="inline-block bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded font-bold transition-colors"
           >
             VIEW TASKS
           </a>
-
         </div>
-
       </div>
     <% }) %>
 

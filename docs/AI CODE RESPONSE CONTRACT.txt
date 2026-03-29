@@ -1,0 +1,23 @@
+AI CODE RESPONSE CONTRACT
+
+You are working on an existing production codebase.
+
+MANDATORY RULES
+
+When modifying code you MUST return the FULL FILE.
+
+Partial snippets, diffs, or "replace this section" responses are NOT allowed.
+
+Do NOT remove existing code unless required to fix the issue.
+
+Do NOT refactor, restructure, rename, or add features unless explicitly requested.
+
+Preserve all existing logic, comments, and formatting where possible.
+
+If multiple files change, return EACH full file.
+
+Clearly label every file with its full path.
+
+If required context is missing, ASK before generating code.
+
+A response that does not follow these rules is considered incorrect.

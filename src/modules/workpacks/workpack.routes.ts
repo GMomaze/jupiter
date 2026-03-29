@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { WorkpackController } from './workpack.controller.js';
 import { requireAuth } from '../../middleware/auth.middleware.js';
-import { requireRole } from '../../middleware/rbac.middleware.js';
+import { requireAnyRole, requireRole } from '../../middleware/rbac.middleware.js';
 
 const router = Router();
 
@@ -25,7 +25,7 @@ router.get(
 router.get(
   '/hangar',
   requireAuth,
-  requireRole('ENGINEER'),
+  requireAnyRole('ENGINEER', 'MECHANIC'),
   WorkpackController.renderHangar
 );
 
@@ -39,14 +39,14 @@ router.get(
 router.get(
   '/:id/tasks',
   requireAuth,
-  requireRole('PLANNER'),
+  requireAnyRole('PLANNER', 'ENGINEER', 'MECHANIC'),
   WorkpackController.renderPackTasks
 );
 
 router.get(
   '/:id/execution',
   requireAuth,
-  requireRole('ENGINEER'),
+  requireAnyRole('ENGINEER', 'MECHANIC'),
   WorkpackController.renderExecution
 );
 
@@ -69,10 +69,24 @@ router.post(
 );
 
 router.post(
+  '/templates/:templateId/add',
+  requireAuth,
+  requireRole('PLANNER'),
+  WorkpackController.handleAddTemplateTask
+);
+
+router.post(
   '/:id/:taskId/remove',
   requireAuth,
   requireRole('PLANNER'),
   WorkpackController.handleRemoveTask
+);
+
+router.post(
+  '/:id/delete',
+  requireAuth,
+  requireRole('PLANNER'),
+  WorkpackController.handleDeleteDraft
 );
 
 router.post(
@@ -85,14 +99,35 @@ router.post(
 router.post(
   '/:id/start',
   requireAuth,
-  requireRole('ENGINEER'),
+  requireAnyRole('ENGINEER', 'MECHANIC'),
   WorkpackController.handleStart
+);
+
+router.post(
+  '/tasks/:taskId/start',
+  requireAuth,
+  requireRole('MECHANIC'),
+  WorkpackController.handleTaskStart
+);
+
+router.post(
+  '/tasks/:taskId/complete',
+  requireAuth,
+  requireRole('MECHANIC'),
+  WorkpackController.handleTaskComplete
+);
+
+router.post(
+  '/tasks/:taskId/work-note',
+  requireAuth,
+  requireRole('MECHANIC'),
+  WorkpackController.handleTaskWorkNote
 );
 
 router.post(
   '/:id/close',
   requireAuth,
-  requireRole('SUPERVISOR'),
+  requireRole('ENGINEER'),
   WorkpackController.handleClose
 );
 

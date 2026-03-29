@@ -2,13 +2,13 @@
 
 <main class="p-6 bg-slate-50 min-h-screen max-w-6xl mx-auto">
 
-  <% if (!user?.roles?.includes('ENGINEER')) { %>
+  <% if (!user?.roles?.some(role => role.code === 'ENGINEER' || role.code === 'MECHANIC')) { %>
     <div class="bg-red-100 text-red-700 p-4 rounded mb-6">
-      Access Restricted — Engineer Role Required
+      Access Restricted - Engineer or Mechanic Role Required
     </div>
   <% } %>
 
-  <% if (user?.roles?.includes('ENGINEER')) { %>
+  <% if (user?.roles?.some(role => role.code === 'ENGINEER' || role.code === 'MECHANIC')) { %>
 
     <div class="flex justify-between items-center mb-8">
       <div>
@@ -16,7 +16,7 @@
           Execution Cockpit
         </h1>
         <p class="text-slate-500">
-          WO: <%= pack.work_order_number %> • <%= pack.Aircraft.registration %>
+          WO: <%= pack.work_order_number %> - <%= pack.Aircraft.registration %>
         </p>
       </div>
 
@@ -29,14 +29,50 @@
       <% }) %>
     </div>
 
-    <% if (pack.WorkpackStatus.code === 'IN_PROGRESS') { %>
+    <% if (user?.roles?.some(role => role.code === 'ENGINEER')) { %>
+      <% const allTasksCertified = tasks.length > 0 && tasks.every(task => task.status === 'CERTIFIED_BY_ENGINEER'); %>
       <div class="mt-12 border-t pt-8 flex justify-end">
-        <a 
-          href="/workpacks/qa"
-          class="bg-blue-600 text-white px-8 py-3 rounded-lg font-bold hover:bg-blue-700"
-        >
-          Proceed to QA Review →
-        </a>
+        <% if (pack.WorkpackStatus.code === 'CERTIFIED') { %>
+          <div class="text-right">
+            <p class="text-sm font-semibold text-emerald-700">
+              Workpack already certified
+            </p>
+            <p class="text-sm text-slate-500">
+              This pack has already been engineer closed.
+            </p>
+          </div>
+        <% } else if (pack.WorkpackStatus.code === 'IN_PROGRESS' && allTasksCertified) { %>
+          <form
+            method="POST"
+            action="/workpacks/<%= pack.id %>/close"
+          >
+            <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+            <button
+              type="submit"
+              class="bg-emerald-700 text-white px-8 py-3 rounded-lg font-bold hover:bg-emerald-800"
+            >
+              Close Workpack
+            </button>
+          </form>
+        <% } else if (pack.WorkpackStatus.code === 'IN_PROGRESS') { %>
+          <div class="text-right">
+            <p class="text-sm font-semibold text-slate-700">
+              Engineer close-out is locked
+            </p>
+            <p class="text-sm text-slate-500">
+              Certify every task before the workpack can be closed.
+            </p>
+          </div>
+        <% } else { %>
+          <div class="text-right">
+            <p class="text-sm font-semibold text-slate-700">
+              Close-out unavailable
+            </p>
+            <p class="text-sm text-slate-500">
+              Workpack must be in progress before engineer close-out is available.
+            </p>
+          </div>
+        <% } %>
       </div>
     <% } %>
 

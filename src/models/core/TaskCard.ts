@@ -6,7 +6,13 @@ export class TaskCard extends Model {
   declare title: string;
   declare description: string;
   declare status: string;
+  declare work_performed: string | null;
+  declare template_source_id: string | null;
   declare assigned_to: string | null;
+  declare mechanic_completed_by: string | null;
+  declare mechanic_completed_at: Date | null;
+  declare engineer_certified_by: string | null;
+  declare engineer_certified_at: Date | null;
   declare aircraft_id: string;
   declare component_id: string | null;
   declare version: number;
@@ -28,7 +34,13 @@ TaskCard.init(
       type: DataTypes.STRING,
       defaultValue: 'OPEN',
     },
+    work_performed: DataTypes.TEXT,
+    template_source_id: DataTypes.UUID,
     assigned_to: DataTypes.UUID,
+    mechanic_completed_by: DataTypes.UUID,
+    mechanic_completed_at: DataTypes.DATE,
+    engineer_certified_by: DataTypes.UUID,
+    engineer_certified_at: DataTypes.DATE,
     aircraft_id: {
       type: DataTypes.UUID,
       allowNull: false,

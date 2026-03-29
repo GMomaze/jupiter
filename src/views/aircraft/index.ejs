@@ -5,7 +5,7 @@
   <div class="flex justify-between items-center mb-8">
     <h1 class="text-3xl font-bold text-gray-900">Fleet</h1>
 
-    <% if (user?.roles?.includes('PLANNER')) { %>
+    <% if (user?.roles?.some(role => role.code === 'PLANNER')) { %>
       <a href="/aircraft/create"
          class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">
         + Add Aircraft

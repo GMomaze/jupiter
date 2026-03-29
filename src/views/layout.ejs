@@ -2,13 +2,13 @@
 
 <main class="max-w-7xl mx-auto py-10 px-4 sm:px-6 lg:px-8">
 
-  <% if (!user?.roles?.includes('PLANNER')) { %>
+  <% if (!user?.roles?.some(role => role.code === 'PLANNER')) { %>
     <div class="bg-red-100 text-red-700 p-4 rounded mb-6">
       Access Restricted — Planner Role Required
     </div>
   <% } %>
 
-  <% if (user?.roles?.includes('PLANNER')) { %>
+  <% if (user?.roles?.some(role => role.code === 'PLANNER')) { %>
 
   <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
 

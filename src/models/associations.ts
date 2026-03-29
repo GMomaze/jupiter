@@ -7,6 +7,7 @@ import { AircraftComponent } from './core/AircraftComponent.js';
 import { WorkpackStatus } from './core/WorkpackStatus.js';
 import { Workpack } from './core/Workpack.js';
 import { TaskCard } from './core/TaskCard.js';
+import { TaskTemplate } from './core/TaskTemplate.js';
 import { WorkpackTask } from './core/WorkpackTask.js';
 import { User } from './core/User.js';
 
@@ -31,6 +32,8 @@ ComponentModel.belongsTo(Manufacturer, { foreignKey: 'manufacturer_id' });
 
 Aircraft.belongsTo(ComponentModel, { foreignKey: 'model_id' });
 ComponentModel.hasMany(Aircraft, { foreignKey: 'model_id' });
+TaskTemplate.belongsTo(ComponentModel, { foreignKey: 'aircraft_model_id', as: 'AircraftModel' });
+TaskTemplate.belongsTo(Aircraft, { foreignKey: 'aircraft_id', as: 'Aircraft' });
 
 Aircraft.hasMany(AircraftComponent, {
   foreignKey: 'aircraft_id',
@@ -55,6 +58,10 @@ TaskCard.belongsToMany(Workpack, {
   foreignKey: 'task_id',
   otherKey: 'workpack_id',
 });
+TaskCard.belongsTo(User, { foreignKey: 'assigned_to', as: 'Assignee' });
+User.hasMany(TaskCard, { foreignKey: 'assigned_to', as: 'AssignedTasks' });
+TaskCard.belongsTo(User, { foreignKey: 'mechanic_completed_by', as: 'MechanicCompleter' });
+TaskCard.belongsTo(User, { foreignKey: 'engineer_certified_by', as: 'EngineerCertifier' });
 
 AuditLog.belongsTo(User, { foreignKey: 'actor_id', as: 'actor' });
 User.hasMany(AuditLog, { foreignKey: 'actor_id' });

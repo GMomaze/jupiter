@@ -10,7 +10,13 @@ if (status === 'ISSUED') {
 if (status === 'IN_PROGRESS') {
   color = 'bg-purple-100 text-purple-800';
 }
-if (status === 'CLOSED') {
+if (status === 'COMPLETED_BY_MECHANIC') {
+  color = 'bg-amber-100 text-amber-800';
+}
+if (status === 'CERTIFIED_BY_ENGINEER') {
+  color = 'bg-emerald-100 text-emerald-800';
+}
+if (status === 'CERTIFIED') {
   color = 'bg-green-100 text-green-800';
 }
 %>
