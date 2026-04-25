@@ -387,7 +387,7 @@ Do not start these before Phase 1–9:
     • Rename Jupiter 
     • Advanced dashboards
 
-Phase 10.1 — Large file review
+Phase 10.1 — Controlled file decomposition
 
 Known large files:
 - src/modules/workpacks/workpack.service.ts — 1573 lines
@@ -399,6 +399,35 @@ Known large files:
 - src/modules/library/library.routes.ts — 541 lines
 - src/modules/aircraft/aircraft.service.ts — 539 lines
 - src/modules/aircraft/aircraft.controller.ts — 509 lines
+
+
+Large file cleanup Step 1 — extract measurement.service.ts
+
+Defined ✅
+Implemented ✅
+Verified ✅
+
+Result:
+- Measurement helpers moved safely
+- WorkpackService public API unchanged
+- Measurement behaviour unchanged
+- No unrelated logic changed
+
+
+Large file cleanup Step 2 — extract workpack-audit.service.ts
+
+Defined ✅
+Implemented ✅
+Verified ✅
+
+Result:
+- Audit helpers moved safely
+- WorkpackService public API unchanged
+- Execution audit logging unchanged
+- Snag audit logging unchanged
+- Hash-chain logic unchanged
+- No unrelated logic changed
+
 
 Rule:
 Do not refactor during stabilisation.

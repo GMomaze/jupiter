@@ -20,8 +20,9 @@ import {
   AssetType,
 } from '../../models/index.js';
 import { AuditService } from '../audit/audit.service.js';
+import { MeasurementService } from './services/measurement.service.js';
+import { WorkpackAuditService } from './services/workpack-audit.service.js';
 import { Op } from 'sequelize';
-import { createHash } from 'crypto';
 
 type WorkpackStatusCode =
   | 'DRAFT'
@@ -38,8 +39,8 @@ type TaskStatusCode =
   | 'LOCKED';
 
 export class WorkpackService {
-  private static readonly CAPTURED_VALUES_START = '[Captured Values]';
-  private static readonly CAPTURED_VALUES_END = '[/Captured Values]';
+  private static readonly CAPTURED_VALUES_START = MeasurementService.CAPTURED_VALUES_START;
+  private static readonly CAPTURED_VALUES_END = MeasurementService.CAPTURED_VALUES_END;
 
   private static hasAdminOverride(actorRoles: string[] = []) {
     return actorRoles.includes('ADMIN') || actorRoles.includes('SUPERVISOR');
@@ -112,137 +113,26 @@ export class WorkpackService {
   }
 
   private static getMeasurementDefinitions(description: string | null | undefined) {
-    return Array.from(String(description || '').matchAll(/\[([^\]]*)\]/g)).map((match, index) => {
-      const rawLabel = String(match[1] || '').trim();
-      return {
-        key: `field_${index}`,
-        label: rawLabel || `Value ${index + 1}`,
-        position: index + 1,
-      };
-    });
+    return MeasurementService.getMeasurementDefinitions(description);
   }
 
   private static splitWorkPerformed(workPerformed: string | null | undefined) {
-    const value = String(workPerformed || '').trim();
-    const start = value.indexOf(this.CAPTURED_VALUES_START);
-    const end = value.indexOf(this.CAPTURED_VALUES_END);
-
-    if (start === -1 || end === -1 || end < start) {
-      return { captured: '', note: value };
-    }
-
-    const captured = value
-      .slice(start + this.CAPTURED_VALUES_START.length, end)
-      .trim();
-    const before = value.slice(0, start).trim();
-    const after = value
-      .slice(end + this.CAPTURED_VALUES_END.length)
-      .trim();
-
-    return {
-      captured,
-      note: [before, after].filter(Boolean).join('\n\n').trim(),
-    };
+    return MeasurementService.splitWorkPerformed(workPerformed);
   }
 
   private static extractCleanWorkPerformedNote(workPerformed: string | null | undefined) {
-    return this.splitWorkPerformed(workPerformed).note || null;
+    return MeasurementService.extractCleanWorkPerformedNote(workPerformed);
   }
 
   private static parseCapturedValues(captured: string) {
-    const values = new Map<string, string>();
-
-    captured
-      .split('\n')
-      .map((line) => line.trim())
-      .filter(Boolean)
-      .forEach((line) => {
-        const separatorIndex = line.indexOf(':');
-        if (separatorIndex === -1) {
-          return;
-        }
-
-        const label = line.slice(0, separatorIndex).trim();
-        const value = line.slice(separatorIndex + 1).trim();
-
-        if (!label) {
-          return;
-        }
-
-        values.set(label, value);
-      });
-
-    return values;
+    return MeasurementService.parseCapturedValues(captured);
   }
 
   private static parseStructuredMeasurements(
     taskDescription: string | null | undefined,
     measurementsPayload: unknown
   ) {
-    if (
-      measurementsPayload === undefined ||
-      measurementsPayload === null ||
-      (typeof measurementsPayload === 'string' && measurementsPayload.trim() === '')
-    ) {
-      return null;
-    }
-
-    let parsedPayload: any;
-
-    if (typeof measurementsPayload === 'string') {
-      try {
-        parsedPayload = JSON.parse(measurementsPayload);
-      } catch {
-        return null;
-      }
-    } else {
-      parsedPayload = measurementsPayload;
-    }
-
-    if (!Array.isArray(parsedPayload)) {
-      return null;
-    }
-
-    const definitions = this.getMeasurementDefinitions(taskDescription);
-    const valuesByKey = new Map<string, string | null>();
-    const valuesByLabel = new Map<string, string | null>();
-    const valuesByPosition = new Map<number, string | null>();
-
-    parsedPayload.forEach((entry: any, index: number) => {
-      if (!entry || typeof entry !== 'object') {
-        return;
-      }
-
-      const fieldKey = String(entry.field_key || '').trim();
-      const fieldLabel = String(entry.field_label || '').trim();
-      const rawPosition = Number(entry.position);
-      const value = String(entry.value ?? '').trim() || null;
-
-      if (fieldKey) {
-        valuesByKey.set(fieldKey, value);
-      }
-
-      if (fieldLabel) {
-        valuesByLabel.set(fieldLabel, value);
-      }
-
-      if (Number.isFinite(rawPosition) && rawPosition > 0) {
-        valuesByPosition.set(rawPosition, value);
-      } else {
-        valuesByPosition.set(index + 1, value);
-      }
-    });
-
-    return definitions.map((definition) => ({
-      field_key: definition.key,
-      field_label: definition.label,
-      position: definition.position,
-      value:
-        valuesByKey.get(definition.key) ??
-        valuesByPosition.get(definition.position) ??
-        valuesByLabel.get(definition.label) ??
-        null,
-    }));
+    return MeasurementService.parseStructuredMeasurements(taskDescription, measurementsPayload);
   }
 
   private static buildMeasurementSnapshot(
@@ -250,25 +140,11 @@ export class WorkpackService {
     workPerformed: string | null | undefined,
     measurementsPayload?: unknown
   ) {
-    const structuredMeasurements = this.parseStructuredMeasurements(
+    return MeasurementService.buildMeasurementSnapshot(
       taskDescription,
+      workPerformed,
       measurementsPayload
     );
-
-    if (structuredMeasurements) {
-      return structuredMeasurements;
-    }
-
-    const definitions = this.getMeasurementDefinitions(taskDescription);
-    const { captured } = this.splitWorkPerformed(workPerformed);
-    const capturedValues = this.parseCapturedValues(captured);
-
-    return definitions.map((definition) => ({
-      field_key: definition.key,
-      field_label: definition.label,
-      position: definition.position,
-      value: capturedValues.get(definition.label) || null,
-    }));
   }
 
   private static async syncExecutionMeasurements(
@@ -278,38 +154,12 @@ export class WorkpackService {
     measurementsPayload: unknown,
     transaction: any
   ) {
-    const structuredMeasurements = this.parseStructuredMeasurements(
+    await MeasurementService.syncExecutionMeasurements(
+      executionId,
       taskDescription,
-      measurementsPayload
-    );
-    const definitions = this.getMeasurementDefinitions(taskDescription);
-    const { captured } = this.splitWorkPerformed(workPerformed);
-    const capturedValues = this.parseCapturedValues(captured);
-    const measurementRows = structuredMeasurements || definitions.map((definition) => ({
-      field_key: definition.key,
-      field_label: definition.label,
-      position: definition.position,
-      value: capturedValues.get(definition.label) || null,
-    }));
-
-    await WorkpackMeasurement.destroy({
-      where: { execution_id: executionId },
-      transaction,
-    });
-
-    if (measurementRows.length === 0) {
-      return;
-    }
-
-    await WorkpackMeasurement.bulkCreate(
-      measurementRows.map((definition) => ({
-        execution_id: executionId,
-        field_key: definition.field_key,
-        field_label: definition.field_label,
-        position: definition.position,
-        value: definition.value || null,
-      })),
-      { transaction }
+      workPerformed,
+      measurementsPayload,
+      transaction
     );
   }
 
@@ -367,49 +217,7 @@ export class WorkpackService {
     },
     transaction: any
   ) {
-    const latestEntry = await WorkpackAuditLog.findOne({
-      where: { execution_id: params.executionId },
-      order: [['sequence', 'DESC']],
-      transaction,
-      lock: transaction.LOCK.UPDATE,
-    });
-
-    const sequence = latestEntry ? latestEntry.sequence + 1 : 1;
-    const previousHash = latestEntry?.hash || '';
-    const normalizedOldValue = params.oldValue ?? {};
-    const normalizedNewValue = params.newValue ?? {};
-    const payload = JSON.stringify({
-      execution_id: params.executionId,
-      workpack_id: params.workpackId,
-      task_id: params.taskId,
-      user_id: params.userId || null,
-      action: params.action,
-      field: params.field || null,
-      old_value: normalizedOldValue,
-      new_value: normalizedNewValue,
-      metadata: params.metadata || {},
-      previous_hash: previousHash,
-      sequence,
-    });
-    const hash = createHash('sha256').update(payload).digest('hex');
-
-    await WorkpackAuditLog.create(
-      {
-        execution_id: params.executionId,
-          workpack_id: params.workpackId,
-          task_id: params.taskId,
-          user_id: params.userId ?? null,
-          action: params.action,
-          field: params.field || null,
-          old_value: normalizedOldValue,
-          new_value: normalizedNewValue,
-          metadata: params.metadata || {},
-          previous_hash: previousHash,
-          hash,
-        sequence,
-      },
-      { transaction }
-    );
+    await WorkpackAuditService.appendExecutionAuditEntry(params, transaction);
   }
 
   private static async appendSnagAuditEntry(
@@ -425,47 +233,7 @@ export class WorkpackService {
     },
     transaction: any
   ) {
-    const latestEntry = await WorkpackSnagAuditLog.findOne({
-      where: { snag_id: params.snagId },
-      order: [['sequence', 'DESC']],
-      transaction,
-      lock: transaction.LOCK.UPDATE,
-    });
-
-    const sequence = latestEntry ? latestEntry.sequence + 1 : 1;
-    const previousHash = latestEntry?.hash || '';
-    const normalizedOldValue = params.oldValue ?? {};
-    const normalizedNewValue = params.newValue ?? {};
-    const payload = JSON.stringify({
-      snag_id: params.snagId,
-      workpack_id: params.workpackId,
-      user_id: params.userId || null,
-      action: params.action,
-      field: params.field || null,
-      old_value: normalizedOldValue,
-      new_value: normalizedNewValue,
-      metadata: params.metadata || {},
-      previous_hash: previousHash,
-      sequence,
-    });
-    const hash = createHash('sha256').update(payload).digest('hex');
-
-    await WorkpackSnagAuditLog.create(
-      {
-        snag_id: params.snagId,
-        workpack_id: params.workpackId,
-        user_id: params.userId ?? null,
-        action: params.action,
-        field: params.field || null,
-        old_value: normalizedOldValue,
-        new_value: normalizedNewValue,
-        metadata: params.metadata || {},
-        previous_hash: previousHash,
-        hash,
-        sequence,
-      },
-      { transaction }
-    );
+    await WorkpackAuditService.appendSnagAuditEntry(params, transaction);
   }
 
   private static async getLatestExecution(
