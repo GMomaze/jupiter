@@ -459,6 +459,21 @@ Result:
 
 Large file cleanup Step 5 — extract task-execution.service.ts
 
+Defined ✅
+Implemented ✅
+Verified ✅
+
+Result:
+- Task execution methods moved safely
+- WorkpackService public API unchanged
+- Task lifecycle unchanged
+- Execution model unchanged
+- Measurement handling unchanged
+- Audit/signature behaviour unchanged
+- No unrelated logic changed
+
+
+Large file cleanup Step 6 — extract workpack-planning.service.ts
 
 Rule:
 Do not refactor during stabilisation.
