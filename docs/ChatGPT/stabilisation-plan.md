@@ -443,6 +443,23 @@ Result:
 
 Large file cleanup Step 4 — extract snag.service.ts
 
+Defined ✅
+Implemented ✅
+Verified ✅
+
+Result:
+- Snag methods moved safely
+- WorkpackService public API unchanged
+- Snag lifecycle unchanged
+- No reopen logic added
+- Snag audit still works
+- Workpack close still blocks on open snags
+- No unrelated logic changed
+
+
+Large file cleanup Step 5 — extract task-execution.service.ts
+
+
 Rule:
 Do not refactor during stabilisation.
 Review and split only after Phase 1–9 are complete.

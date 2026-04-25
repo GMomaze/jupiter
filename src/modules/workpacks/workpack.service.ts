@@ -24,6 +24,7 @@ import { MeasurementService } from './services/measurement.service.js';
 import { WorkpackAuditService } from './services/workpack-audit.service.js';
 import { WorkpackExecutionService } from './services/workpack-execution.service.js';
 import { SnagService } from './services/snag.service.js';
+import { TaskExecutionService } from './services/task-execution.service.js';
 import { Op } from 'sequelize';
 
 type WorkpackStatusCode =
@@ -952,78 +953,17 @@ export class WorkpackService {
   ============================================================ */
 
   static async startTask(taskId: string, actorId?: string, actorRoles: string[] = []) {
-
-    this.requireAuth(actorId);
-
-    return sequelize.transaction(async (transaction) => {
-
-      const task = await TaskCard.findByPk(taskId, {
-        transaction,
-        lock: transaction.LOCK.UPDATE
-      });
-
-      if (!task) throw new Error('TASK_NOT_FOUND');
-
-      const { pack, status } = await this.getExecutablePackForTask(taskId, transaction);
-
-      if (status.code === 'ISSUED') {
-        await this.transition(pack, 'IN_PROGRESS', actorId, transaction);
-      }
-
-      if (task.status !== 'OPEN') {
-        throw new Error('TASK_START_BLOCKED');
-      }
-
-      if (!this.canStartTaskAsMechanic(task, actorId, actorRoles)) {
-        throw new Error('TASK_OWNED_BY_ANOTHER_MECHANIC');
-      }
-
-      const execution = await this.ensureExecutionForTask(pack.id, task, actorId, transaction);
-      const previousTaskStatus = task.status;
-      const previousExecutionStatus = execution.status;
-
-      task.status = 'IN_PROGRESS' as TaskStatusCode;
-      task.assigned_to = actorId ?? null;
-      task.version = (task.version || 0) + 1;
-
-      await task.save({ transaction });
-
-      execution.status = 'IN_PROGRESS';
-      execution.started_by = actorId ?? null;
-      execution.started_at = new Date();
-      execution.version = (execution.version || 0) + 1;
-      await execution.save({ transaction });
-
-      await AuditService.log({
-        table_name: 'task_cards',
-        row_id: task.id,
-        action: 'TASK_STARTED',
-        actor_id: actorId ?? null,
-        new_values: { status: 'IN_PROGRESS' }
-      }, transaction);
-      await this.appendExecutionAuditEntry({
-        executionId: execution.id,
-        workpackId: pack.id,
-        taskId: task.id,
-        userId: actorId,
-        action: 'TASK_STARTED',
-        field: 'status',
-        oldValue: {
-          task_status: previousTaskStatus,
-          execution_status: previousExecutionStatus,
-        },
-        newValue: {
-          task_status: task.status,
-          execution_status: execution.status,
-        },
-        metadata: {
-          assigned_to: task.assigned_to,
-          started_at: execution.started_at?.toISOString?.() || execution.started_at || null,
-        },
-      }, transaction);
-
-      return task;
-    });
+    return TaskExecutionService.startTask(
+      taskId,
+      actorId,
+      actorRoles,
+      sequelize,
+      this.requireAuth.bind(this),
+      this.canStartTaskAsMechanic.bind(this),
+      this.getExecutablePackForTask.bind(this),
+      this.transition.bind(this),
+      this.ensureExecutionForTask.bind(this)
+    );
   }
 
   /* ============================================================
@@ -1037,120 +977,19 @@ export class WorkpackService {
     workPerformed?: string,
     measurementsPayload?: unknown
   ) {
-
-    this.requireAuth(actorId);
-
-    return sequelize.transaction(async (transaction) => {
-
-      const task = await TaskCard.findByPk(taskId, {
-        transaction,
-        lock: transaction.LOCK.UPDATE
-      });
-
-      if (!task) throw new Error('TASK_NOT_FOUND');
-
-      const { pack, status } = await this.getExecutablePackForTask(taskId, transaction);
-
-      if (status.code === 'ISSUED') {
-        await this.transition(pack, 'IN_PROGRESS', actorId, transaction);
-      }
-
-      if (!['IN_PROGRESS'].includes(task.status)) {
-        throw new Error('TASK_COMPLETE_BLOCKED');
-      }
-
-      if (!this.canEditTaskAsMechanic(task, actorId, actorRoles)) {
-        throw new Error('TASK_OWNED_BY_ANOTHER_MECHANIC');
-      }
-
-      const execution = await this.ensureExecutionForTask(pack.id, task, actorId, transaction);
-      const previousTaskStatus = task.status;
-      const previousExecutionStatus = execution.status;
-      const submittedWorkPerformed = workPerformed?.trim() || task.work_performed || null;
-      const nextWorkPerformed = this.extractCleanWorkPerformedNote(submittedWorkPerformed);
-
-      task.work_performed = nextWorkPerformed;
-
-      task.status = 'COMPLETED_BY_MECHANIC' as TaskStatusCode;
-      task.assigned_to = actorId ?? null;
-      (task as any).mechanic_completed_by = actorId ?? null;
-      (task as any).mechanic_completed_at = new Date();
-      task.version = (task.version || 0) + 1;
-
-      await task.save({ transaction });
-
-      if (!execution.started_at) {
-        execution.started_at = new Date();
-      }
-      if (!execution.started_by) {
-        execution.started_by = actorId ?? null;
-      }
-      execution.status = 'COMPLETED_BY_MECHANIC';
-      execution.completed_by = actorId ?? null;
-      execution.completed_at = new Date();
-      execution.version = (execution.version || 0) + 1;
-      await execution.save({ transaction });
-      await this.syncExecutionMeasurements(
-        execution.id,
-        task.description,
-        submittedWorkPerformed,
-        measurementsPayload,
-        transaction
-      );
-      await this.recordExecutionSignature(
-        execution.id,
-        'MECHANIC',
-        'WORK',
-        actorId,
-        transaction
-      );
-
-      await AuditService.log({
-        table_name: 'task_cards',
-        row_id: task.id,
-        action: 'TASK_COMPLETED_BY_MECHANIC',
-        actor_id: actorId ?? null,
-        new_values: { status: 'COMPLETED_BY_MECHANIC' }
-      }, transaction);
-      await this.appendExecutionAuditEntry({
-        executionId: execution.id,
-        workpackId: pack.id,
-        taskId: task.id,
-        userId: actorId,
-        action: 'TASK_COMPLETED_BY_MECHANIC',
-        field: 'status',
-        oldValue: {
-          task_status: previousTaskStatus,
-          execution_status: previousExecutionStatus,
-        },
-        newValue: {
-          task_status: task.status,
-          execution_status: execution.status,
-        },
-        metadata: {
-          completed_at: execution.completed_at?.toISOString?.() || execution.completed_at || null,
-        },
-      }, transaction);
-      await this.appendExecutionAuditEntry({
-        executionId: execution.id,
-        workpackId: pack.id,
-        taskId: task.id,
-        userId: actorId,
-        action: 'SIGNATURE_RECORDED',
-        field: 'mechanic_signature',
-        oldValue: null,
-        newValue: {
-          role: 'MECHANIC',
-          signature_type: 'WORK',
-          user_id: actorId ?? null,
-        },
-        metadata: {
-          signed_at: new Date().toISOString(),
-        },
-      }, transaction);
-
-      return task;
-    });
+    return TaskExecutionService.completeTask(
+      taskId,
+      actorId,
+      actorRoles,
+      workPerformed,
+      measurementsPayload,
+      sequelize,
+      this.requireAuth.bind(this),
+      this.canEditTaskAsMechanic.bind(this),
+      this.getExecutablePackForTask.bind(this),
+      this.transition.bind(this),
+      this.ensureExecutionForTask.bind(this)
+    );
   }
 
   /* ============================================================
@@ -1158,106 +997,14 @@ export class WorkpackService {
   ============================================================ */
 
   static async signTask(taskId: string, actorId?: string) {
-
-    this.requireAuth(actorId);
-
-    return sequelize.transaction(async (transaction) => {
-
-      const task = await TaskCard.findByPk(taskId, {
-        transaction,
-        lock: transaction.LOCK.UPDATE
-      });
-
-      if (!task) throw new Error('TASK_NOT_FOUND');
-
-      const { pack } = await this.getExecutablePackForTask(taskId, transaction);
-
-      if (task.status !== 'COMPLETED_BY_MECHANIC') {
-        throw new Error('TASK_CERTIFY_BLOCKED');
-      }
-
-      const execution = await this.ensureExecutionForTask(pack.id, task, actorId, transaction);
-      const previousTaskStatus = task.status;
-      const previousExecutionStatus = execution.status;
-
-      task.status = 'CERTIFIED_BY_ENGINEER' as TaskStatusCode;
-      (task as any).engineer_certified_by = actorId ?? null;
-      (task as any).engineer_certified_at = new Date();
-      task.version = (task.version || 0) + 1;
-
-      await task.save({ transaction });
-
-      if (!execution.started_at) {
-        execution.started_at = new Date();
-      }
-      if (!execution.completed_at) {
-        execution.completed_at = new Date();
-      }
-      if (!execution.started_by) {
-        execution.started_by = (task as any).assigned_to || actorId || null;
-      }
-      if (!execution.completed_by) {
-        execution.completed_by = (task as any).mechanic_completed_by || actorId || null;
-      }
-      execution.status = 'CERTIFIED_BY_ENGINEER';
-      execution.certified_by = actorId ?? null;
-      execution.certified_at = new Date();
-      execution.version = (execution.version || 0) + 1;
-      await execution.save({ transaction });
-      await this.recordExecutionSignature(
-        execution.id,
-        'ENGINEER',
-        'APPROVAL',
-        actorId,
-        transaction
-      );
-
-      await AuditService.log({
-        table_name: 'task_cards',
-        row_id: task.id,
-        action: 'TASK_CERTIFIED_BY_ENGINEER',
-        actor_id: actorId ?? null,
-        new_values: { status: 'CERTIFIED_BY_ENGINEER' }
-      }, transaction);
-      await this.appendExecutionAuditEntry({
-        executionId: execution.id,
-        workpackId: pack.id,
-        taskId: task.id,
-        userId: actorId,
-        action: 'TASK_CERTIFIED_BY_ENGINEER',
-        field: 'status',
-        oldValue: {
-          task_status: previousTaskStatus,
-          execution_status: previousExecutionStatus,
-        },
-        newValue: {
-          task_status: task.status,
-          execution_status: execution.status,
-        },
-        metadata: {
-          certified_at: execution.certified_at?.toISOString?.() || execution.certified_at || null,
-        },
-      }, transaction);
-      await this.appendExecutionAuditEntry({
-        executionId: execution.id,
-        workpackId: pack.id,
-        taskId: task.id,
-        userId: actorId,
-        action: 'SIGNATURE_RECORDED',
-        field: 'engineer_signature',
-        oldValue: null,
-        newValue: {
-          role: 'ENGINEER',
-          signature_type: 'APPROVAL',
-          user_id: actorId ?? null,
-        },
-        metadata: {
-          signed_at: new Date().toISOString(),
-        },
-      }, transaction);
-
-      return task;
-    });
+    return TaskExecutionService.signTask(
+      taskId,
+      actorId,
+      sequelize,
+      this.requireAuth.bind(this),
+      this.getExecutablePackForTask.bind(this),
+      this.ensureExecutionForTask.bind(this)
+    );
   }
 
   /* ============================================================
@@ -1265,39 +1012,13 @@ export class WorkpackService {
   ============================================================ */
 
   static async lockTask(taskId: string, actorId?: string) {
-
-    this.requireAuth(actorId);
-
-    return sequelize.transaction(async (transaction) => {
-
-      const task = await TaskCard.findByPk(taskId, {
-        transaction,
-        lock: transaction.LOCK.UPDATE
-      });
-
-      if (!task) throw new Error('TASK_NOT_FOUND');
-
-      await this.getExecutablePackForTask(taskId, transaction);
-
-      if (!['CERTIFIED_BY_ENGINEER', 'SIGNED'].includes(task.status)) {
-        throw new Error('TASK_LOCK_BLOCKED');
-      }
-
-      task.status = 'LOCKED' as TaskStatusCode;
-      task.version = (task.version || 0) + 1;
-
-      await task.save({ transaction });
-
-      await AuditService.log({
-        table_name: 'task_cards',
-        row_id: task.id,
-        action: 'TASK_LOCKED',
-        actor_id: actorId ?? null,
-        new_values: { status: 'LOCKED' }
-      }, transaction);
-
-      return task;
-    });
+    return TaskExecutionService.lockTask(
+      taskId,
+      actorId,
+      sequelize,
+      this.requireAuth.bind(this),
+      this.getExecutablePackForTask.bind(this)
+    );
   }
 
   /* ============================================================
@@ -1311,104 +1032,19 @@ export class WorkpackService {
     actorRoles: string[] = [],
     measurementsPayload?: unknown
   ) {
-
-    this.requireAuth(actorId);
-
-    return sequelize.transaction(async (transaction) => {
-
-      const task = await TaskCard.findByPk(taskId, {
-        transaction,
-        lock: transaction.LOCK.UPDATE
-      });
-
-      if (!task) throw new Error('TASK_NOT_FOUND');
-
-      const { pack, status } = await this.getExecutablePackForTask(taskId, transaction);
-
-      if (status.code === 'ISSUED') {
-        await this.transition(pack, 'IN_PROGRESS', actorId, transaction);
-      }
-
-      if (task.status !== 'IN_PROGRESS') {
-        throw new Error('TASK_NOT_STARTED');
-      }
-
-      if (['CERTIFIED_BY_ENGINEER', 'LOCKED'].includes(task.status)) {
-        throw new Error('TASK_NOTE_EDIT_BLOCKED');
-      }
-
-      if (!this.canEditTaskAsMechanic(task, actorId, actorRoles)) {
-        throw new Error('TASK_OWNED_BY_ANOTHER_MECHANIC');
-      }
-
-      const execution = await this.ensureExecutionForTask(pack.id, task, actorId, transaction);
-      const previousWorkPerformed = task.work_performed || null;
-      const previousMeasurements = this.buildMeasurementSnapshot(task.description, previousWorkPerformed);
-      const previousNote = this.splitWorkPerformed(previousWorkPerformed).note;
-      const submittedWorkPerformed = workPerformed?.trim() || null;
-      const nextWorkPerformed = this.extractCleanWorkPerformedNote(submittedWorkPerformed);
-
-      task.work_performed = nextWorkPerformed;
-      task.assigned_to = actorId ?? null;
-      task.version = (task.version || 0) + 1;
-
-      await task.save({ transaction });
-
-      execution.status = this.mapTaskStatusToExecutionStatus(task.status);
-      execution.version = (execution.version || 0) + 1;
-
-      if (execution.status !== 'OPEN' && !execution.started_at) {
-        execution.started_at = new Date();
-      }
-
-      if (execution.status !== 'OPEN' && !execution.started_by) {
-        execution.started_by = actorId ?? null;
-      }
-
-      await execution.save({ transaction });
-      await this.syncExecutionMeasurements(
-        execution.id,
-        task.description,
-        submittedWorkPerformed,
-        measurementsPayload,
-        transaction
-      );
-      const nextMeasurements = this.buildMeasurementSnapshot(
-        task.description,
-        submittedWorkPerformed,
-        measurementsPayload
-      );
-      const nextNote = this.splitWorkPerformed(task.work_performed).note;
-
-      await AuditService.log({
-        table_name: 'task_cards',
-        row_id: task.id,
-        action: 'TASK_WORK_NOTE_UPDATED',
-        actor_id: actorId ?? null,
-        new_values: { work_performed: task.work_performed }
-      }, transaction);
-      await this.appendExecutionAuditEntry({
-        executionId: execution.id,
-        workpackId: pack.id,
-        taskId: task.id,
-        userId: actorId,
-        action: 'TASK_WORK_NOTE_UPDATED',
-        field: 'work_performed',
-        oldValue: {
-          note: previousNote,
-          measurements: previousMeasurements,
-        },
-        newValue: {
-          note: nextNote,
-          measurements: nextMeasurements,
-        },
-        metadata: {
-          measurement_count: nextMeasurements.length,
-        },
-      }, transaction);
-
-      return task;
-    });
+    return TaskExecutionService.saveWorkPerformed(
+      taskId,
+      workPerformed,
+      actorId,
+      actorRoles,
+      measurementsPayload,
+      sequelize,
+      this.requireAuth.bind(this),
+      this.canEditTaskAsMechanic.bind(this),
+      this.getExecutablePackForTask.bind(this),
+      this.transition.bind(this),
+      this.ensureExecutionForTask.bind(this)
+    );
   }
 
   static async reportSnag(
