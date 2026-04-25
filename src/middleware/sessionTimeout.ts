@@ -9,9 +9,20 @@ export function sessionTimeout(req: Request, res: Response, next: NextFunction) 
   const now = Date.now();
 
   if (req.session.lastActivity && now - req.session.lastActivity > MAX_IDLE) {
-    req.logout(() => {});
-    req.session.destroy(() => {});
-    return res.redirect('/login');
+    if (
+      typeof req.session.save === 'function' &&
+      typeof req.session.regenerate === 'function'
+    ) {
+      return req.logout(() => {
+        res.clearCookie('jupiter.sid');
+        return res.redirect('/auth/login');
+      });
+    }
+
+    return req.session.destroy(() => {
+      res.clearCookie('jupiter.sid');
+      return res.redirect('/auth/login');
+    });
   }
 
   req.session.lastActivity = now;

@@ -5,10 +5,25 @@
 <script>
 let inactivityTimer;
 
+function submitLogout() {
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = '/auth/logout';
+
+    const csrf = document.createElement('input');
+    csrf.type = 'hidden';
+    csrf.name = '_csrf';
+    csrf.value = '<%= csrfToken || "" %>';
+
+    form.appendChild(csrf);
+    document.body.appendChild(form);
+    form.submit();
+}
+
 function resetTimer() {
     clearTimeout(inactivityTimer);
     inactivityTimer = setTimeout(() => {
-        window.location.href = '/logout';
+        submitLogout();
     }, 30 * 60 * 1000); // 30 min
 }
 

@@ -25,7 +25,7 @@ export class InventoryService {
       await client.query(`
         INSERT INTO inventory_movements (component_id, aircraft_id, action_type, hours_at_movement, actor_id, remarks)
         VALUES ($1, $2, 'REMOVAL', $3, $4, $5)
-      `, [componentId, aircraft_id, total_time_hours, actor_id, remarks]);
+      `, [componentId, aircraft_id, total_time_hours, actorId, remarks]);
 
       // 3. Update Component: Set to SERVICEABLE and remove aircraft link
       await client.query(`
@@ -73,7 +73,7 @@ export class InventoryService {
       await client.query(`
         INSERT INTO inventory_movements (component_id, aircraft_id, action_type, hours_at_movement, actor_id)
         VALUES ($1, $2, 'INSTALLATION', $3, $4)
-      `, [componentId, aircraftId, currentAfHours, actor_id]);
+      `, [componentId, aircraftId, currentAfHours, actorId]);
 
       // 4. Update Component: Set Aircraft, Status, and the new Install Base (AF Hours)
       await client.query(`

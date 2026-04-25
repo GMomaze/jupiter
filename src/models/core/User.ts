@@ -7,6 +7,7 @@ export class User extends Model {
   declare password_hash: string;
   declare full_name: string;
   declare is_active: boolean;
+  declare Roles?: any[];
 }
 
 User.init(

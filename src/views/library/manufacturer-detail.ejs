@@ -1,0 +1,361 @@
+<%- include('../partials/header') %>
+
+<main class="max-w-7xl mx-auto py-10 px-4 sm:px-6 lg:px-8 space-y-8">
+  <div class="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+    <div>
+      <a href="/library/manufacturers" class="text-sm font-semibold text-blue-600 hover:underline">
+        Back to Manufacturers
+      </a>
+      <h1 class="mt-2 text-3xl font-black tracking-tight text-slate-900">
+        <%= manufacturer.name %>
+      </h1>
+      <p class="mt-2 text-sm text-slate-500">
+        Manage manufacturer master data and the models loaded under this manufacturer.
+      </p>
+    </div>
+
+    <div class="flex gap-2 text-xs font-bold uppercase tracking-widest">
+      <span class="rounded-full px-3 py-1 <%= manufacturer.is_active ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-600' %>">
+        <%= manufacturer.is_active ? 'Active' : 'Inactive' %>
+      </span>
+      <span class="rounded-full px-3 py-1 <%= manufacturer.is_operational ? 'bg-blue-100 text-blue-700' : 'bg-amber-100 text-amber-700' %>">
+        <%= manufacturer.is_operational ? 'Operational' : 'No Longer Operating' %>
+      </span>
+    </div>
+  </div>
+
+  <section class="grid gap-8 xl:grid-cols-[1.2fr_0.8fr]">
+    <div class="rounded-xl border bg-white p-6 shadow-sm">
+      <div class="mb-6 flex items-start justify-between gap-4">
+        <div>
+          <h2 class="text-lg font-black text-slate-900">Manufacturer Information</h2>
+          <p class="mt-1 text-sm text-slate-500">
+            Capture the OEM profile, ownership, support details, and reference notes.
+          </p>
+        </div>
+        <% if (manufacturer.logo_url) { %>
+          <img
+            src="<%= manufacturer.logo_url %>"
+            alt="<%= manufacturer.name %> logo"
+            class="h-16 w-16 rounded-lg border object-contain bg-white p-2"
+          >
+        <% } %>
+      </div>
+
+      <form method="POST" action="/library/manufacturers/<%= manufacturer.id %>/update?_csrf=<%= encodeURIComponent(csrfToken) %>" enctype="multipart/form-data" class="grid gap-4 md:grid-cols-2">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+
+        <div>
+          <label class="mb-1 block text-xs font-bold uppercase tracking-widest text-slate-500">Manufacturer Name</label>
+          <input type="text" name="name" value="<%= manufacturer.name || '' %>" required class="w-full rounded border px-3 py-2 text-sm">
+        </div>
+
+        <div>
+          <label class="mb-1 block text-xs font-bold uppercase tracking-widest text-slate-500">Code</label>
+          <input type="text" name="code" value="<%= manufacturer.code || '' %>" class="w-full rounded border px-3 py-2 text-sm">
+        </div>
+
+        <div class="md:col-span-2">
+          <label class="mb-1 block text-xs font-bold uppercase tracking-widest text-slate-500">Website URL</label>
+          <input type="url" name="website" value="<%= manufacturer.website || '' %>" class="w-full rounded border px-3 py-2 text-sm">
+        </div>
+
+        <div class="md:col-span-2">
+          <label class="mb-1 block text-xs font-bold uppercase tracking-widest text-slate-500">Logo Path or URL</label>
+          <input type="text" name="logo_url" value="<%= manufacturer.logo_url || '' %>" class="w-full rounded border px-3 py-2 text-sm" placeholder="/uploads/manufacturers/logo.png or https://example.com/logo.png">
+        </div>
+
+        <div class="md:col-span-2">
+          <label class="mb-1 block text-xs font-bold uppercase tracking-widest text-slate-500">Upload Logo File</label>
+          <input type="file" name="logo_file" accept="image/*" class="w-full rounded border px-3 py-2 text-sm">
+          <p class="mt-1 text-xs text-slate-500">
+            Uploading a file stores it locally in Jupiter and overrides the URL above for this save.
+          </p>
+        </div>
+
+        <div class="md:col-span-2">
+          <label class="mb-1 block text-xs font-bold uppercase tracking-widest text-slate-500">Address Line 1</label>
+          <input type="text" name="address_line_1" value="<%= manufacturer.address_line_1 || '' %>" class="w-full rounded border px-3 py-2 text-sm">
+        </div>
+
+        <div class="md:col-span-2">
+          <label class="mb-1 block text-xs font-bold uppercase tracking-widest text-slate-500">Address Line 2</label>
+          <input type="text" name="address_line_2" value="<%= manufacturer.address_line_2 || '' %>" class="w-full rounded border px-3 py-2 text-sm">
+        </div>
+
+        <div>
+          <label class="mb-1 block text-xs font-bold uppercase tracking-widest text-slate-500">City</label>
+          <input type="text" name="city" value="<%= manufacturer.city || '' %>" class="w-full rounded border px-3 py-2 text-sm">
+        </div>
+
+        <div>
+          <label class="mb-1 block text-xs font-bold uppercase tracking-widest text-slate-500">State / Province</label>
+          <input type="text" name="state" value="<%= manufacturer.state || '' %>" class="w-full rounded border px-3 py-2 text-sm">
+        </div>
+
+        <div>
+          <label class="mb-1 block text-xs font-bold uppercase tracking-widest text-slate-500">Country</label>
+          <input type="text" name="country" value="<%= manufacturer.country || '' %>" class="w-full rounded border px-3 py-2 text-sm">
+        </div>
+
+        <div>
+          <label class="mb-1 block text-xs font-bold uppercase tracking-widest text-slate-500">Postal Code</label>
+          <input type="text" name="postal_code" value="<%= manufacturer.postal_code || '' %>" class="w-full rounded border px-3 py-2 text-sm">
+        </div>
+
+        <div>
+          <label class="mb-1 block text-xs font-bold uppercase tracking-widest text-slate-500">Current Owner</label>
+          <input type="text" name="current_owner" value="<%= manufacturer.current_owner || '' %>" class="w-full rounded border px-3 py-2 text-sm">
+        </div>
+
+        <div>
+          <label class="mb-1 block text-xs font-bold uppercase tracking-widest text-slate-500">Support Email</label>
+          <input type="email" name="support_email" value="<%= manufacturer.support_email || '' %>" class="w-full rounded border px-3 py-2 text-sm">
+        </div>
+
+        <div>
+          <label class="mb-1 block text-xs font-bold uppercase tracking-widest text-slate-500">Support Phone</label>
+          <input type="text" name="support_phone" value="<%= manufacturer.support_phone || '' %>" class="w-full rounded border px-3 py-2 text-sm">
+        </div>
+
+        <div class="md:col-span-2">
+          <label class="mb-1 block text-xs font-bold uppercase tracking-widest text-slate-500">Description</label>
+          <textarea name="description" rows="3" class="w-full rounded border px-3 py-2 text-sm"><%= manufacturer.description || '' %></textarea>
+        </div>
+
+        <div class="md:col-span-2">
+          <label class="mb-1 block text-xs font-bold uppercase tracking-widest text-slate-500">Notes</label>
+          <textarea name="notes" rows="4" class="w-full rounded border px-3 py-2 text-sm" placeholder="Support programs, merger history, data source notes, special considerations."><%= manufacturer.notes || '' %></textarea>
+        </div>
+
+        <label class="flex items-center gap-2 text-sm font-medium text-slate-700">
+          <input type="checkbox" name="is_active" value="true" <%= manufacturer.is_active ? 'checked' : '' %> class="rounded border-slate-300">
+          Active in library
+        </label>
+
+        <label class="flex items-center gap-2 text-sm font-medium text-slate-700">
+          <input type="checkbox" name="is_operational" value="true" <%= manufacturer.is_operational ? 'checked' : '' %> class="rounded border-slate-300">
+          Still operational
+        </label>
+
+        <div class="md:col-span-2">
+          <button type="submit" class="rounded bg-slate-800 px-4 py-2 text-sm font-bold text-white hover:bg-black">
+            Save Manufacturer
+          </button>
+        </div>
+      </form>
+    </div>
+
+    <aside class="space-y-4">
+      <section class="rounded-xl border bg-white p-6 shadow-sm">
+        <h2 class="text-lg font-black text-slate-900">Quick Reference</h2>
+        <dl class="mt-4 space-y-3 text-sm">
+          <div>
+            <dt class="text-xs font-bold uppercase tracking-widest text-slate-500">Website</dt>
+            <dd class="mt-1 text-slate-700">
+              <% if (manufacturer.website) { %>
+                <a href="<%= manufacturer.website %>" target="_blank" rel="noreferrer" class="text-blue-600 hover:underline">
+                  <%= manufacturer.website %>
+                </a>
+              <% } else { %>
+                -
+              <% } %>
+            </dd>
+          </div>
+          <div>
+            <dt class="text-xs font-bold uppercase tracking-widest text-slate-500">Owner</dt>
+            <dd class="mt-1 text-slate-700"><%= manufacturer.current_owner || '-' %></dd>
+          </div>
+          <div>
+            <dt class="text-xs font-bold uppercase tracking-widest text-slate-500">Support</dt>
+            <dd class="mt-1 text-slate-700">
+              <%= manufacturer.support_email || '-' %>
+              <% if (manufacturer.support_phone) { %>
+                <div><%= manufacturer.support_phone %></div>
+              <% } %>
+            </dd>
+          </div>
+          <div>
+            <dt class="text-xs font-bold uppercase tracking-widest text-slate-500">Address</dt>
+            <dd class="mt-1 text-slate-700">
+              <% const addressParts = [
+                manufacturer.address_line_1,
+                manufacturer.address_line_2,
+                manufacturer.city,
+                manufacturer.state,
+                manufacturer.postal_code,
+                manufacturer.country
+              ].filter(Boolean); %>
+              <%= addressParts.length ? addressParts.join(', ') : '-' %>
+            </dd>
+          </div>
+        </dl>
+      </section>
+
+      <section class="rounded-xl border bg-slate-50 p-6 shadow-sm">
+        <h2 class="text-lg font-black text-slate-900">What Else Is Captured</h2>
+        <ul class="mt-3 space-y-2 text-sm text-slate-600">
+          <li>Model code so aircraft and component records can stay consistent across imports.</li>
+          <li>Service and overhaul intervals in both hours and months for planning.</li>
+          <li>Maintenance notes for inspection programs, special handling, or model caveats.</li>
+        </ul>
+      </section>
+    </aside>
+  </section>
+
+  <section class="grid gap-8 xl:grid-cols-[0.9fr_1.1fr]">
+    <div class="rounded-xl border bg-white p-6 shadow-sm">
+      <h2 class="text-lg font-black text-slate-900">Add Model</h2>
+      <p class="mt-1 text-sm text-slate-500">
+        Load models under this manufacturer with their planning intervals.
+      </p>
+
+      <form method="POST" action="/library/model" class="mt-6 grid gap-4 md:grid-cols-2">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <input type="hidden" name="manufacturer_id" value="<%= manufacturer.id %>">
+
+        <div class="md:col-span-2">
+          <label class="mb-1 block text-xs font-bold uppercase tracking-widest text-slate-500">Asset Type</label>
+          <select name="asset_type_id" required class="w-full rounded border px-3 py-2 text-sm">
+            <option value="">Select Asset Type</option>
+            <% assetTypes.forEach((assetType) => { %>
+              <option value="<%= assetType.id %>"><%= assetType.code %> - <%= assetType.description || '' %></option>
+            <% }) %>
+          </select>
+        </div>
+
+        <div>
+          <label class="mb-1 block text-xs font-bold uppercase tracking-widest text-slate-500">Model Name</label>
+          <input type="text" name="model_name" required class="w-full rounded border px-3 py-2 text-sm">
+        </div>
+
+        <div>
+          <label class="mb-1 block text-xs font-bold uppercase tracking-widest text-slate-500">Model Code</label>
+          <input type="text" name="model_code" class="w-full rounded border px-3 py-2 text-sm" placeholder="PA-28-181">
+        </div>
+
+        <div>
+          <label class="mb-1 block text-xs font-bold uppercase tracking-widest text-slate-500">Service Hours</label>
+          <input type="number" step="0.01" min="0" name="service_interval_hours" class="w-full rounded border px-3 py-2 text-sm">
+        </div>
+
+        <div>
+          <label class="mb-1 block text-xs font-bold uppercase tracking-widest text-slate-500">Service Months</label>
+          <input type="number" min="0" name="service_interval_months" class="w-full rounded border px-3 py-2 text-sm">
+        </div>
+
+        <div>
+          <label class="mb-1 block text-xs font-bold uppercase tracking-widest text-slate-500">Overhaul Hours</label>
+          <input type="number" step="0.01" min="0" name="overhaul_interval_hours" class="w-full rounded border px-3 py-2 text-sm">
+        </div>
+
+        <div>
+          <label class="mb-1 block text-xs font-bold uppercase tracking-widest text-slate-500">Overhaul Months</label>
+          <input type="number" min="0" name="overhaul_interval_months" class="w-full rounded border px-3 py-2 text-sm">
+        </div>
+
+        <div>
+          <label class="mb-1 block text-xs font-bold uppercase tracking-widest text-slate-500">Default TBO Hours</label>
+          <input type="number" step="0.01" min="0" name="default_tbo_hours" class="w-full rounded border px-3 py-2 text-sm">
+        </div>
+
+        <div>
+          <label class="mb-1 block text-xs font-bold uppercase tracking-widest text-slate-500">Default TBO Months</label>
+          <input type="number" min="0" name="default_tbo_months" class="w-full rounded border px-3 py-2 text-sm">
+        </div>
+
+        <label class="md:col-span-2 flex items-center gap-2 text-sm font-medium text-slate-700">
+          <input type="checkbox" name="is_life_limited" value="true" class="rounded border-slate-300">
+          Life-limited model
+        </label>
+
+        <div class="md:col-span-2">
+          <label class="mb-1 block text-xs font-bold uppercase tracking-widest text-slate-500">Maintenance Notes</label>
+          <textarea name="maintenance_notes" rows="4" class="w-full rounded border px-3 py-2 text-sm" placeholder="Inspection cycle notes, preservation guidance, overhaul limitations, special service program details."></textarea>
+        </div>
+
+        <div class="md:col-span-2">
+          <button type="submit" class="rounded bg-slate-800 px-4 py-2 text-sm font-bold text-white hover:bg-black">
+            Save Model
+          </button>
+        </div>
+      </form>
+    </div>
+
+    <div class="rounded-xl border bg-white p-6 shadow-sm">
+      <div class="mb-4 flex items-center justify-between gap-4">
+        <div>
+          <h2 class="text-lg font-black text-slate-900">Models</h2>
+          <p class="mt-1 text-sm text-slate-500">
+            Models for <%= manufacturer.name %>, with the planning data used elsewhere in the system.
+          </p>
+        </div>
+        <span class="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold uppercase tracking-widest text-slate-600">
+          <%= manufacturer.ComponentModels?.length || 0 %> Loaded
+        </span>
+      </div>
+
+      <% const sortedModels = (manufacturer.ComponentModels || []).slice().sort((left, right) => left.model_name.localeCompare(right.model_name)); %>
+      <% if (sortedModels.length === 0) { %>
+        <div class="rounded-lg border border-dashed px-6 py-10 text-center text-sm text-slate-500">
+          No models loaded for this manufacturer yet.
+        </div>
+      <% } else { %>
+        <div class="space-y-4">
+          <% sortedModels.forEach((model) => { %>
+            <article class="rounded-xl border p-4">
+              <div class="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                <div>
+                  <h3 class="text-base font-bold text-slate-900"><%= model.model_name %></h3>
+                  <p class="mt-1 text-xs font-bold uppercase tracking-widest text-slate-500">
+                    <%= model.AssetType?.code || 'Asset Type Not Set' %>
+                    <% if (model.model_code) { %>
+                      | Code: <%= model.model_code %>
+                    <% } %>
+                  </p>
+                </div>
+
+                <a href="/library/model/<%= model.id %>" class="text-sm font-semibold text-blue-600 hover:underline">
+                  View Model
+                </a>
+              </div>
+
+              <div class="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                <div class="rounded-lg bg-slate-50 p-3">
+                  <div class="text-[10px] font-bold uppercase tracking-widest text-slate-500">Service</div>
+                  <div class="mt-1 text-sm font-semibold text-slate-900">
+                    <%= model.service_interval_hours ?? '-' %> hrs / <%= model.service_interval_months ?? '-' %> months
+                  </div>
+                </div>
+                <div class="rounded-lg bg-slate-50 p-3">
+                  <div class="text-[10px] font-bold uppercase tracking-widest text-slate-500">Overhaul</div>
+                  <div class="mt-1 text-sm font-semibold text-slate-900">
+                    <%= model.overhaul_interval_hours ?? '-' %> hrs / <%= model.overhaul_interval_months ?? '-' %> months
+                  </div>
+                </div>
+                <div class="rounded-lg bg-slate-50 p-3">
+                  <div class="text-[10px] font-bold uppercase tracking-widest text-slate-500">Default TBO</div>
+                  <div class="mt-1 text-sm font-semibold text-slate-900">
+                    <%= model.default_tbo_hours ?? '-' %> hrs / <%= model.default_tbo_months ?? '-' %> months
+                  </div>
+                </div>
+                <div class="rounded-lg bg-slate-50 p-3">
+                  <div class="text-[10px] font-bold uppercase tracking-widest text-slate-500">Life Limited</div>
+                  <div class="mt-1 text-sm font-semibold text-slate-900">
+                    <%= model.is_life_limited ? 'Yes' : 'No' %>
+                  </div>
+                </div>
+              </div>
+
+              <% if (model.maintenance_notes) { %>
+                <p class="mt-4 text-sm text-slate-600"><%= model.maintenance_notes %></p>
+              <% } %>
+            </article>
+          <% }) %>
+        </div>
+      <% } %>
+    </div>
+  </section>
+</main>
+
+<%- include('../partials/footer') %>

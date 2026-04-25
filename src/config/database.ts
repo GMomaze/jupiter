@@ -28,19 +28,51 @@ export const pool = new Pool(appConfig);
 export const adminPool = new Pool(adminConfig);
 
 // ----------------------------
-// SEQUELIZE INSTANCE (NEW)
+// SEQUELIZE CONFIGURATION (for CLI)
 // ----------------------------
 
-const sequelize = new Sequelize(
-  process.env.DB_NAME as string,
-  process.env.DB_USER as string,
-  process.env.DB_PASSWORD,
-  {
-    host: process.env.DB_HOST,
-    port: Number(process.env.DB_PORT),
-    dialect: 'postgres',
-    logging: false,
-  }
-);
+export const sequelizeConfig = {
+  username: process.env.DB_USER,
+  password: process.env.DB_PASSWORD,
+  database: process.env.DB_NAME,
+  host: process.env.DB_HOST,
+  port: Number(process.env.DB_PORT),
+  dialect: 'postgres' as const,
+  logging: false,
 
+  // 🔥 CRITICAL FIX
+  dialectOptions: {
+    options: {
+      searchPath: 'public',
+    },
+  },
+
+  define: {
+    schema: 'public',
+  },
+};
+
+// ----------------------------
+// SEQUELIZE INSTANCE (for app)
+// ----------------------------
+
+const sequelize = new Sequelize({
+  username: process.env.DB_USER as string,
+  password: process.env.DB_PASSWORD as string,
+  database: process.env.DB_NAME as string,
+  host: process.env.DB_HOST as string,
+  port: Number(process.env.DB_PORT) || 5432,
+  dialect: 'postgres',
+  logging: false,
+
+  dialectOptions: {
+    searchPath: 'public', // ✅ correct
+  },
+
+  define: {
+    schema: 'public',
+  },
+});
+
+// Export instance
 export default sequelize;

@@ -1,0 +1,198 @@
+# no_use
+
+Audit date: 2026-04-23
+
+Method used:
+- Runtime roots checked: `src/server.ts` -> `src/app.ts`
+- Mounted routers checked in `src/app.ts`
+- Test roots checked from `vitest.config.ts` and Playwright config
+- Package entry/scripts checked in `package.json`
+- Cross-reference search done with `rg`
+
+This is a conservative cleanup list. Nothing here was deleted. I split it into:
+- `confirmed disconnected`: no runtime/test wiring found
+- `likely orphaned`: reachable only through dead files, wrong render paths, or duplicate/legacy setup
+- `manual/generated`: not imported by code and look like artifacts/docs
+
+## Confirmed disconnected from runtime/tests
+
+- `src/modules/assets/asset.controller.ts`
+  Evidence: no imports/references found outside itself.
+- `src/modules/assets/asset.service.ts`
+  Evidence: no imports/references found outside itself.
+- `src/modules/components/component.routes.ts`
+  Evidence: defines routes, but `src/app.ts` never mounts a components router.
+- `src/modules/components/component.controller.ts`
+  Evidence: only referenced by `component.routes.ts`, which is not mounted.
+- `src/modules/components/component.service.ts`
+  Evidence: only referenced by `component.controller.ts`, which is behind an unmounted router.
+- `src/modules/tasks/task.routes.ts`
+  Evidence: defines routes, but `src/app.ts` never mounts a tasks router.
+- `src/modules/tasks/task.controller.ts`
+  Evidence: only referenced by `task.routes.ts`, which is not mounted.
+- `src/modules/tasks/snapshot.service.ts`
+  Evidence: no runtime/test references found.
+- `src/modules/library/library.controller.ts`
+  Evidence: `src/modules/library/library.routes.ts` handles library rendering directly; no imports of `library.controller.ts`.
+- `src/modules/reference/reference.controller.ts`
+  Evidence: `src/modules/reference/reference.routes.ts` handles reference rendering directly; no imports of `reference.controller.ts`.
+- `src/modules/workpacks/measurement.service.ts`
+  Evidence: no imports found. Also contains a suspicious unresolved import (`./audit.service`) that does not match the module layout.
+- `src/modules/rbac/assertPermission.ts`
+  Evidence: no imports found outside itself.
+- `src/modules/rbac/permission.service.ts`
+  Evidence: no imports found outside itself.
+- `src/modules/maintenance/maintenance-trigger.service.ts`
+  Evidence: no imports found outside itself.
+- `src/modules/aircraft/aircraft-configuration.service.ts`
+  Evidence: no imports found outside itself.
+- `src/middleware/domain.middleware.ts`
+  Evidence: no imports or `app.use(...)` wiring found.
+- `src/services/sid.service.ts`
+  Evidence: no imports found outside itself.
+- `src/models/aircraft_sid_applicability`
+  Evidence: no imports; file content looks like migration code, not a model.
+- `src/models/aircraft_sid_tracking`
+  Evidence: no imports; file content looks like migration code, not a model.
+- `src/models/cessna_sids`
+  Evidence: no imports found; appears to duplicate `src/models/cessnaSid.model.ts`.
+
+## Likely orphaned or obsolete
+
+- `server.js`
+  Evidence: package scripts use `src/server.ts`; no imports/references found.
+- `run-pdf.ts`
+  Evidence: not in `package.json` scripts; appears to be a one-off helper and duplicates `scripts/run-pdf.ts`.
+- `scripts/run-pdf.ts`
+  Evidence: standalone helper, not wired through package scripts.
+- `scripts/migrate.ts`
+  Evidence: not used by `package.json`; project DB scripts use `sequelize-cli`.
+- `scripts/migrate.js`
+  Evidence: same as above.
+- `scripts/force_table.ts`
+  Evidence: standalone utility, no references.
+- `scripts/fix_migration.ts`
+  Evidence: standalone utility, no references.
+- `scripts/create-user.ts`
+  Evidence: standalone utility, no references.
+- `convert-migrations.cjs`
+  Evidence: standalone utility, no references from runtime/scripts.
+- `create-migrations.cjs`
+  Evidence: standalone utility, no references from runtime/scripts.
+- `knexfile.ts`
+  Evidence: project scripts use Sequelize, not Knex.
+- `knexfile.js`
+  Evidence: legacy/alternate config; not used by package DB scripts.
+- `knexfile.js.map`
+  Evidence: generated map for the likely-unused Knex config.
+- `knexfile.d.ts`
+  Evidence: generated declaration for the likely-unused Knex config.
+- `knexfile.d.ts.map`
+  Evidence: generated declaration map for the likely-unused Knex config.
+- `knexfilexxx.js`
+  Evidence: stray duplicate/backup-style file.
+
+## Likely orphaned views/partials
+
+- `src/views/aircraft/details.ejs`
+  Evidence: no `res.render('aircraft/details')` found.
+- `src/views/workpacks/details.ejs`
+  Evidence: no `res.render('workpacks/details')` found.
+- `src/views/projection/fleet-status.ejs`
+  Evidence: no render call found for this view.
+- `src/views/components/create.ejs`
+  Evidence: the controller renders `modules/components/create`, not `components/create`; also the components router is not mounted.
+- `src/views/library/partials/manufacturer_form.ejs`
+  Evidence: only referenced from `library.controller.ts`, which is disconnected.
+- `src/views/library/partials/model_form.ejs`
+  Evidence: only referenced from `library.controller.ts`, which is disconnected.
+- `src/views/library/partials/model_edit_form.ejs`
+  Evidence: only referenced from `library.controller.ts`, which is disconnected.
+- `src/views/library/partials/requirement_form.ejs`
+  Evidence: only referenced from `library.controller.ts`, which is disconnected.
+- `src/views/library/partials/requirement_edit_form.ejs`
+  Evidence: only referenced from `library.controller.ts`, which is disconnected.
+- `src/views/partials/audit-rows.ejs`
+  Evidence: no include/render reference found.
+- `src/views/partials/install_modal.ejs`
+  Evidence: no include/render reference found.
+- `src/views/partials/install-component-modal.ejs`
+  Evidence: no include/render reference found.
+- `src/views/partials/reference-edit-modal.ejs`
+  Evidence: no include/render reference found.
+- `src/views/partials/reference-list.ejs`
+  Evidence: no include/render reference found.
+- `src/views/aircraft/partials/status-card.ejs`
+  Evidence: no include/render reference found.
+
+## Reachability problems worth checking
+
+These are not necessarily unused, but they currently point at view paths that do not seem to exist, so the intended files may be effectively orphaned:
+
+- `src/modules/projection/projection.controller.ts`
+  Renders `modules/projection/fleet_health` and `modules/projection/partials/summary_cards`
+  Existing views are under `src/views/projection/...`
+- `src/modules/components/component.controller.ts`
+  Renders `modules/components/create` and `modules/components/partials/install-status`
+  Existing view is `src/views/components/create.ejs`
+
+## Source copies / duplicate asset locations
+
+- `src/public/style.css`
+  Evidence: app serves root `public`, not `src/public`.
+- `src/public/js/htmx.min.js`
+  Evidence: header uses `/js/htmx.min.js`, which resolves to root `public/js/htmx.min.js`.
+- `src/public/js/tailwind.js`
+  Evidence: root `public` is served; this `src/public` copy is not.
+
+## Manual/generated artifacts not used by app code
+
+- `output.pdf`
+- `output1.pdf`
+- `output2.pdf`
+- `temp_release_text.txt`
+- `image1.png`
+- `image2.png`
+- `image3.jpeg`
+- `projecttree.txt`
+- `project_structure.txt`
+- `project-structure2.txt`
+- `scripts/project_tree.txt`
+- `scripts/project1.dna.txt`
+- `vitest-output.log`
+- `vitest-results.log`
+- `test-results/.last-run.json`
+- `docs/manuals/**`
+- `docs/01_SYSTEM_OVERVIEW.md`
+- `docs/02_ARCHITECTURE.md`
+- `docs/03_DATABASE_SCHEMA.md`
+- `docs/04_UI_NAVIGATION.md`
+- `docs/05_CURRENT_STATE.md`
+- `docs/06_SECURITY_AND_RBAC.md`
+- `docs/07_TESTING_STRATEGY.md`
+- `docs/08_CONCURRENCY_AND_TRANSACTION_POLICY.md`
+- `docs/09_DOMAIN_MODEL_REFACTOR_STATE.md`
+- `docs/10_ASSET_MODELING_RULES.md`
+- `docs/00_AI_SESSION_PROTOCOL.md`
+- `docs/AI CODE RESPONSE CONTRACT.txt`
+- `docs/Gemini command.txt`
+- `docs/new _session`
+- `docs/pdf builder.odt`
+- `ADocument/**`
+
+Notes:
+- I did **not** include `docs/template/assets/*` because those are referenced by the PDF services.
+- I did **not** include root `public/js/htmx.min.js` or `public/css/styles.css` because they are actually served by the app.
+- I did **not** include migrations/seeders just because they are not imported; those are usually invoked by tooling rather than app imports.
+
+## Suggested next cleanup pass
+
+Start with the safest removals/review:
+1. `src/modules/assets/*`
+2. `src/modules/components/*`
+3. `src/modules/library/library.controller.ts`
+4. `src/modules/reference/reference.controller.ts`
+5. `src/modules/workpacks/measurement.service.ts`
+6. `src/public/**`
+7. root/script PDF artifacts and logs
+8. legacy Knex + migration helper files if you are fully on Sequelize now

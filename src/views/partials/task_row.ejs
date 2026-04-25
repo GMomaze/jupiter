@@ -1,3 +1,41 @@
+<%
+  const isMechanic = user?.roles?.some(role => role.code === 'MECHANIC');
+  const isEngineer = user?.roles?.some(role => role.code === 'ENGINEER');
+  const packIsExecutable = pack?.WorkpackStatus?.code === 'ISSUED' || pack?.WorkpackStatus?.code === 'IN_PROGRESS';
+  const taskEditable = !['CERTIFIED_BY_ENGINEER', 'LOCKED'].includes(task.status);
+  const canEditMeasurements = isMechanic && packIsExecutable && taskEditable;
+  const escapeHtml = (value) =>
+    String(value || '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  const measurementLabels = [];
+  const renderedDescription = escapeHtml(task.description || '').replace(/\[([^\]]*)\]/g, (_, rawLabel) => {
+    const label = String(rawLabel || '').trim() || `Value ${measurementLabels.length + 1}`;
+    const fieldKey = `field_${measurementLabels.length}`;
+    measurementLabels.push(label);
+
+    if (!canEditMeasurements) {
+      return `[${escapeHtml(label)}]`;
+    }
+
+    return `<span class="inline-flex items-center mx-1 align-middle">
+      <span>[</span>
+      <input
+        type="text"
+        data-task-id="${task.id}"
+        data-field-key="${fieldKey}"
+        data-field-label="${escapeHtml(label)}"
+        class="measurement-input w-24 border-b border-slate-400 bg-transparent px-1 text-center text-sm text-slate-700 outline-none"
+        placeholder="${escapeHtml(label)}"
+      >
+      <span>]</span>
+    </span>`;
+  });
+%>
+
 <div
   class="bg-white border rounded-xl p-6 shadow-sm flex justify-between items-center"
   id="task-<%= task.id %>"
@@ -11,8 +49,8 @@
         <%= task.title %>
       </h3>
     </div>
-    <p class="text-slate-600 text-sm">
-      <%= task.description %>
+    <p class="text-slate-600 text-sm whitespace-pre-wrap">
+      <%- renderedDescription %>
     </p>
 
     <% if (task.Assignee) { %>
@@ -46,11 +84,6 @@
       </div>
     <% } %>
 
-    <% const isMechanic = user?.roles?.some(role => role.code === 'MECHANIC'); %>
-    <% const isEngineer = user?.roles?.some(role => role.code === 'ENGINEER'); %>
-    <% const packIsExecutable = pack?.WorkpackStatus?.code === 'ISSUED' || pack?.WorkpackStatus?.code === 'IN_PROGRESS'; %>
-    <% const taskEditable = !['CERTIFIED_BY_ENGINEER', 'LOCKED'].includes(task.status); %>
-
     <% if (isMechanic && packIsExecutable && taskEditable) { %>
       <form
         method="POST"
@@ -63,11 +96,21 @@
         class="mt-4"
       >
         <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <textarea
+          id="payload-<%= task.id %>"
+          name="work_performed"
+          class="hidden"
+        ><%= task.work_performed || '' %></textarea>
+        <textarea
+          id="measurements-payload-<%= task.id %>"
+          name="measurements_payload"
+          class="hidden"
+        ></textarea>
         <label class="block text-xs font-bold uppercase tracking-wide text-slate-500 mb-2">
           Work Performed
         </label>
         <textarea
-          name="work_performed"
+          id="note-<%= task.id %>"
           rows="3"
           class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-700"
           placeholder="Record what was done on this task..."
@@ -142,6 +185,16 @@
           hx-on::after-request="if (event.detail.successful) window.location.reload()"
         >
           <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+          <textarea
+            id="complete-payload-<%= task.id %>"
+            name="work_performed"
+            class="hidden"
+          ><%= task.work_performed || '' %></textarea>
+          <textarea
+            id="complete-measurements-payload-<%= task.id %>"
+            name="measurements_payload"
+            class="hidden"
+          ></textarea>
           <button
             type="submit"
             hx-disabled-elt="this"
@@ -199,3 +252,134 @@
     </div>
   </div>
 </div>
+
+<script>
+  (() => {
+    if (window.__taskRowMeasurementInit) {
+      return;
+    }
+    window.__taskRowMeasurementInit = true;
+
+    const START_MARKER = '[Captured Values]';
+    const END_MARKER = '[/Captured Values]';
+
+    function splitWorkPerformed(rawValue) {
+      const value = (rawValue || '').trim();
+      const start = value.indexOf(START_MARKER);
+      const end = value.indexOf(END_MARKER);
+
+      if (start === -1 || end === -1 || end < start) {
+        return { captured: '', note: value };
+      }
+
+      const captured = value.slice(start + START_MARKER.length, end).trim();
+      const before = value.slice(0, start).trim();
+      const after = value.slice(end + END_MARKER.length).trim();
+      const note = [before, after].filter(Boolean).join('\n\n').trim();
+
+      return { captured, note };
+    }
+
+    function buildCapturedValues(taskId) {
+      return Array.from(document.querySelectorAll(`.measurement-input[data-task-id="${taskId}"]`))
+        .map((input) => {
+          const label = input.dataset.fieldLabel?.trim();
+          const value = input.value.trim();
+          if (!label || !value) return '';
+          return `${label}: ${value}`;
+        })
+        .filter(Boolean)
+        .join('\n');
+    }
+
+    function buildStructuredMeasurementPayload(taskId) {
+      return Array.from(document.querySelectorAll(`.measurement-input[data-task-id="${taskId}"]`))
+        .map((input, index) => {
+          const fieldKey = input.dataset.fieldKey?.trim() || `field_${index}`;
+          const fieldLabel = input.dataset.fieldLabel?.trim() || `Value ${index + 1}`;
+          const value = input.value.trim();
+
+          return {
+            field_key: fieldKey,
+            field_label: fieldLabel,
+            position: index + 1,
+            value: value || null,
+          };
+        });
+    }
+
+    function syncTaskPayload(taskId) {
+      const payload = document.getElementById(`payload-${taskId}`);
+      const completionPayload = document.getElementById(`complete-payload-${taskId}`);
+      const measurementPayload = document.getElementById(`measurements-payload-${taskId}`);
+      const completionMeasurementPayload = document.getElementById(`complete-measurements-payload-${taskId}`);
+      const noteEditor = document.getElementById(`note-${taskId}`);
+      if ((!payload && !completionPayload && !measurementPayload && !completionMeasurementPayload) || !noteEditor) return;
+
+      const captured = buildCapturedValues(taskId);
+      const structuredMeasurements = buildStructuredMeasurementPayload(taskId);
+      const note = noteEditor.value.trim();
+
+      const nextValue = captured
+        ? `${START_MARKER}\n${captured}\n${END_MARKER}${note ? `\n\n${note}` : ''}`
+        : note;
+
+      if (payload) {
+        payload.value = nextValue;
+      }
+
+      if (completionPayload) {
+        completionPayload.value = nextValue;
+      }
+
+      if (measurementPayload) {
+        measurementPayload.value = JSON.stringify(structuredMeasurements);
+      }
+
+      if (completionMeasurementPayload) {
+        completionMeasurementPayload.value = JSON.stringify(structuredMeasurements);
+      }
+    }
+
+    function initialiseTask(taskId) {
+      const payload = document.getElementById(`payload-${taskId}`);
+      const completionPayload = document.getElementById(`complete-payload-${taskId}`);
+      const noteEditor = document.getElementById(`note-${taskId}`);
+      const sourcePayload = payload || completionPayload;
+      if (!sourcePayload || !noteEditor) return;
+
+      const parsed = splitWorkPerformed(sourcePayload.value);
+      if (!noteEditor.value.trim()) {
+        noteEditor.value = parsed.note;
+      }
+
+      syncTaskPayload(taskId);
+    }
+
+    function initialiseAllTasks() {
+      document.querySelectorAll('[id^="note-"]').forEach((noteEditor) => {
+        const taskId = noteEditor.id.replace('note-', '');
+        if (taskId) {
+          initialiseTask(taskId);
+        }
+      });
+    }
+
+    initialiseAllTasks();
+
+    document.addEventListener('input', (e) => {
+      if (e.target.classList.contains('measurement-input')) {
+        syncTaskPayload(e.target.dataset.taskId);
+        return;
+      }
+
+      if (e.target.id?.startsWith('note-')) {
+        syncTaskPayload(e.target.id.replace('note-', ''));
+      }
+    });
+
+    document.body.addEventListener('htmx:afterSwap', () => {
+      initialiseAllTasks();
+    });
+  })();
+</script>

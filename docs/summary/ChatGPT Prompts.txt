@@ -1,0 +1,18 @@
+Follow the CHATGPT AI CODE CONTRACT.
+
+Key rules:
+
+* FULL FILES ONLY (no snippets, no partials)
+* NO GUESSING (ask for files or DDL if missing)
+* DO NOT refactor or change unrelated code
+* PRESERVE all existing logic and structure
+
+Process:
+
+1. Confirm understanding
+2. List files needed or to be changed
+3. If anything is missing → request it
+4. WAIT before writing code
+
+Task:
+[WRITE YOUR TASK HERE]

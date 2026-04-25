@@ -1,5 +1,18 @@
+# =========================
+# Node / Dependencies
+# =========================
 node_modules/
+
+# =========================
+# Build / Output
+# =========================
 dist/
+build/
+coverage/
+
+# =========================
+# Environment / Secrets
+# =========================
 .env
 .env.local
 .env.development.local
@@ -7,23 +20,74 @@ dist/
 .env.test.local
 .env.production.local
 !.env.example
+
+# =========================
+# Aider
+# =========================
+.aider.history
+.aider.chat.history.md
+
+# =========================
+# Logs
+# =========================
 *.log
 npm-debug.log*
+vitest-*.log
+*.out
+
+# =========================
+# OS Files
+# =========================
 .DS_Store/
-build/
-coverage/
-.vscode/
+Thumbs.db
+
+# =========================
+# IDE (VS Code)
+# =========================
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+
+# =========================
+# Old / Deprecated Project Folders
+# =========================
 _obsolete/
 seedOLD/
 migrationOLD/
+
+# =========================
+# Test Artifacts
+# =========================
 test-results/
 playwright-report/
+
+# =========================
+# TypeScript
+# =========================
 *.tsbuildinfo
-vitest-*.log
-knexfile.js
+
+# =========================
+# Knex (keep actual config!)
+# =========================
 knexfile.js.map
 knexfile.d.ts
 knexfile.d.ts.map
 knexfilexxx.js
+
+# =========================
+# Generated Documents
+# =========================
 CRS-*.pdf
-*.odt
+
+# =========================
+# Temporary / Lock Files
+# =========================
+*~
+.~lock.*
+
+# =========================
+# Temp Folders
+# =========================
+tmp/
+temp/
+.aider*

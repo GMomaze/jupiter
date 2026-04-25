@@ -3,74 +3,168 @@
 <main class="p-6 bg-slate-50 min-h-screen max-w-6xl mx-auto">
 
   <% if (!user?.roles?.some(role => role.code === 'ENGINEER' || role.code === 'MECHANIC')) { %>
-    <div class="bg-red-100 text-red-700 p-4 rounded mb-6">
+    <div class="bg-red-100 text-red-700 p-4 rounded mb-6 text-center font-bold">
       Access Restricted - Engineer or Mechanic Role Required
     </div>
-  <% } %>
-
-  <% if (user?.roles?.some(role => role.code === 'ENGINEER' || role.code === 'MECHANIC')) { %>
+  <% } else { %>
 
     <div class="flex justify-between items-center mb-8">
       <div>
-        <h1 class="text-3xl font-bold text-slate-900">
+        <h1 class="text-3xl font-black text-slate-900 uppercase tracking-tight">
           Execution Cockpit
         </h1>
-        <p class="text-slate-500">
+        <p class="text-slate-500 font-medium">
           WO: <%= pack.work_order_number %> - <%= pack.Aircraft.registration %>
         </p>
       </div>
-
-      <%- include('../partials/status-badge', { status: pack.WorkpackStatus.code }) %>
+      <div class="flex items-center gap-3">
+        <%- include('../partials/workpack-pdf-menu', { pack }) %>
+        <%- include('../partials/status-badge', { status: pack.WorkpackStatus.code }) %>
+      </div>
     </div>
 
-    <div class="grid gap-4">
+    <div class="grid gap-6">
       <% tasks.forEach(task => { %>
-        <%- include('../partials/task_row', { task, pack, user }) %>
+        <div class="bg-white border-2 border-slate-200 rounded-xl shadow-sm overflow-hidden" id="task-container-<%= task.id %>">
+          <div class="px-6 py-4 bg-slate-50 border-b flex justify-between items-center">
+            <div>
+              <span class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Task #<%= task.task_card_number %></span>
+              <h2 class="text-lg font-bold text-slate-800"><%= task.title %></h2>
+            </div>
+            <div class="flex items-center gap-3">
+              <span class="text-[10px] font-bold uppercase px-2 py-1 rounded bg-slate-200 text-slate-600 border border-slate-300">
+                <%= task.status.replace(/_/g, ' ') %>
+              </span>
+            </div>
+          </div>
+
+          <div class="p-6 grid grid-cols-1 lg:grid-cols-2 gap-8">
+            
+            <!-- Phase 3 Inputs -->
+            <div class="space-y-4">
+              <h3 class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Maintenance Instructions</h3>
+              <div class="bg-slate-50 border border-slate-200 rounded-lg p-5 text-sm text-slate-700 leading-relaxed whitespace-pre-wrap">
+                <% 
+                  let description = task.description || '';
+                  let inputIndex = 0;
+                  const isMechanic = user?.roles?.some(role => role.code === 'MECHANIC');
+                  const isAdminOverride = user?.roles?.some(role => role.code === 'ADMIN' || role.code === 'SUPERVISOR');
+                  const taskOwnedByCurrentUser = !!user?.id && task.assigned_to === user.id;
+                  const canEditTask = !['CERTIFIED_BY_ENGINEER', 'LOCKED'].includes(task.status)
+                    && (
+                      isAdminOverride ||
+                      (isMechanic && (
+                        task.status === 'IN_PROGRESS' && taskOwnedByCurrentUser
+                      ))
+                    );
+
+                  let htmlDescription = description.replace(/\[\s*\]/g, () => {
+                    inputIndex++;
+
+                    if (!canEditTask) {
+                      return `[value ${inputIndex}]`;
+                    }
+
+                    return `<input type="text"
+                      data-task-id="${task.id}"
+                      data-position="${inputIndex}"
+                      class="measurement-input w-20 border-b-2 border-blue-400 bg-white text-black text-center font-bold outline-none mx-1"
+                      placeholder="...">`;
+                  });
+                %>
+                <%- htmlDescription %>
+              </div>
+            </div>
+
+            <div class="flex flex-col">
+              <h3 class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">Work Performed / Findings</h3>
+
+              <% if (canEditTask) { %>
+                <form hx-post="/workpacks/tasks/<%= task.id %>/work-note" hx-trigger="change delay:800ms" class="flex-1 flex flex-col">
+                  <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                  <textarea
+                    id="note-<%= task.id %>"
+                    name="work_performed"
+                    class="flex-1 w-full border-2 border-slate-200 rounded-lg p-3 text-sm focus:border-blue-500 outline-none min-h-[120px] transition-colors"
+                    placeholder="Record findings or specific values here..."
+                  ><%= task.work_performed || '' %></textarea>
+                </form>
+              <% } else { %>
+                <div class="flex-1 w-full border-2 border-slate-200 rounded-lg p-3 text-sm min-h-[120px] bg-slate-50 text-slate-700 whitespace-pre-wrap"><%= task.work_performed || 'Read only' %></div>
+              <% } %>
+
+              <!-- 🔥 UPDATED BUTTON SECTION -->
+              <div class="mt-6 pt-4 border-t flex gap-3">
+
+                <% if (task.status === 'OPEN' && (isMechanic || isAdminOverride)) { %>
+                  <button 
+                    hx-post="/workpacks/tasks/<%= task.id %>/start"
+                    hx-target="#task-container-<%= task.id %>"
+                    hx-swap="outerHTML"
+                    class="flex-1 bg-slate-800 text-white py-3 rounded-lg font-bold text-xs uppercase tracking-widest hover:bg-black transition-all shadow-md">
+                    Start Task
+                  </button>
+
+                <% } else if (task.status === 'IN_PROGRESS' && canEditTask) { %>
+                  <button 
+                    hx-post="/workpacks/tasks/<%= task.id %>/complete"
+                    hx-target="#task-container-<%= task.id %>"
+                    hx-swap="outerHTML"
+                    class="flex-1 bg-emerald-600 text-white py-3 rounded-lg font-bold text-xs uppercase tracking-widest hover:bg-emerald-700 transition-all shadow-md">
+                    Complete (Mechanic)
+                  </button>
+
+                <% } else if (task.status === 'COMPLETED_BY_MECHANIC') { %>
+
+                  <!-- 🔧 Mechanic Sign -->
+                  <% if (user.roles.some(r => r.code === 'MECHANIC')) { %>
+                    <div class="flex-1 bg-orange-100 text-orange-800 py-3 px-4 rounded-lg font-bold text-xs uppercase tracking-widest text-center border border-orange-200">
+                      Awaiting Engineer Certification
+                    </div>
+                  <% } %>
+
+                  <!-- 🔧 Engineer Sign -->
+                  <% if (user.roles.some(r => r.code === 'ENGINEER')) { %>
+                    <form method="POST" action="/workpacks/tasks/<%= task.id %>/sign" class="flex-1">
+                      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                      <button type="submit"
+                        class="w-full bg-blue-600 text-white py-3 rounded-lg font-bold text-xs uppercase tracking-widest hover:bg-blue-700 transition-all shadow-md">
+                        Certify (Engineer Sign)
+                      </button>
+                    </form>
+                  <% } %>
+
+                <% } %>
+
+              </div>
+              <!-- 🔥 END BUTTON SECTION -->
+
+            </div>
+
+          </div>
+        </div>
       <% }) %>
     </div>
 
     <% if (user?.roles?.some(role => role.code === 'ENGINEER')) { %>
       <% const allTasksCertified = tasks.length > 0 && tasks.every(task => task.status === 'CERTIFIED_BY_ENGINEER'); %>
-      <div class="mt-12 border-t pt-8 flex justify-end">
+      <div class="mt-12 border-t border-slate-200 pt-8 flex justify-end">
         <% if (pack.WorkpackStatus.code === 'CERTIFIED') { %>
           <div class="text-right">
-            <p class="text-sm font-semibold text-emerald-700">
-              Workpack already certified
-            </p>
-            <p class="text-sm text-slate-500">
-              This pack has already been engineer closed.
-            </p>
+            <span class="text-xs font-black text-emerald-600 uppercase tracking-widest">Completed</span>
+            <p class="text-sm text-slate-500">Workpack already certified and closed.</p>
           </div>
         <% } else if (pack.WorkpackStatus.code === 'IN_PROGRESS' && allTasksCertified) { %>
-          <form
-            method="POST"
-            action="/workpacks/<%= pack.id %>/close"
-          >
+          <form method="POST" action="/workpacks/<%= pack.id %>/close">
             <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-            <button
-              type="submit"
-              class="bg-emerald-700 text-white px-8 py-3 rounded-lg font-bold hover:bg-emerald-800"
-            >
-              Close Workpack
+            <button type="submit" class="bg-emerald-700 text-white px-10 py-4 rounded-xl font-bold hover:bg-emerald-800 transition-all shadow-xl">
+              Finalize & Issue CRS
             </button>
           </form>
-        <% } else if (pack.WorkpackStatus.code === 'IN_PROGRESS') { %>
-          <div class="text-right">
-            <p class="text-sm font-semibold text-slate-700">
-              Engineer close-out is locked
-            </p>
-            <p class="text-sm text-slate-500">
-              Certify every task before the workpack can be closed.
-            </p>
-          </div>
         <% } else { %>
-          <div class="text-right">
-            <p class="text-sm font-semibold text-slate-700">
-              Close-out unavailable
-            </p>
-            <p class="text-sm text-slate-500">
-              Workpack must be in progress before engineer close-out is available.
-            </p>
+          <div class="text-right bg-white p-5 rounded-xl border-2 border-slate-100 shadow-sm">
+            <p class="text-xs font-bold text-slate-400 uppercase tracking-widest">Engineer Closure Locked</p>
+            <p class="text-[11px] text-slate-500 mt-1 italic">All tasks must be certified before the workpack can be closed.</p>
           </div>
         <% } %>
       </div>

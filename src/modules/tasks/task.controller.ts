@@ -43,13 +43,17 @@ export class TaskController {
     }
 
     try {
-      const taskId = req.params.id;
+      const taskId = Array.isArray(req.params.id) ? req.params.id[0] || '' : req.params.id || '';
+      const userId = (req.user as any)?.id;
+
+      if (!userId) {
+        return res.status(401).send('Authentication required.');
+      }
 
       // Snapshot + state transition handled inside service
       const task = await TaskService.signOff(
         taskId,
-        req.user.id,
-        '' // HTML content can be passed later if needed
+        userId
       );
 
       return res.status(200).json(task);

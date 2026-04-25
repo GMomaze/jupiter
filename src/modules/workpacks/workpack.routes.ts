@@ -2,11 +2,13 @@ import { Router } from 'express';
 import { WorkpackController } from './workpack.controller.js';
 import { requireAuth } from '../../middleware/auth.middleware.js';
 import { requireAnyRole, requireRole } from '../../middleware/rbac.middleware.js';
+import multer from 'multer';
 
 const router = Router();
+const upload = multer({ storage: multer.memoryStorage() });
 
 /* ============================================================
-   VIEW ROUTES
+    VIEW ROUTES
 ============================================================ */
 
 router.get(
@@ -37,10 +39,24 @@ router.get(
 );
 
 router.get(
+  '/:id/snags',
+  requireAuth,
+  requireAnyRole('PLANNER', 'ENGINEER', 'MECHANIC'),
+  WorkpackController.renderPackSnags
+);
+
+router.get(
   '/:id/tasks',
   requireAuth,
   requireAnyRole('PLANNER', 'ENGINEER', 'MECHANIC'),
   WorkpackController.renderPackTasks
+);
+
+router.get(
+  '/:id/service-bulletins',
+  requireAuth,
+  requireAnyRole('PLANNER', 'ENGINEER', 'MECHANIC'),
+  WorkpackController.renderPackServiceBulletins
 );
 
 router.get(
@@ -50,8 +66,29 @@ router.get(
   WorkpackController.renderExecution
 );
 
+router.get(
+  '/:id/pdf/service',
+  requireAuth,
+  requireAnyRole('PLANNER', 'ENGINEER', 'MECHANIC', 'SUPERVISOR'),
+  WorkpackController.handleServicePdf
+);
+
+router.get(
+  '/:id/pdf/release',
+  requireAuth,
+  requireAnyRole('PLANNER', 'ENGINEER', 'MECHANIC', 'SUPERVISOR'),
+  WorkpackController.handleReleasePdf
+);
+
+router.get(
+  '/:id/pdf/crma',
+  requireAuth,
+  requireAnyRole('PLANNER', 'ENGINEER', 'MECHANIC', 'SUPERVISOR'),
+  WorkpackController.handleCrmaPdf
+);
+
 /* ============================================================
-   ACTION ROUTES
+    ACTION ROUTES
 ============================================================ */
 
 router.post(
@@ -59,6 +96,42 @@ router.post(
   requireAuth,
   requireRole('PLANNER'),
   WorkpackController.handleCreate
+);
+
+router.post(
+  '/templates/import',
+  requireAuth,
+  requireRole('PLANNER'),
+  upload.single('task_csv'),
+  WorkpackController.handleImportTemplates
+);
+
+router.post(
+  '/:id/snags',
+  requireAuth,
+  requireRole('MECHANIC'),
+  WorkpackController.handleCreateSnag
+);
+
+router.post(
+  '/:id/snags/:snagId/start',
+  requireAuth,
+  requireRole('MECHANIC'),
+  WorkpackController.handleStartSnag
+);
+
+router.post(
+  '/:id/snags/:snagId/complete',
+  requireAuth,
+  requireRole('MECHANIC'),
+  WorkpackController.handleCompleteSnag
+);
+
+router.post(
+  '/:id/snags/:snagId/close',
+  requireAuth,
+  requireAnyRole('ENGINEER', 'SUPERVISOR', 'ADMIN'),
+  WorkpackController.handleCloseSnag
 );
 
 router.post(
@@ -73,6 +146,13 @@ router.post(
   requireAuth,
   requireRole('PLANNER'),
   WorkpackController.handleAddTemplateTask
+);
+
+router.post(
+  '/:id/service-bulletins/add',
+  requireAuth,
+  requireRole('PLANNER'),
+  WorkpackController.handleAddServiceBulletins
 );
 
 router.post(

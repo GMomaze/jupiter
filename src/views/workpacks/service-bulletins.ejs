@@ -1,0 +1,179 @@
+<%- include('../partials/header') %>
+
+<main class="p-6 bg-slate-50 min-h-screen">
+  <%
+    const totalSbCount = serviceBulletinTasks ? serviceBulletinTasks.length : 0;
+    const sbInProgressCount = serviceBulletinTasks ? serviceBulletinTasks.filter(task => task.status === 'IN_PROGRESS').length : 0;
+    const sbWaitingEngineerCount = serviceBulletinTasks ? serviceBulletinTasks.filter(task => task.status === 'COMPLETED_BY_MECHANIC').length : 0;
+    const sbCompleteCount = serviceBulletinTasks ? serviceBulletinTasks.filter(task => task.status === 'CERTIFIED_BY_ENGINEER' || task.status === 'LOCKED').length : 0;
+    const sbOpenCount = serviceBulletinTasks ? serviceBulletinTasks.filter(task => task.status === 'OPEN').length : 0;
+    const serviceBulletinStatusSummary =
+      totalSbCount === 0
+        ? 'No service bulletins'
+        : serviceBulletinTasks.every(task => task.status === 'CERTIFIED_BY_ENGINEER' || task.status === 'LOCKED')
+        ? 'Service bulletins complete'
+        : serviceBulletinTasks.some(task => task.status === 'COMPLETED_BY_MECHANIC')
+        ? 'Waiting for engineer sign off'
+        : serviceBulletinTasks.some(task => task.status === 'IN_PROGRESS')
+        ? `${serviceBulletinTasks.filter(task => task.status === 'IN_PROGRESS').length} in progress`
+        : `${totalSbCount} open`;
+  %>
+  
+  <!-- ------------------------------------------------------------------- -->
+<div class="mb-8 rounded-xl border bg-white p-6 shadow-sm space-y-1">
+
+  <!-- ROW 1 -->
+  <div class="flex items-center justify-between">
+    <nav class="mb-1 text-sm text-slate-500">
+      <a href="/workpacks/planner" class="hover:text-blue-600">Planner</a> /
+      <span class="text-slate-800">Service Bulletins</span>
+    </nav>
+    <div></div>
+    <div></div>
+  </div>
+
+  <!-- ROW 2 -->
+  <div class="flex items-center justify-between">
+    <!-- LEFT -->
+    <h1 class="text-2xl font-bold text-slate-900 leading-tight">
+      WO: <%= pack.work_order_number %>
+    </h1>
+
+    <!-- CENTER -->
+    <p class="text-sm font-semibold text-slate-800 leading-tight">
+      <%= serviceBulletinStatusSummary %>
+    </p>
+
+    <!-- RIGHT (LABEL ONLY — CONSISTENT) -->
+    <div class="text-right">
+      <p class="text-xs font-bold text-slate-400 uppercase tracking-widest leading-tight">
+        Current Lifecycle
+      </p>
+    </div>
+  </div>
+
+  <!-- ROW 3 -->
+  <div class="flex items-center justify-between">
+    <!-- LEFT -->
+    <p class="text-slate-600 text-sm">
+      Aircraft:
+      <span class="text-blue-600 font-medium">
+        <%= pack.Aircraft?.registration || '' %>
+      </span>
+    </p>
+
+    <!-- CENTER -->
+    <div class="flex flex-wrap items-center justify-center gap-2">
+      <span class="rounded-full bg-blue-50 px-2 py-0.5 text-xs font-semibold text-blue-700">
+        In Progress: <%= sbInProgressCount %>
+      </span>
+      <span class="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-700">
+        Waiting Engineer: <%= sbWaitingEngineerCount %>
+      </span>
+      <span class="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-700">
+        Complete: <%= sbCompleteCount %>
+      </span>
+      <span class="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-700">
+        Open: <%= sbOpenCount %>
+      </span>
+    </div>
+
+    <!-- RIGHT (BADGE ONLY) -->
+    <span class="inline-block mt-1 px-3 py-1 rounded-full font-bold text-xs border
+      <%= pack.WorkpackStatus?.code === 'DRAFT' ? 'bg-slate-100 text-slate-600 border-slate-300' :
+         pack.WorkpackStatus?.code === 'RELEASED' ? 'bg-green-100 text-green-700 border-green-300' :
+         'bg-blue-100 text-blue-700 border-blue-300' %>">
+      <%= pack.WorkpackStatus?.code %>
+    </span>
+  </div>
+
+</div>
+
+<!-- ------------------------------------------------------------------- -->
+  <div class="mb-6 flex flex-wrap gap-3">
+    <a
+      href="/workpacks/<%= pack.id %>/snags"
+      class="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50"
+    >
+      Snags
+    </a>
+    <a
+      href="/workpacks/<%= pack.id %>/tasks"
+      class="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50"
+    >
+      Tasks
+    </a>
+    <a
+      href="/workpacks/<%= pack.id %>/service-bulletins"
+      class="rounded-lg bg-slate-900 px-4 py-2 text-sm font-bold text-white"
+    >
+      Service Bulletins
+    </a>
+    <%- include('../partials/workpack-pdf-menu', { pack }) %>
+  </div>
+
+  <div class="grid gap-4">
+    <% if (!serviceBulletinTasks || serviceBulletinTasks.length === 0) { %>
+      <div class="bg-white border rounded-xl p-8 text-center text-slate-400 italic">
+        No service bulletin work items are currently assigned to this work pack.
+      </div>
+    <% } %>
+
+    <% if (serviceBulletinTasks) { %>
+      <% serviceBulletinTasks.forEach(task => { %>
+        <div class="rounded-xl border border-blue-100 bg-white p-4 shadow-sm">
+          <div class="mb-3 flex flex-wrap items-center gap-2">
+            <span class="rounded-full bg-blue-100 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-blue-700">
+              Service Bulletin
+            </span>
+            <span class="text-xs text-slate-500">
+              <%= task.ServiceBulletin?.sb_number || 'Unknown SB' %>
+            </span>
+            <% if (task.ServiceBulletin?.compliance_type) { %>
+              <span class="text-xs text-slate-500">
+                <%= task.ServiceBulletin.compliance_type %>
+              </span>
+            <% } %>
+          </div>
+
+          <%- include('../partials/task_row', { task, pack, user }) %>
+
+          <% if (task.ServiceBulletin?.document_url || task.ServiceBulletin?.description) { %>
+            <div class="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-4">
+              <% if (task.ServiceBulletin?.document_url) { %>
+                <p class="text-sm">
+                  <a
+                    href="<%= task.ServiceBulletin.document_url %>"
+                    target="_blank"
+                    rel="noreferrer"
+                    class="font-semibold text-blue-600 hover:underline"
+                  >
+                    Source document
+                  </a>
+                </p>
+              <% } %>
+
+              <% if (task.ServiceBulletin?.description) { %>
+                <p class="mt-2 text-sm text-slate-600">
+                  <%= task.ServiceBulletin.description %>
+                </p>
+              <% } %>
+            </div>
+          <% } %>
+        </div>
+      <% }) %>
+    <% } %>
+  </div>
+
+  <div class="mt-6 flex justify-between items-center">
+    <p class="text-sm text-slate-500">
+      Total SB Work Items:
+      <span class="font-bold text-slate-900">
+        <%= serviceBulletinTasks ? serviceBulletinTasks.length : 0 %>
+      </span>
+    </p>
+  </div>
+
+</main>
+
+<%- include('../partials/footer') %>

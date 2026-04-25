@@ -4,11 +4,22 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Jupiter Maintenance System</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/htmx/1.9.10/htmx.min.js"></script>
+
+    <!-- Tailwind CSS (LOCAL BUILD) -->
+    <link rel="stylesheet" href="/css/styles.css">
+
+    <!-- HTMX LOCAL -->
+    <script src="/js/htmx.min.js"></script>
+
 </head>
 
 <body class="bg-gray-100" hx-headers='{"x-csrf-token":"<%= csrfToken %>"}'>
+
+<% if (remoteTestMode) { %>
+    <div class="bg-amber-500 text-slate-950 text-center text-xs font-bold uppercase tracking-[0.25em] py-2">
+        Remote Test Mode
+    </div>
+<% } %>
 
 <nav class="bg-slate-800 text-white p-4 shadow-lg">
     <div class="max-w-7xl mx-auto flex justify-between items-center">
@@ -21,6 +32,7 @@
 
             <div class="space-x-6 text-xs font-bold uppercase tracking-widest">
                 <a href="/library" class="hover:text-slate-300">Library</a>
+                <a href="/service-bulletins" class="hover:text-slate-300">Service Bulletins</a>
                 <a href="/aircraft" class="hover:text-slate-300">Fleet</a>
                 <a href="/workpacks" class="hover:text-slate-300">Workpacks</a>
             </div>

@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import { BaseReferenceService } from './BaseReferenceService';
+import { BaseReferenceService } from './BaseReferenceService.js';
 
 export const listReference = (tableName: string) => async (req: Request, res: Response) => {
   const service = new BaseReferenceService(tableName);
@@ -14,7 +14,7 @@ export const listReference = (tableName: string) => async (req: Request, res: Re
 
 export const updateReference = (tableName: string) => async (req: Request, res: Response) => {
   const service = new BaseReferenceService(tableName);
-  const { id } = req.params;
+  const id = Array.isArray(req.params.id) ? req.params.id[0] || '' : req.params.id || '';
   const { label, description } = req.body;
 
   // Rule 1.5: Edit label/description only

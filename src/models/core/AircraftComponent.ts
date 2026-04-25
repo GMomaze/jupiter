@@ -12,6 +12,10 @@ export class AircraftComponent extends Model {
   declare current_status: string;
   declare install_af_hours: number;
   declare is_quarantined: boolean;
+  declare position_code: string | null;
+  declare removed_at: Date | null;
+  declare version: number;
+  declare ComponentModel?: any;
 }
 
 AircraftComponent.init(
@@ -32,6 +36,10 @@ AircraftComponent.init(
     serial_number: {
       type: DataTypes.TEXT,
       allowNull: false,
+    },
+    position_code: {
+      type: DataTypes.STRING,
+      allowNull: true,
     },
     installation_date: {
       type: DataTypes.DATEONLY,
@@ -58,6 +66,15 @@ AircraftComponent.init(
       type: DataTypes.BOOLEAN,
       allowNull: false,
       defaultValue: false,
+    },
+    removed_at: {
+      type: DataTypes.DATE,
+      allowNull: true,
+    },
+    version: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      defaultValue: 0,
     },
   },
   {

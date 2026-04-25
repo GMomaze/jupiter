@@ -8,6 +8,23 @@ import {
 import { QueryTypes } from 'sequelize';
 
 export class AircraftComponentService {
+  private static readonly aircraftAttributes = [
+    'id',
+    'status',
+    'total_time_hours',
+  ];
+
+  private static readonly componentModelAttributes = [
+    'id',
+    'model_name',
+    'asset_type_id',
+    'default_tbo_hours',
+  ];
+
+  private static assetTypeInclude = {
+    model: AssetType,
+    attributes: ['id', 'code', 'label', 'is_installable_on_aircraft', 'is_required_for_aircraft'],
+  };
 
   /**
    * INSTALL COMPONENT (Concurrency Safe)
@@ -29,7 +46,11 @@ export class AircraftComponentService {
 
       const aircraft = await Aircraft.findByPk(
         aircraft_id,
-        { transaction, lock: transaction.LOCK.UPDATE }
+        {
+          attributes: AircraftComponentService.aircraftAttributes,
+          transaction,
+          lock: transaction.LOCK.UPDATE
+        }
       );
 
       if (!aircraft) throw new Error('AIRCRAFT_NOT_FOUND');
@@ -38,7 +59,11 @@ export class AircraftComponentService {
 
       const componentModel = await ComponentModel.findByPk(
         model_id,
-        { include: [AssetType], transaction }
+        {
+          attributes: AircraftComponentService.componentModelAttributes,
+          include: [AircraftComponentService.assetTypeInclude],
+          transaction
+        }
       );
 
       if (!componentModel)
@@ -166,7 +191,11 @@ export class AircraftComponentService {
 
       const record = await AircraftComponent.findOne({
         where: { id: aircraft_component_id },
-        include: [{ model: ComponentModel, include: [AssetType] }],
+        include: [{
+          model: ComponentModel,
+          attributes: AircraftComponentService.componentModelAttributes,
+          include: [AircraftComponentService.assetTypeInclude]
+        }],
         transaction,
         lock: transaction.LOCK.UPDATE
       });
@@ -200,7 +229,11 @@ export class AircraftComponentService {
 
         const aircraft = await Aircraft.findByPk(
           record.aircraft_id,
-          { transaction, lock: transaction.LOCK.UPDATE }
+          {
+            attributes: AircraftComponentService.aircraftAttributes,
+            transaction,
+            lock: transaction.LOCK.UPDATE
+          }
         );
 
         if (aircraft?.status === 'ACTIVE') {
@@ -228,7 +261,10 @@ export class AircraftComponentService {
 
       const record = await AircraftComponent.findOne({
         where: { id: aircraft_component_id },
-        include: [ComponentModel],
+        include: [{
+          model: ComponentModel,
+          attributes: AircraftComponentService.componentModelAttributes,
+        }],
         transaction,
         lock: transaction.LOCK.UPDATE
       });
@@ -263,7 +299,10 @@ export class AircraftComponentService {
 
         const aircraft = await Aircraft.findByPk(
           record.aircraft_id,
-          { transaction }
+          {
+            attributes: ['id', 'total_time_hours'],
+            transaction
+          }
         );
 
         const aircraftHours = Number(aircraft?.total_time_hours || 0);

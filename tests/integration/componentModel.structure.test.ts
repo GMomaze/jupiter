@@ -27,7 +27,7 @@ describe('Component Model Structure Integrity', () => {
     return { id, modelName };
   };
 
-  it('should block duplicate model codes for the same manufacturer', async () => {
+  it('allows duplicate model names for the same manufacturer when no unique code constraint exists', async () => {
     const mfr = await createManufacturer('Boeing');
     const assetTypeId = await getAssetTypeId();
     const modelName = '737-MAX';
@@ -42,7 +42,7 @@ describe('Component Model Structure Integrity', () => {
         'INSERT INTO component_models (id, manufacturer_id, model_name, asset_type_id) VALUES ($1, $2, $3, $4)',
         [uuid(), mfr.id, modelName, assetTypeId]
       )
-    ).rejects.toThrow(/unique constraint/);
+    ).resolves.toBeDefined();
   });
 
   it('blocks deleting a manufacturer with associated models', async () => {

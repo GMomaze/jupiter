@@ -1,38 +1,119 @@
 <%- include('../partials/header') %>
 
 <main class="p-6 bg-slate-50 min-h-screen">
+  <%
+    const canManageWorkpacks = user?.roles?.some(role => role.code === 'PLANNER' || role.code === 'ADMIN');
+    const totalTaskCount = tasks ? tasks.length : 0;
+    const taskInProgressCount = tasks ? tasks.filter(task => task.status === 'IN_PROGRESS').length : 0;
+    const taskWaitingEngineerCount = tasks ? tasks.filter(task => task.status === 'COMPLETED_BY_MECHANIC').length : 0;
+    const taskCompleteCount = tasks ? tasks.filter(task => task.status === 'CERTIFIED_BY_ENGINEER' || task.status === 'LOCKED').length : 0;
+    const taskOpenCount = tasks ? tasks.filter(task => task.status === 'OPEN').length : 0;
+    const taskStatusSummary =
+      totalTaskCount === 0
+        ? 'No tasks'
+        : tasks.every(task => task.status === 'CERTIFIED_BY_ENGINEER' || task.status === 'LOCKED')
+        ? 'Tasks complete'
+        : tasks.some(task => task.status === 'COMPLETED_BY_MECHANIC')
+        ? 'Waiting for engineer sign off'
+        : tasks.some(task => task.status === 'IN_PROGRESS')
+        ? `${tasks.filter(task => task.status === 'IN_PROGRESS').length} in progress`
+        : `${totalTaskCount} open`;
+  %>
 
-  <div class="flex justify-between items-start mb-8 bg-white p-6 rounded-xl border shadow-sm">
-    <div>
-      <nav class="text-sm text-slate-500 mb-2">
-        <a href="/workpacks/planner" class="hover:text-blue-600">Planner</a> /
-        <span class="text-slate-800">Tasks</span>
-      </nav>
+  <!-- ✅ COMPACT HEADER -->
+<div class="mb-8 rounded-xl border bg-white p-6 shadow-sm space-y-1">
 
-      <h1 class="text-3xl font-bold text-slate-900">
-        WO: <%= pack.work_order_number %>
-      </h1>
+  <!-- ROW 1 -->
+  <div class="flex items-center justify-between">
+    <!-- LEFT -->
+    <nav class="mb-1 text-sm text-slate-500">
+      <a href="/workpacks/planner" class="hover:text-blue-600">Planner</a> /
+      <span class="text-slate-800">Tasks</span>
+    </nav>
+    <!-- CENTER (empty for row 1) -->
+    <div></div>
+    <!-- RIGHT (empty for row 1) -->
+    <div></div>
+  </div>
 
-      <p class="text-slate-600 font-medium">
-        Aircraft:
-        <span class="text-blue-600">
-          <%= pack.Aircraft?.registration || '' %>
-        </span>
-      </p>
-    </div>
+  <!-- ROW 2 -->
+  <div class="flex items-center justify-between">
+    <!-- LEFT -->
+    <h1 class="text-2xl font-bold text-slate-900 leading-tight">
+      WO: <%= pack.work_order_number %>
+    </h1>
 
+    <!-- CENTER -->
+    <p class="text-sm font-semibold text-slate-800 leading-tight">
+      <%= taskStatusSummary %>
+    </p>
+
+    <!-- RIGHT -->
     <div class="text-right">
-      <p class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">
+      <p class="text-xs font-bold text-slate-400 uppercase tracking-widest leading-tight">
         Current Lifecycle
       </p>
+    </div>
+  </div>
 
-      <span class="px-4 py-1.5 rounded-full font-bold text-sm border
+  <!-- ROW 3 -->
+  <div class="flex items-center justify-between">
+    <!-- LEFT -->
+    <p class="text-slate-600 text-sm">
+      Aircraft:
+      <span class="text-blue-600 font-medium">
+        <%= pack.Aircraft?.registration || '' %>
+      </span>
+    </p>
+
+    <!-- CENTER -->
+    <div class="flex flex-wrap items-center justify-center gap-2">
+      <span class="rounded-full bg-blue-50 px-2 py-0.5 text-xs font-semibold text-blue-700">
+        In Progress: <%= taskInProgressCount %>
+      </span>
+      <span class="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-700">
+        Waiting Engineer: <%= taskWaitingEngineerCount %>
+      </span>
+      <span class="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-700">
+        Complete: <%= taskCompleteCount %>
+      </span>
+      <span class="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-700">
+        Open: <%= taskOpenCount %>
+      </span>
+    </div>
+
+    <!-- RIGHT -->
+    <span class="inline-block mt-1 px-3 py-1 rounded-full font-bold text-xs border
         <%= pack.WorkpackStatus?.code === 'DRAFT' ? 'bg-slate-100 text-slate-600 border-slate-300' :
            pack.WorkpackStatus?.code === 'RELEASED' ? 'bg-green-100 text-green-700 border-green-300' :
            'bg-blue-100 text-blue-700 border-blue-300' %>">
         <%= pack.WorkpackStatus?.code %>
       </span>
-    </div>
+  </div>
+</div>
+<!-- ------------------------------------------------------------------- -->
+
+
+  <div class="mb-6 flex flex-wrap gap-3">
+    <a
+      href="/workpacks/<%= pack.id %>/snags"
+      class="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50"
+    >
+      Snags
+    </a>
+    <a
+      href="/workpacks/<%= pack.id %>/tasks"
+      class="rounded-lg bg-slate-900 px-4 py-2 text-sm font-bold text-white"
+    >
+      Tasks
+    </a>
+    <a
+      href="/workpacks/<%= pack.id %>/service-bulletins"
+      class="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50"
+    >
+      Service Bulletins
+    </a>
+    <%- include('../partials/workpack-pdf-menu', { pack }) %>
   </div>
 
   <div class="grid gap-4">
@@ -57,7 +138,7 @@
       </span>
     </p>
 
-    <% if (pack.WorkpackStatus?.code === 'DRAFT' && tasks && tasks.length > 0 && user?.roles?.some(role => role.code === 'PLANNER')) { %>
+    <% if (pack.WorkpackStatus?.code === 'DRAFT' && tasks && tasks.length > 0 && canManageWorkpacks) { %>
       <button
         hx-post="/workpacks/<%= pack.id %>/issue"
         hx-confirm="Are you sure? This will lock the task list and move this pack to the hangar."
@@ -71,6 +152,7 @@
 
   <% if (user?.roles?.some(role => role.code === 'ENGINEER')) { %>
     <% const allTasksCertified = tasks.length > 0 && tasks.every(task => task.status === 'CERTIFIED_BY_ENGINEER'); %>
+    <% const openSnagCount = ((pack.Snags || []).filter((snag) => snag.status !== 'CLOSED')).length; %>
     <div class="mt-8 border-t pt-8 flex justify-between items-center">
       <a
         href="/workpacks/<%= pack.id %>/execution"
@@ -88,11 +170,8 @@
             This pack has already been engineer closed.
           </p>
         </div>
-      <% } else if (pack.WorkpackStatus?.code === 'IN_PROGRESS' && allTasksCertified) { %>
-        <form
-          method="POST"
-          action="/workpacks/<%= pack.id %>/close"
-        >
+      <% } else if (pack.WorkpackStatus?.code === 'IN_PROGRESS' && allTasksCertified && openSnagCount === 0) { %>
+        <form method="POST" action="/workpacks/<%= pack.id %>/close">
           <input type="hidden" name="_csrf" value="<%= csrfToken %>">
           <button
             type="submit"
@@ -101,6 +180,15 @@
             Close Workpack
           </button>
         </form>
+      <% } else if (pack.WorkpackStatus?.code === 'IN_PROGRESS' && openSnagCount > 0) { %>
+        <div class="text-right">
+          <p class="text-sm font-semibold text-slate-700">
+            Engineer close-out is blocked by snags
+          </p>
+          <p class="text-sm text-slate-500">
+            Close the remaining <%= openSnagCount %> snag<%= openSnagCount === 1 ? '' : 's' %> before closing the workpack.
+          </p>
+        </div>
       <% } else if (pack.WorkpackStatus?.code === 'IN_PROGRESS') { %>
         <div class="text-right">
           <p class="text-sm font-semibold text-slate-700">

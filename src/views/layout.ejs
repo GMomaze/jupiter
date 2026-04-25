@@ -1,14 +1,35 @@
 <%- include('../partials/header') %>
 
 <main class="max-w-7xl mx-auto py-10 px-4 sm:px-6 lg:px-8">
+  <% const canManageWorkpacks = user?.roles?.some(role => role.code === 'PLANNER' || role.code === 'ADMIN'); %>
 
-  <% if (!user?.roles?.some(role => role.code === 'PLANNER')) { %>
+  <!-- OFFLINE BANNER -->
+  <div id="offline-banner" class="hidden bg-yellow-100 text-yellow-800 p-3 rounded mb-4 text-xs font-bold">
+    Offline Mode - Some features may not work
+  </div>
+
+  <script>
+    function updateOnlineStatus() {
+      const banner = document.getElementById('offline-banner');
+      if (!navigator.onLine) {
+        banner.classList.remove('hidden');
+      } else {
+        banner.classList.add('hidden');
+      }
+    }
+
+    window.addEventListener('online', updateOnlineStatus);
+    window.addEventListener('offline', updateOnlineStatus);
+    updateOnlineStatus();
+  </script>
+
+  <% if (!canManageWorkpacks) { %>
     <div class="bg-red-100 text-red-700 p-4 rounded mb-6">
-      Access Restricted — Planner Role Required
+      Access Restricted - Planner or Admin Role Required
     </div>
   <% } %>
 
-  <% if (user?.roles?.some(role => role.code === 'PLANNER')) { %>
+  <% if (canManageWorkpacks) { %>
 
   <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
 
@@ -34,7 +55,7 @@
           class="w-full border p-2 rounded text-sm focus:ring-2 focus:ring-slate-500 outline-none"
         >
           <option value="">Select Aircraft</option>
-          <% aircraft.forEach(a => { %>
+          <% (aircraft || []).forEach(a => { %>
             <option value="<%= a.id %>"><%= a.registration %></option>
           <% }) %>
         </select>
@@ -54,13 +75,13 @@
         Unassigned Tasks
       </h2>
 
-      <% if (unassignedTasks.length === 0) { %>
+      <% if (!(unassignedTasks || []).length) { %>
         <p class="text-xs text-slate-500 italic">
           No unassigned tasks available.
         </p>
       <% } %>
 
-      <% unassignedTasks.forEach(task => { %>
+      <% (unassignedTasks || []).forEach(task => { %>
         <div class="bg-white p-3 mb-2 border rounded shadow-sm flex justify-between items-center">
           <span class="text-sm font-medium text-slate-900">
             <%= task.title %>
@@ -76,9 +97,9 @@
             hx-include="this"
             hx-headers='{"x-csrf-token":"<%= csrfToken %>"}'
           >
-            <option value="">Assign to Draft Pack…</option>
+            <option value="">Assign to Draft Pack...</option>
 
-            <% workpacks
+            <% (workpacks || [])
               .filter(wp =>
                 wp.WorkpackStatus.code === 'DRAFT' &&
                 wp.aircraft_id === task.aircraft_id
@@ -101,7 +122,7 @@
         Draft Workpacks
       </h2>
 
-      <% const drafts = workpacks.filter(wp => wp.WorkpackStatus.code === 'DRAFT'); %>
+      <% const drafts = (workpacks || []).filter(wp => wp.WorkpackStatus.code === 'DRAFT'); %>
 
       <% drafts.forEach(wp => { %>
         <div class="bg-white border rounded-lg p-5 shadow-sm">
@@ -127,7 +148,7 @@
                     <%= task.title %>
                   </span>
 
-                  <button 
+                  <button
                     hx-post="/workpacks/<%= wp.id %>/<%= task.id %>/remove"
                     hx-swap="none"
                     hx-headers='{"x-csrf-token":"<%= csrfToken %>"}'

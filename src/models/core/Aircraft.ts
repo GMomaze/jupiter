@@ -9,7 +9,6 @@ import {
 
 import sequelize from '../../config/database.js';
 import { ComponentModel } from '../ComponentModel.js';
-import { AircraftComponent } from '../aircraftComponent.model.js';
 
 export class Aircraft extends Model<
   InferAttributes<Aircraft>,
@@ -26,6 +25,11 @@ export class Aircraft extends Model<
 
   declare total_time_hours: CreationOptional<number>;
   declare total_time_cycles: CreationOptional<number>;
+  declare loaded_into_system_at: CreationOptional<string | null>;
+  declare manufacture_date: CreationOptional<string | null>;
+  declare tcds_number: CreationOptional<string | null>;
+  declare tcds_url: CreationOptional<string | null>;
+  declare photo_url: CreationOptional<string | null>;
 
   declare version: CreationOptional<number>;
 
@@ -89,6 +93,31 @@ Aircraft.init(
       type: DataTypes.INTEGER,
       allowNull: false,
       defaultValue: 0,
+    },
+
+    loaded_into_system_at: {
+      type: DataTypes.DATEONLY,
+      allowNull: true,
+    },
+
+    manufacture_date: {
+      type: DataTypes.DATEONLY,
+      allowNull: true,
+    },
+
+    tcds_number: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
+
+    tcds_url: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+    },
+
+    photo_url: {
+      type: DataTypes.TEXT,
+      allowNull: true,
     },
 
     version: {

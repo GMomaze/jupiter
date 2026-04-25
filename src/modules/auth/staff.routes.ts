@@ -30,7 +30,7 @@ router.post('/toggle-role', async (req, res) => {
     [userId, roleId]
   );
 
-  if (existing.rowCount > 0) {
+  if ((existing.rowCount ?? 0) > 0) {
     await pool.query('DELETE FROM user_roles WHERE user_id = $1 AND role_id = $2', [userId, roleId]);
   } else {
     await pool.query('INSERT INTO user_roles (user_id, role_id) VALUES ($1, $2)', [userId, roleId]);

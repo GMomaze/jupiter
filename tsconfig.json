@@ -1,34 +1,51 @@
 {
   "compilerOptions": {
-    /* 0.2 Folder Structure Locks */
+    /* =========================
+       Folder Structure
+    ========================= */
     "rootDir": "./src",
     "outDir": "./dist",
 
-    /* Environment & Module Resolution */
-    "module": "ESNext",
+    /* =========================
+       Module System (FIXED)
+    ========================= */
+    "module": "NodeNext",
     "moduleResolution": "NodeNext",
     "target": "ES2022",
     "moduleDetection": "force",
     "lib": ["ES2022"],
     "types": ["node"],
 
-    /* 0.3 Tooling & Stricter Typechecking */
+    /* =========================
+       Strictness
+    ========================= */
     "strict": true,
     "noUncheckedIndexedAccess": true,
     "exactOptionalPropertyTypes": true,
     "isolatedModules": true,
-    
-    /* Output Quality */
+
+    /* =========================
+       Output
+    ========================= */
     "sourceMap": true,
     "declaration": true,
     "declarationMap": true,
     "removeComments": false,
 
-    /* Interop & Safety */
+    /* =========================
+       Interop & Stability
+    ========================= */
     "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
     "forceConsistentCasingInFileNames": true,
-    "skipLibCheck": true
+    "skipLibCheck": true,
+
+    /* =========================
+       NodeNext Quality-of-life
+    ========================= */
+    "resolveJsonModule": true
   },
-  "include": ["src/**/*", "knexfile.ts"],
-  "exclude": ["node_modules", "dist", "**/*.test.ts"]
+
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist", "**/*.test.ts", "migrations/**/*"]
 }

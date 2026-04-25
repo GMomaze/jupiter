@@ -1,5 +1,8 @@
 import { Router } from 'express';
-import { AircraftController } from './aircraft.controller.ts';
+import { AircraftController } from './aircraft.controller.js';
+import { aircraftPhotoUpload } from '../../middleware/upload.middleware.js';
+import { requireAuth } from '../../middleware/auth.middleware.js';
+import { requireRole } from '../../middleware/rbac.middleware.js';
 
 const router = Router();
 
@@ -13,7 +16,7 @@ router.get('/', AircraftController.index);
 // Create page
 router.get('/create', AircraftController.showCreate);
 
-// 🔹 NEW — Load models by manufacturer (HTMX)
+// ✅ MATCHING ROUTE: This handles /aircraft/manufacturer/:manufacturerId/models
 router.get(
   '/manufacturer/:manufacturerId/models',
   AircraftController.getModelsByManufacturer
@@ -21,14 +24,19 @@ router.get(
 
 // UUID routes
 router.get('/view/:id', AircraftController.showView);
-router.post('/', AircraftController.create);
-router.patch('/:id', AircraftController.update);
+router.get('/:id/service-bulletins', AircraftController.getServiceBulletins);
+router.post('/', aircraftPhotoUpload.single('aircraft_photo'), AircraftController.create);
+router.post('/:id', requireAuth, requireRole('ADMIN'), aircraftPhotoUpload.single('aircraft_photo'), AircraftController.update);
+router.patch('/:id', requireAuth, requireRole('ADMIN'), aircraftPhotoUpload.single('aircraft_photo'), AircraftController.update);
 
 // Transition
 router.post('/:id/transition', AircraftController.transition);
 
 // Components
 router.post('/:id/components', AircraftController.installComponent);
+router.post('/:id/service-bulletins/:serviceBulletinId/compliance', AircraftController.updateServiceBulletinCompliance);
+router.post('/:id/sb/:sbId/comply', AircraftController.complyServiceBulletin);
+router.post('/:id/sb/:sbId/not-applicable', AircraftController.markServiceBulletinNotApplicable);
 
 // Registration route LAST
 router.get('/:registration', AircraftController.showByRegistration);

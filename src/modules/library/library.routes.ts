@@ -1,12 +1,40 @@
 import { Router } from 'express';
+import multer from 'multer';
 import { LibraryService } from './library.service.js';
 import { ensureAuthenticated } from '../../middleware/auth.middleware.js';
 import { requirePermission } from '../../middleware/rbac.middleware.js';
+import { manufacturerLogoUpload } from '../../middleware/upload.middleware.js';
 
 const router = Router();
+const sidCsvUpload = multer({ storage: multer.memoryStorage() });
+
+function getParam(value: string | string[] | undefined) {
+  return Array.isArray(value) ? value[0] || '' : value || '';
+}
 
 // Apply authentication to all library routes
 router.use(ensureAuthenticated);
+
+function getFriendlyLibraryErrorMessage(error: any) {
+  const message = error?.original?.message || error?.message || '';
+
+  if (
+    message.includes('column') &&
+    message.includes('manufacturers') &&
+    message.includes('does not exist')
+  ) {
+    return 'The database schema is behind the app code for manufacturers. Run the latest migrations and try again.';
+  }
+
+  if (
+    error?.name === 'SequelizeUniqueConstraintError' &&
+    String(message).toLowerCase().includes('code')
+  ) {
+    return 'That manufacturer code is already in use.';
+  }
+
+  return message || 'Unable to save manufacturer.';
+}
 
 /**
  * GET /library
@@ -25,13 +53,186 @@ router.get('/', async (req, res, next) => {
   }
 });
 
+router.get('/manufacturers', async (_req, res, next) => {
+  try {
+    const manufacturers = await LibraryService.getManufacturers();
+
+    res.render('library/manufacturers', {
+      manufacturers,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get('/manufacturers/:id', async (req, res, next) => {
+  try {
+    const manufacturerId = getParam(req.params.id);
+    const manufacturer = await LibraryService.getManufacturerById(manufacturerId);
+    const assetTypes = await LibraryService.getAssetTypes();
+
+    if (!manufacturer) {
+      return res.status(404).send('Manufacturer not found.');
+    }
+
+    res.render('library/manufacturer-detail', {
+      manufacturer,
+      assetTypes,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post('/manufacturers', requirePermission('LIBRARY_EDIT'), manufacturerLogoUpload.single('logo_file'), async (req, res, next) => {
+  try {
+    const {
+      name,
+      code,
+      description,
+      website,
+      logo_url,
+      address_line_1,
+      address_line_2,
+      city,
+      state,
+      country,
+      postal_code,
+      current_owner,
+      is_active,
+      is_operational,
+      support_email,
+      support_phone,
+      notes,
+    } = req.body;
+    const uploadedLogoPath = req.file ? `/uploads/manufacturers/${req.file.filename}` : undefined;
+
+    if (!name || !String(name).trim()) {
+      throw new Error('Manufacturer name is required.');
+    }
+
+    await LibraryService.createManufacturer({
+      name,
+      code,
+      description,
+      website,
+      logo_url: uploadedLogoPath || logo_url,
+      address_line_1,
+      address_line_2,
+      city,
+      state,
+      country,
+      postal_code,
+      current_owner,
+      is_active: is_active === 'true' || is_active === 'on',
+      is_operational: is_operational === 'true' || is_operational === 'on',
+      support_email,
+      support_phone,
+      notes,
+    });
+
+    res.redirect('/library/manufacturers');
+  } catch (error) {
+    const message = getFriendlyLibraryErrorMessage(error);
+
+    try {
+      const manufacturers = await LibraryService.getManufacturers();
+
+      res.status(400).render('library/manufacturers', {
+        manufacturers,
+        messages: {
+          ...(res.locals.messages || {}),
+          error: [message],
+        },
+      });
+    } catch (renderError) {
+      next(renderError);
+    }
+  }
+});
+
+router.post('/manufacturers/:id/update', requirePermission('LIBRARY_EDIT'), manufacturerLogoUpload.single('logo_file'), async (req, res, next) => {
+  const manufacturerId = getParam(req.params.id);
+
+  try {
+    const {
+      name,
+      code,
+      description,
+      website,
+      logo_url,
+      address_line_1,
+      address_line_2,
+      city,
+      state,
+      country,
+      postal_code,
+      current_owner,
+      is_active,
+      is_operational,
+      support_email,
+      support_phone,
+      notes,
+    } = req.body;
+    const uploadedLogoPath = req.file ? `/uploads/manufacturers/${req.file.filename}` : undefined;
+
+    if (!name || !String(name).trim()) {
+      throw new Error('Manufacturer name is required.');
+    }
+
+    await LibraryService.updateManufacturer(manufacturerId, {
+      name,
+      code,
+      description,
+      website,
+      logo_url: uploadedLogoPath || logo_url,
+      address_line_1,
+      address_line_2,
+      city,
+      state,
+      country,
+      postal_code,
+      current_owner,
+      is_active: is_active === 'true' || is_active === 'on',
+      is_operational: is_operational === 'true' || is_operational === 'on',
+      support_email,
+      support_phone,
+      notes,
+    });
+
+    res.redirect(`/library/manufacturers/${manufacturerId}`);
+  } catch (error) {
+    const message = getFriendlyLibraryErrorMessage(error);
+
+    try {
+      const manufacturer = await LibraryService.getManufacturerById(manufacturerId);
+      const assetTypes = await LibraryService.getAssetTypes();
+
+      if (!manufacturer) {
+        return res.status(404).send('Manufacturer not found.');
+      }
+
+      res.status(400).render('library/manufacturer-detail', {
+        manufacturer,
+        assetTypes,
+        messages: {
+          ...(res.locals.messages || {}),
+          error: [message],
+        },
+      });
+    } catch (renderError) {
+      next(renderError);
+    }
+  }
+});
+
 /**
  * GET /library/asset-type/:id/manufacturers
  * Returns manufacturers filtered by asset type
  */
 router.get('/asset-type/:id/manufacturers', async (req, res, next) => {
   try {
-    const { id } = req.params;
+    const id = getParam(req.params.id);
 
     const manufacturers =
       await LibraryService.getManufacturersByAssetType(id);
@@ -53,7 +254,8 @@ router.get(
   '/manufacturer/:manufacturerId/asset-type/:assetTypeId/models',
   async (req, res, next) => {
     try {
-      const { manufacturerId, assetTypeId } = req.params;
+      const manufacturerId = getParam(req.params.manufacturerId);
+      const assetTypeId = getParam(req.params.assetTypeId);
 
       const models =
         await LibraryService.getModelsByManufacturerAndAssetType(
@@ -76,19 +278,63 @@ router.get(
  */
 router.get('/model/:id', async (req, res, next) => {
   try {
-    const { id } = req.params;
+    const id = getParam(req.params.id);
 
     const model = await LibraryService.getModelById(id);
     const requirements = await LibraryService.getModelRequirements(id);
+    const serviceBulletins = await LibraryService.getModelServiceBulletins(id);
+    const attachableServiceBulletins = await LibraryService.getAttachableServiceBulletins(id);
+    const sids = await LibraryService.getModelSids(id);
 
     res.render('library/model-detail', {
       model,
       requirements,
+      serviceBulletins,
+      attachableServiceBulletins,
+      sids,
     });
   } catch (error) {
     next(error);
   }
 });
+
+router.post(
+  '/model/:id/sids/import',
+  requirePermission('LIBRARY_EDIT'),
+  sidCsvUpload.single('sid_csv'),
+  async (req: any, res, next) => {
+    try {
+      const modelId = getParam(req.params.id);
+      if (!req.file) {
+        throw new Error('No SID CSV file uploaded.');
+      }
+
+      const result = await LibraryService.importModelSidsFromCsv(
+        modelId,
+        req.file.buffer
+      );
+
+      const parts = [
+        `${result.attached} attached`,
+        `${result.created} created`,
+      ];
+
+      if (result.skippedDuplicates > 0) {
+        parts.push(`${result.skippedDuplicates} duplicate summaries skipped`);
+      }
+
+      if (result.skippedInvalid > 0) {
+        parts.push(`${result.skippedInvalid} invalid rows skipped`);
+      }
+
+      req.flash('success', `SID import complete: ${parts.join(', ')}.`);
+      res.redirect(`/library/model/${modelId}`);
+    } catch (error: any) {
+      req.flash('error', error?.message || 'Unable to import SID CSV.');
+      res.redirect(`/library/model/${getParam(req.params.id)}`);
+    }
+  }
+);
 
 /**
  * POST /library/model
@@ -100,8 +346,14 @@ router.post('/model', requirePermission('LIBRARY_EDIT'), async (req, res, next) 
       manufacturer_id,
       asset_type_id,
       model_name,
+      model_code,
       default_tbo_hours,
       default_tbo_months,
+      service_interval_hours,
+      service_interval_months,
+      overhaul_interval_hours,
+      overhaul_interval_months,
+      maintenance_notes,
       is_life_limited,
     } = req.body;
 
@@ -109,16 +361,30 @@ router.post('/model', requirePermission('LIBRARY_EDIT'), async (req, res, next) 
       manufacturer_id,
       asset_type_id,
       model_name,
+      model_code,
       default_tbo_hours: default_tbo_hours
         ? Number(default_tbo_hours)
         : undefined,
       default_tbo_months: default_tbo_months
         ? Number(default_tbo_months)
         : undefined,
-      is_life_limited: is_life_limited === 'true',
+      service_interval_hours: service_interval_hours
+        ? Number(service_interval_hours)
+        : undefined,
+      service_interval_months: service_interval_months
+        ? Number(service_interval_months)
+        : undefined,
+      overhaul_interval_hours: overhaul_interval_hours
+        ? Number(overhaul_interval_hours)
+        : undefined,
+      overhaul_interval_months: overhaul_interval_months
+        ? Number(overhaul_interval_months)
+        : undefined,
+      maintenance_notes,
+      is_life_limited: is_life_limited === 'true' || is_life_limited === 'on',
     });
 
-    res.redirect('/library');
+    res.redirect(`/library/manufacturers/${manufacturer_id}`);
   } catch (error) {
     next(error);
   }
@@ -129,24 +395,44 @@ router.post('/model', requirePermission('LIBRARY_EDIT'), async (req, res, next) 
  */
 router.post('/model/:id/update', requirePermission('LIBRARY_EDIT'), async (req, res, next) => {
   try {
-    const { id } = req.params;
+    const id = getParam(req.params.id);
 
     const {
       model_name,
+      model_code,
       default_tbo_hours,
       default_tbo_months,
+      service_interval_hours,
+      service_interval_months,
+      overhaul_interval_hours,
+      overhaul_interval_months,
+      maintenance_notes,
       is_life_limited,
     } = req.body;
 
     await LibraryService.updateModel(id, {
       model_name,
+      model_code,
       default_tbo_hours: default_tbo_hours
         ? Number(default_tbo_hours)
         : undefined,
       default_tbo_months: default_tbo_months
         ? Number(default_tbo_months)
         : undefined,
-      is_life_limited: is_life_limited === 'true',
+      service_interval_hours: service_interval_hours
+        ? Number(service_interval_hours)
+        : undefined,
+      service_interval_months: service_interval_months
+        ? Number(service_interval_months)
+        : undefined,
+      overhaul_interval_hours: overhaul_interval_hours
+        ? Number(overhaul_interval_hours)
+        : undefined,
+      overhaul_interval_months: overhaul_interval_months
+        ? Number(overhaul_interval_months)
+        : undefined,
+      maintenance_notes,
+      is_life_limited: is_life_limited === 'true' || is_life_limited === 'on',
     });
 
     res.redirect(`/library/model/${id}`);
@@ -191,7 +477,7 @@ router.post('/requirement', requirePermission('LIBRARY_EDIT'), async (req, res, 
  */
 router.post('/requirement/:id/update', requirePermission('LIBRARY_EDIT'), async (req, res, next) => {
   try {
-    const { id } = req.params;
+    const id = getParam(req.params.id);
 
     const {
       title,
@@ -223,12 +509,101 @@ router.post('/requirement/:id/update', requirePermission('LIBRARY_EDIT'), async 
  */
 router.post('/requirement/:id/delete', requirePermission('LIBRARY_EDIT'), async (req, res, next) => {
   try {
-    const { id } = req.params;
+    const id = getParam(req.params.id);
     const { model_id } = req.body;
 
     await LibraryService.deleteRequirement(id);
 
     res.redirect(`/library/model/${model_id}`);
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post('/service-bulletin', requirePermission('LIBRARY_EDIT'), async (req, res, next) => {
+  try {
+    const {
+      model_id,
+      sb_number,
+      title,
+      description,
+      issued_on,
+      compliance_type,
+      revision,
+      document_url,
+    } = req.body;
+
+    const toArray = (value: unknown) =>
+      Array.isArray(value) ? value : value !== undefined ? [value] : [];
+
+    const sbNumbers = toArray(sb_number);
+    const titles = toArray(title);
+    const descriptions = toArray(description);
+    const complianceTypes = toArray(compliance_type);
+    const issuedDates = toArray(issued_on);
+    const revisions = toArray(revision);
+    const documentUrls = toArray(document_url);
+
+    const hasMultipleRows =
+      sbNumbers.length > 1 ||
+      descriptions.length > 1 ||
+      complianceTypes.length > 1;
+
+    if (hasMultipleRows) {
+      const maxRows = Math.max(
+        sbNumbers.length,
+        titles.length,
+        descriptions.length,
+        complianceTypes.length,
+        issuedDates.length,
+        revisions.length,
+        documentUrls.length
+      );
+
+      await LibraryService.createServiceBulletinsBulk(
+        model_id,
+        Array.from({ length: maxRows }, (_, index) => ({
+          sb_number: String(sbNumbers[index] ?? ''),
+          title: String(titles[index] ?? descriptions[index] ?? ''),
+          description: String(descriptions[index] ?? ''),
+          compliance_type: String(complianceTypes[index] ?? 'MANUAL'),
+          issued_on: String(issuedDates[index] ?? ''),
+          revision: String(revisions[index] ?? ''),
+          document_url: String(documentUrls[index] ?? ''),
+        }))
+      );
+    } else {
+      await LibraryService.createServiceBulletin({
+        model_id,
+        sb_number,
+        title: title || description,
+        description,
+        issued_on,
+        compliance_type,
+        revision,
+        document_url,
+      });
+    }
+
+    res.redirect(`/library/model/${model_id}`);
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post('/model/:id/service-bulletins/attach', requirePermission('LIBRARY_EDIT'), async (req, res, next) => {
+  try {
+    const id = getParam(req.params.id);
+    const selected = req.body?.service_bulletin_ids;
+    const serviceBulletinIds = Array.isArray(selected)
+      ? selected
+      : selected
+      ? [selected]
+      : [];
+
+    await LibraryService.attachServiceBulletinsToModel(id, serviceBulletinIds);
+
+    res.redirect(`/library/model/${id}`);
   } catch (error) {
     next(error);
   }

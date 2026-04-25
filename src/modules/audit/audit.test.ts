@@ -1,13 +1,12 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { v4 as uuid } from 'uuid';
-import { Role, Permission } from '../../models/index.js'; 
+import { Role } from '../../models/index.js'; 
 import { AuditLog } from '../../models/audit/AuditLog.js';
 import { pool } from '../../config/database.js';
 
 describe('Phase 3.5: Audit Logic Integration Tests', () => {
 
   beforeEach(async () => {
-    // Set session variable to bypass immutable trigger
     await pool.query("SET app.is_test_mode = 'true'");
     await pool.query('DELETE FROM audit_log');
     await pool.query("SET app.is_test_mode = 'false'");
@@ -16,16 +15,24 @@ describe('Phase 3.5: Audit Logic Integration Tests', () => {
     await pool.query('DELETE FROM rf_role_permissions');
     await pool.query('DELETE FROM rf_permission');
     await pool.query('DELETE FROM rf_role');
+    await pool.query('DELETE FROM users');
   });
 
   it('should successfully create and retrieve an audit entry', async () => {
     const actorId = uuid();
     const rowId = uuid();
 
-    const [role] = await Role.findOrCreate({
+    await Role.findOrCreate({
       where: { code: 'admin' },
       defaults: { id: uuid(), label: 'Administrator' }
     });
+
+    // ✅ FIX
+    await pool.query(
+      `INSERT INTO users (id, email, password_hash, full_name, is_active)
+       VALUES ($1, $2, $3, $4, $5)`,
+      [actorId, 'audit@test.com', 'test-hash', 'Audit Tester', true]
+    );
 
     await AuditLog.create({
       id: uuid(),

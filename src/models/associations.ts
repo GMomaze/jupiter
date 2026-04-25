@@ -1,6 +1,11 @@
 import { AssetType } from './AssetType.js';
 import { Manufacturer } from './Manufacturer.js';
 import { ComponentModel } from './ComponentModel.js';
+import { ServiceBulletin } from './ServiceBulletin.js';
+import { ServiceBulletinModel } from './ServiceBulletinModel.js';
+import { AircraftSbCompliance } from './AircraftSbCompliance.js';
+import { CessnaSid } from './cessnaSid.model.js';
+import { ModelSid } from './ModelSid.js';
 
 import { Aircraft } from './core/Aircraft.js';
 import { AircraftComponent } from './core/AircraftComponent.js';
@@ -9,9 +14,16 @@ import { Workpack } from './core/Workpack.js';
 import { TaskCard } from './core/TaskCard.js';
 import { TaskTemplate } from './core/TaskTemplate.js';
 import { WorkpackTask } from './core/WorkpackTask.js';
+import { WorkpackExecution } from './core/WorkpackExecution.js';
+import { WorkpackMeasurement } from './core/WorkpackMeasurement.js';
+import { WorkpackSignature } from './core/WorkpackSignature.js';
+import { WorkpackSource } from './core/WorkpackSource.js';
+import { WorkpackSnag } from './core/WorkpackSnag.js';
 import { User } from './core/User.js';
 
 import { AuditLog } from './audit/AuditLog.js';
+import { WorkpackAuditLog } from './audit/WorkpackAuditLog.js';
+import { WorkpackSnagAuditLog } from './audit/WorkpackSnagAuditLog.js';
 import { MaintenanceRequirement } from './MaintenanceRequirement.js';
 
 // RBAC
@@ -29,9 +41,39 @@ ComponentModel.belongsTo(AssetType, { foreignKey: 'asset_type_id' });
 
 Manufacturer.hasMany(ComponentModel, { foreignKey: 'manufacturer_id' });
 ComponentModel.belongsTo(Manufacturer, { foreignKey: 'manufacturer_id' });
+ServiceBulletin.belongsToMany(ComponentModel, {
+  through: ServiceBulletinModel,
+  foreignKey: 'service_bulletin_id',
+  otherKey: 'model_id',
+  as: 'ApplicableModels',
+});
+ComponentModel.belongsToMany(ServiceBulletin, {
+  through: ServiceBulletinModel,
+  foreignKey: 'model_id',
+  otherKey: 'service_bulletin_id',
+  as: 'ApplicableServiceBulletins',
+});
+ServiceBulletin.hasMany(TaskCard, { foreignKey: 'service_bulletin_id', as: 'TaskCards' });
+TaskCard.belongsTo(ServiceBulletin, { foreignKey: 'service_bulletin_id', as: 'ServiceBulletin' });
+ComponentModel.belongsToMany(CessnaSid, {
+  through: ModelSid,
+  foreignKey: 'model_id',
+  otherKey: 'sid_id',
+  as: 'Sids',
+});
+CessnaSid.belongsToMany(ComponentModel, {
+  through: ModelSid,
+  foreignKey: 'sid_id',
+  otherKey: 'model_id',
+  as: 'ApplicableModels',
+});
 
 Aircraft.belongsTo(ComponentModel, { foreignKey: 'model_id' });
 ComponentModel.hasMany(Aircraft, { foreignKey: 'model_id' });
+Aircraft.hasMany(AircraftSbCompliance, { foreignKey: 'aircraft_id', as: 'SbCompliance' });
+AircraftSbCompliance.belongsTo(Aircraft, { foreignKey: 'aircraft_id', as: 'Aircraft' });
+ServiceBulletin.hasMany(AircraftSbCompliance, { foreignKey: 'service_bulletin_id', as: 'AircraftCompliance' });
+AircraftSbCompliance.belongsTo(ServiceBulletin, { foreignKey: 'service_bulletin_id', as: 'ServiceBulletin' });
 TaskTemplate.belongsTo(ComponentModel, { foreignKey: 'aircraft_model_id', as: 'AircraftModel' });
 TaskTemplate.belongsTo(Aircraft, { foreignKey: 'aircraft_id', as: 'Aircraft' });
 
@@ -62,6 +104,45 @@ TaskCard.belongsTo(User, { foreignKey: 'assigned_to', as: 'Assignee' });
 User.hasMany(TaskCard, { foreignKey: 'assigned_to', as: 'AssignedTasks' });
 TaskCard.belongsTo(User, { foreignKey: 'mechanic_completed_by', as: 'MechanicCompleter' });
 TaskCard.belongsTo(User, { foreignKey: 'engineer_certified_by', as: 'EngineerCertifier' });
+
+Workpack.hasMany(WorkpackExecution, { foreignKey: 'workpack_id', as: 'Executions' });
+WorkpackExecution.belongsTo(Workpack, { foreignKey: 'workpack_id', as: 'Workpack' });
+
+TaskCard.hasMany(WorkpackExecution, { foreignKey: 'task_id', as: 'Executions' });
+WorkpackExecution.belongsTo(TaskCard, { foreignKey: 'task_id', as: 'Task' });
+
+WorkpackExecution.belongsTo(User, { foreignKey: 'started_by', as: 'Starter' });
+WorkpackExecution.belongsTo(User, { foreignKey: 'completed_by', as: 'Completer' });
+WorkpackExecution.belongsTo(User, { foreignKey: 'certified_by', as: 'Certifier' });
+
+WorkpackExecution.hasMany(WorkpackMeasurement, { foreignKey: 'execution_id', as: 'Measurements' });
+WorkpackMeasurement.belongsTo(WorkpackExecution, { foreignKey: 'execution_id', as: 'Execution' });
+
+WorkpackExecution.hasMany(WorkpackSignature, { foreignKey: 'execution_id', as: 'Signatures' });
+WorkpackSignature.belongsTo(WorkpackExecution, { foreignKey: 'execution_id', as: 'Execution' });
+WorkpackSignature.belongsTo(User, { foreignKey: 'user_id', as: 'Signer' });
+
+WorkpackExecution.hasMany(WorkpackSource, { foreignKey: 'execution_id', as: 'Sources' });
+WorkpackSource.belongsTo(WorkpackExecution, { foreignKey: 'execution_id', as: 'Execution' });
+
+WorkpackExecution.hasMany(WorkpackAuditLog, { foreignKey: 'execution_id', as: 'AuditEntries' });
+WorkpackAuditLog.belongsTo(WorkpackExecution, { foreignKey: 'execution_id', as: 'Execution' });
+WorkpackAuditLog.belongsTo(Workpack, { foreignKey: 'workpack_id', as: 'Workpack' });
+WorkpackAuditLog.belongsTo(TaskCard, { foreignKey: 'task_id', as: 'Task' });
+WorkpackAuditLog.belongsTo(User, { foreignKey: 'user_id', as: 'Actor' });
+
+Workpack.hasMany(WorkpackSnag, { foreignKey: 'workpack_id', as: 'Snags' });
+WorkpackSnag.belongsTo(Workpack, { foreignKey: 'workpack_id', as: 'Workpack' });
+WorkpackSnag.belongsTo(User, { foreignKey: 'created_by', as: 'Reporter' });
+WorkpackSnag.belongsTo(User, { foreignKey: 'assigned_to', as: 'Assignee' });
+WorkpackSnag.belongsTo(User, { foreignKey: 'started_by', as: 'Starter' });
+WorkpackSnag.belongsTo(User, { foreignKey: 'resolved_by', as: 'Resolver' });
+WorkpackSnag.belongsTo(User, { foreignKey: 'closed_by', as: 'Closer' });
+
+WorkpackSnag.hasMany(WorkpackSnagAuditLog, { foreignKey: 'snag_id', as: 'AuditEntries' });
+WorkpackSnagAuditLog.belongsTo(WorkpackSnag, { foreignKey: 'snag_id', as: 'Snag' });
+WorkpackSnagAuditLog.belongsTo(Workpack, { foreignKey: 'workpack_id', as: 'Workpack' });
+WorkpackSnagAuditLog.belongsTo(User, { foreignKey: 'user_id', as: 'Actor' });
 
 AuditLog.belongsTo(User, { foreignKey: 'actor_id', as: 'actor' });
 User.hasMany(AuditLog, { foreignKey: 'actor_id' });

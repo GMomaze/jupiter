@@ -1,0 +1,53 @@
+import { DataTypes, Model } from 'sequelize';
+import sequelize from '../config/database';
+
+class CessnaSid extends Model {
+  public id!: string;
+  public sid_number!: string;
+  public ata_chapter!: string;
+  public title!: string;
+}
+
+CessnaSid.init(
+  {
+    id: {
+      type: DataTypes.UUID,
+      defaultValue: DataTypes.UUIDV4,
+      primaryKey: true,
+    },
+
+    sid_number: {
+      type: DataTypes.STRING,
+      allowNull: false,
+    },
+
+    ata_chapter: {
+      type: DataTypes.STRING,
+      allowNull: false,
+    },
+
+    section_reference: DataTypes.STRING,
+
+    title: {
+      type: DataTypes.STRING,
+      allowNull: false,
+    },
+
+    initial_interval_hours: DataTypes.INTEGER,
+    initial_interval_years: DataTypes.INTEGER,
+    repeat_interval_hours: DataTypes.INTEGER,
+    repeat_interval_years: DataTypes.INTEGER,
+
+    inspection_operation: DataTypes.STRING,
+    source_pdf: DataTypes.STRING,
+  },
+  {
+    sequelize,
+    modelName: 'CessnaSid',
+    tableName: 'cessna_sids',
+    timestamps: true,
+    underscored: true,
+  }
+);
+
+export default CessnaSid;

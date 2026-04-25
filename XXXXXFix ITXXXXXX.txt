@@ -1,0 +1,234 @@
+JUPITER FIX LIST
+
+Purpose
+- This file captures the main issues currently observed in the Jupiter application and the work needed to stabilize it.
+- Priority is based on what is actively breaking runtime behavior, schema rebuilds, and normal workflow use.
+
+DROP SCHEMA public CASCADE;
+CREATE SCHEMA public;
+
+GRANT ALL ON SCHEMA public TO jupiter_app;
+GRANT ALL ON SCHEMA public TO public;
+
+
+Backup Before Rebuild
+- A pre-rebuild database backup has been created.
+- Backup folder:
+  `C:\GMO\Projects\jupiter\backups`
+- Backup file:
+  `C:\GMO\Projects\jupiter\backups\jupiter_pre_rebuild_20260423_221000.sql`
+
+How To Restore This Backup
+- If the target database already exists and you want to restore directly into it, run:
+  `Get-Content "C:\GMO\Projects\jupiter\.env" | ForEach-Object { if ($_ -match '=' -and -not $_.Trim().StartsWith('#')) { $p = $_ -split '=', 2; [Environment]::SetEnvironmentVariable($p[0].Trim(), $p[1].Trim(), 'Process') } }`
+  `$env:PGPASSWORD = $env:DB_ADMIN_PASSWORD`
+  `& "C:\Program Files\PostgreSQL\17\bin\psql.exe" --host=$env:DB_HOST --port=$env:DB_PORT --username=$env:DB_ADMIN_USER --dbname=$env:DB_NAME --file="C:\GMO\Projects\jupiter\backups\jupiter_pre_rebuild_20260423_221000.sql"`
+
+- If the database was dropped and must be recreated first:
+  `Get-Content "C:\GMO\Projects\jupiter\.env" | ForEach-Object { if ($_ -match '=' -and -not $_.Trim().StartsWith('#')) { $p = $_ -split '=', 2; [Environment]::SetEnvironmentVariable($p[0].Trim(), $p[1].Trim(), 'Process') } }`
+  `$env:PGPASSWORD = $env:DB_ADMIN_PASSWORD`
+  `& "C:\Program Files\PostgreSQL\17\bin\createdb.exe" --host=$env:DB_HOST --port=$env:DB_PORT --username=$env:DB_ADMIN_USER $env:DB_NAME`
+  `& "C:\Program Files\PostgreSQL\17\bin\psql.exe" --host=$env:DB_HOST --port=$env:DB_PORT --username=$env:DB_ADMIN_USER --dbname=$env:DB_NAME --file="C:\GMO\Projects\jupiter\backups\jupiter_pre_rebuild_20260423_221000.sql"`
+
+Backup Notes
+- This is a full logical SQL backup created with `pg_dump`.
+- It includes `--clean --if-exists`, so restore will drop and recreate objects in the target database as the script runs.
+- Keep this backup file until the rebuilt schema, reseed, and smoke test are all confirmed good.
+
+1. Critical Schema Drift
+- `src/models/core/Aircraft.ts` expects fields such as `loaded_into_system_at`, `manufacture_date`, `tcds_number`, `tcds_url`, and `photo_url`.
+- Fresh and existing databases can fail if these columns are missing.
+- Fix:
+  Run and keep `migrations/271_add_aircraft_document_fields.ts`.
+
+- `src/models/ComponentModel.ts` expects:
+  `model_code`, `service_interval_hours`, `service_interval_months`, `overhaul_interval_hours`, `overhaul_interval_months`, `maintenance_notes`, `is_life_limited`, `is_active`.
+- Older schemas did not create the full shape of `component_models`.
+- Fix:
+  Keep `migrations/100_expand_aircraft_and_components.ts` aligned with the model.
+  Keep `migrations/260_expand_manufacturers_and_models_master_data.ts` for `model_code`.
+
+- `src/models/core/TaskTemplate.ts` expects applicability flags:
+  `is_required_for_wood`
+  `is_required_for_fabric`
+  `is_required_for_bungees`
+  `is_required_for_woodprop`
+  `is_required_for_retractable`
+- Existing databases can fail on import and planner views when these columns are absent.
+- Fix:
+  Keep `migrations/231_add_task_template_applicability_flags.ts`.
+
+- `src/models/core/WorkpackExecution.ts` and `src/modules/workpacks/workpack.service.ts` expect:
+  `task_id`, `attempt_no`, `started_by`, `completed_by`, `certified_by`, `certified_at`, `version`
+- The old `workpack_executions` table shape did not match current code.
+- Fix:
+  Keep `migrations/280_create-workpack-executions.ts` in its updated form.
+
+- `src/models/audit/WorkpackSnagAuditLog.ts` and snag audit writes expect `workpack_snag_audit_log`.
+- That table was missing.
+- Fix:
+  Keep `migrations/381_create_workpack_snag_audit_log.ts`.
+
+- `src/models/ServiceBulletinSyncRun.ts` appears to expect `service_bulletin_sync_runs`, but no creating migration was previously found.
+- Fix:
+  Add a migration for `service_bulletin_sync_runs` if it still does not exist in the migration chain.
+
+2. Runtime Query Hardening Still Needed
+- A lot of routes and services were written against models that are ahead of the live DB.
+- Several pages only started working after narrowing Sequelize queries to stable attributes.
+- This is a symptom, not the final fix.
+
+- Remaining high-risk areas to audit for full-model selects:
+  `src/modules/workpacks/workpack.service.ts`
+  `src/modules/aircraft/aircraft.controller.ts`
+  `src/modules/aircraft/aircraft-component.service.ts`
+  `src/modules/library/library.service.ts`
+  `src/modules/service-bulletins/service-bulletin-sync.service.ts`
+  `src/modules/audit/audit.service.ts`
+
+- Specific recurring pattern to remove:
+  `findByPk(...)` and `findAll(...)` on `Aircraft` and `ComponentModel` without explicit `attributes`.
+
+- Fix:
+  After rebuild, remove temporary defensive narrowing only where no longer needed.
+  Before removing them, verify the schema truly matches the model.
+
+3. Workpack Workflow Issues
+- `Release PDF` was visible before full sign-off.
+- Fix already applied in UI and route guard:
+  only allow release output when `WorkpackStatus.code === 'CERTIFIED'`.
+
+- Workpack task completion, execution history, measurements, and audit features rely on the rebuilt execution schema.
+- If these still fail after rebuild, re-check:
+  `migrations/280_create-workpack-executions.ts`
+  `migrations/290_create-workpack-measurements.ts`
+  `migrations/300_create-workpack-signatures.ts`
+  `migrations/310_create-workpack-sources.ts`
+  `migrations/320_create-workpack-audit-log.ts`
+
+- Snag flow depends on:
+  `migrations/330_create-workpack-snags.ts`
+  `migrations/340_upgrade-workpack-snags-lifecycle.ts`
+  `migrations/350_add-snag-numbering.ts`
+  `migrations/381_create_workpack_snag_audit_log.ts`
+
+4. Library Module Issues
+- Library model pages were failing because `ComponentModel.findByPk(...)` was selecting fields not present in the current DB.
+- Fix:
+  Keep narrowed attribute lists in `src/modules/library/library.service.ts` until rebuild is complete.
+
+- `src/views/library/model-detail.ejs` expects service and overhaul interval fields and maintenance notes.
+- Fix:
+  Ensure fresh schema includes those `component_models` columns.
+
+- SID import now depends on:
+  `migrations/360_create_cessna_sids.ts`
+  `migrations/370_create_model_sids.ts`
+  `migrations/380_create_aircraft_sid_status.ts`
+- Fix:
+  Confirm these always run in a new environment.
+
+5. Service Bulletin Module Issues
+- Service bulletin pages were failing because create-option and applicable-model queries were doing broad `ComponentModel` loads.
+- Fix:
+  Keep narrowed `ComponentModel`, `Manufacturer`, and `AssetType` attribute selection in:
+  `src/modules/service-bulletins/service-bulletin.service.ts`
+  `src/modules/aircraft/aircraft.service.ts`
+
+- Sync and create logic still need a migration audit for:
+  `service_bulletin_sync_runs`
+  any related provider-run metadata tables
+
+6. Model / Migration Hygiene Problems
+- Redundant or misplaced files exist under `src/models`:
+  `src/models/cessna_sids`
+  `src/models/aircraft_sid_applicability`
+  `src/models/aircraft_sid_tracking`
+- These are not clean active model files.
+- Fix:
+  Remove or relocate legacy/misplaced migration-style files from the models folder.
+
+- There are signs of mixed migration systems in repo history:
+  Sequelize migration files plus leftover Knex-era artifacts.
+- Fix:
+  Standardize on one migration system.
+  Remove dead Knex leftovers if they are no longer used.
+
+7. Build / Tooling Problems
+- `tsconfig.json` has existing project issues, including prior problems around `knexfile.ts` outside `rootDir`.
+- Fix:
+  Clean TypeScript config so `tsc --noEmit` can be used as a reliable gate.
+
+- Some tests and dev verification are blocked by environment or spawn restrictions.
+- Fix:
+  Establish one reliable local verification command set after schema rebuild:
+  `npm run dev`
+  migration command
+  seed command
+  test command
+  typecheck command
+
+8. View / UX Inconsistencies
+- Several workpack views still refer to `RELEASED` in badge styling even though workflow code uses `CERTIFIED`.
+- Affected examples:
+  `src/views/workpacks/tasks.ejs`
+  `src/views/workpacks/service-bulletins.ejs`
+  `src/views/workpacks/snags.ejs`
+- Fix:
+  Normalize status labels across workflow, badges, and templates.
+
+- PDF menu behavior is shared across views.
+- Fix:
+  Keep access control logic centralized so all workpack pages behave consistently.
+
+9. Cleanup After Rebuild
+- After dropping schema and recreating:
+  run all migrations
+  run all seeds
+  open these pages in order:
+  `/library`
+  `/library/model/:id`
+  `/service-bulletins`
+  `/aircraft`
+  `/workpacks/planner`
+  `/workpacks/:id/tasks`
+  `/workpacks/:id/service-bulletins`
+  `/workpacks/:id/snags`
+  `/workpacks/:id/execution`
+
+- Then remove temporary fallback behavior if no longer needed:
+  workpack snag page fallback without audit history
+  execution-history fallback without `workpack_executions`
+  any attribute narrowing that only exists to survive old schemas
+
+10. Recommended Fix Order
+1. Rebuild DB from clean schema.
+2. Run all migrations including:
+   `100`, `231`, `271`, `280`, `381`
+3. Run seeds.
+4. Verify library, service bulletin, aircraft, and workpack flows.
+5. Add missing `service_bulletin_sync_runs` migration if still absent.
+6. Remove redundant model files and old migration-system leftovers.
+7. Normalize status naming and badge logic in views.
+8. Re-run full app smoke test and typecheck.
+
+Files Most Important To Review
+- `migrations/100_expand_aircraft_and_components.ts`
+- `migrations/231_add_task_template_applicability_flags.ts`
+- `migrations/271_add_aircraft_document_fields.ts`
+- `migrations/280_create-workpack-executions.ts`
+- `migrations/381_create_workpack_snag_audit_log.ts`
+- `src/models/ComponentModel.ts`
+- `src/models/core/Aircraft.ts`
+- `src/models/core/TaskTemplate.ts`
+- `src/models/core/WorkpackExecution.ts`
+- `src/modules/workpacks/workpack.service.ts`
+- `src/modules/workpacks/workpack.controller.ts`
+- `src/modules/library/library.service.ts`
+- `src/modules/service-bulletins/service-bulletin.service.ts`
+
+Bottom Line
+- The biggest problem in this application is schema drift between Sequelize models and the actual database.
+- Most of the runtime failures seen so far trace back to that.
+- The correct long-term fix is a clean rebuild using the corrected migrations,
+ followed by removal of temporary runtime guards once the schema is trustworthy again.

@@ -1,4 +1,4 @@
-import { pool } from '../../config/database';
+import { pool } from '../../config/database.js';
 
 export async function getUserPermissions(userId: string): Promise<Set<string>> {
   const result = await pool.query(
@@ -12,5 +12,5 @@ export async function getUserPermissions(userId: string): Promise<Set<string>> {
     [userId]
   );
 
-  return new Set(result.rows.map(r => r.code));
+  return new Set(result.rows.map((r: { code: string }) => r.code));
 }

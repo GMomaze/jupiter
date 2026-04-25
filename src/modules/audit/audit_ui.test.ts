@@ -14,9 +14,12 @@ describe('Phase 3.5: Audit UI Integration Tests', () => {
 
     // 1. Bypass Immutability & Clear Tables
     await pool.query("SET app.is_test_mode = 'true'");
-    await pool.query(
-      'TRUNCATE TABLE users, rf_role, rf_permission, user_roles, sessions RESTART IDENTITY CASCADE'
-    );
+    await pool.query('DELETE FROM user_roles');
+    await pool.query('DELETE FROM sessions');
+    await pool.query('DELETE FROM rf_role_permissions');
+    await pool.query('DELETE FROM rf_permission');
+    await pool.query('DELETE FROM rf_role');
+    await pool.query('DELETE FROM users');
     await pool.query("SET app.is_test_mode = 'false'");
 
     const roleId = uuid();

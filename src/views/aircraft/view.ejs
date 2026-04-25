@@ -1,10 +1,12 @@
 <%- include('../partials/header') %>
 
 <main class="max-w-5xl mx-auto py-10 px-6">
+    <% const bulletinFilters = sbFilters || {}; %>
+    <% const canEditAircraft = user?.roles?.some(role => role.code === 'ADMIN'); %>
 
     <div class="mb-6">
         <a href="/aircraft" class="text-sm text-blue-600 hover:underline">
-            ← Back to Fleet
+            Back to Fleet
         </a>
     </div>
 
@@ -15,10 +17,10 @@
 
         <p class="text-sm text-gray-500 mt-1">
             Manufacturer:
-            <%= aircraft.ComponentModel?.Manufacturer?.name || '—' %>
+            <%= aircraft.ComponentModel?.Manufacturer?.name || '-' %>
             |
             Model:
-            <%= aircraft.ComponentModel?.model_name || '—' %>
+            <%= aircraft.ComponentModel?.model_name || '-' %>
             |
             Serial:
             <%= aircraft.serial_number %>
@@ -26,136 +28,655 @@
 
         <p class="text-xs text-gray-400 mt-2 uppercase tracking-widest">
             Asset Type:
-            <%= aircraft.ComponentModel?.AssetType?.code || '—' %>
+            <%= aircraft.ComponentModel?.AssetType?.code || '-' %>
         </p>
     </div>
 
-    <!-- Installed Components -->
-    <div class="bg-white shadow rounded-lg p-6 mb-10">
-        <h2 class="text-xl font-semibold mb-4">Installed Components</h2>
+    <div class="grid gap-6 mb-8 lg:grid-cols-[0.8fr_1.2fr]">
+        <div class="bg-white shadow rounded-lg p-4">
+            <% if (aircraft.photo_url) { %>
+                <img
+                    src="<%= aircraft.photo_url %>"
+                    alt="<%= aircraft.registration %> photo"
+                    class="w-full h-64 object-cover rounded-lg border"
+                >
+            <% } else { %>
+                <div class="flex h-64 items-center justify-center rounded-lg border border-dashed text-sm text-slate-500">
+                    No aircraft photo loaded
+                </div>
+            <% } %>
+        </div>
 
-        <% if (aircraft.installed_components && aircraft.installed_components.length > 0) { %>
+        <div class="bg-white shadow rounded-lg p-6">
+            <% const selectedManufacturerId = aircraft.ComponentModel?.manufacturer_id || aircraft.ComponentModel?.Manufacturer?.id || ''; %>
 
-            <ul class="divide-y divide-gray-200">
+            <div class="mb-4 flex items-start justify-between gap-4">
+                <div>
+                    <h2 class="text-lg font-semibold text-slate-900">Aircraft Data</h2>
+                    <p class="mt-1 text-sm text-slate-500">
+                        Review registration, model details, hours, dates, and reference data.
+                    </p>
+                </div>
+                <div class="flex flex-wrap items-center gap-3">
+                    <span class="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold uppercase tracking-widest text-slate-600">
+                        Status: <%= aircraft.status %>
+                    </span>
+                    <% if (canEditAircraft) { %>
+                        <button
+                            type="button"
+                            id="toggle-aircraft-edit"
+                            class="rounded bg-slate-800 px-4 py-2 text-xs font-bold uppercase tracking-widest text-white hover:bg-slate-700"
+                            aria-expanded="false"
+                            aria-controls="aircraft-edit-form"
+                        >
+                            Edit Aircraft
+                        </button>
+                    <% } %>
+                </div>
+            </div>
 
-                <% aircraft.installed_components.forEach(ac => { %>
+            <div class="grid gap-4 md:grid-cols-2 text-sm">
+                <div>
+                    <p class="text-xs font-bold uppercase tracking-widest text-slate-500">Registration</p>
+                    <p class="mt-1 text-slate-900"><%= aircraft.registration %></p>
+                </div>
+                <div>
+                    <p class="text-xs font-bold uppercase tracking-widest text-slate-500">Serial Number</p>
+                    <p class="mt-1 text-slate-900"><%= aircraft.serial_number %></p>
+                </div>
+                <div>
+                    <p class="text-xs font-bold uppercase tracking-widest text-slate-500">Manufacturer</p>
+                    <p class="mt-1 text-slate-900"><%= aircraft.ComponentModel?.Manufacturer?.name || '-' %></p>
+                </div>
+                <div>
+                    <p class="text-xs font-bold uppercase tracking-widest text-slate-500">Model</p>
+                    <p class="mt-1 text-slate-900"><%= aircraft.ComponentModel?.model_name || '-' %></p>
+                </div>
+                <div>
+                    <p class="text-xs font-bold uppercase tracking-widest text-slate-500">Current Hours</p>
+                    <p class="mt-1 text-slate-900"><%= aircraft.total_time_hours %></p>
+                </div>
+                <div>
+                    <p class="text-xs font-bold uppercase tracking-widest text-slate-500">Loaded Into System</p>
+                    <p class="mt-1 text-slate-900"><%= aircraft.loaded_into_system_at || '-' %></p>
+                </div>
+                <div>
+                    <p class="text-xs font-bold uppercase tracking-widest text-slate-500">Manufacture Date</p>
+                    <p class="mt-1 text-slate-900"><%= aircraft.manufacture_date || '-' %></p>
+                </div>
+                <div>
+                    <p class="text-xs font-bold uppercase tracking-widest text-slate-500">Aircraft Category</p>
+                    <p class="mt-1 text-slate-900"><%= categories.find(category => category.id === aircraft.category_id)?.label || '-' %></p>
+                </div>
+                <div>
+                    <p class="text-xs font-bold uppercase tracking-widest text-slate-500">TCDS Number</p>
+                    <p class="mt-1 text-slate-900"><%= aircraft.tcds_number || '-' %></p>
+                </div>
+                <div class="md:col-span-2">
+                    <p class="text-xs font-bold uppercase tracking-widest text-slate-500">TCDS URL</p>
+                    <p class="mt-1 text-slate-900">
+                        <% if (aircraft.tcds_url) { %>
+                            <a href="<%= aircraft.tcds_url %>" target="_blank" rel="noreferrer" class="text-blue-600 hover:underline">
+                                <%= aircraft.tcds_url %>
+                            </a>
+                        <% } else { %>
+                            -
+                        <% } %>
+                    </p>
+                </div>
+            </div>
 
-                    <% const model = ac.ComponentModel; %>
-                    <% const manufacturer = model?.Manufacturer; %>
+            <% if (canEditAircraft) { %>
+                <form
+                    id="aircraft-edit-form"
+                    action="/aircraft/<%= aircraft.id %>?_csrf=<%= encodeURIComponent(csrfToken) %>"
+                    method="POST"
+                    enctype="multipart/form-data"
+                    class="mt-6 hidden space-y-5 border-t border-slate-200 pt-6"
+                >
+                    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                    <input type="hidden" name="version" value="<%= aircraft.version %>">
 
-                    <li class="py-3 flex justify-between items-center">
+                    <div>
+                        <label class="mb-1 block text-xs font-bold uppercase tracking-widest text-slate-600">
+                            Registration
+                        </label>
+                        <input
+                            type="text"
+                            name="registration"
+                            id="registration"
+                            required
+                            value="<%= aircraft.registration %>"
+                            class="w-full rounded border border-slate-300 px-3 py-2 text-sm"
+                        >
+                    </div>
 
-                        <span>
-                            <strong>
-                                <%= manufacturer?.name || 'Unknown Manufacturer' %>
-                                <%= model?.model_name || 'Unknown Model' %>
-                            </strong>
-                            <br>
-                            <span class="text-sm text-gray-500">
-                                Installed:
-                                <%= new Date(ac.installed_at).toLocaleDateString() %>
-                            </span>
-                        </span>
+                    <div class="grid gap-4 md:grid-cols-2">
+                        <div>
+                            <label class="mb-1 block text-xs font-bold uppercase tracking-widest text-slate-600">
+                                Serial Number
+                            </label>
+                            <input
+                                type="text"
+                                name="serial_number"
+                                required
+                                value="<%= aircraft.serial_number %>"
+                                class="w-full rounded border border-slate-300 px-3 py-2 text-sm"
+                            >
+                        </div>
 
-                        <span class="text-sm text-gray-500 text-right">
-                            TSN: <%= ac.tsn_at_install %><br>
-                            TSO: <%= ac.tso_at_install %>
-                            <% if (ac.is_quarantined) { %>
-                                <br>
-                                <span class="text-red-600 font-semibold">
-                                    QUARANTINED
-                                </span>
-                            <% } %>
-                        </span>
+                        <div>
+                            <label class="mb-1 block text-xs font-bold uppercase tracking-widest text-slate-600">
+                                Current Hours
+                            </label>
+                            <input
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                name="total_time_hours"
+                                value="<%= aircraft.total_time_hours %>"
+                                class="w-full rounded border border-slate-300 px-3 py-2 text-sm"
+                            >
+                        </div>
+                    </div>
 
-                    </li>
+                    <div class="grid gap-4 md:grid-cols-2">
+                        <div>
+                            <label class="mb-1 block text-xs font-bold uppercase tracking-widest text-slate-600">
+                                Date Loaded Into System
+                            </label>
+                            <input
+                                type="date"
+                                name="loaded_into_system_at"
+                                value="<%= aircraft.loaded_into_system_at || '' %>"
+                                class="w-full rounded border border-slate-300 px-3 py-2 text-sm"
+                            >
+                        </div>
 
-                <% }) %>
+                        <div>
+                            <label class="mb-1 block text-xs font-bold uppercase tracking-widest text-slate-600">
+                                Manufacture Date
+                            </label>
+                            <input
+                                type="date"
+                                name="manufacture_date"
+                                value="<%= aircraft.manufacture_date || '' %>"
+                                class="w-full rounded border border-slate-300 px-3 py-2 text-sm"
+                            >
+                        </div>
+                    </div>
 
-            </ul>
+                    <div>
+                        <label class="mb-1 block text-xs font-bold uppercase tracking-widest text-slate-600">
+                            Aircraft Category
+                        </label>
+                        <select
+                            name="category_id"
+                            required
+                            class="w-full rounded border border-slate-300 px-3 py-2 text-sm"
+                        >
+                            <option value="">Select Category</option>
+                            <% categories.forEach((category) => { %>
+                                <option
+                                    value="<%= category.id %>"
+                                    <%= category.id === aircraft.category_id ? 'selected' : '' %>
+                                >
+                                    <%= category.label %>
+                                </option>
+                            <% }) %>
+                        </select>
+                    </div>
 
-        <% } else { %>
+                    <div class="grid gap-4 md:grid-cols-2">
+                        <div>
+                            <label class="mb-1 block text-xs font-bold uppercase tracking-widest text-slate-600">
+                                Manufacturer
+                            </label>
+                            <select
+                                name="manufacturer_id"
+                                id="manufacturer-select"
+                                required
+                                class="w-full rounded border border-slate-300 px-3 py-2 text-sm"
+                                hx-target="#model-select"
+                                hx-swap="innerHTML"
+                                onchange="if(this.value) { this.setAttribute('hx-get', '/aircraft/manufacturer/' + this.value + '/models'); this.setAttribute('hx-trigger', 'now'); if(typeof htmx !== 'undefined') htmx.ajax('GET', '/aircraft/manufacturer/' + this.value + '/models', '#model-select'); } else { document.getElementById('model-select').innerHTML = '<option value=\'\'>Select Model</option>'; }"
+                            >
+                                <option value="">Select Manufacturer</option>
+                                <% manufacturers.forEach((manufacturer) => { %>
+                                    <option
+                                        value="<%= manufacturer.id %>"
+                                        <%= manufacturer.id === selectedManufacturerId ? 'selected' : '' %>
+                                    >
+                                        <%= manufacturer.name %>
+                                    </option>
+                                <% }) %>
+                            </select>
+                        </div>
 
-            <p class="text-gray-500 text-sm">No components installed.</p>
+                        <div>
+                            <label class="mb-1 block text-xs font-bold uppercase tracking-widest text-slate-600">
+                                Model
+                            </label>
+                            <select
+                                id="model-select"
+                                name="model_id"
+                                required
+                                class="w-full rounded border border-slate-300 px-3 py-2 text-sm"
+                            >
+                                <option value="">Select Model</option>
+                                <% manufacturerModels.forEach((model) => { %>
+                                    <option
+                                        value="<%= model.id %>"
+                                        <%= model.id === aircraft.model_id ? 'selected' : '' %>
+                                    >
+                                        <%= model.model_name %>
+                                    </option>
+                                <% }) %>
+                            </select>
+                        </div>
+                    </div>
 
-        <% } %>
+                    <div class="grid gap-4 md:grid-cols-2">
+                        <div>
+                            <label class="mb-1 block text-xs font-bold uppercase tracking-widest text-slate-600">
+                                TCDS Number
+                            </label>
+                            <input
+                                type="text"
+                                name="tcds_number"
+                                value="<%= aircraft.tcds_number || '' %>"
+                                class="w-full rounded border border-slate-300 px-3 py-2 text-sm"
+                            >
+                        </div>
+
+                        <div>
+                            <label class="mb-1 block text-xs font-bold uppercase tracking-widest text-slate-600">
+                                TCDS Web URL
+                            </label>
+                            <input
+                                type="url"
+                                name="tcds_url"
+                                value="<%= aircraft.tcds_url || '' %>"
+                                class="w-full rounded border border-slate-300 px-3 py-2 text-sm"
+                                placeholder="https://..."
+                            >
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="mb-1 block text-xs font-bold uppercase tracking-widest text-slate-600">
+                            Replace Aircraft Photo
+                        </label>
+                        <input
+                            type="file"
+                            name="aircraft_photo"
+                            accept="image/*"
+                            class="w-full rounded border border-slate-300 px-3 py-2 text-sm"
+                        >
+                        <p class="mt-1 text-xs text-slate-500">
+                            Leave this empty to keep the current photo.
+                        </p>
+                    </div>
+
+                    <div class="flex flex-wrap items-center gap-3">
+                        <button
+                            type="submit"
+                            class="rounded bg-slate-800 px-5 py-2 text-sm font-bold text-white hover:bg-slate-700"
+                        >
+                            Save Aircraft Changes
+                        </button>
+                        <button
+                            type="button"
+                            id="cancel-aircraft-edit"
+                            class="rounded border border-slate-300 px-5 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50"
+                        >
+                            Cancel
+                        </button>
+                    </div>
+                </form>
+            <% } %>
+        </div>
     </div>
 
-    <!-- Install Component -->
-    <div class="bg-white shadow rounded-lg p-6">
-        <h2 class="text-xl font-semibold mb-4">
-            Install Component on <%= aircraft.registration %>
-        </h2>
-
-        <form action="/aircraft/<%= aircraft.id %>/components"
-              method="POST"
-              class="space-y-4">
-
-            <div>
-                <label class="block text-sm font-medium text-gray-700">
-                    Component Model
-                </label>
-
-                <select name="model_id"
-                        required
-                        class="mt-1 block w-full border-gray-300 rounded-md shadow-sm">
-
-                    <% componentModels.forEach(model => { %>
-                        <option value="<%= model.id %>">
-                            <%= model.Manufacturer?.name %> -
-                            <%= model.model_name %>
-                        </option>
-                    <% }) %>
-
-                </select>
-            </div>
-
-            <div>
-                <label class="block text-sm font-medium text-gray-700">
-                    Serial Number
-                </label>
-                <input type="text"
-                       name="serial_number"
-                       required
-                       class="mt-1 block w-full border-gray-300 rounded-md shadow-sm">
-            </div>
-
-            <div class="grid grid-cols-2 gap-4">
-
-                <div>
-                    <label class="block text-sm font-medium text-gray-700">
-                        TSN at Install
-                    </label>
-                    <input type="number"
-                           step="0.1"
-                           name="tsn_at_install"
-                           value="0"
-                           required
-                           class="mt-1 block w-full border-gray-300 rounded-md shadow-sm">
-                </div>
-
-                <div>
-                    <label class="block text-sm font-medium text-gray-700">
-                        TSO at Install
-                    </label>
-                    <input type="number"
-                           step="0.1"
-                           name="tso_at_install"
-                           value="0"
-                           required
-                           class="mt-1 block w-full border-gray-300 rounded-md shadow-sm">
-                </div>
-
-            </div>
-
-            <button type="submit"
-                    class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">
-                Finalize Installation
+    <div class="mb-8 border-b border-slate-200">
+        <div class="flex flex-wrap gap-2" role="tablist" aria-label="Aircraft detail sections">
+            <button
+                type="button"
+                class="aircraft-tab rounded-t-lg border border-b-0 border-slate-300 bg-slate-900 px-4 py-3 text-xs font-bold uppercase tracking-widest text-white"
+                data-tab-target="overview-panel"
+                aria-selected="true"
+                role="tab"
+            >
+                Overview
             </button>
-
-        </form>
+            <button
+                type="button"
+                class="aircraft-tab rounded-t-lg border border-b-0 border-slate-300 bg-white px-4 py-3 text-xs font-bold uppercase tracking-widest text-slate-600"
+                data-tab-target="service-bulletins-panel"
+                aria-selected="false"
+                role="tab"
+            >
+                Service Bulletins
+            </button>
+            <button
+                type="button"
+                class="aircraft-tab rounded-t-lg border border-b-0 border-slate-300 bg-white px-4 py-3 text-xs font-bold uppercase tracking-widest text-slate-600"
+                data-tab-target="installed-components-panel"
+                aria-selected="false"
+                role="tab"
+            >
+                Installed Components
+            </button>
+        </div>
     </div>
+
+    <section id="overview-panel" class="aircraft-tab-panel">
+        <div class="bg-white shadow rounded-lg p-6 mb-10">
+            <h2 class="text-xl font-semibold mb-4">
+                Install Component on <%= aircraft.registration %>
+            </h2>
+
+            <form action="/aircraft/<%= aircraft.id %>/components"
+                  method="POST"
+                  class="space-y-4">
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">
+                        Component Model
+                    </label>
+
+                    <select name="model_id"
+                            required
+                            class="mt-1 block w-full border-gray-300 rounded-md shadow-sm">
+
+                        <% componentModels.forEach(model => { %>
+                            <option value="<%= model.id %>">
+                                <%= model.Manufacturer?.name %> -
+                                <%= model.model_name %>
+                            </option>
+                        <% }) %>
+
+                    </select>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">
+                        Serial Number
+                    </label>
+                    <input type="text"
+                           name="serial_number"
+                           required
+                           class="mt-1 block w-full border-gray-300 rounded-md shadow-sm">
+                </div>
+
+                <div class="grid grid-cols-2 gap-4">
+
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">
+                            TSN at Install
+                        </label>
+                        <input type="number"
+                               step="0.1"
+                               name="tsn_at_install"
+                               value="0"
+                               required
+                               class="mt-1 block w-full border-gray-300 rounded-md shadow-sm">
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">
+                            TSO at Install
+                        </label>
+                        <input type="number"
+                               step="0.1"
+                               name="tso_at_install"
+                               value="0"
+                               required
+                               class="mt-1 block w-full border-gray-300 rounded-md shadow-sm">
+                    </div>
+
+                </div>
+
+                <button type="submit"
+                        class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">
+                    Finalize Installation
+                </button>
+
+            </form>
+        </div>
+    </section>
+
+    <section id="service-bulletins-panel" class="aircraft-tab-panel hidden">
+        <div class="bg-white shadow rounded-lg p-6 mb-10">
+            <div class="mb-6 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+                <div>
+                    <h2 class="text-xl font-semibold">Service Bulletins</h2>
+                    <p class="mt-1 text-sm text-slate-500">
+                        Filter aircraft-applicable bulletins by status and criticality.
+                    </p>
+                </div>
+
+                <form action="<%= aircraftViewPath %>" method="GET" class="grid gap-3 rounded-lg border border-slate-200 bg-slate-50 p-4 md:grid-cols-2 xl:grid-cols-4">
+                    <input type="hidden" name="tab" value="service-bulletins">
+
+                    <div>
+                        <label class="mb-1 block text-xs font-bold uppercase tracking-widest text-slate-500">
+                            Status
+                        </label>
+                        <select name="status" class="w-full rounded border border-slate-300 px-3 py-2 text-sm">
+                            <option value="" <%= !bulletinFilters.status ? 'selected' : '' %>>All statuses</option>
+                            <option value="OPEN" <%= bulletinFilters.status === 'OPEN' ? 'selected' : '' %>>Open</option>
+                            <option value="COMPLIED" <%= bulletinFilters.status === 'COMPLIED' ? 'selected' : '' %>>Complied</option>
+                            <option value="NOT_APPLICABLE" <%= bulletinFilters.status === 'NOT_APPLICABLE' ? 'selected' : '' %>>Not Applicable</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label class="mb-1 block text-xs font-bold uppercase tracking-widest text-slate-500">
+                            Sort
+                        </label>
+                        <select name="sort" class="w-full rounded border border-slate-300 px-3 py-2 text-sm">
+                            <option value="sb_number" <%= bulletinFilters.sort !== 'status' ? 'selected' : '' %>>SB Number</option>
+                            <option value="status" <%= bulletinFilters.sort === 'status' ? 'selected' : '' %>>Status</option>
+                        </select>
+                    </div>
+
+                    <label class="flex items-center gap-2 text-sm font-medium text-slate-700">
+                        <input
+                            type="checkbox"
+                            name="open_only"
+                            value="true"
+                            <%= bulletinFilters.open_only === 'true' ? 'checked' : '' %>
+                            class="rounded border-slate-300"
+                        >
+                        Show open only
+                    </label>
+
+                    <label class="flex items-center gap-2 text-sm font-medium text-slate-700">
+                        <input
+                            type="checkbox"
+                            name="critical"
+                            value="true"
+                            <%= bulletinFilters.critical === 'true' ? 'checked' : '' %>
+                            class="rounded border-slate-300"
+                        >
+                        Critical only
+                    </label>
+
+                    <div class="md:col-span-2 xl:col-span-4 flex flex-wrap gap-3">
+                        <button
+                            type="submit"
+                            class="rounded bg-slate-800 px-4 py-2 text-xs font-bold uppercase tracking-widest text-white hover:bg-black"
+                        >
+                            Apply Filters
+                        </button>
+                        <a
+                            href="<%= aircraftViewPath %>?tab=service-bulletins"
+                            class="rounded border border-slate-300 px-4 py-2 text-xs font-bold uppercase tracking-widest text-slate-700 hover:bg-white"
+                        >
+                            Clear
+                        </a>
+                    </div>
+                </form>
+            </div>
+
+            <% if (!serviceBulletins || serviceBulletins.length === 0) { %>
+                <p class="text-gray-500 text-sm">No service bulletins apply to this aircraft yet.</p>
+            <% } else { %>
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-slate-200">
+                        <thead class="bg-slate-50">
+                            <tr>
+                                <th class="px-4 py-3 text-left text-xs font-bold uppercase tracking-widest text-slate-500">
+                                    SB Number
+                                </th>
+                                <th class="px-4 py-3 text-left text-xs font-bold uppercase tracking-widest text-slate-500">
+                                    Title
+                                </th>
+                                <th class="px-4 py-3 text-left text-xs font-bold uppercase tracking-widest text-slate-500">
+                                    Status
+                                </th>
+                                <th class="px-4 py-3 text-right text-xs font-bold uppercase tracking-widest text-slate-500">
+                                    Action
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-100 bg-white">
+                            <% serviceBulletins.forEach((sb) => { %>
+                                <%- include('./partials/service-bulletin-row', { aircraftId: aircraft.id, sb }) %>
+                            <% }) %>
+                        </tbody>
+                    </table>
+                </div>
+            <% } %>
+        </div>
+    </section>
+
+    <section id="installed-components-panel" class="aircraft-tab-panel hidden">
+        <div class="bg-white shadow rounded-lg p-6 mb-10">
+            <h2 class="text-xl font-semibold mb-4">Installed Components</h2>
+
+            <% if (aircraft.installed_components && aircraft.installed_components.length > 0) { %>
+                <ul class="divide-y divide-gray-200">
+                    <% aircraft.installed_components.forEach(ac => { %>
+                        <% const model = ac.ComponentModel; %>
+                        <% const manufacturer = model?.Manufacturer; %>
+
+                        <li class="py-3 flex justify-between items-center">
+                            <span>
+                                <strong>
+                                    <%= manufacturer?.name || 'Unknown Manufacturer' %>
+                                    <%= model?.model_name || 'Unknown Model' %>
+                                </strong>
+                                <br>
+                                <span class="text-sm text-gray-500">
+                                    Installed:
+                                    <%= new Date(ac.installed_at).toLocaleDateString() %>
+                                </span>
+                            </span>
+
+                            <span class="text-sm text-gray-500 text-right">
+                                TSN: <%= ac.tsn_at_install %><br>
+                                TSO: <%= ac.tso_at_install %>
+                                <% if (ac.is_quarantined) { %>
+                                    <br>
+                                    <span class="text-red-600 font-semibold">
+                                        QUARANTINED
+                                    </span>
+                                <% } %>
+                            </span>
+                        </li>
+                    <% }) %>
+                </ul>
+            <% } else { %>
+                <p class="text-gray-500 text-sm">No components installed.</p>
+            <% } %>
+        </div>
+    </section>
 
 </main>
+
+<script>
+  (function () {
+    const registrationInput = document.getElementById('registration');
+    const editToggleButton = document.getElementById('toggle-aircraft-edit');
+    const cancelEditButton = document.getElementById('cancel-aircraft-edit');
+    const editForm = document.getElementById('aircraft-edit-form');
+    const tabs = Array.from(document.querySelectorAll('.aircraft-tab'));
+    const panels = Array.from(document.querySelectorAll('.aircraft-tab-panel'));
+    const tabMap = {
+      overview: 'overview-panel',
+      'service-bulletins': 'service-bulletins-panel',
+      'installed-components': 'installed-components-panel'
+    };
+
+    function formatRegistration(value) {
+      const compact = value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+
+      if (
+        compact.startsWith('ZS') ||
+        compact.startsWith('ZU') ||
+        compact.startsWith('ZT')
+      ) {
+        const prefix = compact.slice(0, 2);
+        const suffix = compact.slice(2).replace(/[^A-Z]/g, '').slice(0, 3);
+        return suffix ? `${prefix}-${suffix}` : prefix;
+      }
+
+      return value.toUpperCase();
+    }
+
+    function activateTab(targetId) {
+      tabs.forEach((tab) => {
+        const isActive = tab.dataset.tabTarget === targetId;
+        tab.setAttribute('aria-selected', isActive ? 'true' : 'false');
+        tab.classList.toggle('bg-slate-900', isActive);
+        tab.classList.toggle('text-white', isActive);
+        tab.classList.toggle('bg-white', !isActive);
+        tab.classList.toggle('text-slate-600', !isActive);
+      });
+
+      panels.forEach((panel) => {
+        panel.classList.toggle('hidden', panel.id !== targetId);
+      });
+    }
+
+    tabs.forEach((tab) => {
+      tab.addEventListener('click', () => activateTab(tab.dataset.tabTarget));
+    });
+
+    registrationInput?.addEventListener('input', function () {
+      registrationInput.value = formatRegistration(registrationInput.value);
+    });
+
+    function setEditFormVisible(visible) {
+      if (!editForm || !editToggleButton) {
+        return;
+      }
+
+      editForm.classList.toggle('hidden', !visible);
+      editToggleButton.setAttribute('aria-expanded', visible ? 'true' : 'false');
+      editToggleButton.textContent = visible ? 'Editing Aircraft' : 'Edit Aircraft';
+
+      if (visible) {
+        registrationInput?.focus();
+      }
+    }
+
+    editToggleButton?.addEventListener('click', () => {
+      const isHidden = editForm?.classList.contains('hidden');
+      setEditFormVisible(Boolean(isHidden));
+    });
+
+    cancelEditButton?.addEventListener('click', () => {
+      setEditFormVisible(false);
+    });
+
+    const activeTab = new URLSearchParams(window.location.search).get('tab');
+    if (activeTab && tabMap[activeTab]) {
+      activateTab(tabMap[activeTab]);
+    }
+  })();
+</script>
 
 <%- include('../partials/footer') %>

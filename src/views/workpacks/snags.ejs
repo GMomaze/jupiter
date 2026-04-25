@@ -1,0 +1,333 @@
+<%- include('../partials/header') %>
+
+<main class="p-6 bg-slate-50 min-h-screen">
+  <%
+    const totalSnagCount = snags ? snags.length : 0;
+    const inProgressSnagCount = snags ? snags.filter((snag) => snag.status === 'IN_PROGRESS').length : 0;
+    const resolvedSnagCount = snags ? snags.filter((snag) => snag.status === 'RESOLVED').length : 0;
+    const openSnagCount = snags ? snags.filter((snag) => snag.status === 'OPEN').length : 0;
+    const closedSnagCount = snags ? snags.filter((snag) => snag.status === 'CLOSED').length : 0;
+    const snagStatusSummary =
+      totalSnagCount === 0
+        ? 'No snags'
+        : inProgressSnagCount > 0
+        ? `${inProgressSnagCount} in progress`
+        : resolvedSnagCount > 0
+        ? `${resolvedSnagCount} waiting for close`
+        : openSnagCount > 0
+        ? `${openSnagCount} open`
+        : 'All snags closed';
+  %>
+<!--  ----------------------------------------------------------------------   -->
+ <div class="mb-8 rounded-xl border bg-white p-6 shadow-sm space-y-1">
+
+  <!-- ROW 1 -->
+  <div class="flex items-center justify-between">
+    <nav class="mb-1 text-sm text-slate-500">
+      <a href="/workpacks/planner" class="hover:text-blue-600">Planner</a> /
+      <span class="text-slate-800">Snags</span>
+    </nav>
+    <div></div>
+    <div></div>
+  </div>
+
+  <!-- ROW 2 -->
+  <div class="flex items-center justify-between">
+    <!-- LEFT -->
+    <h1 class="text-2xl font-bold text-slate-900 leading-tight">
+      WO: <%= pack.work_order_number %>
+    </h1>
+
+    <!-- CENTER -->
+    <p class="text-sm font-semibold text-slate-800 leading-tight">
+      <%= snagStatusSummary %>
+    </p>
+
+    <!-- RIGHT (ONLY LABEL HERE — MATCH TASKS) -->
+    <div class="text-right">
+      <p class="text-xs font-bold text-slate-400 uppercase tracking-widest leading-tight">
+        Current Lifecycle
+      </p>
+    </div>
+  </div>
+
+  <!-- ROW 3 -->
+  <div class="flex items-center justify-between">
+    <!-- LEFT -->
+    <p class="text-slate-600 text-sm">
+      Aircraft:
+      <span class="text-blue-600 font-medium">
+        <%= pack.Aircraft?.registration || '' %>
+      </span>
+    </p>
+
+    <!-- CENTER -->
+    <div class="flex flex-wrap items-center justify-center gap-2">
+      <span class="rounded-full bg-blue-50 px-2 py-0.5 text-xs font-semibold text-blue-700">
+        In Progress: <%= inProgressSnagCount %>
+      </span>
+      <span class="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-700">
+        Resolved: <%= resolvedSnagCount %>
+      </span>
+      <span class="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-700">
+        Closed: <%= closedSnagCount %>
+      </span>
+      <span class="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-700">
+        Open: <%= openSnagCount %>
+      </span>
+    </div>
+
+    <!-- RIGHT (BADGE ONLY — MATCH TASKS POSITION) -->
+    <span class="inline-block mt-1 px-3 py-1 rounded-full font-bold text-xs border
+      <%= pack.WorkpackStatus?.code === 'DRAFT' ? 'bg-slate-100 text-slate-600 border-slate-300' :
+         pack.WorkpackStatus?.code === 'RELEASED' ? 'bg-green-100 text-green-700 border-green-300' :
+         'bg-blue-100 text-blue-700 border-blue-300' %>">
+      <%= pack.WorkpackStatus?.code %>
+    </span>
+  </div>
+
+</div>
+
+<!-- ------------------------------------------------------------------- -->
+
+  <div class="mb-6 flex flex-wrap gap-3">
+    <a
+      href="/workpacks/<%= pack.id %>/snags"
+      class="rounded-lg bg-slate-900 px-4 py-2 text-sm font-bold text-white"
+    >
+      Snags
+    </a>
+    <a
+      href="/workpacks/<%= pack.id %>/tasks"
+      class="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50"
+    >
+      Tasks
+    </a>
+    <a
+      href="/workpacks/<%= pack.id %>/service-bulletins"
+      class="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50"
+    >
+      Service Bulletins
+    </a>
+    <%- include('../partials/workpack-pdf-menu', { pack }) %>
+  </div>
+
+  <% if (user?.roles?.some(role => role.code === 'MECHANIC')) { %>
+    <div class="mb-6 rounded-xl border bg-white p-6 shadow-sm">
+      <h2 class="mb-3 text-sm font-bold uppercase tracking-widest text-slate-700">Report Snag</h2>
+      <form method="POST" action="/workpacks/<%= pack.id %>/snags" class="space-y-4">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <div class="grid gap-4 md:grid-cols-2">
+          <input
+            type="text"
+            name="category"
+            class="w-full rounded-lg border border-slate-300 p-3 text-sm text-slate-800 outline-none focus:border-blue-500"
+            placeholder="Category (optional)"
+          >
+          <select
+            name="priority"
+            class="w-full rounded-lg border border-slate-300 p-3 text-sm text-slate-800 outline-none focus:border-blue-500"
+          >
+            <option value="LOW">Low Priority</option>
+            <option value="MEDIUM" selected>Medium Priority</option>
+            <option value="HIGH">High Priority</option>
+            <option value="AOG">AOG</option>
+          </select>
+        </div>
+        <textarea
+          name="description"
+          rows="4"
+          class="w-full rounded-lg border border-slate-300 p-3 text-sm text-slate-800 outline-none focus:border-blue-500"
+          placeholder="Describe the snag that was found..."
+        ></textarea>
+        <button
+          type="submit"
+          class="rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-blue-700"
+        >
+          Save Snag
+        </button>
+      </form>
+    </div>
+  <% } %>
+
+  <div class="grid gap-4">
+    <% if (!snags || snags.length === 0) { %>
+      <div class="rounded-xl border bg-white p-8 text-center italic text-slate-400 shadow-sm">
+        No snags have been reported for this workpack yet.
+      </div>
+    <% } %>
+
+    <% snags.forEach((snag) => { %>
+      <div class="rounded-xl border bg-white p-6 shadow-sm">
+        <div class="mb-4 flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <p class="text-xs font-bold uppercase tracking-[0.2em] text-slate-400">Snag <%= snag.snag_no %></p>
+            <p class="text-sm font-semibold text-slate-900 whitespace-pre-wrap"><%= snag.description %></p>
+            <p class="mt-2 text-xs text-slate-500">
+              Reported by <%= snag.Reporter?.full_name || snag.Reporter?.email || 'Unknown mechanic' %>
+              <% if (snag.created_at) { %>
+                on <%= new Date(snag.created_at).toLocaleString('en-GB') %>
+              <% } %>
+            </p>
+            <div class="mt-2 flex flex-wrap gap-2 text-xs">
+              <% if (snag.category) { %>
+                <span class="rounded-full bg-slate-100 px-2.5 py-1 font-semibold text-slate-600"><%= snag.category %></span>
+              <% } %>
+              <span class="rounded-full bg-slate-100 px-2.5 py-1 font-semibold text-slate-600">
+                Priority: <%= snag.priority || 'MEDIUM' %>
+              </span>
+              <% if (snag.Assignee) { %>
+                <span class="rounded-full bg-blue-50 px-2.5 py-1 font-semibold text-blue-700">
+                  Assigned: <%= snag.Assignee.full_name || snag.Assignee.email %>
+                </span>
+              <% } %>
+            </div>
+          </div>
+
+          <span class="rounded-full px-3 py-1 text-xs font-bold uppercase tracking-wide
+            <%= snag.status === 'OPEN' ? 'bg-amber-100 text-amber-700' :
+               snag.status === 'IN_PROGRESS' ? 'bg-blue-100 text-blue-700' :
+               'bg-emerald-100 text-emerald-700' %>">
+            <%= snag.status.replace(/_/g, ' ') %>
+          </span>
+        </div>
+
+        <% if (snag.status === 'OPEN' && user?.roles?.some(role => role.code === 'MECHANIC')) { %>
+          <form method="POST" action="/workpacks/<%= pack.id %>/snags/<%= snag.id %>/start">
+            <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+            <button
+              type="submit"
+              class="rounded-lg bg-slate-900 px-5 py-2.5 text-sm font-bold text-white hover:bg-black"
+            >
+              Start Snag
+            </button>
+          </form>
+        <% } %>
+
+        <% if (snag.status === 'IN_PROGRESS') { %>
+          <div class="mb-3 text-xs text-slate-500">
+            Started by <%= snag.Starter?.full_name || snag.Starter?.email || 'A mechanic' %>
+            <% if (snag.started_at) { %>
+              on <%= new Date(snag.started_at).toLocaleString('en-GB') %>
+            <% } %>
+          </div>
+
+          <% if (user?.roles?.some(role => role.code === 'MECHANIC')) { %>
+            <form method="POST" action="/workpacks/<%= pack.id %>/snags/<%= snag.id %>/complete" class="space-y-3">
+              <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+              <textarea
+                name="resolution_notes"
+                rows="4"
+                class="w-full rounded-lg border border-slate-300 p-3 text-sm text-slate-800 outline-none focus:border-blue-500"
+                placeholder="Describe how the snag was fixed..."
+              ><%= snag.resolution_notes || '' %></textarea>
+              <div class="grid gap-3 md:grid-cols-2">
+                <input
+                  type="text"
+                  name="parts_used"
+                  value="<%= snag.parts_used || '' %>"
+                  class="w-full rounded-lg border border-slate-300 p-3 text-sm text-slate-800 outline-none focus:border-blue-500"
+                  placeholder="Parts used, comma separated"
+                >
+                <input
+                  type="number"
+                  min="0"
+                  name="time_spent_minutes"
+                  value="<%= snag.time_spent_minutes || '' %>"
+                  class="w-full rounded-lg border border-slate-300 p-3 text-sm text-slate-800 outline-none focus:border-blue-500"
+                  placeholder="Time spent in minutes"
+                >
+              </div>
+              <button
+                type="submit"
+                class="rounded-lg bg-emerald-700 px-5 py-2.5 text-sm font-bold text-white hover:bg-emerald-800"
+              >
+                Resolve Snag
+              </button>
+            </form>
+          <% } %>
+        <% } %>
+
+        <% if (snag.status === 'RESOLVED') { %>
+          <div class="rounded-lg border border-emerald-200 bg-emerald-50 p-4">
+            <p class="text-xs font-bold uppercase tracking-wide text-emerald-700">Resolution</p>
+            <p class="mt-2 whitespace-pre-wrap text-sm text-emerald-900"><%= snag.resolution_notes || 'No resolution recorded.' %></p>
+            <% if (snag.parts_used || snag.time_spent_minutes) { %>
+              <div class="mt-3 space-y-2 text-xs text-emerald-700">
+                <% if (snag.parts_used) { %>
+                  <div>
+                    <p class="font-bold uppercase tracking-wide">Parts Used</p>
+                    <p class="mt-1 rounded-lg bg-white px-3 py-2 font-semibold text-emerald-900"><%= snag.parts_used %></p>
+                  </div>
+                <% } %>
+                <% if (snag.time_spent_minutes) { %>
+                  <div>
+                    <p class="font-bold uppercase tracking-wide">Time Spent</p>
+                    <p class="mt-1 rounded-lg bg-white px-3 py-2 font-semibold text-emerald-900"><%= snag.time_spent_minutes %> min</p>
+                  </div>
+                <% } %>
+              </div>
+            <% } %>
+            <p class="mt-3 text-xs text-emerald-700">
+              Resolved by <%= snag.Resolver?.full_name || snag.Resolver?.email || 'A mechanic' %>
+              <% if (snag.resolved_at) { %>
+                on <%= new Date(snag.resolved_at).toLocaleString('en-GB') %>
+              <% } %>
+            </p>
+            <% if (user?.roles?.some(role => role.code === 'ENGINEER' || role.code === 'SUPERVISOR' || role.code === 'ADMIN')) { %>
+              <form method="POST" action="/workpacks/<%= pack.id %>/snags/<%= snag.id %>/close" class="mt-4">
+                <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                <button
+                  type="submit"
+                  class="rounded-lg bg-slate-900 px-5 py-2.5 text-sm font-bold text-white hover:bg-black"
+                >
+                  Close Snag
+                </button>
+              </form>
+            <% } %>
+          </div>
+        <% } %>
+
+        <% if (snag.status === 'CLOSED') { %>
+          <div class="rounded-lg border border-slate-200 bg-slate-50 p-4">
+            <p class="text-xs font-bold uppercase tracking-wide text-slate-700">Closed Snag</p>
+            <p class="mt-2 whitespace-pre-wrap text-sm text-slate-900"><%= snag.resolution_notes || 'No resolution recorded.' %></p>
+            <% if (snag.parts_used) { %>
+              <div class="mt-3">
+                <p class="text-xs font-bold uppercase tracking-wide text-slate-600">Parts Used</p>
+                <p class="mt-1 rounded-lg bg-white px-3 py-2 text-sm font-semibold text-slate-900"><%= snag.parts_used %></p>
+              </div>
+            <% } %>
+            <p class="mt-3 text-xs text-slate-600">
+              Closed by <%= snag.Closer?.full_name || snag.Closer?.email || 'Inspector' %>
+              <% if (snag.closed_at) { %>
+                on <%= new Date(snag.closed_at).toLocaleString('en-GB') %>
+              <% } %>
+            </p>
+          </div>
+        <% } %>
+
+        <% if (snag.AuditEntries && snag.AuditEntries.length > 0) { %>
+          <div class="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-4">
+            <p class="text-xs font-bold uppercase tracking-wide text-slate-700">History</p>
+            <div class="mt-3 space-y-3">
+              <% snag.AuditEntries.forEach((entry) => { %>
+                <div class="rounded-lg bg-white px-3 py-2 text-sm">
+                  <p class="font-semibold text-slate-900"><%= entry.action.replace(/_/g, ' ') %></p>
+                  <p class="mt-1 text-xs text-slate-500">
+                    <%= entry.Actor?.full_name || entry.Actor?.email || 'System' %>
+                    <% if (entry.created_at) { %>
+                      on <%= new Date(entry.created_at).toLocaleString('en-GB') %>
+                    <% } %>
+                  </p>
+                </div>
+              <% }) %>
+            </div>
+          </div>
+        <% } %>
+      </div>
+    <% }) %>
+  </div>
+</main>
+
+<%- include('../partials/footer') %>

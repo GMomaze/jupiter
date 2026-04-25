@@ -1,0 +1,94 @@
+<tr class="hover:bg-slate-50">
+    <td class="px-4 py-3 text-sm font-semibold text-slate-900">
+        <%= sb.sb_number %>
+    </td>
+    <td class="px-4 py-3 text-sm text-slate-700">
+        <div class="flex items-center gap-2">
+            <span><%= sb.title %></span>
+            <% if ((sb.source_primary || 'MANUAL') === 'MANUAL') { %>
+                <span class="inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-700">
+                    Manual SB
+                </span>
+            <% } %>
+        </div>
+        <% if (sb.model_name) { %>
+            <div class="mt-1 text-xs uppercase tracking-wide text-slate-400">
+                <%= sb.asset_type || 'MODEL' %> - <%= sb.model_name %>
+            </div>
+        <% } %>
+        <div class="mt-1 text-xs uppercase tracking-wide text-slate-400" title="<%= JSON.stringify(sb.source_refs || []) %>">
+            Source: <%= sb.source_primary || 'MANUAL' %> | Class: <%= sb.compliance_type %>
+        </div>
+        <% if (sb.document_url) { %>
+            <div class="mt-1 text-xs text-slate-500">
+                <a href="<%= sb.document_url %>" target="_blank" rel="noreferrer" class="text-blue-600 hover:underline">
+                    Source document
+                </a>
+            </div>
+        <% } %>
+        <% if (sb.complied_at) { %>
+            <div class="mt-1 text-xs text-slate-500">
+                Complied at <%= new Date(sb.complied_at).toLocaleString() %>
+            </div>
+        <% } %>
+    </td>
+    <td class="px-4 py-3 text-sm text-slate-700">
+        <% const badgeClass =
+            sb.status === 'COMPLIED'
+                ? 'bg-emerald-100 text-emerald-700'
+                : sb.status === 'NOT_APPLICABLE'
+                ? 'bg-slate-200 text-slate-700'
+                : 'bg-amber-100 text-amber-700'; %>
+
+        <span class="inline-flex rounded-full px-3 py-1 text-xs font-bold uppercase tracking-wide <%= badgeClass %>">
+            <%= sb.status %>
+        </span>
+    </td>
+    <td class="px-4 py-3 text-right text-sm">
+        <% if (sb.status === 'OPEN') { %>
+            <div class="flex justify-end gap-2">
+                <form
+                    method="POST"
+                    action="/aircraft/<%= aircraftId %>/sb/<%= sb.id %>/comply"
+                    hx-post="/aircraft/<%= aircraftId %>/sb/<%= sb.id %>/comply"
+                    hx-target="closest tr"
+                    hx-swap="outerHTML"
+                    class="inline"
+                >
+                    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                    <button
+                        type="submit"
+                        class="rounded bg-slate-800 px-3 py-2 text-xs font-bold uppercase tracking-widest text-white hover:bg-black"
+                    >
+                        Mark Complied
+                    </button>
+                </form>
+
+                <form
+                    method="POST"
+                    action="/aircraft/<%= aircraftId %>/sb/<%= sb.id %>/not-applicable"
+                    hx-post="/aircraft/<%= aircraftId %>/sb/<%= sb.id %>/not-applicable"
+                    hx-target="closest tr"
+                    hx-swap="outerHTML"
+                    class="inline"
+                >
+                    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                    <button
+                        type="submit"
+                        class="rounded border border-slate-300 px-3 py-2 text-xs font-bold uppercase tracking-widest text-slate-700 hover:bg-slate-50"
+                    >
+                        Not Applicable
+                    </button>
+                </form>
+            </div>
+        <% } else if (sb.status === 'COMPLIED') { %>
+            <span class="text-xs font-bold uppercase tracking-widest text-emerald-600">
+                Completed
+            </span>
+        <% } else { %>
+            <span class="text-xs font-bold uppercase tracking-widest text-slate-500">
+                Excluded
+            </span>
+        <% } %>
+    </td>
+</tr>

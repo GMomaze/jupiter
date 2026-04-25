@@ -2,11 +2,15 @@ import { Request, Response } from 'express';
 import { InventoryService } from './inventory.service.js';
 
 export class InventoryController {
+  private static getParam(value: string | string[] | undefined) {
+    return Array.isArray(value) ? value[0] || '' : value || '';
+  }
+
   /**
    * POST /inventory/remove/:componentId
    */
   static async handleRemoval(req: Request, res: Response) {
-    const { componentId } = req.params;
+    const componentId = InventoryController.getParam(req.params.componentId);
     const { remarks } = req.body;
     const userId = (req as any).user?.id || '00000000-0000-0000-0000-000000000001';
 
@@ -28,7 +32,7 @@ export class InventoryController {
    * POST /inventory/install/:componentId
    */
   static async handleInstallation(req: Request, res: Response) {
-    const { componentId } = req.params;
+    const componentId = InventoryController.getParam(req.params.componentId);
     const { aircraft_id } = req.body; // Target aircraft from form
     const userId = (req as any).user?.id || '00000000-0000-0000-0000-000000000001';
 

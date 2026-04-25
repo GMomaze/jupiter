@@ -1,0 +1,705 @@
+<%- include('../partials/header') %>
+
+<main class="max-w-7xl mx-auto py-10 px-4 sm:px-6 lg:px-8">
+  <% const values = formData || {}; %>
+  <% const syncValues = syncFormData || {}; %>
+
+  <% if (messages && messages.error && messages.error.length) { %>
+    <div class="mb-6 rounded border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+      <%= messages.error[0] %>
+    </div>
+  <% } %>
+
+  <% if (messages && messages.success && messages.success.length) { %>
+    <div class="mb-6 rounded border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+      <%= messages.success[0] %>
+    </div>
+  <% } %>
+
+  <% if (unmatchedModels && unmatchedModels.length > 0) { %>
+    <div class="mb-6 rounded border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+      <p class="font-bold">Model Matching Failed</p>
+      <ul class="mt-1 list-disc list-inside">
+        <% unmatchedModels.forEach(m => { %>
+          <li>Model: <strong><%= m.model %></strong> (Inferred Mfg: <%= m.manufacturer %>)</li>
+        <% }) %>
+      </ul>
+      <p class="mt-2">Please create these models in the system to enable service bulletin synchronization.</p>
+    </div>
+  <% } %>
+
+  <div class="mb-8 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+    <div>
+      <h1 class="text-3xl font-black text-slate-900 tracking-tight">
+        Service Bulletins
+      </h1>
+      <p class="mt-2 text-sm text-slate-500">
+        Manual and synced bulletin register for all loaded aircraft and component models.
+      </p>
+    </div>
+
+    <button
+      type="button"
+      id="create-sb-toggle"
+      class="inline-flex items-center justify-center rounded bg-slate-800 px-4 py-2 text-sm font-bold text-white hover:bg-black"
+    >
+      Create SB
+    </button>
+  </div>
+
+  <div class="mb-6">
+    <form method="POST" action="/sb/sync?_csrf=<%= encodeURIComponent(csrfToken) %>" enctype="multipart/form-data" id="sync-sb-form" class="rounded-xl border bg-white p-5 shadow-sm">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <div class="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.5fr)_auto] lg:items-end">
+        <div>
+          <label class="mb-1 block text-xs font-bold uppercase tracking-widest text-slate-500">
+            Import Format
+          </label>
+          <select
+            id="sync-method"
+            name="sync_method"
+            class="w-full rounded border px-3 py-2 text-sm"
+          >
+            <% (syncMethods || ['VERYON', 'PIPER_PDF', 'ATP']).forEach((method) => { %>
+              <option
+                value="<%= method %>"
+                <%= (syncValues.sync_method || 'VERYON') === method ? 'selected' : '' %>
+              >
+                <%= method === 'VERYON' ? 'Veryon CSV' : method === 'PIPER_PDF' ? 'Piper PDF' : method %>
+              </option>
+            <% }) %>
+          </select>
+        </div>
+
+        <div>
+          <div
+            id="sync-method-veryon-fields"
+            class="<%= (syncValues.sync_method || 'VERYON') === 'VERYON' ? '' : 'hidden' %>"
+          >
+            <label class="mb-1 block text-xs font-bold uppercase tracking-widest text-slate-500">
+              Veryon CSV File
+            </label>
+            <input
+              id="veryon-csv-file"
+              type="file"
+              name="veryon_csv_file"
+              accept=".csv,text/csv"
+              class="w-full rounded border px-3 py-2 text-sm"
+            >
+            <p class="mt-1 text-xs text-slate-500">
+              Select a single downloaded Veryon `.csv` file to import.
+            </p>
+          </div>
+
+          <div
+            id="sync-method-piper-fields"
+            class="<%= (syncValues.sync_method || 'VERYON') === 'PIPER_PDF' ? '' : 'hidden' %>"
+          >
+            <label class="mb-1 block text-xs font-bold uppercase tracking-widest text-slate-500">
+              Piper PDF File
+            </label>
+            <input
+              id="piper-pdf-path"
+              type="text"
+              name="piper_pdf_path"
+              value="<%= syncValues.piper_pdf_path || '' %>"
+              placeholder="C:\\GMO\\Projects\\Documents\\Piper SB-Index-12.pdf"
+              class="w-full rounded border px-3 py-2 text-sm"
+            >
+            <label class="mt-3 mb-1 block text-xs font-bold uppercase tracking-widest text-slate-500">
+              Or Browse for Piper PDF
+            </label>
+            <input
+              id="piper-pdf-file"
+              type="file"
+              name="piper_pdf_file"
+              accept=".pdf,application/pdf"
+              class="w-full rounded border px-3 py-2 text-sm"
+            >
+            <p class="mt-1 text-xs text-slate-500">
+              Use this to load a local Piper service bulletin index PDF into the system.
+            </p>
+          </div>
+
+          <p
+            id="sync-method-help"
+            class="text-xs text-slate-500 <%= (syncValues.sync_method || 'VERYON') === 'ATP' ? '' : 'hidden' %>"
+          >
+            ATP is currently configured as a source slot only and will not load synthetic data.
+          </p>
+        </div>
+
+        <button
+          type="submit"
+          id="sync-sb-button"
+          class="inline-flex items-center justify-center rounded bg-blue-600 px-4 py-2 text-sm font-bold text-white hover:bg-blue-700"
+        >
+          <span id="sync-sb-label"><%= (syncValues.sync_method || 'VERYON') === 'PIPER_PDF' ? 'Load Piper PDF' : (syncValues.sync_method || 'VERYON') === 'VERYON' ? 'Load Veryon CSV' : 'Run Import' %></span>
+        </button>
+      </div>
+    </form>
+  </div>
+
+  <section class="mb-8 grid gap-4 md:grid-cols-2">
+    <div class="rounded-xl border bg-white p-5 shadow-sm">
+      <p class="text-xs font-bold uppercase tracking-widest text-slate-500">Last Sync Time</p>
+      <p id="sync-last-time" class="mt-2 text-lg font-semibold text-slate-900">
+        <%= syncInfo?.lastSyncTime ? new Date(syncInfo.lastSyncTime).toLocaleString() : 'No sync recorded yet' %>
+      </p>
+      <p
+        id="sync-trigger"
+        class="mt-2 text-xs text-slate-500 <%= syncInfo?.lastRun?.trigger_type ? '' : 'hidden' %>"
+      >
+        <% if (syncInfo?.lastRun?.trigger_type) { %>
+          Trigger: <%= syncInfo.lastRun.trigger_type %>
+        <% } %>
+      </p>
+    </div>
+
+    <div class="rounded-xl border bg-white p-5 shadow-sm">
+      <p class="text-xs font-bold uppercase tracking-widest text-slate-500">Sync Status</p>
+      <div class="mt-2 flex items-center gap-3">
+        <span
+          id="sync-status-badge"
+          class="inline-flex rounded-full px-2.5 py-1 text-xs font-bold uppercase tracking-wide <%= syncInfo?.syncStatus === 'SUCCESS' ? 'bg-emerald-100 text-emerald-700' : syncInfo?.syncStatus === 'FAILED' ? 'bg-red-100 text-red-700' : syncInfo?.syncStatus === 'RUNNING' ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-700' %>"
+        >
+          <%= syncInfo?.syncStatus || 'IDLE' %>
+        </span>
+        <span
+          id="sync-run-summary"
+          class="text-sm text-slate-600 <%= syncInfo?.lastRun ? '' : 'hidden' %>"
+        >
+          <% if (syncInfo?.lastRun) { %>
+            <%= syncInfo.lastRun.synced_count %> synced, <%= syncInfo.lastRun.created_count %> created, <%= syncInfo.lastRun.updated_count %> updated
+          <% } %>
+        </span>
+      </div>
+      <p
+        id="sync-error-message"
+        class="mt-3 text-sm text-red-600 <%= syncInfo?.lastRun?.error_message ? '' : 'hidden' %>"
+      >
+        <% if (syncInfo?.lastRun?.error_message) { %>
+          <%= syncInfo.lastRun.error_message %>
+        <% } %>
+      </p>
+    </div>
+  </section>
+
+  <section id="create-sb-panel" class="mb-8 rounded-xl border bg-white p-6 shadow-sm hidden">
+    <h2 class="mb-4 text-lg font-bold text-slate-900">Create Service Bulletin</h2>
+
+    <form method="POST" action="/service-bulletins" class="grid gap-4 md:grid-cols-2">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+
+      <div>
+        <label class="mb-1 block text-xs font-bold uppercase tracking-widest text-slate-500">
+          SB Number
+        </label>
+        <input
+          type="text"
+          id="form-sb-number"
+          name="sb_number"
+          value="<%= values.sb_number || '' %>"
+          required
+          class="w-full rounded border px-3 py-2 text-sm"
+        >
+      </div>
+
+      <div>
+        <label class="mb-1 block text-xs font-bold uppercase tracking-widest text-slate-500">
+          Title
+        </label>
+        <input
+          type="text"
+          id="form-title"
+          name="title"
+          value="<%= values.title || '' %>"
+          class="w-full rounded border px-3 py-2 text-sm"
+        >
+      </div>
+
+      <div>
+        <label class="mb-1 block text-xs font-bold uppercase tracking-widest text-slate-500">
+          Model
+        </label>
+        <select
+          id="model_id"
+          name="model_id"
+          required
+          class="w-full rounded border px-3 py-2 text-sm"
+        >
+          <option value="">Select model</option>
+          <% (componentModels || []).forEach((model) => { %>
+            <option
+              value="<%= model.id %>"
+              data-asset-type="<%= model.AssetType?.code || '' %>"
+              <%= values.model_id === model.id ? 'selected' : '' %>
+            >
+              <%= model.Manufacturer?.name || 'Unknown OEM' %> - <%= model.model_name %>
+            </option>
+          <% }) %>
+        </select>
+      </div>
+
+      <div>
+        <label class="mb-1 block text-xs font-bold uppercase tracking-widest text-slate-500">
+          Asset Type
+        </label>
+        <input
+          id="asset_type_display"
+          type="text"
+          value=""
+          readonly
+          class="w-full rounded border bg-slate-50 px-3 py-2 text-sm text-slate-600"
+        >
+      </div>
+
+      <div>
+        <label class="mb-1 block text-xs font-bold uppercase tracking-widest text-slate-500">
+          Compliance Class
+        </label>
+        <select name="compliance_type" class="w-full rounded border px-3 py-2 text-sm">
+          <option value="MANUAL" <%= values.compliance_type === 'MANUAL' ? 'selected' : '' %>>Manual</option>
+          <option value="MANDATORY" <%= values.compliance_type === 'MANDATORY' ? 'selected' : '' %>>Mandatory</option>
+          <option value="OPTIONAL" <%= values.compliance_type === 'OPTIONAL' ? 'selected' : '' %>>Optional</option>
+        </select>
+      </div>
+
+      <div>
+        <label class="mb-1 block text-xs font-bold uppercase tracking-widest text-slate-500">
+          Revision
+        </label>
+        <input
+          type="text"
+          name="revision"
+          value="<%= values.revision || '' %>"
+          class="w-full rounded border px-3 py-2 text-sm"
+        >
+      </div>
+
+      <div>
+        <label class="mb-1 block text-xs font-bold uppercase tracking-widest text-slate-500">
+          Document Link
+        </label>
+        <input
+          type="url"
+          name="document_url"
+          value="<%= values.document_url || '' %>"
+          placeholder="https://manufacturer.example/sb.pdf"
+          class="w-full rounded border px-3 py-2 text-sm"
+        >
+      </div>
+
+      <div class="md:col-span-2">
+        <label class="mb-1 block text-xs font-bold uppercase tracking-widest text-slate-500">
+          Description
+        </label>
+        <textarea
+          name="description"
+          rows="3"
+          class="w-full rounded border px-3 py-2 text-sm"
+        ><%= values.description || '' %></textarea>
+      </div>
+
+      <div class="md:col-span-2 flex gap-3">
+        <button
+          type="submit"
+          class="rounded bg-slate-800 px-4 py-2 text-sm font-bold text-white hover:bg-black"
+        >
+          Save Service Bulletin
+        </button>
+        <button
+          type="button"
+          id="create-sb-cancel"
+          class="rounded border border-slate-300 px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50"
+        >
+          Cancel
+        </button>
+      </div>
+    </form>
+  </section>
+
+  <section class="bg-white border rounded-xl shadow-sm overflow-hidden">
+    <% if (!bulletins || bulletins.length === 0) { %>
+      <div class="px-6 py-12 text-center">
+        <p class="text-base font-semibold text-slate-700">No service bulletins yet</p>
+        <p class="mt-2 text-sm text-slate-500">
+          Bulletins added in the library or imported from external sources will appear here.
+        </p>
+      </div>
+    <% } else { %>
+      <div class="overflow-x-auto">
+        <table class="min-w-full divide-y divide-slate-200">
+          <thead class="bg-slate-50">
+            <tr>
+              <th
+                class="cursor-pointer px-6 py-3 text-left text-xs font-bold uppercase tracking-widest text-slate-500"
+                data-sort-key="sb_number"
+              >
+                SB Number
+              </th>
+              <th
+                class="cursor-pointer px-6 py-3 text-left text-xs font-bold uppercase tracking-widest text-slate-500"
+                data-sort-key="title"
+              >
+                Title
+              </th>
+              <th
+                class="cursor-pointer px-6 py-3 text-left text-xs font-bold uppercase tracking-widest text-slate-500"
+                data-sort-key="model"
+              >
+                Model
+              </th>
+              <th
+                class="cursor-pointer px-6 py-3 text-left text-xs font-bold uppercase tracking-widest text-slate-500"
+                data-sort-key="source"
+              >
+                Source
+              </th>
+            </tr>
+            <tr>
+              <th class="px-6 py-2">
+                <input
+                  type="text"
+                  class="sb-filter w-full rounded border px-3 py-2 text-sm"
+                  data-filter-key="sb_number"
+                  placeholder="Search SB Number"
+                >
+              </th>
+              <th class="px-6 py-2">
+                <input
+                  type="text"
+                  class="sb-filter w-full rounded border px-3 py-2 text-sm"
+                  data-filter-key="title"
+                  placeholder="Search Title"
+                >
+              </th>
+              <th class="px-6 py-2">
+                <input
+                  type="text"
+                  class="sb-filter w-full rounded border px-3 py-2 text-sm"
+                  data-filter-key="model"
+                  placeholder="Search Model"
+                >
+              </th>
+              <th class="px-6 py-2">
+                <input
+                  type="text"
+                  class="sb-filter w-full rounded border px-3 py-2 text-sm"
+                  data-filter-key="source"
+                  placeholder="Search Source"
+                >
+              </th>
+            </tr>
+          </thead>
+          <tbody id="service-bulletin-table-body" class="divide-y divide-slate-100 bg-white">
+            <% bulletins.forEach((bulletin) => { %>
+              <tr
+                class="service-bulletin-row hover:bg-slate-50"
+                data-sb_number="<%= bulletin.sb_number || '' %>"
+                data-title="<%= bulletin.title || '' %>"
+                data-model="<%= bulletin.model || '' %>"
+                data-source="<%= bulletin.source || '' %>"
+              >
+                <td class="px-6 py-4 text-sm font-semibold text-slate-900">
+                  <%= bulletin.sb_number %>
+                </td>
+                <td class="px-6 py-4 text-sm text-slate-700">
+                  <div class="flex items-center gap-2">
+                    <span><%= bulletin.title %></span>
+                    <% if (bulletin.source === 'MANUAL') { %>
+                      <span class="inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-700">
+                        Manual SB
+                      </span>
+                    <% } %>
+                  </div>
+                  <% if (bulletin.document_url) { %>
+                    <div class="mt-1 text-xs text-slate-500">
+                      <a href="<%= bulletin.document_url %>" target="_blank" rel="noreferrer" class="text-blue-600 hover:underline">
+                        Source document
+                      </a>
+                    </div>
+                  <% } %>
+                </td>
+                <td class="px-6 py-4 text-sm text-slate-700">
+                  <%= bulletin.model || '-' %>
+                </td>
+                <td class="px-6 py-4 text-sm text-slate-700">
+                  <span title="<%= JSON.stringify(bulletin.source_refs || []) %>">
+                    <%= bulletin.source || '-' %>
+                  </span>
+                </td>
+              </tr>
+            <% }) %>
+          </tbody>
+        </table>
+      </div>
+    <% } %>
+  </section>
+</main>
+
+<script>
+  (function () {
+    const panel = document.getElementById('create-sb-panel');
+    const openButton = document.getElementById('create-sb-toggle');
+    const cancelButton = document.getElementById('create-sb-cancel');
+    const modelSelect = document.getElementById('model_id');
+    const assetTypeDisplay = document.getElementById('asset_type_display');
+    const hasErrors = <%= messages && messages.error && messages.error.length ? 'true' : 'false' %>;
+    const syncForm = document.getElementById('sync-sb-form');
+    const syncButton = document.getElementById('sync-sb-button');
+    const syncLabel = document.getElementById('sync-sb-label');
+    const syncMethod = document.getElementById('sync-method');
+    const veryonFields = document.getElementById('sync-method-veryon-fields');
+    const piperFields = document.getElementById('sync-method-piper-fields');
+    const syncMethodHelp = document.getElementById('sync-method-help');
+    const veryonCsvFile = document.getElementById('veryon-csv-file');
+    const piperPdfPath = document.getElementById('piper-pdf-path');
+    const piperPdfFile = document.getElementById('piper-pdf-file');
+    const syncLastTime = document.getElementById('sync-last-time');
+    const syncTrigger = document.getElementById('sync-trigger');
+    const syncStatusBadge = document.getElementById('sync-status-badge');
+    const syncRunSummary = document.getElementById('sync-run-summary');
+    const syncErrorMessage = document.getElementById('sync-error-message');
+    const tableBody = document.getElementById('service-bulletin-table-body');
+    const filterInputs = Array.from(document.querySelectorAll('.sb-filter'));
+    const sortableHeaders = Array.from(document.querySelectorAll('[data-sort-key]'));
+    
+    // ✅ NEW: Catch unmatched models from backend
+    const unmatchedModels = <%- JSON.stringify(unmatchedModels || []) %>;
+
+    let currentSort = {
+      key: 'sb_number',
+      direction: 'asc'
+    };
+    let syncStatusRequest = null;
+
+    function badgeClassesForStatus(status) {
+      if (status === 'SUCCESS') return 'bg-emerald-100 text-emerald-700';
+      if (status === 'FAILED') return 'bg-red-100 text-red-700';
+      if (status === 'RUNNING') return 'bg-blue-100 text-blue-700';
+      return 'bg-slate-100 text-slate-700';
+    }
+
+    function setElementVisibility(element, isVisible) {
+      if (!element) return;
+      element.classList.toggle('hidden', !isVisible);
+    }
+
+    function syncMethodFields() {
+      const selectedMethod = syncMethod?.value || 'VERYON';
+      const needsVeryonInput = selectedMethod === 'VERYON';
+      const needsPiperInput = selectedMethod === 'PIPER_PDF';
+
+      setElementVisibility(veryonFields, needsVeryonInput);
+      setElementVisibility(piperFields, needsPiperInput);
+      setElementVisibility(syncMethodHelp, selectedMethod === 'ATP');
+
+      if (veryonCsvFile && !needsVeryonInput) {
+        veryonCsvFile.value = '';
+      }
+
+      if (piperPdfPath) {
+        piperPdfPath.required = needsPiperInput;
+        if (!needsPiperInput) {
+          piperPdfPath.value = '';
+        }
+      }
+      if (piperPdfFile && !needsPiperInput) {
+        piperPdfFile.value = '';
+      }
+
+      if (syncLabel) {
+        if (selectedMethod === 'PIPER_PDF') {
+          syncLabel.textContent = 'Load Piper PDF';
+        } else if (selectedMethod === 'VERYON') {
+          syncLabel.textContent = 'Load Veryon CSV';
+        } else {
+          syncLabel.textContent = 'Run Import';
+        }
+      }
+    }
+
+    function renderSyncInfo(syncInfo) {
+      if (syncLastTime) {
+        syncLastTime.textContent = syncInfo?.lastSyncTime
+          ? new Date(syncInfo.lastSyncTime).toLocaleString()
+          : 'No sync recorded yet';
+      }
+
+      if (syncStatusBadge) {
+        const nextStatus = syncInfo?.syncStatus || 'IDLE';
+        syncStatusBadge.textContent = nextStatus;
+        syncStatusBadge.className =
+          'inline-flex rounded-full px-2.5 py-1 text-xs font-bold uppercase tracking-wide ' +
+          badgeClassesForStatus(nextStatus);
+      }
+
+      if (syncTrigger) {
+        const triggerType = syncInfo?.lastRun?.trigger_type;
+        syncTrigger.textContent = triggerType ? `Trigger: ${triggerType}` : '';
+        setElementVisibility(syncTrigger, Boolean(triggerType));
+      }
+
+      if (syncRunSummary) {
+        const lastRun = syncInfo?.lastRun;
+        syncRunSummary.textContent = lastRun
+          ? `${lastRun.synced_count} synced, ${lastRun.created_count} created, ${lastRun.updated_count} updated`
+          : '';
+        setElementVisibility(syncRunSummary, Boolean(lastRun));
+      }
+
+      if (syncErrorMessage) {
+        const errorMessage = syncInfo?.lastRun?.error_message || '';
+        syncErrorMessage.textContent = errorMessage;
+        setElementVisibility(syncErrorMessage, Boolean(errorMessage));
+      }
+    }
+
+    async function refreshSyncStatus() {
+      if (syncStatusRequest) return syncStatusRequest;
+
+      syncStatusRequest = fetch('/service-bulletins/sync-status', {
+        headers: {
+          Accept: 'application/json'
+        },
+        credentials: 'same-origin'
+      })
+        .then(function (response) {
+          if (!response.ok) {
+            throw new Error('Unable to fetch sync status.');
+          }
+
+          return response.json();
+        })
+        .then(function (syncInfo) {
+          renderSyncInfo(syncInfo);
+          return syncInfo;
+        })
+        .catch(function () {
+          return null;
+        })
+        .finally(function () {
+          syncStatusRequest = null;
+        });
+
+      return syncStatusRequest;
+    }
+
+    function syncAssetType() {
+      if (!modelSelect || !assetTypeDisplay) return;
+      const selected = modelSelect.options[modelSelect.selectedIndex];
+      assetTypeDisplay.value = selected?.dataset?.assetType || '';
+    }
+
+    function getTableRows() {
+      return Array.from(document.querySelectorAll('.service-bulletin-row'));
+    }
+
+    function applyTableFiltersAndSort() {
+      const rows = getTableRows();
+      const activeFilters = Object.fromEntries(
+        filterInputs.map((input) => [
+          input.dataset.filterKey,
+          input.value.trim().toLowerCase()
+        ])
+      );
+
+      rows.forEach((row) => {
+        const matches = Object.entries(activeFilters).every(([key, value]) => {
+          if (!value) return true;
+          return String(row.dataset[key] || '').toLowerCase().includes(value);
+        });
+
+        row.classList.toggle('hidden', !matches);
+      });
+
+      const visibleRows = rows.filter((row) => !row.classList.contains('hidden'));
+      visibleRows.sort((left, right) => {
+        const leftValue = String(left.dataset[currentSort.key] || '').toLowerCase();
+        const rightValue = String(right.dataset[currentSort.key] || '').toLowerCase();
+        const comparison = leftValue.localeCompare(rightValue, undefined, { numeric: true });
+        return currentSort.direction === 'asc' ? comparison : -comparison;
+      });
+
+      visibleRows.forEach((row) => tableBody?.appendChild(row));
+    }
+
+    function openPanel() {
+      panel?.classList.remove('hidden');
+      syncAssetType();
+    }
+
+    function closePanel() {
+      panel?.classList.add('hidden');
+    }
+
+    openButton?.addEventListener('click', openPanel);
+    cancelButton?.addEventListener('click', closePanel);
+    modelSelect?.addEventListener('change', syncAssetType);
+    filterInputs.forEach((input) => {
+      input.addEventListener('input', applyTableFiltersAndSort);
+    });
+    sortableHeaders.forEach((header) => {
+      header.addEventListener('click', function () {
+        const key = header.dataset.sortKey;
+        if (!key) return;
+
+        if (currentSort.key === key) {
+          currentSort.direction = currentSort.direction === 'asc' ? 'desc' : 'asc';
+        } else {
+          currentSort = { key, direction: 'asc' };
+        }
+
+        sortableHeaders.forEach((cell) => {
+          const cellKey = cell.dataset.sortKey;
+          const baseLabel = String(cell.textContent || '').replace(/\s+[↑↓]$/, '').trim();
+          cell.textContent =
+            cellKey === currentSort.key
+              ? `${baseLabel} ${currentSort.direction === 'asc' ? '↑' : '↓'}`
+              : baseLabel;
+        });
+
+        applyTableFiltersAndSort();
+      });
+    });
+    syncMethod?.addEventListener('change', syncMethodFields);
+    syncForm?.addEventListener('submit', function () {
+      if (!syncButton || !syncLabel) return;
+      syncButton.setAttribute('disabled', 'disabled');
+      syncButton.classList.add('opacity-70', 'cursor-wait');
+      if ((syncMethod?.value || 'VERYON') === 'PIPER_PDF') {
+        syncLabel.textContent = 'Loading Piper PDF...';
+      } else if ((syncMethod?.value || 'VERYON') === 'VERYON') {
+        syncLabel.textContent = 'Loading Veryon CSV...';
+      } else {
+        syncLabel.textContent = 'Running Import...';
+      }
+    });
+
+    syncAssetType();
+    syncMethodFields();
+    applyTableFiltersAndSort();
+    renderSyncInfo(<%- JSON.stringify(syncInfo || { lastSyncTime: null, syncStatus: 'IDLE', lastRun: null }) %>);
+    setInterval(refreshSyncStatus, 30000);
+
+    if (hasErrors || <%= values.sb_number || values.model_id || values.title ? 'true' : 'false' %>) {
+      openPanel();
+    }
+
+    // ✅ NEW: Auto-open and pre-fill if unmatched models exist
+    if (unmatchedModels && unmatchedModels.length > 0) {
+      const first = unmatchedModels[0];
+      openPanel();
+      
+      const sbNumInput = document.getElementById('form-sb-number');
+      const titleInput = document.getElementById('form-title');
+      
+      if (sbNumInput) sbNumInput.placeholder = `New SB for ${first.manufacturer} ${first.model}...`;
+      if (titleInput) titleInput.value = `${first.manufacturer} ${first.model} Import`;
+    }
+
+  })();
+</script>
+
+<%- include('../partials/footer') %>

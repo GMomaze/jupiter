@@ -1,0 +1,157 @@
+<%- include('../partials/header') %>
+
+<main class="max-w-6xl mx-auto py-10 px-4 sm:px-6 lg:px-8">
+  <div class="mb-8 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+    <div>
+      <h1 class="text-3xl font-black text-slate-900 tracking-tight">
+        Manufacturers
+      </h1>
+      <p class="mt-2 text-sm text-slate-500">
+        Capture and maintain manufacturer master data for aircraft and other assets.
+      </p>
+    </div>
+
+    <a href="/library" class="text-sm font-semibold text-blue-600 hover:underline">
+      Back to Library
+    </a>
+  </div>
+
+  <section class="mb-8 rounded-xl border bg-white p-6 shadow-sm">
+    <h2 class="mb-4 text-lg font-bold text-slate-900">Add Manufacturer</h2>
+    <p class="mb-4 text-sm text-slate-500">
+      Start with the basic manufacturer record here, then open it to capture the full profile and load models.
+    </p>
+
+    <form method="POST" action="/library/manufacturers?_csrf=<%= encodeURIComponent(csrfToken) %>" enctype="multipart/form-data" class="grid gap-4 md:grid-cols-2">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+
+      <div>
+        <label class="mb-1 block text-xs font-bold uppercase tracking-widest text-slate-500">
+          Name
+        </label>
+        <input
+          type="text"
+          name="name"
+          required
+          class="w-full rounded border px-3 py-2 text-sm"
+        >
+      </div>
+
+      <div>
+        <label class="mb-1 block text-xs font-bold uppercase tracking-widest text-slate-500">
+          Code
+        </label>
+        <input
+          type="text"
+          name="code"
+          class="w-full rounded border px-3 py-2 text-sm"
+        >
+      </div>
+
+      <div class="md:col-span-2">
+        <label class="mb-1 block text-xs font-bold uppercase tracking-widest text-slate-500">
+          Website
+        </label>
+        <input
+          type="url"
+          name="website"
+          class="w-full rounded border px-3 py-2 text-sm"
+        >
+      </div>
+
+      <div class="md:col-span-2">
+        <label class="mb-1 block text-xs font-bold uppercase tracking-widest text-slate-500">
+          Logo File
+        </label>
+        <input
+          type="file"
+          name="logo_file"
+          accept="image/*"
+          class="w-full rounded border px-3 py-2 text-sm"
+        >
+      </div>
+
+      <div class="md:col-span-2">
+        <label class="mb-1 block text-xs font-bold uppercase tracking-widest text-slate-500">
+          Description
+        </label>
+        <textarea
+          name="description"
+          rows="3"
+          class="w-full rounded border px-3 py-2 text-sm"
+        ></textarea>
+      </div>
+
+      <label class="flex items-center gap-2 text-sm font-medium text-slate-700">
+        <input type="checkbox" name="is_active" value="true" checked class="rounded border-slate-300">
+        Active
+      </label>
+
+      <div class="md:col-span-2">
+        <button
+          type="submit"
+          class="rounded bg-slate-800 px-4 py-2 text-sm font-bold text-white hover:bg-black"
+        >
+          Save Manufacturer
+        </button>
+      </div>
+    </form>
+  </section>
+
+  <section class="overflow-hidden rounded-xl border bg-white shadow-sm">
+    <% if (!manufacturers || manufacturers.length === 0) { %>
+      <div class="px-6 py-12 text-center text-sm text-slate-500">
+        No manufacturers captured yet.
+      </div>
+    <% } else { %>
+      <div class="overflow-x-auto">
+        <table class="min-w-full divide-y divide-slate-200">
+          <thead class="bg-slate-50">
+            <tr>
+              <th class="px-6 py-3 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Name</th>
+              <th class="px-6 py-3 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Code</th>
+              <th class="px-6 py-3 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Website</th>
+              <th class="px-6 py-3 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Status</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-100 bg-white">
+            <% manufacturers.forEach((manufacturer) => { %>
+              <tr>
+                <td class="px-6 py-4 text-sm font-semibold text-slate-900">
+                  <a href="/library/manufacturers/<%= manufacturer.id %>" class="text-blue-600 hover:underline">
+                    <%= manufacturer.name %>
+                  </a>
+                  <% if (manufacturer.description) { %>
+                    <div class="mt-1 text-xs font-normal text-slate-500">
+                      <%= manufacturer.description %>
+                    </div>
+                  <% } %>
+                </td>
+                <td class="px-6 py-4 text-sm text-slate-700">
+                  <%= manufacturer.code || '-' %>
+                </td>
+                <td class="px-6 py-4 text-sm text-slate-700">
+                  <% if (manufacturer.website) { %>
+                    <a href="<%= manufacturer.website %>" target="_blank" rel="noreferrer" class="text-blue-600 hover:underline">
+                      <%= manufacturer.website %>
+                    </a>
+                  <% } else { %>
+                    -
+                  <% } %>
+                </td>
+                <td class="px-6 py-4 text-sm text-slate-700">
+                  <div><%= manufacturer.is_active ? 'Active' : 'Inactive' %></div>
+                  <div class="mt-1 text-xs text-slate-500">
+                    <%= manufacturer.is_operational ? 'Operational' : 'No Longer Operating' %>
+                  </div>
+                </td>
+              </tr>
+            <% }) %>
+          </tbody>
+        </table>
+      </div>
+    <% } %>
+  </section>
+</main>
+
+<%- include('../partials/footer') %>

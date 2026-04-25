@@ -1,0 +1,185 @@
+JUPITER redundant process review
+Audit date: 2026-04-23
+
+Scope:
+- Reviewed active startup path from `package.json` and `src/server.ts`
+- Checked background automation in `src/modules/service-bulletins/service-bulletin-sync.service.ts`
+- Checked workpack PDF generation flow in `src/modules/workpacks/*`
+- Checked database migration/seed tooling in root files and `scripts/*`
+- Cross-checked existing findings in `no_use`
+
+Important:
+- No processes were stopped.
+- No runtime state was changed.
+- This file is only an audit of redundant or overlapping process paths in the codebase.
+
+1. Duplicate server startup paths
+- Active path: `package.json` runs `tsx src/server.ts`
+- Redundant path: root `server.js`
+- Why redundant: `server.js` is a separate demo/manual server with hardcoded sample routes and its own `app.listen(...)`, but it is not the startup target used by the project scripts.
+- Risk: someone can mistake it for the real server entry and maintain two startup flows.
+
+2. Duplicate PDF generation workflow
+- Files:
+  - `src/modules/workpacks/pdf.service.ts`
+  - `src/modules/workpacks/pdf.release.ts`
+  - `src/modules/workpacks/pdf.crma.ts`
+- Why redundant: all three fetch the same workpack/task data, define the same `PdfService` class name, duplicate helpers like `safeDate`, `safeTime`, `cleanText`, `drawFrame`, `drawSectionTitle`, and expose the same `generateCRS(workpackId)` style API.
+- Actual usage:
+  - `workpack.controller.ts` imports all three and routes them separately
+  - `handleClose` and `handleServicePdf` both call `pdf.service.ts`
+- Risk: layout changes, bug fixes, and compliance wording updates have to be repeated in multiple files and can drift.
+- Strong candidate to consolidate into one base PDF engine plus document-specific templates.
+
+3. Redundant close/download behavior in workpacks
+- File: `src/modules/workpacks/workpack.controller.ts`
+- Why redundant: `handleClose` closes a workpack and immediately returns the same generator used by `handleServicePdf`:
+  - `handleClose` -> `ServicePdfService.generateCRS(workpackId)`
+  - `handleServicePdf` -> `ServicePdfService.generateCRS(workpackId)`
+- Risk: same output path is exposed through two different user actions, which creates duplicated behavior to maintain and test.
+
+4. Two migration systems exist at the same time
+- Sequelize path:
+  - `package.json` uses `sequelize-cli` for `db:migrate`, `db:migrate:undo`, `db:seed`
+  - current migrations live in `migrations/*`
+- Knex path:
+  - `knexfile.ts`
+  - `knexfile.js`
+  - `scripts/migrate.ts`
+  - `scripts/migrate.js`
+  - `scripts/fix_migration.ts`
+- Why redundant: the project scripts point to Sequelize, but Knex configs and helper scripts still exist and even reference `knex_migrations`.
+- Extra signal:
+  - `tsconfig.json` still includes `knexfile.ts`
+  - `scripts/fix_migration.ts` deletes from `knex_migrations`
+- Risk: mixed migration history, wrong tool usage, and maintenance confusion.
+
+5. Duplicate PDF helper runner scripts
+- Files:
+  - `scripts/run-pdf.ts`
+  - root `run-pdf.ts`
+- Why redundant: both are standalone PDF helper runners outside the main app flow.
+- Risk: two manual execution paths for the same kind of task.
+
+6. Parallel “old/obsolete” storage for historical code
+- Directories:
+  - `migrationOLD`
+  - `seedOLD`
+  - `_obsolete`
+- Why redundant: these keep alternate historical copies of system behavior outside the active runtime path.
+- Risk: people may patch the wrong location or copy old logic back into active code by mistake.
+
+7. Disconnected measurement process implementation
+- File: `src/modules/workpacks/measurement.service.ts`
+- Why redundant: it implements measurement write/audit logic with Knex and an `./audit.service` import, but no active imports reference it.
+- Risk: there is a second, effectively dead implementation path for measurements that can mislead future maintenance.
+
+8. Background sync process is single-purpose but startup logging is misleading
+- Files:
+  - `src/server.ts`
+  - `src/modules/service-bulletins/service-bulletin-sync.service.ts`
+- Observation:
+  - `src/server.ts` always logs `Service Bulletin sync cron started`
+  - `startCronJob()` itself may immediately decide cron is disabled and log `Service bulletin sync cron disabled.`
+- Why this matters: not a duplicate process, but the startup messaging suggests a running background process even when it is disabled.
+- Risk: operator confusion during support and deployment checks.
+
+Most important redundant processes to clean first
+1. Consolidate the three workpack PDF services into one shared pipeline.
+2. Remove or archive the unused root `server.js`.
+3. Pick one migration system only; current evidence says Sequelize is the real one.
+4. Remove duplicate manual PDF runner scripts.
+5. Move historical folders out of the active project root if they are only for reference.
+
+Conclusion
+- The biggest redundancy in Jupiter is not a live process loop that should be shut down.
+- It is duplicated implementation paths: startup entrypoints, migration tooling, and PDF generation flows.
+- Those duplicates increase maintenance cost and make it easier to update the wrong path.
+
+Model audit addendum
+Audit date: 2026-04-23
+
+Scope:
+- Checked `src/models/*`
+- Used `src/models/index.ts` exports and `src/models/associations.ts` as the active model baseline
+- Compared active model `tableName` values against `migrations/*`
+
+Redundant or misplaced model files
+
+1. Duplicate SID model
+- Duplicate file: `src/models/cessna_sids`
+- Active file: `src/models/cessnaSid.model.ts`
+- Why redundant:
+  - both define `CessnaSid`
+  - both map to table `cessna_sids`
+  - only `cessnaSid.model.ts` is exported through `src/models/index.ts`
+  - `src/services/sid.service.ts` uses the exported `CessnaSid` from the active model barrel
+- Conclusion: `src/models/cessna_sids` is a redundant duplicate model file.
+
+2. Misplaced migration file in models folder
+- File: `src/models/aircraft_sid_applicability`
+- Why redundant as a model:
+  - it is not a Sequelize model
+  - it contains `queryInterface.createTable(...)`
+  - it behaves like a migration file, not an active runtime model
+- Conclusion: this is misplaced migration code, not a real model.
+
+3. Misplaced migration file in models folder
+- File: `src/models/aircraft_sid_tracking`
+- Why redundant as a model:
+  - it is not a Sequelize model
+  - it contains `queryInterface.createTable(...)`
+  - it behaves like a migration file, not an active runtime model
+- Conclusion: this is misplaced migration code, not a real model.
+
+Migration coverage for active models
+
+Checked active exported models from `src/models/index.ts`.
+
+Active models with migration coverage found
+- `AssetType` -> `rf_asset_type`
+- `Manufacturer` -> `manufacturers`
+- `ComponentModel` -> `component_models`
+- `ServiceBulletin` -> `service_bulletins`
+- `ServiceBulletinModel` -> `service_bulletin_models`
+- `AircraftSbCompliance` -> `aircraft_sb_compliance`
+- `CessnaSid` -> `cessna_sids`
+- `MaintenanceRequirement` -> `maintenance_requirements`
+- `Role` -> `rf_role`
+- `Permission` -> `rf_permission`
+- `RolePermission` -> `rf_role_permissions`
+- `UserRole` -> `user_roles`
+- `AuditLog` -> `audit_log`
+- `WorkpackAuditLog` -> `workpack_audit_log`
+- `WorkpackSnagAuditLog` -> `workpack_snag_audit_log`
+- `Aircraft` -> `aircraft`
+- `AircraftCategory` -> `rf_aircraft_category`
+- `AircraftComponent` -> `aircraft_components`
+- `WorkpackStatus` -> `rf_workpack_status`
+- `Workpack` -> `workpacks`
+- `TaskCard` -> `task_cards`
+- `TaskTemplate` -> `task_templates`
+- `WorkpackTask` -> `workpack_tasks`
+- `WorkpackExecution` -> `workpack_executions`
+- `WorkpackMeasurement` -> `workpack_measurements`
+- `WorkpackSignature` -> `workpack_signatures`
+- `WorkpackSource` -> `workpack_sources`
+- `WorkpackSnag` -> `workpack_snags`
+- `User` -> `users`
+
+Active model missing migration
+- `ServiceBulletinSyncRun` -> `service_bulletin_sync_runs`
+- Finding:
+  - model exists in `src/models/ServiceBulletinSyncRun.ts`
+  - it is exported from `src/models/index.ts`
+  - it is actively used by service bulletin sync code
+  - no migration was found creating table `service_bulletin_sync_runs`
+- Conclusion: this looks like a real migration gap, not a redundant model.
+
+Summary
+- Redundant/misplaced model-layer files found:
+  - `src/models/cessna_sids`
+  - `src/models/aircraft_sid_applicability`
+  - `src/models/aircraft_sid_tracking`
+- Real active model missing migration:
+  - `src/models/ServiceBulletinSyncRun.ts`

@@ -4,10 +4,9 @@
   <% } %>
 
   <% models.forEach(model => { %>
-    <div 
-      class="model-card relative p-4 border-2 border-slate-100 rounded-lg shadow-sm hover:border-slate-400 transition-all group cursor-pointer bg-white"
-      hx-get="/library/model/<%= model.id %>/requirements"
-      hx-target="#requirement-container"
+    <a 
+      href="/library/model/<%= model.id %>"
+      class="model-card relative block p-4 border-2 border-slate-100 rounded-lg shadow-sm hover:border-slate-400 transition-all group cursor-pointer bg-white"
       onclick="
         /* 1. Reset all cards in this column */
         document.querySelectorAll('.model-card').forEach(c => {
@@ -39,16 +38,9 @@
         });
       "
     >
-      <button 
-        class="absolute top-2 right-2 text-slate-300 hover:text-blue-400 cursor-pointer z-20 transition-colors"
-        hx-get="/library/model/<%= model.id %>/edit"
-        hx-target="#model-container"
-        onclick="event.stopPropagation();"
-      >
-        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-        </svg>
-      </button>
+      <span class="absolute top-2 right-2 text-[10px] font-bold uppercase tracking-widest text-slate-400 group-hover:text-blue-500 transition-colors">
+        View
+      </span>
 
       <div>
         <h3 class="font-black text-slate-900 uppercase text-sm pr-6 transition-colors">
@@ -64,6 +56,6 @@
           </span>
         </div>
       </div>
-    </div>
+    </a>
   <% }) %>
 </div>

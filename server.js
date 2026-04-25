@@ -17,7 +17,7 @@ app.get('/workpacks/planner', (req, res) => {
   const aircraft = [
     { id: 1, registration: 'N12345' },
     { id: 2, registration: 'N67890' },
-    { id: 3, registration: 'ZS-ABC' }
+    { id: 3, registration: 'ZS-SWU' }
   ];
 
   const unassignedTasks = [
@@ -116,6 +116,10 @@ app.get('/hangar', (req, res) => {
   res.render('workpacks/hangar'); // execution.ejs inside src/views/workpacks
 });
 */
-app.listen(3000, () => {
-  console.log('Server running at http://localhost:3000');
+//app.listen(3000, () => {
+//  console.log('Server running at http://localhost:3000');
+//});
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  console.log(`Server running at http://localhost:${PORT}`);
 });

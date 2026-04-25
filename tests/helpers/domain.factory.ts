@@ -6,8 +6,8 @@ import {
   Manufacturer, 
   AssetType, 
   WorkpackStatus,
-  TaskCard,     // Added for cleanup
-  Workpack      // Added for cleanup
+  TaskCard,
+  Workpack
 } from '../../src/models/index.js';
 import { Pool } from 'pg';
 
@@ -20,6 +20,8 @@ const pool = new Pool({
  * Deletes data in the correct order to avoid Foreign Key Constraint errors.
  */
 export async function clearDatabase() {
+  await pool.query('DELETE FROM service_bulletin_models');
+  await pool.query('DELETE FROM audit_log');
   await pool.query('DELETE FROM task_cards');
   await pool.query('DELETE FROM workpacks');
   await pool.query('DELETE FROM aircraft_components');
@@ -28,6 +30,7 @@ export async function clearDatabase() {
   await pool.query('DELETE FROM manufacturers');
   await pool.query('DELETE FROM rf_asset_type');
   await pool.query('DELETE FROM aircraft_categories');
+  await pool.query('DELETE FROM users'); // ✅ needed for audit FK
 }
 
 export async function createManufacturer() {
@@ -62,9 +65,12 @@ export async function createComponentModel(mfrId?: string, assetId?: string) {
   const finalAssetId = assetId || (await createAssetType()).id;
   const id = uuid();
 
+  const modelCode = `MC_${id.slice(0, 6).toUpperCase()}`; // ✅ IMPORTANT
+
   const model = await ComponentModel.create({
     id,
     model_name: `MODEL_${id.slice(0, 4)}`,
+    model_code: modelCode, // ✅ REQUIRED for UNIQUE constraint
     manufacturer_id: finalMfrId,
     asset_type_id: finalAssetId,
     is_active: true
@@ -124,3 +130,4 @@ export async function createAircraft(catId?: string, modelId?: string) {
 export async function seedAircraft() {
   return await createAircraft();
 }
+

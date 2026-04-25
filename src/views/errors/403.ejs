@@ -3,15 +3,15 @@
 <main class="max-w-3xl mx-auto py-16 px-6">
   <section class="bg-white border border-red-200 rounded-xl shadow-sm p-8">
     <p class="text-xs font-bold tracking-[0.2em] uppercase text-red-500 mb-3">
-      <%= eyebrow || 'Access Restricted' %>
+      <%= typeof eyebrow !== 'undefined' ? eyebrow : 'Access Restricted' %>
     </p>
     <h1 class="text-3xl font-black text-slate-900 mb-4">
-      <%= title || '403 Forbidden' %>
+      <%= typeof title !== 'undefined' ? title : '403 Forbidden' %>
     </h1>
     <p class="text-slate-600 mb-6">
-      <%= message || 'You do not have permission to access this page.' %>
+      <%= typeof message !== 'undefined' ? message : 'You do not have permission to access this page.' %>
     </p>
-    <% if (detail) { %>
+    <% if (typeof detail !== 'undefined' && detail) { %>
       <p class="text-slate-500 mb-6">
         <%= detail %>
       </p>

@@ -15,7 +15,6 @@ export function defineAbilitiesFor(user: any): AppAbility {
     cannot('manage', 'all');
     return build();
   }
-console.console.log('GGGG--defineAbilitiesFor',user);
 
   if (user.roles && user.roles.includes('ADMIN')) {
     can('manage', 'all');
@@ -23,7 +22,7 @@ console.console.log('GGGG--defineAbilitiesFor',user);
   // ENGINEER / CERTIFYING STAFF
   else if (user.roles && user.roles.includes('ENGINEER')) {
     can('read', 'all');
-    can('update', 'TaskCard', { status: 'OPEN' });
+    can('update', 'TaskCard');
     can('sign', 'TaskCard'); // Only engineers can sign
     can('manage', 'Component');
   }
