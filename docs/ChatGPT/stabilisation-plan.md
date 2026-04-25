@@ -489,6 +489,45 @@ Result:
 
 Large file cleanup Step 7 — extract workpack-service-bulletin.service.ts
 
+Defined ✅
+Implemented ✅
+Verified ✅
+
+Result:
+- Service bulletin methods moved safely
+- WorkpackService public API unchanged
+- Service bulletin behaviour unchanged
+- Transaction handling preserved
+- No unrelated logic changed
+
+Large file cleanup Step 8 — extract workpack-lifecycle.service.ts
+
+Defined ✅
+Implemented ✅
+Verified ✅
+
+Result:
+- Lifecycle methods moved safely
+- WorkpackService public API unchanged
+- Transition rules unchanged
+- Close rules unchanged
+- No unrelated logic changed
+
+
+Large file cleanup — COMPLETE
+
+workpack.service.ts is now an orchestration layer
+All major domains extracted:
+- measurement
+- audit
+- execution
+- task execution
+- planning
+- service bulletins
+- snags
+- lifecycle
+
+
 Rule:
 Do not refactor during stabilisation.
 Review and split only after Phase 1–9 are complete.

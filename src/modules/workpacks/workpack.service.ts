@@ -1,25 +1,4 @@
-import {
-  sequelize,
-  Workpack,
-  WorkpackStatus,
-  WorkpackTask,
-  TaskCard,
-  WorkpackExecution,
-  WorkpackMeasurement,
-  WorkpackSignature,
-  WorkpackSnag,
-  WorkpackAuditLog,
-  WorkpackSnagAuditLog,
-  TaskTemplate,
-  Aircraft,
-  AircraftComponent,
-  ServiceBulletin,
-  ComponentModel,
-  AircraftSbCompliance,
-  Manufacturer,
-  AssetType,
-} from '../../models/index.js';
-import { AuditService } from '../audit/audit.service.js';
+import { sequelize } from '../../models/index.js';
 import { MeasurementService } from './services/measurement.service.js';
 import { WorkpackAuditService } from './services/workpack-audit.service.js';
 import { WorkpackExecutionService } from './services/workpack-execution.service.js';
@@ -28,21 +7,12 @@ import { TaskExecutionService } from './services/task-execution.service.js';
 import { WorkpackPlanningService } from './services/workpack-planning.service.js';
 import { WorkpackServiceBulletinService } from './services/workpack-service-bulletin.service.js';
 import { WorkpackLifecycleService } from './services/workpack-lifecycle.service.js';
-import { Op } from 'sequelize';
 
 type WorkpackStatusCode =
   | 'DRAFT'
   | 'ISSUED'
   | 'IN_PROGRESS'
   | 'CERTIFIED';
-
-type TaskStatusCode =
-  | 'OPEN'
-  | 'IN_PROGRESS'
-  | 'COMPLETED_BY_MECHANIC'
-  | 'CERTIFIED_BY_ENGINEER'
-  | 'SIGNED'
-  | 'LOCKED';
 
 export class WorkpackService {
   private static readonly CAPTURED_VALUES_START = MeasurementService.CAPTURED_VALUES_START;
@@ -275,12 +245,12 @@ export class WorkpackService {
   ============================================================ */
 
   private static async transition(
-    pack: Workpack,
-    target: WorkpackStatusCode,
+    pack: { id: string },
+    target: 'IN_PROGRESS',
     actorId: string | undefined,
     transaction: any
   ) {
-    return WorkpackLifecycleService.transition(pack, target, actorId, transaction);
+    return WorkpackLifecycleService.transition(pack as any, target, actorId, transaction);
   }
 
   /* ============================================================
@@ -327,7 +297,13 @@ export class WorkpackService {
   ============================================================ */
 
   static async addTask(workpackId: string, taskId: string, actorId?: string) {
-    return WorkpackPlanningService.addTask(workpackId, taskId, actorId, sequelize, this.requireAuth.bind(this));
+    return WorkpackPlanningService.addTask(
+      workpackId,
+      taskId,
+      actorId,
+      sequelize,
+      this.requireAuth.bind(this)
+    );
   }
 
   /* ============================================================
@@ -335,7 +311,13 @@ export class WorkpackService {
   ============================================================ */
 
   static async removeTask(workpackId: string, taskId: string, actorId?: string) {
-    return WorkpackPlanningService.removeTask(workpackId, taskId, actorId, sequelize, this.requireAuth.bind(this));
+    return WorkpackPlanningService.removeTask(
+      workpackId,
+      taskId,
+      actorId,
+      sequelize,
+      this.requireAuth.bind(this)
+    );
   }
 
   /* ============================================================
