@@ -475,6 +475,20 @@ Result:
 
 Large file cleanup Step 6 — extract workpack-planning.service.ts
 
+Defined ✅
+Implemented ✅
+Verified ✅
+
+Result:
+- Planning methods moved safely
+- WorkpackService public API unchanged
+- Wrong-aircraft validation unchanged
+- Template compatibility checks unchanged
+- Service bulletin logic untouched
+- No unrelated logic changed
+
+Large file cleanup Step 7 — extract workpack-service-bulletin.service.ts
+
 Rule:
 Do not refactor during stabilisation.
 Review and split only after Phase 1–9 are complete.
