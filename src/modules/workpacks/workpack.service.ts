@@ -22,6 +22,7 @@ import {
 import { AuditService } from '../audit/audit.service.js';
 import { MeasurementService } from './services/measurement.service.js';
 import { WorkpackAuditService } from './services/workpack-audit.service.js';
+import { WorkpackExecutionService } from './services/workpack-execution.service.js';
 import { Op } from 'sequelize';
 
 type WorkpackStatusCode =
@@ -103,13 +104,7 @@ export class WorkpackService {
   }
 
   private static mapTaskStatusToExecutionStatus(taskStatus: string): string {
-    if (taskStatus === 'IN_PROGRESS') return 'IN_PROGRESS';
-    if (taskStatus === 'COMPLETED_BY_MECHANIC') return 'COMPLETED_BY_MECHANIC';
-    if (taskStatus === 'CERTIFIED_BY_ENGINEER' || taskStatus === 'SIGNED' || taskStatus === 'LOCKED') {
-      return 'CERTIFIED_BY_ENGINEER';
-    }
-
-    return 'OPEN';
+    return WorkpackExecutionService.mapTaskStatusToExecutionStatus(taskStatus);
   }
 
   private static getMeasurementDefinitions(description: string | null | undefined) {
@@ -170,36 +165,12 @@ export class WorkpackService {
     userId: string | undefined,
     transaction: any
   ) {
-    if (!userId) {
-      return;
-    }
-
-    const existingSignature = await WorkpackSignature.findOne({
-      where: {
-        execution_id: executionId,
-        role,
-        signature_type: signatureType,
-        user_id: userId,
-      },
-      transaction,
-      lock: transaction.LOCK.UPDATE,
-    });
-
-    if (existingSignature) {
-      existingSignature.signed_at = new Date();
-      await existingSignature.save({ transaction });
-      return;
-    }
-
-    await WorkpackSignature.create(
-      {
-        execution_id: executionId,
-        role,
-        signature_type: signatureType,
-        user_id: userId,
-        signed_at: new Date(),
-      },
-      { transaction }
+    await WorkpackExecutionService.recordExecutionSignature(
+      executionId,
+      role,
+      signatureType,
+      userId,
+      transaction
     );
   }
 
@@ -241,15 +212,7 @@ export class WorkpackService {
     taskId: string,
     transaction: any
   ) {
-    return WorkpackExecution.findOne({
-      where: {
-        workpack_id: workpackId,
-        task_id: taskId,
-      },
-      order: [['attempt_no', 'DESC']],
-      transaction,
-      lock: transaction.LOCK.UPDATE,
-    });
+    return WorkpackExecutionService.getLatestExecution(workpackId, taskId, transaction);
   }
 
   private static async ensureExecutionForTask(
@@ -258,34 +221,12 @@ export class WorkpackService {
     actorId: string | undefined,
     transaction: any
   ) {
-    const existing = await this.getLatestExecution(packId, task.id, transaction);
-    if (existing) {
-      return existing;
-    }
-
-    const executionStatus = this.mapTaskStatusToExecutionStatus(task.status);
-    const execution = await WorkpackExecution.create(
-      {
-        workpack_id: packId,
-        task_id: task.id,
-        attempt_no: 1,
-        status: executionStatus,
-        started_by:
-          executionStatus !== 'OPEN' ? ((task as any).assigned_to || actorId || null) : null,
-        completed_by: (task as any).mechanic_completed_by || null,
-        certified_by: (task as any).engineer_certified_by || null,
-        started_at:
-          executionStatus !== 'OPEN'
-            ? ((task as any).updated_at || new Date())
-            : null,
-        completed_at: (task as any).mechanic_completed_at || null,
-        certified_at: (task as any).engineer_certified_at || null,
-        version: 1,
-      },
-      { transaction }
+    return WorkpackExecutionService.ensureExecutionForTask(
+      packId,
+      task,
+      actorId,
+      transaction
     );
-
-    return execution;
   }
 
   private static async getOpenRelevantServiceBulletinsForAircraft(
@@ -399,46 +340,7 @@ export class WorkpackService {
   }
 
   private static async getExecutablePackForTask(taskId: string, transaction: any) {
-    const links = await WorkpackTask.findAll({
-      where: { task_id: taskId },
-      transaction
-    });
-
-    if (links.length === 0) {
-      throw new Error('TASK_NOT_ASSIGNED_TO_WORKPACK');
-    }
-
-    const workpackIds = links.map(link => link.workpack_id);
-    const packs = await Workpack.findAll({
-      where: { id: workpackIds },
-      transaction,
-      lock: transaction.LOCK.UPDATE
-    });
-
-    const packStatuses = await WorkpackStatus.findAll({
-      where: { id: packs.map(pack => pack.status_id) },
-      transaction
-    });
-
-    const statusById = new Map(packStatuses.map(status => [status.id, status]));
-
-    const inProgressPack = packs.find(pack => statusById.get(pack.status_id)?.code === 'IN_PROGRESS');
-    if (inProgressPack) {
-      return {
-        pack: inProgressPack,
-        status: statusById.get(inProgressPack.status_id)!
-      };
-    }
-
-    const issuedPack = packs.find(pack => statusById.get(pack.status_id)?.code === 'ISSUED');
-    if (issuedPack) {
-      return {
-        pack: issuedPack,
-        status: statusById.get(issuedPack.status_id)!
-      };
-    }
-
-    throw new Error('TASK_NOT_IN_EXECUTABLE_WORKPACK');
+    return WorkpackExecutionService.getExecutablePackForTask(taskId, transaction);
   }
 
   /* ============================================================

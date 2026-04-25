@@ -428,6 +428,20 @@ Result:
 - Hash-chain logic unchanged
 - No unrelated logic changed
 
+Large file cleanup Step 3 — extract workpack-execution.service.ts
+
+Defined ✅
+Implemented ✅
+Verified ✅
+
+Result:
+- Execution helpers moved safely
+- WorkpackService public API unchanged
+- attempt_no = 1 rule unchanged
+- LOCKED still maps to CERTIFIED_BY_ENGINEER for executions
+- No unrelated logic changed
+
+
 
 Rule:
 Do not refactor during stabilisation.
