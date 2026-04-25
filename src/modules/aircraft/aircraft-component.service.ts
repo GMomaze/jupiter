@@ -5,7 +5,6 @@ import {
   ComponentModel,
   AssetType
 } from '../../models/index.js';
-import { QueryTypes } from 'sequelize';
 
 export class AircraftComponentService {
   private static readonly aircraftAttributes = [

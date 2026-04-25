@@ -1,6 +1,5 @@
 import { Router } from 'express';
 import { ServiceBulletinService } from './service-bulletin.service.js';
-import { ServiceBulletinSyncService } from './service-bulletin-sync.service.js';
 
 const router = Router();
 
