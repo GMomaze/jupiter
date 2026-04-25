@@ -441,7 +441,7 @@ Result:
 - LOCKED still maps to CERTIFIED_BY_ENGINEER for executions
 - No unrelated logic changed
 
-
+Large file cleanup Step 4 — extract snag.service.ts
 
 Rule:
 Do not refactor during stabilisation.
