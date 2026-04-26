@@ -5,6 +5,7 @@ import { PdfService as ReleasePdfService } from './pdf.release.js';
 import { PdfService as CrmaPdfService } from './pdf.crma.js';
 import { AircraftService } from '../aircraft/aircraft.service.js';
 import { TaskImportService } from './services/TaskImportService.js';
+import { SnagService } from './services/snag.service.js';
 import { TaskExecutionService } from './services/task-execution.service.js';
 import {
   Workpack,
@@ -546,7 +547,11 @@ export class WorkpackController {
     const tasks = await WorkpackController.attachLatestExecutions(packId, (pack as any).TaskCards || []);
     const snags = await TaskExecutionService.getExecutionSnags(packId);
     const openSnags = await TaskExecutionService.getOpenExecutionSnags(packId);
-    res.render('workpacks/execution', { pack, tasks, snags, openSnags, user: req.user });
+    const aircraftId = String((pack as any).aircraft_id || (pack as any).Aircraft?.id || '').trim();
+    const snagPatterns = aircraftId
+      ? await SnagService.getSnagPatternSummaryForAircraft(aircraftId)
+      : [];
+    res.render('workpacks/execution', { pack, tasks, snags, openSnags, snagPatterns, user: req.user });
   }
 
   static async renderQA(req: Request, res: Response) {
