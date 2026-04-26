@@ -1,4 +1,4 @@
-import { Op } from 'sequelize';
+import { Op, QueryTypes } from 'sequelize';
 import { sequelize, WorkpackSnag } from '../../../models/index.js';
 
 type CreateSnagParams = {
@@ -44,6 +44,39 @@ export class SnagService {
       attributes: ['id', 'description', 'status', 'created_by', 'created_at'],
       order: [['created_at', 'ASC'], ['snag_no', 'ASC']],
     });
+  }
+
+  static async getSnagPatternSummaryForAircraft(
+    aircraftId: string,
+    db: any = sequelize
+  ) {
+    return db.query(
+      `
+      SELECT
+        aircraft_id,
+        normalized_description AS normalised_description,
+        COUNT(*)::int AS occurrence_count,
+        MAX(created_at) AS latest_created_at,
+        COUNT(*) FILTER (WHERE status != 'CLOSED')::int AS open_count,
+        COUNT(*) FILTER (WHERE status = 'CLOSED')::int AS closed_count
+      FROM (
+        SELECT
+          aircraft_id,
+          regexp_replace(lower(trim(description)), '\\s+', ' ', 'g') AS normalized_description,
+          status,
+          created_at
+        FROM workpack_snags
+        WHERE aircraft_id = :aircraftId
+      ) normalized_snags
+      GROUP BY aircraft_id, normalized_description
+      HAVING COUNT(*) >= 2
+      ORDER BY occurrence_count DESC, latest_created_at DESC
+      `,
+      {
+        replacements: { aircraftId },
+        type: QueryTypes.SELECT,
+      }
+    );
   }
 
   private static async getNextSnagNo(
