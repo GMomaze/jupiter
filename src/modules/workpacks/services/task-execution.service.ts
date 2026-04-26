@@ -1,6 +1,7 @@
 import { Aircraft, TaskCard } from '../../../models/index.js';
 import { AuditService } from '../../audit/audit.service.js';
 import { MeasurementService } from './measurement.service.js';
+import { SnagService } from './snag.service.js';
 import { WorkpackAuditService } from './workpack-audit.service.js';
 import { WorkpackExecutionService } from './workpack-execution.service.js';
 
@@ -18,6 +19,23 @@ type ExecutablePackResult = {
 };
 
 export class TaskExecutionService {
+  static async createExecutionSnag(params: {
+    workpack_id: string;
+    aircraft_id: string;
+    description: string;
+    user_id: string;
+  }) {
+    return SnagService.createSnag(params);
+  }
+
+  static async getExecutionSnags(workpackId: string) {
+    return SnagService.getSnagsForWorkpack(workpackId);
+  }
+
+  static async getOpenExecutionSnags(workpackId: string) {
+    return SnagService.getOpenSnagsForWorkpack(workpackId);
+  }
+
   static async startTask(
     taskId: string,
     actorId: string | undefined,
