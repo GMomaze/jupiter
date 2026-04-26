@@ -460,25 +460,6 @@ export class WorkpackService {
     );
   }
 
-  static async reportSnag(
-    workpackId: string,
-    data: {
-      description: string;
-      category?: string;
-      priority?: string;
-    },
-    actorId?: string
-  ) {
-    return SnagService.reportSnag(
-      workpackId,
-      data,
-      actorId,
-      sequelize,
-      this.requireAuth.bind(this),
-      this.appendSnagAuditEntry.bind(this)
-    );
-  }
-
   static async startSnag(snagId: string, actorId?: string) {
     return SnagService.startSnag(
       snagId,

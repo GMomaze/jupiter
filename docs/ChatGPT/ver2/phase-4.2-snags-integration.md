@@ -9,7 +9,7 @@ Verified ✅
 Result:
 - getSnagsForWorkpack(workpackId) exists
 - getOpenSnagsForWorkpack(workpackId) exists
-- Both methods are read-only
+- Both methods are read-onlygit status
 - Existing snag lifecycle methods unchanged
 - No schema/UI/controller/route changes
 

@@ -757,15 +757,36 @@ export class WorkpackController {
   static async handleCreateSnag(req: Request, res: Response) {
     try {
       const packId = WorkpackController.getParam(req.params.id);
-      await WorkpackService.reportSnag(
-        packId,
-        {
-          description: req.body.description ?? '',
-          category: req.body.category ?? '',
-          priority: req.body.priority ?? 'MEDIUM',
-        },
-        (req as any).user?.id
-      );
+      const user: any = (req as any).user;
+      const pack = await Workpack.findByPk(packId, {
+        attributes: ['id', 'aircraft_id'],
+      });
+
+      if (!pack) {
+        return res.status(404).send('Workpack not found');
+      }
+
+      const description = String(req.body.description || '').trim();
+
+      if (!description) {
+        throw new Error('SNAG_DESCRIPTION_REQUIRED');
+      }
+
+      if (!(pack as any).aircraft_id) {
+        throw new Error('SNAG_AIRCRAFT_REQUIRED');
+      }
+
+      if (!user?.id) {
+        throw new Error('UNAUTHENTICATED');
+      }
+
+      await TaskExecutionService.createExecutionSnag({
+        workpack_id: packId,
+        aircraft_id: (pack as any).aircraft_id,
+        description,
+        user_id: user.id,
+      });
+
       return res.redirect(`/workpacks/${packId}/snags`);
     } catch (e: any) {
       res.status(400).send(WorkpackController.getFriendlyErrorMessage(e));

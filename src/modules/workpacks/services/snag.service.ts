@@ -13,6 +13,14 @@ export class SnagService {
     return String(description || '').trim();
   }
 
+  private static resolveDbFromArgs(args: unknown[]) {
+    const dbCandidate = args.find((value) => {
+      return !!value && typeof value === 'object' && typeof (value as any).transaction === 'function';
+    });
+
+    return dbCandidate || sequelize;
+  }
+
   static async getSnagsForWorkpack(
     workpackId: string,
     db: any = sequelize
@@ -83,9 +91,12 @@ export class SnagService {
   static async startSnag(
     snagId: string,
     userId?: string,
-    db: any = sequelize
+    db: any = sequelize,
+    ...rest: any[]
   ) {
-    return db.transaction(async (transaction: any) => {
+    const resolvedDb = this.resolveDbFromArgs([db, ...rest]);
+
+    return resolvedDb.transaction(async (transaction: any) => {
       const snag = await WorkpackSnag.findByPk(snagId, {
         transaction,
         lock: transaction.LOCK.UPDATE,
@@ -113,10 +124,18 @@ export class SnagService {
 
   static async resolveSnag(
     snagId: string,
-    userId?: string,
-    db: any = sequelize
+    userIdOrData?: string | Record<string, unknown>,
+    db: any = sequelize,
+    ...rest: any[]
   ) {
-    return db.transaction(async (transaction: any) => {
+    const actorId = typeof userIdOrData === 'string'
+      ? userIdOrData
+      : typeof db === 'string'
+        ? db
+        : undefined;
+    const resolvedDb = this.resolveDbFromArgs([db, ...rest]);
+
+    return resolvedDb.transaction(async (transaction: any) => {
       const snag = await WorkpackSnag.findByPk(snagId, {
         transaction,
         lock: transaction.LOCK.UPDATE,
@@ -131,7 +150,7 @@ export class SnagService {
       }
 
       snag.status = 'RESOLVED';
-      snag.resolved_by = userId ?? null;
+      snag.resolved_by = actorId ?? null;
       snag.resolved_at = new Date();
       snag.version = (snag.version || 0) + 1;
 
@@ -144,9 +163,12 @@ export class SnagService {
   static async closeSnag(
     snagId: string,
     userId?: string,
-    db: any = sequelize
+    db: any = sequelize,
+    ...rest: any[]
   ) {
-    return db.transaction(async (transaction: any) => {
+    const resolvedDb = this.resolveDbFromArgs([db, ...rest]);
+
+    return resolvedDb.transaction(async (transaction: any) => {
       const snag = await WorkpackSnag.findByPk(snagId, {
         transaction,
         lock: transaction.LOCK.UPDATE,
