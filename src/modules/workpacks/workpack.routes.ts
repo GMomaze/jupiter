@@ -114,6 +114,13 @@ router.post(
 );
 
 router.post(
+  '/:id/execution/snags',
+  requireAuth,
+  requireAnyRole('ENGINEER', 'MECHANIC'),
+  WorkpackController.handleCreateExecutionSnag
+);
+
+router.post(
   '/:id/snags/:snagId/start',
   requireAuth,
   requireRole('MECHANIC'),

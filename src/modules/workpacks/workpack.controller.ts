@@ -5,6 +5,7 @@ import { PdfService as ReleasePdfService } from './pdf.release.js';
 import { PdfService as CrmaPdfService } from './pdf.crma.js';
 import { AircraftService } from '../aircraft/aircraft.service.js';
 import { TaskImportService } from './services/TaskImportService.js';
+import { TaskExecutionService } from './services/task-execution.service.js';
 import {
   Workpack,
   WorkpackStatus,
@@ -423,6 +424,8 @@ export class WorkpackController {
       'SNAG_CLOSE_BLOCKED': 'Only a resolved snag can be closed.',
       'SNAG_CLOSE_ROLE_BLOCKED': 'Only an engineer or supervisor can close a snag.',
       'SNAG_TIME_SPENT_INVALID': 'Time spent must be a valid number of minutes.',
+      'SNAG_WORKPACK_REQUIRED': 'Workpack reference is required to create a snag.',
+      'SNAG_AIRCRAFT_REQUIRED': 'Aircraft reference is required to create a snag.',
       'SNAGS_NOT_ALLOWED_IN_DRAFT': 'Snags can only be logged after the workpack has been issued.',
       'WORKPACK_CLOSE_BLOCKED_BY_OPEN_SNAGS': 'All snags must be closed before the workpack can be closed.',
       'WORKPACK_RELEASE_PDF_BLOCKED': 'Release PDF is only available after the workpack has been fully signed off and certified.',
@@ -541,7 +544,9 @@ export class WorkpackController {
     });
     if (!pack) return res.status(404).send('Workpack not found');
     const tasks = await WorkpackController.attachLatestExecutions(packId, (pack as any).TaskCards || []);
-    res.render('workpacks/execution', { pack, tasks, user: req.user });
+    const snags = await TaskExecutionService.getExecutionSnags(packId);
+    const openSnags = await TaskExecutionService.getOpenExecutionSnags(packId);
+    res.render('workpacks/execution', { pack, tasks, snags, openSnags, user: req.user });
   }
 
   static async renderQA(req: Request, res: Response) {
@@ -762,6 +767,44 @@ export class WorkpackController {
         (req as any).user?.id
       );
       return res.redirect(`/workpacks/${packId}/snags`);
+    } catch (e: any) {
+      res.status(400).send(WorkpackController.getFriendlyErrorMessage(e));
+    }
+  }
+
+  static async handleCreateExecutionSnag(req: Request, res: Response) {
+    try {
+      const packId = WorkpackController.getParam(req.params.id);
+      const user: any = (req as any).user;
+      const workpackId = String(req.body.workpack_id || '').trim();
+      const aircraftId = String(req.body.aircraft_id || '').trim();
+      const description = String(req.body.description || '').trim();
+      const userId = String(req.body.user_id || '').trim();
+
+      if (!workpackId || workpackId !== packId) {
+        throw new Error('SNAG_WORKPACK_REQUIRED');
+      }
+
+      if (!aircraftId) {
+        throw new Error('SNAG_AIRCRAFT_REQUIRED');
+      }
+
+      if (!description) {
+        throw new Error('SNAG_DESCRIPTION_REQUIRED');
+      }
+
+      if (!user?.id || !userId || userId !== user.id) {
+        throw new Error('UNAUTHENTICATED');
+      }
+
+      await TaskExecutionService.createExecutionSnag({
+        workpack_id: workpackId,
+        aircraft_id: aircraftId,
+        description,
+        user_id: user.id,
+      });
+
+      return res.redirect(`/workpacks/${packId}/execution`);
     } catch (e: any) {
       res.status(400).send(WorkpackController.getFriendlyErrorMessage(e));
     }
