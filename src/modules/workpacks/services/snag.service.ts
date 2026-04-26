@@ -1,3 +1,4 @@
+import { Op } from 'sequelize';
 import { sequelize, WorkpackSnag } from '../../../models/index.js';
 
 type CreateSnagParams = {
@@ -10,6 +11,31 @@ type CreateSnagParams = {
 export class SnagService {
   private static normalizeDescription(description: string) {
     return String(description || '').trim();
+  }
+
+  static async getSnagsForWorkpack(
+    workpackId: string,
+    db: any = sequelize
+  ) {
+    return WorkpackSnag.findAll({
+      where: { workpack_id: workpackId },
+      attributes: ['id', 'description', 'status', 'created_by', 'created_at'],
+      order: [['created_at', 'ASC'], ['snag_no', 'ASC']],
+    });
+  }
+
+  static async getOpenSnagsForWorkpack(
+    workpackId: string,
+    db: any = sequelize
+  ) {
+    return WorkpackSnag.findAll({
+      where: {
+        workpack_id: workpackId,
+        status: { [Op.ne]: 'CLOSED' },
+      },
+      attributes: ['id', 'description', 'status', 'created_by', 'created_at'],
+      order: [['created_at', 'ASC'], ['snag_no', 'ASC']],
+    });
   }
 
   private static async getNextSnagNo(
