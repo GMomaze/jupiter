@@ -1,0 +1,46 @@
+# --- Node ---
+node_modules/
+dist/
+build/
+coverage/
+
+# --- Logs ---
+*.log
+npm-debug.log*
+
+# --- Env ---
+.env
+.env.*
+
+# --- Temp / runtime ---
+tmp/
+temp/
+.cache/
+
+# --- Git ---
+.git/
+
+# --- Docs (non-technical) ---
+docs/work/
+*.odt
+*.docx
+*.pdf
+
+# --- Images / assets (not code logic) ---
+public/images/
+docs/template/assets/
+
+# --- Large generated files ---
+*.csv
+*.xlsx
+
+# --- Playwright / test artifacts ---
+test-results/
+playwright-report/
+
+# --- OS junk ---
+Thumbs.db
+.DS_Store
+
+# --- Anything not part of runtime logic ---
+docs/ChatGPT/bigfiles.txt
