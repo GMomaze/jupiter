@@ -1,4 +1,4 @@
-import { TaskCard } from '../../../models/index.js';
+import { Aircraft, TaskCard } from '../../../models/index.js';
 import { AuditService } from '../../audit/audit.service.js';
 import { MeasurementService } from './measurement.service.js';
 import { WorkpackAuditService } from './workpack-audit.service.js';
@@ -322,6 +322,55 @@ export class TaskExecutionService {
       execution.certified_at = new Date();
       execution.version = (execution.version || 0) + 1;
       await execution.save({ transaction });
+
+      if ((task as any).compliance_item_id) {
+        const aircraft = await Aircraft.findByPk((task as any).aircraft_id, {
+          attributes: ['id', 'total_time_hours'],
+          transaction,
+        });
+
+        const aircraftTotalTimeHours =
+          aircraft && (aircraft as any).total_time_hours !== null && (aircraft as any).total_time_hours !== undefined
+            ? Number((aircraft as any).total_time_hours)
+            : null;
+
+        await sequelize.query(
+          `
+          UPDATE workpack_compliance
+          SET status = 'COMPLETED',
+              completed_at = CURRENT_TIMESTAMP,
+              updated_at = CURRENT_TIMESTAMP
+          WHERE task_id = :taskId
+          `,
+          {
+            replacements: {
+              taskId: task.id,
+            },
+            transaction,
+          }
+        );
+
+        await sequelize.query(
+          `
+          UPDATE aircraft_compliance
+          SET status = 'COMPLIANT',
+              last_complied_at = CURRENT_TIMESTAMP,
+              last_complied_hours = :lastCompliedHours,
+              updated_at = CURRENT_TIMESTAMP
+          WHERE aircraft_id = :aircraftId
+            AND compliance_item_id = :complianceItemId
+          `,
+          {
+            replacements: {
+              aircraftId: (task as any).aircraft_id,
+              complianceItemId: (task as any).compliance_item_id,
+              lastCompliedHours: aircraftTotalTimeHours,
+            },
+            transaction,
+          }
+        );
+      }
+
       await WorkpackExecutionService.recordExecutionSignature(
         execution.id,
         'ENGINEER',

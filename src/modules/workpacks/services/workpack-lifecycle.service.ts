@@ -7,7 +7,8 @@ import {
   WorkpackTask,
 } from '../../../models/index.js';
 import { AuditService } from '../../audit/audit.service.js';
-import { Op } from 'sequelize';
+import { ComplianceService } from '../../compliance/compliance.service.js';
+import { Op, QueryTypes } from 'sequelize';
 
 type WorkpackStatusCode =
   | 'DRAFT'
@@ -46,6 +47,15 @@ export class WorkpackLifecycleService {
     });
 
     if (!targetStatus) throw new Error('TARGET_STATUS_NOT_FOUND');
+
+    if (target === 'CERTIFIED') {
+      const certifiedBy = (pack as any).certified_by;
+      const certifiedAt = (pack as any).certified_at;
+
+      if (!certifiedBy || !certifiedAt) {
+        throw new Error('WORKPACK_CERTIFICATION_METADATA_MISSING');
+      }
+    }
 
     pack.status_id = targetStatus.id;
     pack.version = pack.version + 1;
@@ -112,6 +122,181 @@ export class WorkpackLifecycleService {
         status_id: draftStatus.id,
         version: 0
       }, { transaction });
+
+      try {
+        const compliance = await ComplianceService.getApplicableComplianceForAircraft(
+          data.aircraft_id,
+          transaction
+        );
+
+        const dueComplianceItems = compliance.items.filter(
+          (item) =>
+            item.aircraft_compliance.computed_status === 'DUE' ||
+            item.aircraft_compliance.computed_status === 'OVERDUE'
+        );
+
+        for (const item of dueComplianceItems) {
+          await sequelize.query(
+            `
+            INSERT INTO workpack_compliance
+            (workpack_id, compliance_item_id, status, linked_at, created_at, updated_at)
+            SELECT
+              :workpackId,
+              :complianceItemId,
+              'PLANNED',
+              CURRENT_TIMESTAMP,
+              CURRENT_TIMESTAMP,
+              CURRENT_TIMESTAMP
+            WHERE NOT EXISTS (
+              SELECT 1
+              FROM workpack_compliance
+              WHERE workpack_id = :workpackId
+                AND compliance_item_id = :complianceItemId
+            )
+            `,
+            {
+              replacements: {
+                workpackId: pack.id,
+                complianceItemId: item.compliance_item_id,
+              },
+              transaction,
+            }
+          );
+        }
+
+        const plannedComplianceRows = await sequelize.query<{
+          compliance_item_id: string;
+          code: string;
+          title: string;
+          description: string | null;
+          task_id: string | null;
+          existing_task_id: string | null;
+        }>(
+          `
+          SELECT
+            wc.compliance_item_id,
+            ci.code,
+            ci.title,
+            ci.description,
+            wc.task_id,
+            existing_task.existing_task_id
+          FROM workpack_compliance wc
+          JOIN compliance_items ci
+            ON ci.id = wc.compliance_item_id
+          LEFT JOIN LATERAL (
+            SELECT tc.id AS existing_task_id
+            FROM workpack_tasks wt
+            JOIN task_cards tc
+              ON tc.id = wt.task_id
+            WHERE wt.workpack_id = wc.workpack_id
+              AND tc.compliance_item_id = wc.compliance_item_id
+            ORDER BY tc.id ASC
+            LIMIT 1
+          ) existing_task ON TRUE
+          WHERE wc.workpack_id = :workpackId
+            AND wc.status = 'PLANNED'
+          ORDER BY ci.code ASC
+          `,
+          {
+            replacements: {
+              workpackId: pack.id,
+            },
+            type: QueryTypes.SELECT,
+            transaction,
+          }
+        );
+
+        for (const row of plannedComplianceRows) {
+          const existingTaskId = row.task_id || row.existing_task_id || null;
+
+          if (existingTaskId) {
+            await sequelize.query(
+              `
+              UPDATE workpack_compliance
+              SET task_id = :taskId,
+                  updated_at = CURRENT_TIMESTAMP
+              WHERE workpack_id = :workpackId
+                AND compliance_item_id = :complianceItemId
+                AND task_id IS DISTINCT FROM :taskId
+              `,
+              {
+                replacements: {
+                  workpackId: pack.id,
+                  complianceItemId: row.compliance_item_id,
+                  taskId: existingTaskId,
+                },
+                transaction,
+              }
+            );
+
+            continue;
+          }
+
+          const task = await TaskCard.create(
+            {
+              task_card_number: row.code,
+              title: `${row.code}: ${row.title}`,
+              description: row.description || row.title,
+              aircraft_id: data.aircraft_id,
+              compliance_item_id: row.compliance_item_id,
+              status: 'OPEN',
+              component_id: null,
+              version: 0,
+            },
+            { transaction }
+          );
+
+          await WorkpackTask.findOrCreate({
+            where: {
+              workpack_id: pack.id,
+              task_id: task.id,
+            },
+            defaults: {
+              workpack_id: pack.id,
+              task_id: task.id,
+            },
+            transaction,
+          });
+
+          await sequelize.query(
+            `
+            UPDATE workpack_compliance
+            SET task_id = :taskId,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE workpack_id = :workpackId
+              AND compliance_item_id = :complianceItemId
+            `,
+            {
+              replacements: {
+                workpackId: pack.id,
+                complianceItemId: row.compliance_item_id,
+                taskId: task.id,
+              },
+              transaction,
+            }
+          );
+        }
+      } catch (error) {
+        const errorObject = error instanceof Error ? error : null;
+        const databaseError = error as {
+          original?: { message?: string };
+          parent?: { message?: string; sql?: string };
+          sql?: string;
+        };
+
+        console.warn('[WorkpackLifecycleService] compliance attachment skipped during workpack creation', {
+          aircraft_id: data.aircraft_id,
+          workpack_id: pack.id,
+          error_name: errorObject?.name || null,
+          error_message: errorObject?.message || String(error),
+          error_stack: errorObject?.stack || null,
+          db_error_message:
+            databaseError?.original?.message ||
+            databaseError?.parent?.message ||
+            null,
+          sql: databaseError?.sql || databaseError?.parent?.sql || null,
+        });
+      }
 
       await AuditService.log({
         table_name: 'workpacks',
@@ -241,6 +426,26 @@ export class WorkpackLifecycleService {
         throw new Error('Cannot close: Tasks not engineer certified');
       }
 
+      const [blockingComplianceRows] = await sequelize.query(
+        `
+        SELECT 1
+        FROM workpack_compliance
+        WHERE workpack_id = :workpackId
+          AND status != 'COMPLETED'
+        LIMIT 1
+        `,
+        {
+          replacements: {
+            workpackId: id,
+          },
+          transaction,
+        }
+      );
+
+      if (Array.isArray(blockingComplianceRows) && blockingComplianceRows.length > 0) {
+        throw new Error('WORKPACK_CLOSE_BLOCKED_BY_COMPLIANCE');
+      }
+
       const blockingSnags = await WorkpackSnag.count({
         where: {
           workpack_id: id,
@@ -257,6 +462,7 @@ export class WorkpackLifecycleService {
 
       (pack as any).certified_by = actorId ?? null;
       (pack as any).certified_at = new Date();
+      await pack.save({ transaction });
 
       await this.transition(pack, 'CERTIFIED', actorId, transaction);
     });

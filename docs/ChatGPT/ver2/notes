@@ -1,0 +1,25 @@
+
+2.2
+
+Notes
+- compliance_items.status = master item status
+- aircraft_compliance.stored_status = aircraft-level DB status
+- aircraft_compliance.computed_status = derived due status
+
+2.4.1.
+
+Note:
+Compliance task creation failures are logged/skipped inside the current resilience catch. Accepted for now.
+
+
+INSERT INTO compliance_items (item_type, code, title, status)
+VALUES ('AD', 'TEST-AD-001', 'Test AD', 'ACTIVE')
+RETURNING id;
+
+2.5
+Note:
+Recurrence due recalculation deferred until recurrence fields are added to compliance_items.
+
+3.2
+Known limitation:
+certification.licence_number is currently a placeholder / not a true licence field.
