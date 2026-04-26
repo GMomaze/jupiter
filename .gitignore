@@ -91,3 +91,8 @@ CRS-*.pdf
 tmp/
 temp/
 .aider*
+
+
+docs/work/
+*.odt
+*.docx
