@@ -62,7 +62,61 @@ export class SnagService {
       FROM (
         SELECT
           aircraft_id,
-          regexp_replace(lower(trim(description)), '\\s+', ' ', 'g') AS normalized_description,
+          trim(
+            regexp_replace(
+              regexp_replace(
+                regexp_replace(
+                  regexp_replace(
+                    regexp_replace(
+                      regexp_replace(
+                        regexp_replace(
+                          regexp_replace(
+                            regexp_replace(
+                              regexp_replace(
+                                regexp_replace(
+                                  lower(trim(description)),
+                                  '(^|\\s)l/h(\\s|$)',
+                                  '\\1left\\2',
+                                  'g'
+                                ),
+                                '(^|\\s)lh(\\s|$)',
+                                '\\1left\\2',
+                                'g'
+                              ),
+                              '(^|\\s)left-hand(\\s|$)',
+                              '\\1left\\2',
+                              'g'
+                            ),
+                            '(^|\\s)r/h(\\s|$)',
+                            '\\1right\\2',
+                            'g'
+                          ),
+                          '(^|\\s)rh(\\s|$)',
+                          '\\1right\\2',
+                          'g'
+                        ),
+                        '(^|\\s)right-hand(\\s|$)',
+                        '\\1right\\2',
+                        'g'
+                      ),
+                      '[[:punct:]]+',
+                      ' ',
+                      'g'
+                    ),
+                    '(^|\\s)(the|a|an|on|at|of|to|from)(\\s|$)',
+                    ' ',
+                    'g'
+                  ),
+                  '\\s+',
+                  ' ',
+                  'g'
+                ),
+                '^\\s+|\\s+$',
+                '',
+                'g'
+              )
+            )
+          ) AS normalized_description,
           status,
           created_at
         FROM workpack_snags
