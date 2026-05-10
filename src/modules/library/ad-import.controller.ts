@@ -518,8 +518,8 @@ function parseWorksheetMatrix(sheetXml: string, sharedStrings: string[]) {
     const rowBody = rowMatch[2] ?? '';
     const cellMatches = rowBody.matchAll(/<c\b([^>]*)>([\s\S]*?)<\/c>/g);
     for (const cellMatch of cellMatches) {
-      const attributes = cellMatch[1];
-      const cellBody = cellMatch[2];
+      const attributes = cellMatch[1] ?? '';
+      const cellBody = cellMatch[2] ?? '';
       const refMatch = attributes.match(/\br="([A-Z]+)\d+"/i);
       if (!refMatch) {
         continue;

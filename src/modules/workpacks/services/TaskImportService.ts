@@ -94,6 +94,10 @@ export class TaskImportService {
       for (let index = 0; index < records.length; index++) {
         const record = records[index];
         const rowNumber = index + 2;
+        if (!record) {
+          throw new Error(`MPI checklist import failed at row ${rowNumber}: row data is missing.`);
+        }
+
         const taskCardNumber = String(record.task_card_number || '').trim();
         const title = String(record.title || '').trim();
         const description = String(record.description || '').trim();
