@@ -36,6 +36,20 @@ type AircraftLinkPayload = {
 };
 
 export class CustomersService {
+  private static withOptionalActorId<T extends Record<string, unknown>>(
+    payload: T,
+    actor_id: string | null | undefined
+  ): T & { actor_id?: string | null } {
+    if (actor_id === undefined) {
+      return payload;
+    }
+
+    return {
+      ...payload,
+      actor_id,
+    };
+  }
+
   private static normalizeString(value: unknown) {
     if (typeof value !== 'string') {
       return null;
@@ -141,14 +155,19 @@ export class CustomersService {
     return sequelize.transaction(async (transaction) => {
       const customer = await Customer.create(values, { transaction });
 
-      await AuditService.log({
-        table_name: 'customers',
-        row_id: customer.id,
-        action: 'CREATE',
-        actor_id,
-        reason: 'Customer master record created',
-        new_values: values,
-      }, transaction);
+      await AuditService.log(
+        this.withOptionalActorId(
+          {
+            table_name: 'customers',
+            row_id: customer.id,
+            action: 'CREATE',
+            reason: 'Customer master record created',
+            new_values: values,
+          },
+          actor_id
+        ),
+        transaction
+      );
 
       return customer;
     });
@@ -171,15 +190,20 @@ export class CustomersService {
 
       await customer.update(values, { transaction });
 
-      await AuditService.log({
-        table_name: 'customers',
-        row_id: customer.id,
-        action: 'UPDATE',
-        actor_id,
-        reason: 'Customer master record updated',
-        old_values: oldValues,
-        new_values: customer.toJSON(),
-      }, transaction);
+      await AuditService.log(
+        this.withOptionalActorId(
+          {
+            table_name: 'customers',
+            row_id: customer.id,
+            action: 'UPDATE',
+            reason: 'Customer master record updated',
+            old_values: oldValues,
+            new_values: customer.toJSON(),
+          },
+          actor_id
+        ),
+        transaction
+      );
 
       return customer;
     });
@@ -237,14 +261,19 @@ export class CustomersService {
         { transaction }
       );
 
-      await AuditService.log({
-        table_name: 'customer_aircraft_links',
-        row_id: link.id,
-        action: 'CREATE',
-        actor_id: payload.actor_id,
-        reason: 'Current customer relationship added to aircraft',
-        new_values: link.toJSON(),
-      }, transaction);
+      await AuditService.log(
+        this.withOptionalActorId(
+          {
+            table_name: 'customer_aircraft_links',
+            row_id: link.id,
+            action: 'CREATE',
+            reason: 'Current customer relationship added to aircraft',
+            new_values: link.toJSON(),
+          },
+          payload.actor_id
+        ),
+        transaction
+      );
 
       return link;
     });
