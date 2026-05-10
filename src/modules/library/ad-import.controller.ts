@@ -467,8 +467,9 @@ function extractSharedStrings(xml: string) {
   const stringMatches = xml.matchAll(/<si\b[^>]*>([\s\S]*?)<\/si>/g);
 
   for (const match of stringMatches) {
-    const text = Array.from(match[1].matchAll(/<t\b[^>]*>([\s\S]*?)<\/t>/g))
-      .map((textMatch) => decodeXmlEntities(textMatch[1]))
+    const stringBody = match[1] ?? '';
+    const text = Array.from(stringBody.matchAll(/<t\b[^>]*>([\s\S]*?)<\/t>/g))
+      .map((textMatch) => decodeXmlEntities(textMatch[1] ?? ''))
       .join('');
     strings.push(text);
   }
@@ -502,7 +503,8 @@ function extractSheetPath(entries: Map<string, Buffer>) {
     throw new Error('Unable to resolve first worksheet in XLSX file.');
   }
 
-  return `xl/${relation[1].replace(/^\/+/, '')}`;
+  const relationTarget = relation[1] ?? '';
+  return `xl/${relationTarget.replace(/^\/+/, '')}`;
 }
 
 function parseWorksheetMatrix(sheetXml: string, sharedStrings: string[]) {
@@ -513,7 +515,8 @@ function parseWorksheetMatrix(sheetXml: string, sharedStrings: string[]) {
     const rowNumber = Number(rowMatch[1]);
     const rowValues: string[] = [];
 
-    const cellMatches = rowMatch[2].matchAll(/<c\b([^>]*)>([\s\S]*?)<\/c>/g);
+    const rowBody = rowMatch[2] ?? '';
+    const cellMatches = rowBody.matchAll(/<c\b([^>]*)>([\s\S]*?)<\/c>/g);
     for (const cellMatch of cellMatches) {
       const attributes = cellMatch[1];
       const cellBody = cellMatch[2];
@@ -522,7 +525,7 @@ function parseWorksheetMatrix(sheetXml: string, sharedStrings: string[]) {
         continue;
       }
 
-      const columnIndex = columnLettersToIndex(refMatch[1]);
+      const columnIndex = columnLettersToIndex(refMatch[1] ?? '');
       const typeMatch = attributes.match(/\bt="([^"]+)"/i);
       const cellType = typeMatch?.[1] || '';
       let value = '';
@@ -533,11 +536,11 @@ function parseWorksheetMatrix(sheetXml: string, sharedStrings: string[]) {
         value = sharedStrings[sharedIndex] || '';
       } else if (cellType === 'inlineStr') {
         value = Array.from(cellBody.matchAll(/<t\b[^>]*>([\s\S]*?)<\/t>/g))
-          .map((textMatch) => decodeXmlEntities(textMatch[1]))
+          .map((textMatch) => decodeXmlEntities(textMatch[1] ?? ''))
           .join('');
       } else {
         const rawMatch = cellBody.match(/<v>([\s\S]*?)<\/v>/);
-        value = rawMatch ? decodeXmlEntities(rawMatch[1]) : '';
+        value = rawMatch ? decodeXmlEntities(rawMatch[1] ?? '') : '';
       }
 
       rowValues[columnIndex] = value;

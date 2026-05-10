@@ -151,8 +151,11 @@ function normalizeDate(value: unknown, errors: string[], fieldLabel: string) {
 
   match = rawValue.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})$/);
   if (match) {
-    const year = match[3].length === 2 ? Number(`20${match[3]}`) : Number(match[3]);
-    return formatDateParts(year, Number(match[1]), Number(match[2]));
+    const yearPart = match[3] ?? '';
+    const monthPart = match[1] ?? '';
+    const dayPart = match[2] ?? '';
+    const year = yearPart.length === 2 ? Number(`20${yearPart}`) : Number(yearPart);
+    return formatDateParts(year, Number(monthPart), Number(dayPart));
   }
 
   const parsed = new Date(rawValue);
@@ -292,7 +295,12 @@ function previewGenericCsv(fileName: string, matrix: string[][]): SbPreviewResul
         return;
       }
 
-      usedHeaders.add(headers[headerIndex]);
+      const matchedHeader = headers[headerIndex];
+      if (!matchedHeader) {
+        return;
+      }
+
+      usedHeaders.add(matchedHeader);
       const rawValue = denseRow[headerIndex];
 
       if (field === 'issue_date') {
