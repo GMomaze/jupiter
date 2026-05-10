@@ -11,6 +11,10 @@ type CreateSnagParams = {
   created_by: string;
 };
 
+type TransactionCapableDb = {
+  transaction: typeof sequelize.transaction;
+};
+
 export class SnagService {
   private static normalizeDescription(description: string) {
     return String(description || '').trim();
@@ -52,12 +56,12 @@ export class SnagService {
     );
   }
 
-  private static resolveDbFromArgs(args: unknown[]) {
+  private static resolveDbFromArgs(args: unknown[]): TransactionCapableDb {
     const dbCandidate = args.find((value) => {
       return !!value && typeof value === 'object' && typeof (value as any).transaction === 'function';
     });
 
-    return dbCandidate || sequelize;
+    return (dbCandidate as TransactionCapableDb | undefined) || sequelize;
   }
 
   private static resolveFunctionArg<T extends Function>(args: unknown[], predicate?: (fn: T) => boolean) {
