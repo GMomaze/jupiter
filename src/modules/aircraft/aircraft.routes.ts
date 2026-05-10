@@ -24,6 +24,7 @@ router.get(
 
 // UUID routes
 router.get('/view/:id', AircraftController.showView);
+router.get('/:id/applicability', AircraftController.showApplicability);
 router.get('/:id/service-bulletins', AircraftController.getServiceBulletins);
 router.post('/', aircraftPhotoUpload.single('aircraft_photo'), AircraftController.create);
 router.post('/:id', requireAuth, requireRole('ADMIN'), aircraftPhotoUpload.single('aircraft_photo'), AircraftController.update);
@@ -34,6 +35,7 @@ router.post('/:id/transition', AircraftController.transition);
 
 // Components
 router.post('/:id/components', AircraftController.installComponent);
+router.post('/:id/customer-links', AircraftController.assignCustomer);
 router.post('/:id/service-bulletins/:serviceBulletinId/compliance', AircraftController.updateServiceBulletinCompliance);
 router.post('/:id/sb/:sbId/comply', AircraftController.complyServiceBulletin);
 router.post('/:id/sb/:sbId/not-applicable', AircraftController.markServiceBulletinNotApplicable);

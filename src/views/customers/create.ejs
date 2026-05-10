@@ -1,0 +1,110 @@
+<%- include('../partials/header') %>
+
+<main class="max-w-5xl mx-auto py-10 px-6">
+  <div class="mb-8">
+    <a href="/customers" class="text-sm text-blue-600 hover:underline">Back to Customers</a>
+    <h1 class="mt-4 text-3xl font-black text-slate-900">Create Customer</h1>
+    <p class="mt-2 text-sm text-slate-500">
+      Create the customer master record before linking any aircraft ownership.
+    </p>
+  </div>
+
+  <% if (error) { %>
+    <div class="mb-6 rounded border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+      <%= error %>
+    </div>
+  <% } %>
+
+  <form action="/customers" method="POST" class="space-y-6 rounded-lg bg-white p-6 shadow">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+
+    <div class="grid gap-6 md:grid-cols-2">
+      <div>
+        <label class="mb-1 block text-xs font-bold uppercase tracking-widest text-slate-600">Name</label>
+        <input type="text" name="name" required value="<%= form.name %>" class="w-full rounded border border-slate-300 px-3 py-2 text-sm">
+      </div>
+      <div>
+        <label class="mb-1 block text-xs font-bold uppercase tracking-widest text-slate-600">Contact Person</label>
+        <input type="text" name="contact_person" required value="<%= form.contact_person %>" class="w-full rounded border border-slate-300 px-3 py-2 text-sm">
+      </div>
+    </div>
+
+    <div class="grid gap-6 md:grid-cols-3">
+      <div>
+        <label class="mb-1 block text-xs font-bold uppercase tracking-widest text-slate-600">Email</label>
+        <input type="email" name="email" required value="<%= form.email %>" class="w-full rounded border border-slate-300 px-3 py-2 text-sm">
+      </div>
+      <div>
+        <label class="mb-1 block text-xs font-bold uppercase tracking-widest text-slate-600">Phone</label>
+        <input type="text" name="phone" required value="<%= form.phone %>" class="w-full rounded border border-slate-300 px-3 py-2 text-sm">
+      </div>
+      <div>
+        <label class="mb-1 block text-xs font-bold uppercase tracking-widest text-slate-600">Alternate Phone</label>
+        <input type="text" name="alternate_phone" value="<%= form.alternate_phone %>" class="w-full rounded border border-slate-300 px-3 py-2 text-sm">
+      </div>
+    </div>
+
+    <div class="grid gap-6 md:grid-cols-2">
+      <div class="space-y-4 rounded border border-slate-200 p-4">
+        <h2 class="text-sm font-bold uppercase tracking-widest text-slate-600">Billing Address</h2>
+        <input type="text" name="billing_address_line_1" value="<%= form.billing_address_line_1 %>" placeholder="Address line 1" class="w-full rounded border border-slate-300 px-3 py-2 text-sm">
+        <input type="text" name="billing_address_line_2" value="<%= form.billing_address_line_2 %>" placeholder="Address line 2" class="w-full rounded border border-slate-300 px-3 py-2 text-sm">
+        <div class="grid gap-4 md:grid-cols-2">
+          <input type="text" name="billing_city" value="<%= form.billing_city %>" placeholder="City" class="w-full rounded border border-slate-300 px-3 py-2 text-sm">
+          <input type="text" name="billing_state_or_province" value="<%= form.billing_state_or_province %>" placeholder="State / Province" class="w-full rounded border border-slate-300 px-3 py-2 text-sm">
+        </div>
+        <div class="grid gap-4 md:grid-cols-2">
+          <input type="text" name="billing_postal_code" value="<%= form.billing_postal_code %>" placeholder="Postal Code" class="w-full rounded border border-slate-300 px-3 py-2 text-sm">
+          <input type="text" name="billing_country" value="<%= form.billing_country %>" placeholder="Country" class="w-full rounded border border-slate-300 px-3 py-2 text-sm">
+        </div>
+      </div>
+
+      <div class="space-y-4 rounded border border-slate-200 p-4">
+        <h2 class="text-sm font-bold uppercase tracking-widest text-slate-600">Physical Address</h2>
+        <input type="text" name="physical_address_line_1" value="<%= form.physical_address_line_1 %>" placeholder="Address line 1" class="w-full rounded border border-slate-300 px-3 py-2 text-sm">
+        <input type="text" name="physical_address_line_2" value="<%= form.physical_address_line_2 %>" placeholder="Address line 2" class="w-full rounded border border-slate-300 px-3 py-2 text-sm">
+        <div class="grid gap-4 md:grid-cols-2">
+          <input type="text" name="physical_city" value="<%= form.physical_city %>" placeholder="City" class="w-full rounded border border-slate-300 px-3 py-2 text-sm">
+          <input type="text" name="physical_state_or_province" value="<%= form.physical_state_or_province %>" placeholder="State / Province" class="w-full rounded border border-slate-300 px-3 py-2 text-sm">
+        </div>
+        <div class="grid gap-4 md:grid-cols-2">
+          <input type="text" name="physical_postal_code" value="<%= form.physical_postal_code %>" placeholder="Postal Code" class="w-full rounded border border-slate-300 px-3 py-2 text-sm">
+          <input type="text" name="physical_country" value="<%= form.physical_country %>" placeholder="Country" class="w-full rounded border border-slate-300 px-3 py-2 text-sm">
+        </div>
+      </div>
+    </div>
+
+    <div class="grid gap-6 md:grid-cols-4">
+      <div>
+        <label class="mb-1 block text-xs font-bold uppercase tracking-widest text-slate-600">VAT Number</label>
+        <input type="text" name="vat_number" value="<%= form.vat_number %>" class="w-full rounded border border-slate-300 px-3 py-2 text-sm">
+      </div>
+      <div>
+        <label class="mb-1 block text-xs font-bold uppercase tracking-widest text-slate-600">Tax Number</label>
+        <input type="text" name="tax_number" value="<%= form.tax_number %>" class="w-full rounded border border-slate-300 px-3 py-2 text-sm">
+      </div>
+      <div>
+        <label class="mb-1 block text-xs font-bold uppercase tracking-widest text-slate-600">Account Reference</label>
+        <input type="text" name="account_reference" value="<%= form.account_reference %>" class="w-full rounded border border-slate-300 px-3 py-2 text-sm">
+      </div>
+      <div>
+        <label class="mb-1 block text-xs font-bold uppercase tracking-widest text-slate-600">Status</label>
+        <select name="status" class="w-full rounded border border-slate-300 px-3 py-2 text-sm">
+          <option value="ACTIVE" <%= form.status === 'ACTIVE' ? 'selected' : '' %>>ACTIVE</option>
+          <option value="INACTIVE" <%= form.status === 'INACTIVE' ? 'selected' : '' %>>INACTIVE</option>
+        </select>
+      </div>
+    </div>
+
+    <div>
+      <label class="mb-1 block text-xs font-bold uppercase tracking-widest text-slate-600">Notes</label>
+      <textarea name="notes" rows="4" class="w-full rounded border border-slate-300 px-3 py-2 text-sm"><%= form.notes %></textarea>
+    </div>
+
+    <button type="submit" class="rounded bg-slate-800 px-6 py-2 text-sm font-bold text-white hover:bg-slate-700">
+      Create Customer
+    </button>
+  </form>
+</main>
+
+<%- include('../partials/footer') %>

@@ -1,0 +1,147 @@
+# PHASE 0.3 — FREEZE CURRENT SYSTEM STATE
+
+Status: Defined ✅
+
+---
+
+## 1. PURPOSE
+
+Freeze the **current Jupiter system state** so that:
+
+- The system has a **known, stable baseline**
+- All future changes are made against a **verified reference**
+- AI and Codex operate on **facts, not assumptions**
+- Debugging and regression tracking become **deterministic**
+
+This prevents drift, hidden changes, and inconsistent behavior across sessions.
+
+---
+
+## 2. FREEZE SCOPE
+
+The freeze MUST capture the **exact current state** of:
+
+### 2.1 Database Schema
+- Full PostgreSQL schema export
+- All tables, columns, constraints, indexes
+- All functions, triggers, and extensions
+
+### 2.2 Core System Files
+- Models (Sequelize)
+- Services
+- Controllers
+- Key modules:
+  - workpacks
+  - compliance
+  - aircraft
+  - auth
+  - snags
+
+### 2.3 Migrations
+- Full list of existing migrations
+- Identify:
+  - duplicates
+  - conflicting versions
+  - unused migrations
+
+### 2.4 Documentation
+- AI_CONTEXT.md
+- workflows.md
+- database.md
+
+---
+
+## 3. OUTPUT ARTIFACTS
+
+The following files must exist after implementation:
+
+### 3.1 Schema Snapshot
+docs/ChatGPT/ver3/schema.sql
+
+Must be:
+- Generated using pg_dump
+- Clean (no ownership/permission noise if possible)
+- Represents current live DB exactly
+
+---
+
+### 3.2 System Snapshot Report
+docs/ChatGPT/ver3/system_snapshot.md
+
+Must include:
+
+#### A. System Overview
+- Modules present
+- Key architecture notes
+
+#### B. Database Summary
+- Table list
+- Critical relationships
+
+#### C. Migration Audit
+- Total migrations
+- Duplicates/conflicts identified
+
+#### D. Risk Areas
+- Known inconsistencies
+- Known unstable modules
+
+---
+
+### 3.3 File Inventory
+docs/ChatGPT/ver3/file_inventory.md
+
+Must include:
+- List of key directories
+- Key files per module
+- Large/complex files flagged
+
+---
+
+## 4. RULES
+
+- This is a **READ-ONLY phase**
+- NO schema changes
+- NO code modifications
+- NO refactoring
+- NO file deletions
+- ONLY extraction, inspection, and documentation
+
+---
+
+## 5. SUCCESS CRITERIA
+
+Phase is successful when:
+
+- schema.sql exists and reflects live DB
+- system_snapshot.md exists and is complete
+- file_inventory.md exists and is complete
+- No system files were modified
+
+---
+
+## 6. FAILURE CONDITIONS
+
+FAIL if:
+
+- Any system file is modified
+- Schema is guessed instead of extracted
+- Reports are incomplete or inconsistent
+- Any part of the system is skipped
+
+---
+
+## 7. HANDOFF TO IMPLEMENT
+
+Codex must:
+
+1. Extract database schema using pg_dump
+2. Scan project structure
+3. Audit migrations
+4. Generate required documentation files
+5. NOT modify any existing system files
+
+Return:
+- Files created
+- Files inspected
+- PASS/FAIL

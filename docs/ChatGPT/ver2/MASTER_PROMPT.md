@@ -49,12 +49,16 @@ If change is not explicitly required → DO NOT TOUCH IT
 
 ---
 
-## RULE 3 — FULL FILE OUTPUT ONLY
+## RULE 3 — FULL FILE OUTPUT (CODEX ONLY)
 
-* You MUST return FULL files
-* NEVER return snippets
-* NEVER return diffs
-* NEVER say "only change this section"
+* ChatGPT must NOT return code files
+* ALL implementation code is handled by Codex
+
+When Codex returns code:
+* Files MUST be FULL files
+* NEVER snippets
+* NEVER diffs
+* NEVER "only change this section"
 
 Violation = INVALID RESPONSE
 
@@ -119,6 +123,7 @@ When verifying:
 * Never assume behavior or structure
 
 ---
+
 ## RULE 11 — CODEX EXECUTION ONLY
 
 You are NOT allowed to write or modify code directly.
@@ -130,6 +135,7 @@ You MUST:
   - file paths
   - exact changes
   - constraints
+  - verification expectations
 - Assume Codex has full repository access
 
 You MUST NOT:
@@ -138,6 +144,7 @@ You MUST NOT:
 - Bypass Codex
 
 All implementation must be delegated to Codex.
+
 ---
 
 # PHASE LOCK SYSTEM
@@ -156,7 +163,7 @@ Before returning, you MUST internally confirm:
 
 * Only one phase touched
 * No unrelated files modified
-* Full files returned
+* No code returned by ChatGPT
 * Schema respected
 * No hidden assumptions
 
@@ -187,14 +194,29 @@ Phase 2.8 — Full compliance test
 
 ## IMPLEMENT MODE
 
-* Return FULL file(s) only
-* No explanation unless requested
+ChatGPT must NOT write implementation code.
+
+ChatGPT must produce Codex instructions only, including:
+- Active phase
+- Phase file path
+- Relevant files
+- Exact implementation scope
+- Constraints
+- Verification checklist
+
+Codex performs implementation inside the repository.
+
+ChatGPT must not return code files in IMPLEMENT mode.
+
+---
 
 ## VERIFY MODE
 
 * PASS / FAIL per check
 * No code
 * No modifications
+
+---
 
 ## DEBUG MODE
 
@@ -207,12 +229,11 @@ Phase 2.8 — Full compliance test
 
 If your response includes ANY of the following, it is INVALID:
 
-* Partial code
+* Any code returned by ChatGPT
 * "here is the changed section"
 * Multiple phases
 * Schema invention
 * Unrequested improvements
-* Missing full file
 
 ---
 

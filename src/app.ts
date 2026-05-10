@@ -27,8 +27,11 @@ import { ensureAuthenticated } from './middleware/auth.middleware.js';
 import referenceRoutes from './modules/reference/reference.routes.js';
 import authRoutes from './modules/auth/auth.routes.js';
 import staffRoutes from './modules/auth/staff.routes.js';
+import customerAuthRoutes from './modules/customer-auth/customer-auth.routes.js';
+import customerPortalRoutes from './modules/customer-portal/customer-portal.routes.js';
 import auditRoutes from './modules/audit/audit.routes.js';
 import aircraftRoutes from './modules/aircraft/aircraft.routes.js';
+import customersRoutes from './modules/customers/customers.routes.js';
 import workpackRoutes from './modules/workpacks/workpack.routes.js';
 import inventoryRoutes from './modules/inventory/inventory.routes.js';
 import mainRouter from './routes/index.js';
@@ -319,6 +322,7 @@ app.use((req, res, next) => {
 app.use((req, res, next) => {
   res.locals.messages = req.flash();
   res.locals.user = req.user || null;
+  res.locals.customerUser = req.session?.customerUser || null;
   res.locals.remoteTestMode = remoteTestMode;
   res.locals.csrfToken =
     process.env.NODE_ENV === 'test'
@@ -353,11 +357,14 @@ app.get('/offline', (_req, res) => {
 
 app.use('/auth', authRoutes);
 app.use('/auth/staff', staffRoutes);
+app.use('/customer-auth', customerAuthRoutes);
+app.use('/customer-portal', customerPortalRoutes);
 
 app.use('/library', ensureAuthenticated, libraryRoutes);
 app.use('/service-bulletins', ensureAuthenticated, serviceBulletinRoutes);
 app.use('/sb', ensureAuthenticated, serviceBulletinSyncRoutes);
 app.use('/aircraft', ensureAuthenticated, aircraftRoutes);
+app.use('/customers', ensureAuthenticated, customersRoutes);
 app.use('/projection', ensureAuthenticated, projectionRoutes);
 app.use('/reference', ensureAuthenticated, referenceRoutes);
 app.use('/workpacks', ensureAuthenticated, workpackRoutes);

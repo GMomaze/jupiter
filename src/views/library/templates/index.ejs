@@ -1,0 +1,88 @@
+<%- include('../../partials/header') %>
+
+<main class="max-w-7xl mx-auto py-10 px-6 space-y-8">
+  <div class="flex items-center justify-between gap-4">
+    <div>
+      <a href="/library" class="text-sm text-blue-600 hover:underline">Back to Library</a>
+      <h1 class="mt-3 text-3xl font-bold text-slate-900">Maintenance Templates</h1>
+      <p class="mt-2 text-sm text-slate-500">
+        Read-only admin view of reusable maintenance templates stored in <code>maintenance_templates</code>.
+      </p>
+    </div>
+  </div>
+
+  <section class="rounded-xl border bg-white p-6 shadow-sm">
+    <div class="flex items-center justify-between gap-4">
+      <div>
+        <h2 class="text-lg font-bold text-slate-900">Template Library</h2>
+        <p class="mt-1 text-sm text-slate-500">
+          Showing template identity, model applicability, interval data, active state, and created timestamp.
+        </p>
+      </div>
+      <div class="rounded-lg border border-cyan-200 bg-cyan-50 px-4 py-3 text-xs font-bold uppercase tracking-widest text-cyan-700">
+        <%= templates.length %> Maintenance Templates
+      </div>
+    </div>
+
+    <% if (!templates.length) { %>
+      <div class="mt-6 rounded-xl border border-slate-200 bg-slate-50 px-6 py-10 text-center">
+        <p class="text-sm font-semibold text-slate-700">No maintenance templates found.</p>
+      </div>
+    <% } else { %>
+      <div class="mt-6 overflow-x-auto rounded-lg border">
+        <table class="min-w-full divide-y divide-slate-200">
+          <thead class="bg-slate-50">
+            <tr>
+              <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Name</th>
+              <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Template Type</th>
+              <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Model</th>
+              <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Interval Hours</th>
+              <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Interval Months</th>
+              <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Active</th>
+              <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Created At</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-100 bg-white">
+            <% templates.forEach((template) => { %>
+              <tr>
+                <td class="px-3 py-3 align-top text-sm font-semibold text-slate-900">
+                  <a href="/library/templates/<%= template.id %>" class="text-blue-700 hover:underline">
+                    <%= template.name || '-' %>
+                  </a>
+                </td>
+                <td class="px-3 py-3 align-top text-xs text-slate-700">
+                  <%= template.template_type || '-' %>
+                </td>
+                <td class="px-3 py-3 align-top text-xs text-slate-700">
+                  <%= template.ComponentModel?.model_name || template.ComponentModel?.model_code || '-' %>
+                </td>
+                <td class="px-3 py-3 align-top text-xs text-slate-700">
+                  <%= template.interval_hours ?? '-' %>
+                </td>
+                <td class="px-3 py-3 align-top text-xs text-slate-700">
+                  <%= template.interval_months ?? '-' %>
+                </td>
+                <td class="px-3 py-3 align-top">
+                  <% if (template.is_active) { %>
+                    <span class="inline-flex rounded-full bg-emerald-100 px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-emerald-800">
+                      Active
+                    </span>
+                  <% } else { %>
+                    <span class="inline-flex rounded-full bg-slate-200 px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-700">
+                      Inactive
+                    </span>
+                  <% } %>
+                </td>
+                <td class="px-3 py-3 align-top text-xs text-slate-700">
+                  <%= template.created_at ? new Date(template.created_at).toLocaleString() : '-' %>
+                </td>
+              </tr>
+            <% }) %>
+          </tbody>
+        </table>
+      </div>
+    <% } %>
+  </section>
+</main>
+
+<%- include('../../partials/footer') %>

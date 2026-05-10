@@ -1,0 +1,203 @@
+# PHASE 1.2 — TABLE INVENTORY
+
+Status: Defined ✅
+
+---
+
+## 1. PURPOSE
+
+Create a **complete, verified inventory of all database tables** so that:
+
+- The **true database structure** is fully understood
+- All tables are **accounted for and classified**
+- Differences between **schema.sql, models, and expectations** are visible
+- Future work is based on **actual DB reality**
+
+This phase establishes **table-level truth**.
+
+---
+
+## 2. SCOPE
+
+This phase covers:
+
+### 2.1 Live Database Tables
+- Source of truth: PostgreSQL (live DB)
+- Extract from:
+  - `information_schema.tables`
+  - or `pg_catalog.pg_tables`
+
+---
+
+### 2.2 Schema Snapshot
+- File:
+  - `docs/ChatGPT/ver3/schema.sql`
+- Must match live DB
+
+---
+
+### 2.3 Model Layer (Reference Only)
+- Folder:
+  - `src/models/`
+- Used for comparison ONLY (not truth)
+
+---
+
+## 3. REQUIRED OUTPUT
+
+Create:
+
+### 3.1 Table Inventory Report
+`docs/ChatGPT/ver3/table_inventory.md`
+
+---
+
+## 4. REPORT CONTENT
+
+The report MUST include:
+
+---
+
+### A. Summary
+
+- Total number of tables in DB
+- Schema(s) used (likely `public`)
+- High-level grouping:
+  - Core domain tables
+  - Reference tables (`rf_*`)
+  - Audit/log tables
+  - System tables
+
+---
+
+### B. Full Table List
+
+For EACH table:
+
+- Table name
+- Schema
+- Row count (approximate is acceptable)
+- Category:
+  - CORE
+  - REFERENCE
+  - AUDIT
+  - SYSTEM
+- Notes (if unusual)
+
+---
+
+### C. Core Tables (Detailed)
+
+For critical tables (must include at minimum):
+
+- workpacks  
+- task_cards  
+- workpack_tasks  
+- workpack_executions  
+- workpack_measurements  
+- workpack_signatures  
+- workpack_snags  
+- aircraft  
+- component_models  
+- compliance_items  
+- workpack_compliance  
+
+For each:
+
+- Column list
+- Primary key
+- Foreign keys
+- Key constraints
+- Observations (missing fields, inconsistencies, etc.)
+
+---
+
+### D. Reference Tables
+
+- List all `rf_*` tables
+- Confirm usage purpose
+- Flag unused or unclear tables
+
+---
+
+### E. Audit / Logging Tables
+
+- Identify:
+  - audit_log
+  - workpack_audit_log
+  - any similar tables
+
+- Confirm:
+  - Trigger usage (if known)
+  - Purpose
+
+---
+
+### F. Model vs DB Comparison (Light)
+
+- Identify:
+  - Tables present in DB but NOT in models
+  - Models that reference non-existent tables
+
+(No deep refactor — just visibility)
+
+---
+
+### G. Risks / Issues
+
+- Missing expected tables
+- Duplicate-purpose tables
+- Inconsistent naming
+- Structural anomalies
+
+---
+
+## 5. RULES
+
+- READ-ONLY phase
+- NO schema changes
+- NO migrations
+- NO model edits
+- NO file deletion
+- ONLY inspection and reporting
+
+---
+
+## 6. SUCCESS CRITERIA
+
+Phase is successful when:
+
+- table_inventory.md exists
+- ALL tables are listed
+- Core tables are detailed
+- Categories are assigned
+- Risks/issues clearly identified
+
+---
+
+## 7. FAILURE CONDITIONS
+
+FAIL if:
+
+- Any table is missing from the list
+- Core tables are not detailed
+- Schema.sql is ignored
+- Report is incomplete or inconsistent
+
+---
+
+## 8. HANDOFF TO IMPLEMENT
+
+Codex must:
+
+1. Read live DB tables
+2. Cross-check with schema.sql
+3. Scan models (reference only)
+4. Categorize all tables
+5. Detail core tables
+6. Generate `table_inventory.md`
+
+Return:
+- Files created
+- Files inspected
+- PASS/FAIL

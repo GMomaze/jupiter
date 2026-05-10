@@ -3,8 +3,11 @@ import sequelize from '../../config/database.js';
 
 export class WorkpackSnag extends Model {
   declare id: string;
-  declare workpack_id: string;
+  declare workpack_id: string | null;
+  declare aircraft_id: string;
+  declare component_id: string | null;
   declare snag_no: number;
+  declare defect_text: string;
   declare description: string;
   declare status: string;
   declare category: string | null;
@@ -33,10 +36,22 @@ WorkpackSnag.init(
     },
     workpack_id: {
       type: DataTypes.UUID,
+      allowNull: true,
+    },
+    aircraft_id: {
+      type: DataTypes.UUID,
       allowNull: false,
+    },
+    component_id: {
+      type: DataTypes.UUID,
+      allowNull: true,
     },
     snag_no: {
       type: DataTypes.INTEGER,
+      allowNull: false,
+    },
+    defect_text: {
+      type: DataTypes.TEXT,
       allowNull: false,
     },
     description: {

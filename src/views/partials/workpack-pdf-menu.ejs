@@ -13,14 +13,14 @@
     </a>
     <% if (pack.WorkpackStatus?.code === 'CERTIFIED') { %>
       <a
-        href="/workpacks/<%= pack.id %>/pdf/release"
+        href="/workpacks/<%= pack.id %>/crs"
         class="block border-b border-slate-100 px-4 py-3 text-sm font-medium text-slate-700 hover:bg-slate-50"
       >
-        Release PDF
+        CRS PDF
       </a>
     <% } %>
     <a
-      href="/workpacks/<%= pack.id %>/pdf/crma"
+      href="/workpacks/<%= pack.id %>/crma"
       class="block <%= pack.WorkpackStatus?.code === 'CERTIFIED' ? '' : 'border-b-0' %> px-4 py-3 text-sm font-medium text-slate-700 hover:bg-slate-50"
     >
       CRMA PDF

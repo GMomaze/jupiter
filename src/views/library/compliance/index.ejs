@@ -1,0 +1,92 @@
+<%- include('../../partials/header') %>
+
+<main class="max-w-7xl mx-auto py-10 px-6 space-y-8">
+  <div class="flex items-center justify-between gap-4">
+    <div>
+      <a href="/library" class="text-sm text-blue-600 hover:underline">Back to Library</a>
+      <h1 class="mt-3 text-3xl font-bold text-slate-900">Compliance Items</h1>
+      <p class="mt-2 text-sm text-slate-500">
+        Read-only admin view of projected compliance records stored in <code>compliance_items</code>.
+      </p>
+    </div>
+  </div>
+
+  <section class="rounded-xl border bg-white p-6 shadow-sm">
+    <div class="flex items-center justify-between gap-4">
+      <div>
+        <h2 class="text-lg font-bold text-slate-900">Compliance Projection Library</h2>
+        <p class="mt-1 text-sm text-slate-500">
+          Showing source linkage, reference, status, available dates, and created timestamp.
+        </p>
+      </div>
+      <div class="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-xs font-bold uppercase tracking-widest text-slate-700">
+        <%= complianceItems.length %> Compliance Items
+      </div>
+    </div>
+
+    <% if (!complianceItems.length) { %>
+      <div class="mt-6 rounded-xl border border-slate-200 bg-slate-50 px-6 py-10 text-center">
+        <p class="text-sm font-semibold text-slate-700">No compliance items exist yet.</p>
+        <p class="mt-2 text-sm text-slate-500">
+          Compliance projections will appear here once source records are projected into <code>compliance_items</code>.
+        </p>
+      </div>
+    <% } else { %>
+      <div class="mt-6 overflow-x-auto rounded-lg border">
+        <table class="min-w-full divide-y divide-slate-200">
+          <thead class="bg-slate-50">
+            <tr>
+              <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Source Type</th>
+              <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Source ID</th>
+              <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Reference</th>
+              <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Title / Description</th>
+              <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Status</th>
+              <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Effective Date</th>
+              <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Issue Date</th>
+              <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Due / Interval</th>
+              <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Created</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-100 bg-white">
+            <% complianceItems.forEach((item) => { %>
+              <tr>
+                <td class="px-3 py-3 align-top text-xs text-slate-700">
+                  <%= item.source_type || '-' %>
+                </td>
+                <td class="px-3 py-3 align-top text-xs text-slate-700">
+                  <div class="max-w-[12rem] break-all"><%= item.source_id || '-' %></div>
+                </td>
+                <td class="px-3 py-3 align-top text-sm font-semibold text-slate-900">
+                  <%= item.code || '-' %>
+                </td>
+                <td class="px-3 py-3 align-top text-sm text-slate-700">
+                  <div class="font-medium text-slate-900"><%= item.title || '-' %></div>
+                  <div class="mt-1 max-w-md whitespace-pre-wrap break-words text-xs text-slate-500">
+                    <%= item.description || '-' %>
+                  </div>
+                </td>
+                <td class="px-3 py-3 align-top text-xs text-slate-700">
+                  <%= item.status || '-' %>
+                </td>
+                <td class="px-3 py-3 align-top text-xs text-slate-700">
+                  <%= item.effective_on || '-' %>
+                </td>
+                <td class="px-3 py-3 align-top text-xs text-slate-700">
+                  <%= item.issued_on || '-' %>
+                </td>
+                <td class="px-3 py-3 align-top text-xs text-slate-500">
+                  -
+                </td>
+                <td class="px-3 py-3 align-top text-xs text-slate-700">
+                  <%= item.created_at ? new Date(item.created_at).toLocaleString() : '-' %>
+                </td>
+              </tr>
+            <% }) %>
+          </tbody>
+        </table>
+      </div>
+    <% } %>
+  </section>
+</main>
+
+<%- include('../../partials/footer') %>

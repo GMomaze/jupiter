@@ -1,0 +1,144 @@
+<%- include('../../partials/header') %>
+
+<main class="max-w-6xl mx-auto py-10 px-6 space-y-8">
+  <div>
+    <a href="/library/sids" class="text-sm text-blue-600 hover:underline">Back to SID Library</a>
+  </div>
+
+  <section class="rounded-xl border bg-white p-6 shadow-sm">
+    <div class="flex items-start justify-between gap-4">
+      <div>
+        <p class="text-xs font-bold uppercase tracking-[0.2em] text-purple-600"><%= sid.manufacturer || 'SID' %></p>
+        <h1 class="mt-2 text-3xl font-bold text-slate-900"><%= sid.reference || '-' %></h1>
+        <p class="mt-2 text-sm text-slate-500"><%= sid.title || '-' %></p>
+      </div>
+      <div>
+        <% if (sid.is_active) { %>
+          <span class="inline-flex rounded-full bg-emerald-100 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-emerald-800">
+            Active
+          </span>
+        <% } else { %>
+          <span class="inline-flex rounded-full bg-slate-200 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-700">
+            Inactive
+          </span>
+        <% } %>
+      </div>
+    </div>
+
+    <div class="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <div class="rounded-lg bg-slate-50 p-3">
+        <div class="text-[10px] font-bold uppercase tracking-widest text-slate-500">Category</div>
+        <div class="mt-1 text-sm font-semibold text-slate-900"><%= sid.category || '-' %></div>
+      </div>
+      <div class="rounded-lg bg-slate-50 p-3">
+        <div class="text-[10px] font-bold uppercase tracking-widest text-slate-500">Initial Interval</div>
+        <div class="mt-1 text-sm font-semibold text-slate-900"><%= sid.initial_interval_hours ?? '-' %> hrs / <%= sid.initial_interval_months ?? '-' %> months</div>
+      </div>
+      <div class="rounded-lg bg-slate-50 p-3">
+        <div class="text-[10px] font-bold uppercase tracking-widest text-slate-500">Repeat Interval</div>
+        <div class="mt-1 text-sm font-semibold text-slate-900"><%= sid.repeat_interval_hours ?? '-' %> hrs / <%= sid.repeat_interval_months ?? '-' %> months</div>
+      </div>
+      <div class="rounded-lg bg-slate-50 p-3">
+        <div class="text-[10px] font-bold uppercase tracking-widest text-slate-500">Source Document</div>
+        <div class="mt-1 text-sm font-semibold text-slate-900"><%= sid.source_document || '-' %></div>
+      </div>
+    </div>
+
+    <div class="mt-6 grid gap-6 lg:grid-cols-2">
+      <div>
+        <h2 class="text-lg font-bold text-slate-900">Description</h2>
+        <div class="mt-2 rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700 whitespace-pre-wrap"><%= sid.description || 'No description provided.' %></div>
+      </div>
+      <div>
+        <h2 class="text-lg font-bold text-slate-900">Notes</h2>
+        <div class="mt-2 rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700 whitespace-pre-wrap"><%= sid.notes || 'No notes provided.' %></div>
+      </div>
+    </div>
+
+    <div class="mt-6 grid gap-6 lg:grid-cols-3">
+      <div class="rounded-lg border border-slate-200 p-4">
+        <div class="text-[10px] font-bold uppercase tracking-widest text-slate-500">Section Reference</div>
+        <div class="mt-1 text-sm font-semibold text-slate-900"><%= sid.section_reference || '-' %></div>
+      </div>
+      <div class="rounded-lg border border-slate-200 p-4">
+        <div class="text-[10px] font-bold uppercase tracking-widest text-slate-500">ATA Chapter</div>
+        <div class="mt-1 text-sm font-semibold text-slate-900"><%= sid.ata_chapter || '-' %></div>
+      </div>
+      <div class="rounded-lg border border-slate-200 p-4">
+        <div class="text-[10px] font-bold uppercase tracking-widest text-slate-500">Inspection Operation</div>
+        <div class="mt-1 text-sm font-semibold text-slate-900"><%= sid.inspection_operation || '-' %></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="rounded-xl border bg-white p-6 shadow-sm">
+    <div class="flex items-center justify-between gap-4">
+      <div>
+        <h2 class="text-lg font-bold text-slate-900">Model Applicability</h2>
+        <p class="mt-1 text-sm text-slate-500">
+          Read-only view of `sid_model_applicability` linked to this SID.
+        </p>
+      </div>
+      <div class="rounded-lg border border-purple-200 bg-purple-50 px-4 py-3 text-xs font-bold uppercase tracking-widest text-purple-700">
+        <%= sid.ModelApplicability?.length || 0 %> Model Links
+      </div>
+    </div>
+
+    <% if (!sid.ModelApplicability || sid.ModelApplicability.length === 0) { %>
+      <div class="mt-6 rounded-xl border border-slate-200 bg-slate-50 px-6 py-10 text-center">
+        <p class="text-sm font-semibold text-slate-700">No model applicability defined.</p>
+        <p class="mt-2 text-sm text-slate-500">
+          This SID has not yet been linked to any internal component models.
+        </p>
+      </div>
+    <% } else { %>
+      <div class="mt-6 overflow-x-auto rounded-lg border">
+        <table class="min-w-full divide-y divide-slate-200">
+          <thead class="bg-slate-50">
+            <tr>
+              <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Model Name</th>
+              <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Model Code</th>
+              <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Applicability Status</th>
+              <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Created</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-100 bg-white">
+            <% sid.ModelApplicability.forEach((entry) => { %>
+              <tr>
+                <td class="px-3 py-3 align-top text-sm font-semibold text-slate-900">
+                  <%= entry.ComponentModel?.model_name || 'Unknown Model' %>
+                </td>
+                <td class="px-3 py-3 align-top text-xs text-slate-700">
+                  <%= entry.ComponentModel?.model_code || '-' %>
+                </td>
+                <td class="px-3 py-3 align-top">
+                  <% if (entry.is_active) { %>
+                    <span class="inline-flex rounded-full bg-emerald-100 px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-emerald-800">
+                      Active
+                    </span>
+                  <% } else { %>
+                    <span class="inline-flex rounded-full bg-slate-200 px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-700">
+                      Inactive
+                    </span>
+                  <% } %>
+                </td>
+                <td class="px-3 py-3 align-top text-xs text-slate-700">
+                  <%= entry.created_at ? new Date(entry.created_at).toLocaleString() : '-' %>
+                </td>
+              </tr>
+            <% }) %>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-4">
+        <div class="text-[10px] font-bold uppercase tracking-widest text-slate-500">Applicability Notes</div>
+        <div class="mt-2 text-sm text-slate-600">
+          No applicability notes defined.
+        </div>
+      </div>
+    <% } %>
+  </section>
+</main>
+
+<%- include('../../partials/footer') %>

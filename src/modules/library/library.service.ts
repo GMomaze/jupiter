@@ -11,11 +11,18 @@ import {
   MaintenanceRequirement,
   ServiceBulletin,
   ServiceBulletinModel,
+  SupplementalInspectionDocument,
+  SidModelApplicability,
   CessnaSid,
   ModelSid,
+  TaskTemplate,
 } from '../../models/index.js';
 import { Op } from 'sequelize';
 import sequelize from '../../config/database.js';
+import { AirworthinessDirective } from '../../models/AirworthinessDirective.js';
+import { ComplianceItem } from '../../models/ComplianceItem.js';
+import { MaintenanceTemplate } from '../../models/MaintenanceTemplate.js';
+import { MaintenanceTemplateItem } from '../../models/MaintenanceTemplateItem.js';
 
 export class LibraryService {
   private static readonly manufacturerAttributes = [
@@ -306,6 +313,217 @@ export class LibraryService {
     return Manufacturer.findAll({
       attributes,
       order: [['name', 'ASC']],
+    });
+  }
+
+  static async getStandardTasks() {
+    return TaskTemplate.findAll({
+      attributes: [
+        'id',
+        'title',
+        'description',
+        'source_type',
+        'interval_hours',
+        'interval_months',
+        'model_applicability',
+        'aircraft_applicability',
+        'is_active',
+        'created_at',
+      ],
+      order: [['created_at', 'DESC'], ['title', 'ASC']],
+    });
+  }
+
+  static async getAirworthinessDirectives() {
+    return AirworthinessDirective.findAll({
+      attributes: [
+        'id',
+        'ad_number',
+        'revision',
+        'subject_heading',
+        'status',
+        'effective_date',
+        'authority',
+        'make',
+        'model',
+        'product_type',
+        'product_subtype',
+        'is_active',
+        'created_at',
+      ],
+      order: [['created_at', 'DESC'], ['ad_number', 'ASC']],
+    });
+  }
+
+  static async getServiceBulletins() {
+    return ServiceBulletin.findAll({
+      attributes: [
+        'id',
+        'manufacturer',
+        'sb_number',
+        'title',
+        'issued_on',
+        'revision',
+        'status',
+        'category',
+        'applicability_make',
+        'applicability_model',
+        'is_active',
+        'created_at',
+      ],
+      order: [['created_at', 'DESC'], ['manufacturer', 'ASC'], ['sb_number', 'ASC']],
+    });
+  }
+
+  static async getComplianceItems() {
+    return ComplianceItem.findAll({
+      attributes: [
+        'id',
+        'source_type',
+        'source_id',
+        'code',
+        'title',
+        'description',
+        'status',
+        'issued_on',
+        'effective_on',
+        'created_at',
+      ],
+      order: [['created_at', 'DESC'], ['source_type', 'ASC'], ['code', 'ASC']],
+    });
+  }
+
+  static async getMaintenanceTemplates() {
+    return MaintenanceTemplate.findAll({
+      attributes: [
+        'id',
+        'name',
+        'template_type',
+        'model_id',
+        'interval_hours',
+        'interval_months',
+        'is_active',
+        'created_at',
+      ],
+      include: [
+        {
+          model: ComponentModel,
+          as: 'ComponentModel',
+          attributes: ['id', 'model_name', 'model_code'],
+          required: false,
+        },
+      ],
+      order: [['created_at', 'DESC'], ['name', 'ASC']],
+    });
+  }
+
+  static async getMaintenanceTemplateById(id: string) {
+    return MaintenanceTemplate.findByPk(id, {
+      attributes: [
+        'id',
+        'name',
+        'description',
+        'template_type',
+        'model_id',
+        'interval_hours',
+        'interval_months',
+        'is_active',
+        'created_at',
+        'updated_at',
+      ],
+      include: [
+        {
+          model: ComponentModel,
+          as: 'ComponentModel',
+          attributes: ['id', 'model_name', 'model_code'],
+          required: false,
+        },
+        {
+          model: MaintenanceTemplateItem,
+          as: 'Items',
+          attributes: [
+            'id',
+            'template_id',
+            'item_type',
+            'item_id',
+            'sequence_no',
+            'is_required',
+            'notes',
+            'created_at',
+            'updated_at',
+          ],
+          required: false,
+        },
+      ],
+      order: [[{ model: MaintenanceTemplateItem, as: 'Items' }, 'sequence_no', 'ASC']],
+    });
+  }
+
+  static async getSupplementalInspectionDocuments() {
+    return SupplementalInspectionDocument.findAll({
+      attributes: [
+        'id',
+        'manufacturer',
+        'reference',
+        'title',
+        'category',
+        'initial_interval_hours',
+        'initial_interval_months',
+        'repeat_interval_hours',
+        'repeat_interval_months',
+        'is_active',
+        'created_at',
+      ],
+      include: [
+        {
+          model: SidModelApplicability,
+          as: 'ModelApplicability',
+          attributes: ['id'],
+          required: false,
+        },
+      ],
+      order: [['created_at', 'DESC'], ['manufacturer', 'ASC'], ['reference', 'ASC']],
+    });
+  }
+
+  static async getSupplementalInspectionDocumentById(id: string) {
+    return SupplementalInspectionDocument.findByPk(id, {
+      attributes: [
+        'id',
+        'manufacturer',
+        'reference',
+        'title',
+        'description',
+        'category',
+        'section_reference',
+        'ata_chapter',
+        'initial_interval_hours',
+        'initial_interval_months',
+        'repeat_interval_hours',
+        'repeat_interval_months',
+        'inspection_operation',
+        'notes',
+        'source_document',
+        'is_active',
+        'created_at',
+        'updated_at',
+      ],
+      include: [
+        {
+          model: SidModelApplicability,
+          as: 'ModelApplicability',
+          attributes: ['id', 'sid_id', 'model_id', 'is_active', 'created_at', 'updated_at'],
+          required: false,
+          include: [
+            {
+              model: ComponentModel,
+              as: 'ComponentModel',
+              attributes: ['id', 'model_name', 'model_code', 'is_active'],
+              required: false,
+            },
+          ],
+        },
+      ],
     });
   }
 

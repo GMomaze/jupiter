@@ -1,12 +1,19 @@
 import { Router } from 'express';
 import multer from 'multer';
 import { LibraryService } from './library.service.js';
+import { LibraryController } from './library.controller.js';
+import { StandardTaskImportController } from './standard-task-import.controller.js';
+import { AdImportController } from './ad-import.controller.js';
+import { SbImportController } from './sb-import.controller.js';
 import { ensureAuthenticated } from '../../middleware/auth.middleware.js';
 import { requirePermission } from '../../middleware/rbac.middleware.js';
 import { manufacturerLogoUpload } from '../../middleware/upload.middleware.js';
 
 const router = Router();
 const sidCsvUpload = multer({ storage: multer.memoryStorage() });
+const standardTaskCsvUpload = multer({ storage: multer.memoryStorage() });
+const adImportUpload = multer({ storage: multer.memoryStorage() });
+const sbImportUpload = multer({ storage: multer.memoryStorage() });
 
 function getParam(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] || '' : value || '';
@@ -38,20 +45,120 @@ function getFriendlyLibraryErrorMessage(error: any) {
 
 /**
  * GET /library
- * Main library page – shows asset types
+ * Main library page – shows placeholder sections for ADs, SBs, SIDs, Task Templates
  */
-router.get('/', async (req, res, next) => {
-  try {
-    const assetTypes = await LibraryService.getAssetTypes();
+router.get('/', LibraryController.renderLibrary);
 
-    // Render existing dashboard view
-    res.render('library/dashboard', {
-      assetTypes,
-    });
-  } catch (error) {
-    next(error);
-  }
-});
+router.get(
+  '/tasks/import',
+  requirePermission('LIBRARY_EDIT'),
+  StandardTaskImportController.renderImportForm
+);
+
+router.get(
+  '/ads/import',
+  requirePermission('LIBRARY_EDIT'),
+  AdImportController.renderImportForm
+);
+
+router.get(
+  '/sbs/import',
+  requirePermission('LIBRARY_EDIT'),
+  SbImportController.renderImportForm
+);
+
+router.get(
+  '/ads',
+  requirePermission('LIBRARY_EDIT'),
+  LibraryController.renderAdList
+);
+
+router.get(
+  '/sbs',
+  requirePermission('LIBRARY_EDIT'),
+  LibraryController.renderSbList
+);
+
+router.get(
+  '/sids',
+  requirePermission('LIBRARY_EDIT'),
+  LibraryController.renderSidList
+);
+
+router.get(
+  '/sids/:id',
+  requirePermission('LIBRARY_EDIT'),
+  LibraryController.renderSidDetail
+);
+
+router.get(
+  '/compliance',
+  requirePermission('LIBRARY_EDIT'),
+  LibraryController.renderComplianceList
+);
+
+router.get(
+  '/templates',
+  requirePermission('LIBRARY_EDIT'),
+  LibraryController.renderTemplateList
+);
+
+router.get(
+  '/templates/:id',
+  requirePermission('LIBRARY_EDIT'),
+  LibraryController.renderTemplateDetail
+);
+
+router.get(
+  '/tasks',
+  requirePermission('LIBRARY_EDIT'),
+  LibraryController.renderStandardTaskList
+);
+
+router.post(
+  '/tasks/import/map',
+  requirePermission('LIBRARY_EDIT'),
+  standardTaskCsvUpload.single('task_csv'),
+  StandardTaskImportController.renderMappingPage
+);
+
+router.post(
+  '/tasks/import/preview',
+  requirePermission('LIBRARY_EDIT'),
+  StandardTaskImportController.previewImport
+);
+
+router.post(
+  '/ads/import/preview',
+  requirePermission('LIBRARY_EDIT'),
+  adImportUpload.single('ad_file'),
+  AdImportController.previewImport
+);
+
+router.post(
+  '/sbs/import/preview',
+  requirePermission('LIBRARY_EDIT'),
+  sbImportUpload.single('sb_file'),
+  SbImportController.previewImport
+);
+
+router.post(
+  '/sbs/import/commit',
+  requirePermission('LIBRARY_EDIT'),
+  SbImportController.commitImport
+);
+
+router.post(
+  '/ads/import/commit',
+  requirePermission('LIBRARY_EDIT'),
+  AdImportController.commitImport
+);
+
+router.post(
+  '/tasks/import/commit',
+  requirePermission('LIBRARY_EDIT'),
+  StandardTaskImportController.commitImport
+);
 
 router.get('/manufacturers', async (_req, res, next) => {
   try {

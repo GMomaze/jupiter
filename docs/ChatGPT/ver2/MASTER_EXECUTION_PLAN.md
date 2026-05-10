@@ -50,14 +50,22 @@ Do NOT:
 
 ---
 
-## 2.4 Full File Rule
+## 2.4 Implementation Responsibility (Codex Only)
 
-ALL code responses MUST:
+ChatGPT must NOT write or return implementation code.
 
-* Return FULL files
-* Never return snippets
-* Never return partial diffs
+All code implementation is performed by Codex.
 
+When implementation is required:
+
+- ChatGPT produces Codex instructions only
+- Codex modifies files inside the repository
+
+When Codex returns code:
+
+- ALL files MUST be FULL files
+- No snippets
+- No partial diffs
 ---
 
 ## 2.5 Read Before Acting

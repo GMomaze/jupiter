@@ -14,15 +14,307 @@ type WorkpackStatusCode =
   | 'DRAFT'
   | 'ISSUED'
   | 'IN_PROGRESS'
-  | 'CERTIFIED';
+  | 'CERTIFIED'
+  | 'CLOSED';
 
 export class WorkpackLifecycleService {
   private static allowedTransitions: Record<WorkpackStatusCode, WorkpackStatusCode[]> = {
     DRAFT: ['ISSUED'],
     ISSUED: ['IN_PROGRESS'],
     IN_PROGRESS: ['CERTIFIED'],
-    CERTIFIED: [],
+    CERTIFIED: ['CLOSED'],
+    CLOSED: [],
   };
+
+  private static hasEngineerAuthority(actorRoles: string[] = []) {
+    return actorRoles.includes('ENGINEER');
+  }
+
+  private static createBlockingError(message: string, blockingErrors: string[]) {
+    const error = new Error(message) as Error & { blockingErrors?: string[] };
+    error.blockingErrors = blockingErrors;
+    return error;
+  }
+
+  private static async ensureClosedStatus(transaction: any) {
+    const existing = await WorkpackStatus.findOne({
+      where: { code: 'CLOSED' },
+      transaction,
+    });
+
+    if (existing) {
+      return existing;
+    }
+
+    return WorkpackStatus.create(
+      {
+        code: 'CLOSED',
+        label: 'Closed',
+        description: 'Final administrative workpack close completed',
+        is_active: true,
+        system_locked: false,
+      } as any,
+      { transaction }
+    );
+  }
+
+  private static summarizeBlockingTaskStatuses(tasks: TaskCard[]) {
+    const counts = new Map<string, number>();
+
+    tasks.forEach((task) => {
+      const status = String(task.status || '').trim();
+      if (!status || ['CERTIFIED_BY_ENGINEER', 'LOCKED'].includes(status)) {
+        return;
+      }
+
+      counts.set(status, (counts.get(status) || 0) + 1);
+    });
+
+    const issues: string[] = [];
+
+    counts.forEach((count, status) => {
+      if (status === 'OPEN') {
+        issues.push(`${count} task${count === 1 ? ' is' : 's are'} still OPEN.`);
+        return;
+      }
+
+      if (status === 'IN_PROGRESS') {
+        issues.push(`${count} task${count === 1 ? ' is' : 's are'} still IN_PROGRESS.`);
+        return;
+      }
+
+      if (status === 'COMPLETED_BY_MECHANIC') {
+        issues.push(
+          `${count} task${count === 1 ? ' is' : 's are'} still awaiting engineer certification.`
+        );
+        return;
+      }
+
+      issues.push(
+        `${count} task${count === 1 ? ' is' : 's are'} not ready for workpack certification or close (${status}).`
+      );
+    });
+
+    return issues;
+  }
+
+  private static summarizeBlockingSnagStatuses(snags: WorkpackSnag[]) {
+    const counts = new Map<string, number>();
+
+    snags.forEach((snag) => {
+      const status = String((snag as any).status || '').trim();
+      if (!status || status === 'CLOSED') {
+        return;
+      }
+
+      counts.set(status, (counts.get(status) || 0) + 1);
+    });
+
+    const issues: string[] = [];
+
+    counts.forEach((count, status) => {
+      if (status === 'OPEN') {
+        issues.push(`${count} snag${count === 1 ? ' is' : 's are'} still OPEN.`);
+        return;
+      }
+
+      if (status === 'IN_PROGRESS') {
+        issues.push(`${count} snag${count === 1 ? ' is' : 's are'} still IN_PROGRESS.`);
+        return;
+      }
+
+      if (status === 'RESOLVED') {
+        issues.push(
+          `${count} snag${count === 1 ? ' is' : 's are'} still RESOLVED and must be CLOSED before workpack close.`
+        );
+        return;
+      }
+
+      issues.push(
+        `${count} snag${count === 1 ? ' is' : 's are'} not ready for workpack close (${status}).`
+      );
+    });
+
+    return issues;
+  }
+
+  private static async collectTerminalStateBlockingErrors(
+    params: {
+      workpackId: string;
+      currentStatusCode: string;
+      pack: Workpack;
+      sequelize: any;
+      transaction: any;
+      mode: 'CERTIFY' | 'CLOSE';
+      actorRoles?: string[];
+    }
+  ) {
+    const {
+      workpackId,
+      currentStatusCode,
+      pack,
+      sequelize,
+      transaction,
+      mode,
+      actorRoles = [],
+    } = params;
+    const issues: string[] = [];
+
+    if (mode === 'CERTIFY') {
+      if (!this.hasEngineerAuthority(actorRoles)) {
+        issues.push('Only engineer users may certify the workpack.');
+      }
+
+      if (currentStatusCode !== 'IN_PROGRESS') {
+        issues.push('Workpack is not IN_PROGRESS.');
+      }
+    }
+
+    if (mode === 'CLOSE') {
+      if (currentStatusCode === 'CLOSED') {
+        issues.push('Workpack is already CLOSED.');
+        return issues;
+      }
+
+      if (currentStatusCode !== 'CERTIFIED') {
+        issues.push('Workpack is not CERTIFIED.');
+      }
+
+      const closedStatus = await this.ensureClosedStatus(transaction);
+      if (!closedStatus) {
+        issues.push('CLOSED workpack status is not configured');
+      }
+
+      if (!(pack as any).certified_by) {
+        issues.push('Workpack certification record is missing certified_by.');
+      }
+
+      if (!(pack as any).certified_at) {
+        issues.push('Workpack certification record is missing certified_at.');
+      }
+    }
+
+    const taskLinks = await WorkpackTask.findAll({
+      where: { workpack_id: workpackId },
+      transaction,
+    });
+
+    const taskIds = taskLinks.map((taskLink) => taskLink.task_id);
+
+    if (taskIds.length === 0) {
+      issues.push('Workpack has no tasks.');
+      return issues;
+    }
+
+    const tasks = await TaskCard.findAll({
+      where: { id: taskIds },
+      transaction,
+    });
+
+    issues.push(...this.summarizeBlockingTaskStatuses(tasks));
+
+    const latestExecutionRows = await sequelize.query(
+      `
+      SELECT
+        wt.task_id,
+        latest_execution.status
+      FROM workpack_tasks wt
+      LEFT JOIN LATERAL (
+        SELECT we.status
+        FROM workpack_executions we
+        WHERE we.workpack_id = wt.workpack_id
+          AND we.task_id = wt.task_id
+        ORDER BY we.attempt_no DESC
+        LIMIT 1
+      ) latest_execution ON TRUE
+      WHERE wt.workpack_id = :workpackId
+      ORDER BY wt.task_id ASC
+      `,
+      {
+        replacements: { workpackId: workpackId },
+        type: QueryTypes.SELECT,
+        transaction,
+      }
+    ) as Array<{ task_id: string; status: string | null }>;
+
+    const missingExecutionCount = latestExecutionRows.filter((row) => !row.status).length;
+    if (missingExecutionCount > 0) {
+      issues.push(
+        `${missingExecutionCount} task${missingExecutionCount === 1 ? ' is' : 's are'} missing execution records.`
+      );
+    }
+
+    const nonCertifiedExecutionCounts = new Map<string, number>();
+    latestExecutionRows.forEach((row) => {
+      const status = String(row.status || '').trim();
+      if (!status || status === 'CERTIFIED_BY_ENGINEER') {
+        return;
+      }
+
+      nonCertifiedExecutionCounts.set(
+        status,
+        (nonCertifiedExecutionCounts.get(status) || 0) + 1
+      );
+    });
+
+    nonCertifiedExecutionCounts.forEach((count, status) => {
+      if (status === 'OPEN') {
+        issues.push(`${count} execution${count === 1 ? ' is' : 's are'} still OPEN.`);
+        return;
+      }
+
+      if (status === 'IN_PROGRESS') {
+        issues.push(`${count} execution${count === 1 ? ' is' : 's are'} still IN_PROGRESS.`);
+        return;
+      }
+
+      if (status === 'COMPLETED_BY_MECHANIC') {
+        issues.push(
+          `${count} execution${count === 1 ? ' is' : 's are'} still awaiting engineer certification.`
+        );
+        return;
+      }
+
+      issues.push(
+        `${count} execution${count === 1 ? ' is' : 's are'} not ready for workpack certification or close (${status}).`
+      );
+    });
+
+    const [blockingComplianceRows] = await sequelize.query(
+      `
+      SELECT 1
+      FROM workpack_compliance
+      WHERE workpack_id = :workpackId
+        AND status != 'COMPLETED'
+      LIMIT 1
+      `,
+      {
+        replacements: { workpackId: workpackId },
+        transaction,
+      }
+    );
+
+    if (Array.isArray(blockingComplianceRows) && blockingComplianceRows.length > 0) {
+      issues.push('Applicable compliance items are not COMPLETED.');
+    }
+
+    const blockingSnags = await WorkpackSnag.findAll({
+      where: {
+        workpack_id: workpackId,
+        status: {
+          [Op.ne]: 'CLOSED',
+        },
+      },
+      attributes: ['id', 'status'],
+      transaction,
+    });
+
+    if (blockingSnags.length > 0) {
+      issues.push(...this.summarizeBlockingSnagStatuses(blockingSnags));
+    }
+
+    return issues;
+  }
 
   static validateTransition(current: WorkpackStatusCode, target: WorkpackStatusCode) {
     if (!this.allowedTransitions[current]?.includes(target)) {
@@ -41,10 +333,13 @@ export class WorkpackLifecycleService {
 
     this.validateTransition(currentStatus.code as WorkpackStatusCode, target);
 
-    const targetStatus = await WorkpackStatus.findOne({
-      where: { code: target },
-      transaction
-    });
+    const targetStatus =
+      target === 'CLOSED'
+        ? await this.ensureClosedStatus(transaction)
+        : await WorkpackStatus.findOne({
+            where: { code: target },
+            transaction
+          });
 
     if (!targetStatus) throw new Error('TARGET_STATUS_NOT_FOUND');
 
@@ -164,14 +459,7 @@ export class WorkpackLifecycleService {
           );
         }
 
-        const plannedComplianceRows = await sequelize.query<{
-          compliance_item_id: string;
-          code: string;
-          title: string;
-          description: string | null;
-          task_id: string | null;
-          existing_task_id: string | null;
-        }>(
+        const plannedComplianceRows = await sequelize.query(
           `
           SELECT
             wc.compliance_item_id,
@@ -204,7 +492,14 @@ export class WorkpackLifecycleService {
             type: QueryTypes.SELECT,
             transaction,
           }
-        );
+        ) as Array<{
+          compliance_item_id: string;
+          code: string;
+          title: string;
+          description: string | null;
+          task_id: string | null;
+          existing_task_id: string | null;
+        }>;
 
         for (const row of plannedComplianceRows) {
           const existingTaskId = row.task_id || row.existing_task_id || null;
@@ -383,6 +678,107 @@ export class WorkpackLifecycleService {
     });
   }
 
+  static async getCertificationBlockingErrors(
+    id: string,
+    actorRoles: string[],
+    sequelize: any
+  ) {
+    return sequelize.transaction(async (transaction: any) => {
+      const pack = await Workpack.findByPk(id, {
+        transaction,
+      });
+
+      if (!pack) {
+        return ['Workpack was not found.'];
+      }
+
+      const currentStatus = await WorkpackStatus.findByPk(pack.status_id, { transaction });
+      if (!currentStatus) {
+        return ['Workpack status was not found.'];
+      }
+
+      return this.collectTerminalStateBlockingErrors({
+        workpackId: id,
+        currentStatusCode: String(currentStatus.code || '').trim(),
+        pack,
+        sequelize,
+        transaction,
+        mode: 'CERTIFY',
+        actorRoles,
+      });
+    });
+  }
+
+  static async certify(
+    id: string,
+    actorId: string | undefined,
+    actorRoles: string[],
+    sequelize: any,
+    requireAuth: (actorId?: string) => void
+  ) {
+    requireAuth(actorId);
+
+    return sequelize.transaction(async (transaction: any) => {
+      const pack = await Workpack.findByPk(id, {
+        transaction,
+        lock: transaction.LOCK.UPDATE
+      });
+
+      if (!pack) throw new Error('WORKPACK_NOT_FOUND');
+
+      const currentStatus = await WorkpackStatus.findByPk(pack.status_id, { transaction });
+      if (!currentStatus) throw new Error('STATUS_NOT_FOUND');
+
+      const blockingErrors = await this.collectTerminalStateBlockingErrors({
+        workpackId: id,
+        currentStatusCode: String(currentStatus.code || '').trim(),
+        pack,
+        sequelize,
+        transaction,
+        mode: 'CERTIFY',
+        actorRoles,
+      });
+
+      if (blockingErrors.length > 0) {
+        throw this.createBlockingError('WORKPACK_CERTIFY_BLOCKED', blockingErrors);
+      }
+
+      (pack as any).certified_by = actorId ?? null;
+      (pack as any).certified_at = new Date();
+      await pack.save({ transaction });
+
+      await this.transition(pack, 'CERTIFIED', actorId, transaction);
+
+      return pack;
+    });
+  }
+
+  static async getCloseBlockingErrors(id: string, sequelize: any) {
+    return sequelize.transaction(async (transaction: any) => {
+      const pack = await Workpack.findByPk(id, {
+        transaction,
+      });
+
+      if (!pack) {
+        return ['Workpack was not found.'];
+      }
+
+      const currentStatus = await WorkpackStatus.findByPk(pack.status_id, { transaction });
+      if (!currentStatus) {
+        return ['Workpack status was not found.'];
+      }
+
+      return this.collectTerminalStateBlockingErrors({
+        workpackId: id,
+        currentStatusCode: String(currentStatus.code || '').trim(),
+        pack,
+        sequelize,
+        transaction,
+        mode: 'CLOSE',
+      });
+    });
+  }
+
   static async close(
     id: string,
     actorId: string | undefined,
@@ -402,69 +798,22 @@ export class WorkpackLifecycleService {
       const currentStatus = await WorkpackStatus.findByPk(pack.status_id, { transaction });
       if (!currentStatus) throw new Error('STATUS_NOT_FOUND');
 
-      if (currentStatus.code !== 'IN_PROGRESS') {
-        throw new Error('MUTATION_BLOCKED');
-      }
-
-      const taskLinks = await WorkpackTask.findAll({
-        where: { workpack_id: id },
-        transaction
-      });
-
-      const taskIds = taskLinks.map(t => t.task_id);
-
-      const tasks = await TaskCard.findAll({
-        where: { id: taskIds },
-        transaction
-      });
-
-      if (tasks.length === 0) {
-        throw new Error('Cannot close: Workpack has no tasks');
-      }
-
-      if (tasks.some(t => t.status !== 'CERTIFIED_BY_ENGINEER')) {
-        throw new Error('Cannot close: Tasks not engineer certified');
-      }
-
-      const [blockingComplianceRows] = await sequelize.query(
-        `
-        SELECT 1
-        FROM workpack_compliance
-        WHERE workpack_id = :workpackId
-          AND status != 'COMPLETED'
-        LIMIT 1
-        `,
-        {
-          replacements: {
-            workpackId: id,
-          },
-          transaction,
-        }
-      );
-
-      if (Array.isArray(blockingComplianceRows) && blockingComplianceRows.length > 0) {
-        throw new Error('WORKPACK_CLOSE_BLOCKED_BY_COMPLIANCE');
-      }
-
-      const blockingSnags = await WorkpackSnag.count({
-        where: {
-          workpack_id: id,
-          status: {
-            [Op.ne]: 'CLOSED',
-          },
-        },
+      const blockingErrors = await this.collectTerminalStateBlockingErrors({
+        workpackId: id,
+        currentStatusCode: String(currentStatus.code || '').trim(),
+        pack,
+        sequelize,
         transaction,
+        mode: 'CLOSE',
       });
 
-      if (blockingSnags > 0) {
-        throw new Error('WORKPACK_CLOSE_BLOCKED_BY_OPEN_SNAGS');
+      if (blockingErrors.length > 0) {
+        throw this.createBlockingError('WORKPACK_CLOSE_BLOCKED', blockingErrors);
       }
 
-      (pack as any).certified_by = actorId ?? null;
-      (pack as any).certified_at = new Date();
-      await pack.save({ transaction });
+      await this.transition(pack, 'CLOSED', actorId, transaction);
 
-      await this.transition(pack, 'CERTIFIED', actorId, transaction);
+      return pack;
     });
   }
 

@@ -2,6 +2,10 @@ import { Request, Response } from 'express';
 
 import { AircraftService } from './aircraft.service.js';
 import { AircraftComponentService } from './aircraft-component.service.js';
+import {
+  ApplicabilityEngineService,
+  ApplicabilityItem,
+} from '../compliance/applicability-engine.service.js';
 
 import {
   Aircraft,
@@ -11,8 +15,11 @@ import {
   Manufacturer,
   AircraftComponent,
   ServiceBulletin,
-  AircraftSbCompliance
+  AircraftSbCompliance,
+  Customer,
+  CustomerAircraftLink,
 } from '../../models/index.js';
+import { CustomersService } from '../customers/customers.service.js';
 
 export class AircraftController {
   private static getParam(value: string | string[] | undefined) {
@@ -149,6 +156,35 @@ export class AircraftController {
     return serviceBulletin;
   }
 
+  private static buildApplicabilitySummary(items: ApplicabilityItem[]) {
+    const counts = {
+      total: items.length,
+      ad: 0,
+      sb: 0,
+      sid: 0,
+    };
+
+    for (const item of items) {
+      if (item.source_type === 'AD') {
+        counts.ad += 1;
+      } else if (item.source_type === 'SB') {
+        counts.sb += 1;
+      } else if (item.source_type === 'SID') {
+        counts.sid += 1;
+      }
+    }
+
+    return counts;
+  }
+
+  private static groupApplicabilityItems(items: ApplicabilityItem[]) {
+    return {
+      ad: items.filter((item) => item.source_type === 'AD'),
+      sb: items.filter((item) => item.source_type === 'SB'),
+      sid: items.filter((item) => item.source_type === 'SID'),
+    };
+  }
+
   static async index(req: Request, res: Response) {
     try {
       const aircraft = await Aircraft.findAll({
@@ -273,6 +309,17 @@ export class AircraftController {
                 include: [AircraftController.manufacturerInclude()]
               }
             ]
+          },
+          {
+            model: CustomerAircraftLink,
+            as: 'CustomerLinks',
+            required: false,
+            include: [
+              {
+                model: Customer,
+                as: 'Customer',
+              }
+            ]
           }
         ]
       });
@@ -303,6 +350,17 @@ export class AircraftController {
         order: [['model_name', 'ASC']]
       });
 
+      const customerOptions = await CustomersService.getActiveCustomers();
+      const customerLinks = ((aircraft as any).CustomerLinks || []).slice().sort((left: any, right: any) => {
+        if (left.is_current !== right.is_current) {
+          return left.is_current ? -1 : 1;
+        }
+
+        return String(right.start_date || '').localeCompare(String(left.start_date || ''));
+      });
+      const currentCustomerLinks = customerLinks.filter((link: any) => link.is_current);
+      const historicalCustomerLinks = customerLinks.filter((link: any) => !link.is_current);
+
       res.render('aircraft/view', {
         aircraft,
         categories,
@@ -311,9 +369,47 @@ export class AircraftController {
         manufacturers,
         serviceBulletins,
         sbFilters,
-        aircraftViewPath: `/aircraft/view/${aircraft.id}`
+        aircraftViewPath: `/aircraft/view/${aircraft.id}`,
+        customerOptions,
+        currentCustomerLinks,
+        historicalCustomerLinks,
       });
     } catch (err: any) {
+      res.status(500).send(err.message);
+    }
+  }
+
+  static async showApplicability(req: Request, res: Response) {
+    try {
+      const aircraftId = AircraftController.getParam(req.params.id);
+      const aircraft = await Aircraft.findByPk(aircraftId, {
+        include: [AircraftController.componentModelInclude()],
+      });
+
+      if (!aircraft) {
+        return res.status(404).send('Aircraft not found');
+      }
+
+      const applicability =
+        await ApplicabilityEngineService.getApplicabilityForAircraft(aircraftId);
+      const summary = AircraftController.buildApplicabilitySummary(
+        applicability.items
+      );
+      const groupedItems = AircraftController.groupApplicabilityItems(
+        applicability.items
+      );
+
+      res.render('aircraft/applicability', {
+        aircraft,
+        applicability,
+        summary,
+        groupedItems,
+      });
+    } catch (err: any) {
+      if (err.message === 'INVALID_AIRCRAFT') {
+        return res.status(404).send('Aircraft not found');
+      }
+
       res.status(500).send(err.message);
     }
   }
@@ -350,6 +446,17 @@ export class AircraftController {
                 include: [AircraftController.manufacturerInclude()]
               }
             ]
+          },
+          {
+            model: CustomerAircraftLink,
+            as: 'CustomerLinks',
+            required: false,
+            include: [
+              {
+                model: Customer,
+                as: 'Customer',
+              }
+            ]
           }
         ]
       });
@@ -380,6 +487,17 @@ export class AircraftController {
         order: [['model_name', 'ASC']]
       });
 
+      const customerOptions = await CustomersService.getActiveCustomers();
+      const customerLinks = ((aircraft as any).CustomerLinks || []).slice().sort((left: any, right: any) => {
+        if (left.is_current !== right.is_current) {
+          return left.is_current ? -1 : 1;
+        }
+
+        return String(right.start_date || '').localeCompare(String(left.start_date || ''));
+      });
+      const currentCustomerLinks = customerLinks.filter((link: any) => link.is_current);
+      const historicalCustomerLinks = customerLinks.filter((link: any) => !link.is_current);
+
       res.render('aircraft/view', {
         aircraft,
         categories,
@@ -388,10 +506,59 @@ export class AircraftController {
         manufacturers,
         serviceBulletins,
         sbFilters,
-        aircraftViewPath: `/aircraft/${aircraft.registration}`
+        aircraftViewPath: `/aircraft/${aircraft.registration}`,
+        customerOptions,
+        currentCustomerLinks,
+        historicalCustomerLinks,
       });
     } catch (err: any) {
       res.status(500).send(err.message);
+    }
+  }
+
+  static async assignCustomer(req: Request, res: Response) {
+    try {
+      const aircraftId = AircraftController.getParam(req.params.id);
+
+      await CustomersService.assignAircraftToCustomer({
+        aircraft_id: aircraftId,
+        customer_id: String(req.body.customer_id || ''),
+        relationship_type: String(req.body.relationship_type || ''),
+        start_date: String(req.body.start_date || ''),
+        notes: typeof req.body.notes === 'string' ? req.body.notes : null,
+        actor_id: (req.user as any)?.id || null,
+      });
+
+      req.flash('success', 'Aircraft customer link saved successfully.');
+      res.redirect(`/aircraft/view/${aircraftId}`);
+    } catch (err: any) {
+      const message = err?.message || 'Unable to link aircraft to customer.';
+
+      switch (message) {
+        case 'CUSTOMER_ID_REQUIRED':
+          req.flash('error', 'A customer must be selected.');
+          break;
+        case 'RELATIONSHIP_TYPE_REQUIRED':
+          req.flash('error', 'Relationship type is required.');
+          break;
+        case 'START_DATE_REQUIRED':
+          req.flash('error', 'A valid start date is required.');
+          break;
+        case 'CURRENT_CUSTOMER_ALREADY_ASSIGNED':
+          req.flash('error', 'That customer relationship is already current for this aircraft.');
+          break;
+        case 'CUSTOMER_NOT_FOUND':
+          req.flash('error', 'Customer not found.');
+          break;
+        case 'AIRCRAFT_NOT_FOUND':
+          req.flash('error', 'Aircraft not found.');
+          break;
+        default:
+          req.flash('error', message);
+          break;
+      }
+
+      res.redirect(`/aircraft/view/${AircraftController.getParam(req.params.id)}`);
     }
   }
 

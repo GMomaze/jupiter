@@ -10,7 +10,7 @@ export class WorkpackExecutionService {
   static mapTaskStatusToExecutionStatus(taskStatus: string): string {
     if (taskStatus === 'IN_PROGRESS') return 'IN_PROGRESS';
     if (taskStatus === 'COMPLETED_BY_MECHANIC') return 'COMPLETED_BY_MECHANIC';
-    if (taskStatus === 'CERTIFIED_BY_ENGINEER' || taskStatus === 'SIGNED' || taskStatus === 'LOCKED') {
+    if (taskStatus === 'CERTIFIED_BY_ENGINEER' || taskStatus === 'LOCKED') {
       return 'CERTIFIED_BY_ENGINEER';
     }
 

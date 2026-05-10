@@ -2,7 +2,7 @@ import { pool } from '../../config/database.js';
 
 type TaskStatus =
   | 'OPEN'
-  | 'SIGNED'
+  | 'CERTIFIED_BY_ENGINEER'
   | 'LOCKED';
 
 export class TaskService {
@@ -88,7 +88,7 @@ export class TaskService {
 
       const task = await this.getTask(client, taskId);
 
-      // Enforce Lifecycle logic (Protocol 08)
+      // Enforce lifecycle using the current certified engineer state.
       if (task.status !== 'OPEN') {
         throw new Error('SIGN_OFF_FAILED: Task must be OPEN to be signed.');
       }
@@ -96,7 +96,7 @@ export class TaskService {
       await client.query(
         `
         UPDATE task_cards
-        SET status = 'SIGNED',
+        SET status = 'CERTIFIED_BY_ENGINEER',
             signed_by = $2,
             signed_at = CURRENT_TIMESTAMP,
             version = version + 1
@@ -115,7 +115,7 @@ export class TaskService {
           'task_cards', 
           taskId, 
           JSON.stringify({ status: 'OPEN' }), 
-          JSON.stringify({ status: 'SIGNED' }), 
+          JSON.stringify({ status: 'CERTIFIED_BY_ENGINEER' }), 
           userId
         ]
       );
@@ -147,9 +147,9 @@ export class TaskService {
         throw new Error('TASK_LOCKED: Task is already locked.');
       }
 
-      // Check if task is SIGNED before locking (Engineering discipline)
-      if (task.status !== 'SIGNED') {
-        throw new Error('LOCK_FAILED: Task must be SIGNED before it can be LOCKED.');
+      // Lock only after engineer certification in the current lifecycle.
+      if (task.status !== 'CERTIFIED_BY_ENGINEER') {
+        throw new Error('LOCK_FAILED: Task must be CERTIFIED_BY_ENGINEER before it can be LOCKED.');
       }
 
       await client.query(
@@ -170,7 +170,7 @@ export class TaskService {
         [
           'task_cards', 
           taskId, 
-          JSON.stringify({ status: 'SIGNED' }), 
+          JSON.stringify({ status: 'CERTIFIED_BY_ENGINEER' }), 
           JSON.stringify({ status: 'LOCKED' }), 
           userId || null
         ]
@@ -200,7 +200,7 @@ export class TaskService {
       const task = await this.getTask(client, taskId);
 
       // Enforce Immutability (Protocol 07 & 08)
-      if (task.status === 'SIGNED' || task.status === 'LOCKED') {
+      if (task.status === 'CERTIFIED_BY_ENGINEER' || task.status === 'LOCKED') {
         throw new Error('TASK_LOCKED');
       }
 

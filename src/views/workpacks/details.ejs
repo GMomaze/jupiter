@@ -1,6 +1,12 @@
 <%- include('../../partials/header') %>
 
 <main class="max-w-7xl mx-auto py-10 px-4 sm:px-6 lg:px-8">
+  <%
+    const canAccessExecution = user?.roles?.some(
+      role => role.code === 'ENGINEER' || role.code === 'MECHANIC' || role.code === 'SUPERVISOR'
+    );
+    const workpackStatusCode = String(pack?.status_code || '').trim().toUpperCase();
+  %>
   <div class="flex justify-between items-start mb-8 bg-white p-6 rounded-xl border shadow-sm">
     <div>
       <nav class="text-sm text-slate-500 mb-2">
@@ -17,9 +23,26 @@
         <%= pack.status_code === 'DRAFT' ? 'bg-slate-100 text-slate-600 border-slate-300' : 
            pack.status_code === 'CLOSED' ? 'bg-green-100 text-green-700 border-green-300' : 
            'bg-blue-100 text-blue-700 border-blue-300' %>">
-        <%= pack.status_code %>
+        <%= workpackStatusCode %>
       </span>
     </div>
+  </div>
+
+  <div class="mb-6 flex flex-wrap gap-3">
+    <a
+      href="/workpacks/<%= pack.id %>/tasks"
+      class="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50"
+    >
+      Tasks
+    </a>
+    <% if (canAccessExecution) { %>
+      <a
+        href="/workpacks/<%= pack.id %>/execution"
+        class="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50"
+      >
+        Execution
+      </a>
+    <% } %>
   </div>
 
   <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -67,14 +90,23 @@
             </p>
           </div>
           
-          <% if (pack.status_code === 'IN_PROGRESS') { %>
-            <button 
-              hx-put="/workpacks/<%= pack.id %>/close"
-              hx-confirm="Finalize Integrity Review? This resets asset counters."
-              hx-target="body"
-              class="w-full bg-slate-900 text-white font-bold py-3 rounded-lg hover:bg-black transition-all shadow-lg">
-              FINALIZE & CLOSE
-            </button>
+          <% if (workpackStatusCode === 'CLOSED') { %>
+            <div class="w-full rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-center text-sm font-semibold text-emerald-800">
+              Workpack already CLOSED.
+            </div>
+          <% } else if (workpackStatusCode === 'CERTIFIED') { %>
+            <form method="POST" action="/workpacks/<%= pack.id %>/close">
+              <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+              <button
+                type="submit"
+                class="w-full bg-slate-900 text-white font-bold py-3 rounded-lg hover:bg-black transition-all shadow-lg">
+                FINALIZE & CLOSE
+              </button>
+            </form>
+          <% } else { %>
+            <div class="w-full rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-center text-sm text-slate-600">
+              Final close becomes available only after CERTIFIED.
+            </div>
           <% } %>
         </div>
       </div>

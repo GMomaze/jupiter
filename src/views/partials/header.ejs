@@ -13,51 +13,64 @@
 
 </head>
 
-<body class="bg-gray-100" hx-headers='{"x-csrf-token":"<%= csrfToken %>"}'>
+<body
+    class="m-0 bg-gray-100"
+    style="margin: 0; padding-top: <%= remoteTestMode ? '7rem' : '4.5rem' %>;"
+    hx-headers='{"x-csrf-token":"<%= csrfToken %>"}'
+>
 
-<% if (remoteTestMode) { %>
-    <div class="bg-amber-500 text-slate-950 text-center text-xs font-bold uppercase tracking-[0.25em] py-2">
-        Remote Test Mode
-    </div>
-<% } %>
-
-<nav class="bg-slate-800 text-white p-4 shadow-lg">
-    <div class="max-w-7xl mx-auto flex justify-between items-center">
-
-        <!-- LEFT SIDE -->
-        <div class="flex items-center space-x-8">
-            <a href="/" class="font-black text-xl tracking-tighter uppercase hover:text-slate-300">
-                Jupiter
-            </a>
-
-            <div class="space-x-6 text-xs font-bold uppercase tracking-widest">
-                <a href="/library" class="hover:text-slate-300">Library</a>
-                <a href="/service-bulletins" class="hover:text-slate-300">Service Bulletins</a>
-                <a href="/aircraft" class="hover:text-slate-300">Fleet</a>
-                <a href="/workpacks" class="hover:text-slate-300">Workpacks</a>
-            </div>
+<div
+    class="z-50"
+    style="position: fixed; top: 0; left: 0; right: 0; width: 100vw;"
+>
+    <% if (remoteTestMode) { %>
+        <div class="bg-amber-500 text-slate-950 text-center text-xs font-bold uppercase tracking-[0.25em] py-2">
+            Remote Test Mode
         </div>
+    <% } %>
 
-        <!-- RIGHT SIDE (User + Logout) -->
-        <% if (user) { %>
-            <div class="flex items-center space-x-4 text-xs uppercase tracking-widest">
+    <nav
+        class="bg-slate-800 text-white p-4 shadow-lg"
+        style="display: block; width: 100vw; margin: 0;"
+    >
+        <div class="max-w-7xl mx-auto flex justify-between items-center">
 
-                <span class="text-slate-300">
-                    <%= user.full_name || user.email %>
-                </span>
+            <!-- LEFT SIDE -->
+            <div class="flex items-center space-x-8">
+                <a href="/" class="font-black text-xl tracking-tighter uppercase hover:text-slate-300">
+                    Jupiter
+                </a>
 
-                <form method="POST" action="/auth/logout">
-                    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-                    <button
-                        type="submit"
-                        class="bg-slate-700 hover:bg-slate-600 text-white px-3 py-1 rounded transition duration-200"
-                    >
-                        Logout
-                    </button>
-                </form>
-
+                <div class="space-x-6 text-xs font-bold uppercase tracking-widest">
+                    <a href="/library" class="hover:text-slate-300">Library</a>
+                    <a href="/service-bulletins" class="hover:text-slate-300">Service Bulletins</a>
+                    <a href="/aircraft" class="hover:text-slate-300">Fleet</a>
+                    <a href="/customers" class="hover:text-slate-300">Customers</a>
+                    <a href="/workpacks" class="hover:text-slate-300">Workpacks</a>
+                </div>
             </div>
-        <% } %>
 
-    </div>
-</nav>
+            <!-- RIGHT SIDE (User + Logout) -->
+            <% if (user) { %>
+                <div class="flex items-center space-x-4 text-xs uppercase tracking-widest">
+
+                    <span class="text-slate-300">
+                        <%= user.full_name || user.email %>
+                    </span>
+
+                    <form method="POST" action="/auth/logout">
+                        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                        <button
+                            type="submit"
+                            class="bg-slate-700 hover:bg-slate-600 text-white px-3 py-1 rounded transition duration-200"
+                        >
+                            Logout
+                        </button>
+                    </form>
+
+                </div>
+            <% } %>
+
+        </div>
+    </nav>
+</div>

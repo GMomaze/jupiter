@@ -39,6 +39,20 @@ router.get(
 );
 
 router.get(
+  '/templates/:templateId/aircraft/:aircraftId/preview',
+  requireAuth,
+  requireRole('PLANNER'),
+  WorkpackController.renderTemplateAircraftPreview
+);
+
+router.get(
+  '/planning-sessions/:sessionId',
+  requireAuth,
+  requireRole('PLANNER'),
+  WorkpackController.renderPlanningSessionPreview
+);
+
+router.get(
   '/:id/snags',
   requireAuth,
   requireAnyRole('PLANNER', 'ENGINEER', 'MECHANIC'),
@@ -62,8 +76,15 @@ router.get(
 router.get(
   '/:id/execution',
   requireAuth,
-  requireAnyRole('ENGINEER', 'MECHANIC'),
+  requireAnyRole('ENGINEER', 'MECHANIC', 'SUPERVISOR'),
   WorkpackController.renderExecution
+);
+
+router.get(
+  '/:id/audit',
+  requireAuth,
+  requireAnyRole('PLANNER', 'ENGINEER', 'MECHANIC', 'SUPERVISOR', 'ADMIN'),
+  WorkpackController.renderPackAudit
 );
 
 router.get(
@@ -71,6 +92,20 @@ router.get(
   requireAuth,
   requireAnyRole('PLANNER', 'ENGINEER', 'MECHANIC', 'SUPERVISOR'),
   WorkpackController.handleServicePdf
+);
+
+router.get(
+  '/:id/crs',
+  requireAuth,
+  requireAnyRole('PLANNER', 'ENGINEER', 'MECHANIC', 'SUPERVISOR'),
+  WorkpackController.handleCrsPdf
+);
+
+router.get(
+  '/:id/crma',
+  requireAuth,
+  requireAnyRole('PLANNER', 'ENGINEER', 'MECHANIC', 'SUPERVISOR'),
+  WorkpackController.handleCrmaPdf
 );
 
 router.get(
@@ -92,6 +127,27 @@ router.get(
 ============================================================ */
 
 router.post(
+  '/templates/:templateId/aircraft/:aircraftId/generate',
+  requireAuth,
+  requireRole('PLANNER'),
+  WorkpackController.handleGenerateFromTemplatePreview
+);
+
+router.post(
+  '/planning-sessions/save',
+  requireAuth,
+  requireRole('PLANNER'),
+  WorkpackController.handleSavePlanningSession
+);
+
+router.post(
+  '/planning-sessions/:sessionId/delete',
+  requireAuth,
+  requireRole('PLANNER'),
+  WorkpackController.handleDeletePlanningSession
+);
+
+router.post(
   '/',
   requireAuth,
   requireRole('PLANNER'),
@@ -104,6 +160,13 @@ router.post(
   requireRole('PLANNER'),
   upload.single('task_csv'),
   WorkpackController.handleImportTemplates
+);
+
+router.post(
+  '/snags',
+  requireAuth,
+  requireAnyRole('ENGINEER', 'MECHANIC', 'SUPERVISOR', 'ADMIN'),
+  WorkpackController.handleCreateStandaloneSnag
 );
 
 router.post(
@@ -123,14 +186,14 @@ router.post(
 router.post(
   '/:id/snags/:snagId/start',
   requireAuth,
-  requireRole('MECHANIC'),
+  requireAnyRole('MECHANIC', 'ENGINEER', 'SUPERVISOR', 'ADMIN'),
   WorkpackController.handleStartSnag
 );
 
 router.post(
   '/:id/snags/:snagId/complete',
   requireAuth,
-  requireRole('MECHANIC'),
+  requireAnyRole('MECHANIC', 'ENGINEER', 'SUPERVISOR', 'ADMIN'),
   WorkpackController.handleCompleteSnag
 );
 
@@ -216,6 +279,13 @@ router.post(
   requireAuth,
   requireRole('ENGINEER'),
   WorkpackController.handleClose
+);
+
+router.post(
+  '/:id/certify',
+  requireAuth,
+  requireRole('ENGINEER'),
+  WorkpackController.handleCertify
 );
 
 router.post(

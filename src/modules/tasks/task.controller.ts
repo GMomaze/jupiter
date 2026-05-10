@@ -30,7 +30,7 @@ export class TaskController {
 
   /**
    * SIGN-OFF TASK
-   * Legal transition to SIGNED (snapshot handled in service)
+   * Maps sign-off to CERTIFIED_BY_ENGINEER (snapshot handled in service)
    */
   static async signOff(req: Request, res: Response) {
     

@@ -2,6 +2,41 @@
 
 This document describes the workflows that are implemented in the current Jupiter codebase today. It reflects actual routes, controllers, services, tables, and known gaps. It does not describe intended future behavior.
 
+It must be read together with the locked canonical operational workflow:
+
+- import
+- applicability
+- template
+- workpack
+- execute
+- certify
+
+Workpacks are operational snapshots inside that chain.
+
+They are not the source of truth.
+
+Planning sessions are not workpacks and remain separate from operational execution.
+
+## 0. Canonical Workflow Boundary
+
+The locked Jupiter workflow boundary is:
+
+- import
+- applicability
+- template
+- workpack
+- execute
+- certify
+
+Operational workpack routes described below sit at the `workpack -> execute -> certify` end of the system.
+
+Upstream source-of-truth ownership remains outside execution in:
+
+- imported maintenance content
+- applicability decisions
+- templates
+- planning sessions where used
+
 ## 1. Workpacks
 
 ### Entry points / routes
@@ -53,6 +88,7 @@ This document describes the workflows that are implemented in the current Jupite
 - It rejects creation if the selected aircraft already has an existing draft workpack.
 - It inserts a row into `workpacks` with version `0`.
 - It logs a `CREATE` audit record.
+- This creates an operational workpack snapshot and does not create upstream source-of-truth maintenance content.
 4. Adding an existing unassigned task to a workpack:
 - `WorkpackService.addTask(...)` requires the workpack to exist and still be `DRAFT`.
 - It verifies the task exists.
@@ -86,15 +122,21 @@ This document describes the workflows that are implemented in the current Jupite
 10. Closing a workpack:
 - `WorkpackService.close(...)` requires `IN_PROGRESS`.
 - It rejects workpacks with no tasks.
-- It requires every linked task to be `CERTIFIED_BY_ENGINEER`.
+- It requires the locked operational certification and closure rules to pass before close/certification can proceed.
 - It blocks closure if any associated snag is not `CLOSED`.
 - It sets persisted workpack fields `certified_by` and `certified_at`, then transitions status to `CERTIFIED`.
-- After successful close, the controller immediately generates and returns the CRS PDF.
+- Certification remains downstream of execution.
+- Any document response returned after close is downstream read-only output and must not be treated as a lifecycle mutation.
 11. Deleting a draft:
 - `WorkpackService.deleteDraft(...)` only allows deletion in `DRAFT`.
 - It deletes linking rows from `workpack_tasks`.
 - It deletes the `workpacks` row.
 - It does not delete the underlying `task_cards`.
+
+### Locked workflow boundary notes
+- The planner routes and workpack creation flow are operational preparation paths, not master source-of-truth ownership.
+- Planning sessions are separate from workpacks and do not execute work directly.
+- `CLOSED` workpacks remain immutable and must not be treated as active execution records.
 
 ### Gaps / broken / incomplete parts
 - The planner UI now allows assigning an unassigned task to any draft workpack, but `WorkpackService.addTask(...)` does not validate aircraft compatibility. Cross-aircraft assignment is currently possible by design of the current code.
@@ -328,6 +370,8 @@ This document describes the workflows that are implemented in the current Jupite
 
 ### Entry points / routes
 - `GET /workpacks/:id/pdf/service` -> `WorkpackController.handleServicePdf`
+- `GET /workpacks/:id/crs` -> `WorkpackController.handleCrsPdf`
+- `GET /workpacks/:id/crma` -> `WorkpackController.handleCrmaPdf`
 - `GET /workpacks/:id/pdf/release` -> `WorkpackController.handleReleasePdf`
 - `GET /workpacks/:id/pdf/crma` -> `WorkpackController.handleCrmaPdf`
 - `POST /workpacks/:id/close` -> `WorkpackController.handleClose` then returns CRS PDF immediately
@@ -349,9 +393,10 @@ This document describes the workflows that are implemented in the current Jupite
 
 ### Current process
 1. All PDF generators query the database directly using `pool.query(...)` instead of Sequelize models.
-2. Service/CRS PDF:
+2. CRS PDF:
 - pulls pack + aircraft + model details
-- pulls only tasks where `task_cards.status = 'CERTIFIED_BY_ENGINEER'`
+- uses stored eligible operational data at generation time
+- is a read-only document-generation step
 - uses engineer certification timestamps as the release anchor
 - strips `[Captured Values]...[/Captured Values]` blocks out of printed task text
 3. Release PDF:
@@ -359,8 +404,10 @@ This document describes the workflows that are implemented in the current Jupite
 - otherwise it throws `WORKPACK_RELEASE_PDF_BLOCKED`
 4. CRMA PDF:
 - separate generator, same general direct-SQL pattern
+ - remains separate from full CRS behavior
 5. Workpack close:
 - after `WorkpackService.close(...)` succeeds, the controller immediately streams the CRS PDF back in the same request
+- that document response must still be treated as downstream read-only output, not as lifecycle control
 
 ### Gaps / broken / incomplete parts
 - PDFs rely on direct SQL and not the main service layer, so workflow logic and reporting logic are split.
@@ -377,7 +424,7 @@ This document describes the workflows that are implemented in the current Jupite
 - Some pages are intentionally tolerant of missing schema:
   - execution history pages continue if `workpack_executions` / `workpack_measurements` is missing
   - snags page continues if `workpack_snag_audit_log` is missing
-- Workpack closure depends on task status being exactly `CERTIFIED_BY_ENGINEER`, while other parts of the UI sometimes treat `LOCKED` as also complete.
+- Some code and reporting paths still show drift against the locked workflow rules, especially around `LOCKED` task treatment in close/document logic.
 
 ## Verification Notes
 

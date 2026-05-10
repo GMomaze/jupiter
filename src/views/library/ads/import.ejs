@@ -1,0 +1,82 @@
+<%- include('../../partials/header') %>
+
+<main class="max-w-4xl mx-auto py-10 px-6 space-y-8">
+  <% if (messages?.success?.length || messages?.error?.length) { %>
+    <section class="space-y-3">
+      <% (messages?.success || []).forEach((message) => { %>
+        <div class="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+          <%= message %>
+        </div>
+      <% }) %>
+      <% (messages?.error || []).forEach((message) => { %>
+        <div class="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
+          <%= message %>
+        </div>
+      <% }) %>
+    </section>
+  <% } %>
+
+  <div>
+    <a href="/library" class="text-sm text-blue-600 hover:underline">Back to Library</a>
+  </div>
+
+  <section class="bg-white border rounded-xl p-6 shadow-sm space-y-5">
+    <div>
+      <h1 class="text-3xl font-bold text-slate-900">AD Import Preview</h1>
+      <p class="mt-2 text-sm text-slate-500">
+        Upload a CSV or XLSX file to parse, normalize, and validate Airworthiness Directives in memory only. No database writes occur in this phase.
+      </p>
+    </div>
+
+    <form
+      method="POST"
+      action="/library/ads/import/preview?_csrf=<%= encodeURIComponent(csrfToken) %>"
+      enctype="multipart/form-data"
+      class="space-y-4 rounded-lg border border-slate-200 bg-slate-50 p-5"
+    >
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+
+      <div>
+        <p class="text-sm font-semibold text-slate-900">Supported file types</p>
+        <p class="mt-1 text-xs text-slate-500">
+          `.csv`, `.xlsx`
+        </p>
+      </div>
+
+      <div>
+        <p class="text-sm font-semibold text-slate-900">Required dataset fields</p>
+        <p class="mt-1 text-xs text-slate-500">
+          `AD Number`, `Status`, `Effective Date`
+        </p>
+      </div>
+
+      <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
+        <input
+          type="file"
+          name="ad_file"
+          accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+          required
+          class="block w-full rounded border bg-white px-3 py-2 text-sm text-slate-700"
+        >
+        <button
+          type="submit"
+          class="rounded bg-slate-800 px-4 py-2 text-sm font-bold text-white hover:bg-black"
+        >
+          Preview File
+        </button>
+      </div>
+
+      <ul class="text-xs text-slate-500 space-y-1">
+        <li>Column names are normalized by case and spacing</li>
+        <li>`Effective Date` is required and must be valid</li>
+        <li>`Citation Publish Date` must be valid if provided</li>
+        <li>Text fields are trimmed</li>
+        <li>Relationship columns are split into multiple AD references when needed</li>
+        <li>Empty rows are ignored</li>
+        <li>Unknown columns are reported and do not stop preview</li>
+      </ul>
+    </form>
+  </section>
+</main>
+
+<%- include('../../partials/footer') %>

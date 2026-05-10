@@ -1,5 +1,3 @@
-'use strict';
-
 async function tableExists(queryInterface, table) {
   return await queryInterface.describeTable(table).catch(() => null);
 }
@@ -67,6 +65,36 @@ export default {
         type: Sequelize.BOOLEAN,
         allowNull: false,
         defaultValue: true,
+      },
+
+      is_required_for_wood: {
+        type: Sequelize.BOOLEAN,
+        allowNull: false,
+        defaultValue: false,
+      },
+
+      is_required_for_fabric: {
+        type: Sequelize.BOOLEAN,
+        allowNull: false,
+        defaultValue: false,
+      },
+
+      is_required_for_bungees: {
+        type: Sequelize.BOOLEAN,
+        allowNull: false,
+        defaultValue: false,
+      },
+
+      is_required_for_woodprop: {
+        type: Sequelize.BOOLEAN,
+        allowNull: false,
+        defaultValue: false,
+      },
+
+      is_required_for_retractable: {
+        type: Sequelize.BOOLEAN,
+        allowNull: false,
+        defaultValue: false,
       },
 
       created_at: {

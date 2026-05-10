@@ -12,7 +12,8 @@ type WorkpackStatusCode =
   | 'DRAFT'
   | 'ISSUED'
   | 'IN_PROGRESS'
-  | 'CERTIFIED';
+  | 'CERTIFIED'
+  | 'CLOSED';
 
 export class WorkpackService {
   private static readonly CAPTURED_VALUES_START = MeasurementService.CAPTURED_VALUES_START;
@@ -292,6 +293,28 @@ export class WorkpackService {
     );
   }
 
+  static async certify(id: string, actorId?: string, actorRoles: string[] = []) {
+    return WorkpackLifecycleService.certify(
+      id,
+      actorId,
+      actorRoles,
+      sequelize,
+      this.requireAuth.bind(this)
+    );
+  }
+
+  static async getCertificationBlockingErrors(id: string, actorRoles: string[] = []) {
+    return WorkpackLifecycleService.getCertificationBlockingErrors(
+      id,
+      actorRoles,
+      sequelize
+    );
+  }
+
+  static async getCloseBlockingErrors(id: string) {
+    return WorkpackLifecycleService.getCloseBlockingErrors(id, sequelize);
+  }
+
   /* ============================================================
       ADD TASK
   ============================================================ */
@@ -409,14 +432,15 @@ export class WorkpackService {
       CERTIFY TASK (ENGINEER)
   ============================================================ */
 
-  static async signTask(taskId: string, actorId?: string) {
+  static async signTask(taskId: string, actorId?: string, actorRoles: string[] = []) {
     return TaskExecutionService.signTask(
       taskId,
       actorId,
+      actorRoles,
       sequelize,
       this.requireAuth.bind(this),
       this.getExecutablePackForTask.bind(this),
-      this.ensureExecutionForTask.bind(this)
+      this.getLatestExecution.bind(this)
     );
   }
 
@@ -460,10 +484,11 @@ export class WorkpackService {
     );
   }
 
-  static async startSnag(snagId: string, actorId?: string) {
+  static async startSnag(snagId: string, actorId?: string, actorRoles: string[] = []) {
     return SnagService.startSnag(
       snagId,
       actorId,
+      actorRoles,
       sequelize,
       this.requireAuth.bind(this),
       this.appendSnagAuditEntry.bind(this)

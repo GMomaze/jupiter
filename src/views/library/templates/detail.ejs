@@ -1,0 +1,121 @@
+<%- include('../../partials/header') %>
+
+<main class="max-w-6xl mx-auto py-10 px-6 space-y-8">
+  <div>
+    <a href="/library/templates" class="text-sm text-blue-600 hover:underline">Back to Template Library</a>
+  </div>
+
+  <section class="rounded-xl border bg-white p-6 shadow-sm">
+    <div class="flex items-start justify-between gap-4">
+      <div>
+        <p class="text-xs font-bold uppercase tracking-[0.2em] text-cyan-600"><%= template.template_type || 'TEMPLATE' %></p>
+        <h1 class="mt-2 text-3xl font-bold text-slate-900"><%= template.name || '-' %></h1>
+        <p class="mt-2 text-sm text-slate-500"><%= template.description || 'No description provided.' %></p>
+      </div>
+      <div>
+        <% if (template.is_active) { %>
+          <span class="inline-flex rounded-full bg-emerald-100 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-emerald-800">
+            Active
+          </span>
+        <% } else { %>
+          <span class="inline-flex rounded-full bg-slate-200 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-700">
+            Inactive
+          </span>
+        <% } %>
+      </div>
+    </div>
+
+    <div class="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <div class="rounded-lg bg-slate-50 p-3">
+        <div class="text-[10px] font-bold uppercase tracking-widest text-slate-500">Template Type</div>
+        <div class="mt-1 text-sm font-semibold text-slate-900"><%= template.template_type || '-' %></div>
+      </div>
+      <div class="rounded-lg bg-slate-50 p-3">
+        <div class="text-[10px] font-bold uppercase tracking-widest text-slate-500">Model</div>
+        <div class="mt-1 text-sm font-semibold text-slate-900">
+          <%= template.ComponentModel?.model_name || template.ComponentModel?.model_code || '-' %>
+        </div>
+      </div>
+      <div class="rounded-lg bg-slate-50 p-3">
+        <div class="text-[10px] font-bold uppercase tracking-widest text-slate-500">Interval Hours</div>
+        <div class="mt-1 text-sm font-semibold text-slate-900"><%= template.interval_hours ?? '-' %></div>
+      </div>
+      <div class="rounded-lg bg-slate-50 p-3">
+        <div class="text-[10px] font-bold uppercase tracking-widest text-slate-500">Interval Months</div>
+        <div class="mt-1 text-sm font-semibold text-slate-900"><%= template.interval_months ?? '-' %></div>
+      </div>
+    </div>
+
+    <div class="mt-6">
+      <h2 class="text-lg font-bold text-slate-900">Description</h2>
+      <div class="mt-2 rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700 whitespace-pre-wrap">
+        <%= template.description || 'No description provided.' %>
+      </div>
+    </div>
+  </section>
+
+  <section class="rounded-xl border bg-white p-6 shadow-sm">
+    <div class="flex items-center justify-between gap-4">
+      <div>
+        <h2 class="text-lg font-bold text-slate-900">Template Items</h2>
+        <p class="mt-1 text-sm text-slate-500">
+          Read-only view of ordered template items stored in <code>maintenance_template_items</code>.
+        </p>
+      </div>
+      <div class="rounded-lg border border-cyan-200 bg-cyan-50 px-4 py-3 text-xs font-bold uppercase tracking-widest text-cyan-700">
+        <%= template.Items?.length || 0 %> Template Items
+      </div>
+    </div>
+
+    <% if (!template.Items || template.Items.length === 0) { %>
+      <div class="mt-6 rounded-xl border border-slate-200 bg-slate-50 px-6 py-10 text-center">
+        <p class="text-sm font-semibold text-slate-700">No template items found.</p>
+      </div>
+    <% } else { %>
+      <div class="mt-6 overflow-x-auto rounded-lg border">
+        <table class="min-w-full divide-y divide-slate-200">
+          <thead class="bg-slate-50">
+            <tr>
+              <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Sequence</th>
+              <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Item Type</th>
+              <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Item ID</th>
+              <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Required</th>
+              <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Notes</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-100 bg-white">
+            <% template.Items.forEach((item) => { %>
+              <tr>
+                <td class="px-3 py-3 align-top text-sm font-semibold text-slate-900">
+                  <%= item.sequence_no ?? '-' %>
+                </td>
+                <td class="px-3 py-3 align-top text-xs text-slate-700">
+                  <%= item.item_type || '-' %>
+                </td>
+                <td class="px-3 py-3 align-top text-xs text-slate-700 break-all">
+                  <%= item.item_id || '-' %>
+                </td>
+                <td class="px-3 py-3 align-top">
+                  <% if (item.is_required) { %>
+                    <span class="inline-flex rounded-full bg-emerald-100 px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-emerald-800">
+                      Required
+                    </span>
+                  <% } else { %>
+                    <span class="inline-flex rounded-full bg-slate-200 px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-700">
+                      Optional
+                    </span>
+                  <% } %>
+                </td>
+                <td class="px-3 py-3 align-top text-xs text-slate-700">
+                  <div class="max-w-md whitespace-pre-wrap break-words"><%= item.notes || '-' %></div>
+                </td>
+              </tr>
+            <% }) %>
+          </tbody>
+        </table>
+      </div>
+    <% } %>
+  </section>
+</main>
+
+<%- include('../../partials/footer') %>

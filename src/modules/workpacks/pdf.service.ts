@@ -2,6 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import PDFDocument from 'pdfkit';
 import { pool } from '../../config/database.js';
+import { CrsDataService } from './services/crs-data.service.js';
 
 type PackRow = {
   id: string;
@@ -425,6 +426,8 @@ private static drawKeyValueRow(
 }
 
   static async generateCRS(workpackId: string): Promise<Buffer> {
+    await CrsDataService.assertCrsGenerationAllowed(workpackId);
+
     const { rows: packs } = await pool.query<PackRow>(
       `SELECT
          w.id,

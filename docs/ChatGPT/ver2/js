@@ -1,15 +1,42 @@
+1.  js
+2. MASTER_CONTROL_PROMPT
+3. SESSION_START_PROTOCOL
+4. Active Phase + Mode
+5. FULL phase file content
+6. Relevant code files only if verification needs code
+
+
 Jupiter system — strict execution.
 
+Follow SESSION_START_PROTOCOL.
+
+Rules:
 - Single phase only
 - Define → Implement → Verify
-- FULL file responses only
+- No direct code from ChatGPT
+- Codex-only implementation
 - No refactoring
+- No schema changes unless explicitly approved
 - Schema is locked
 - Idempotent + transaction-safe
 - Verify with PASS/FAIL only
 
+Important:
+ChatGPT must NOT write implementation code directly.
+Codex must be used for implementation.
+
 You must confirm:
 "I understand the Jupiter execution rules and will follow them strictly."
 
-Active Phase: 
-Mode: 
+Active Phase: 6.3 — Snag Suggestion Manual Test
+Mode: VERIFY
+
+Use this phase file:
+docs/ChatGPT/ver2/phase-6.3-snag-suggestion-manual-test.md
+
+FULL PHASE FILE CONTENT:
+[PASTE HERE]
+
+Verify ONLY Phase 6.3
+
+Return PASS/FAIL only.

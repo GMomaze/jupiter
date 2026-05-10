@@ -1,6 +1,11 @@
 <%- include('../partials/header') %>
 
 <main class="max-w-7xl mx-auto py-10 px-4 sm:px-6 lg:px-8">
+    <%
+        const canAccessExecution = user?.roles?.some(
+            role => role.code === 'ENGINEER' || role.code === 'MECHANIC' || role.code === 'SUPERVISOR'
+        );
+    %>
     <div class="flex justify-between items-center mb-8">
         <div>
             <h1 class="text-3xl font-bold text-gray-900">Workpack Fleet</h1>
@@ -62,6 +67,11 @@
                                         </td>
 
                                         <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                            <% if (canAccessExecution) { %>
+                                                <a href="/workpacks/<%= wp.id %>/execution" class="mr-4 text-slate-700 hover:text-slate-900">
+                                                    Open Execution
+                                                </a>
+                                            <% } %>
                                             <a href="/workpacks/<%= wp.id %>/tasks" class="text-blue-600 hover:text-blue-900">
                                                 View Detail
                                             </a>

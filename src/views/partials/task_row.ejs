@@ -3,7 +3,7 @@
   const isEngineer = user?.roles?.some(role => role.code === 'ENGINEER');
   const packIsExecutable = pack?.WorkpackStatus?.code === 'ISSUED' || pack?.WorkpackStatus?.code === 'IN_PROGRESS';
   const taskEditable = !['CERTIFIED_BY_ENGINEER', 'LOCKED'].includes(task.status);
-  const canEditMeasurements = isMechanic && packIsExecutable && taskEditable;
+  const canEditMeasurements = isMechanic && packIsExecutable && task.status === 'IN_PROGRESS';
   const escapeHtml = (value) =>
     String(value || '')
       .replace(/&/g, '&amp;')
@@ -84,7 +84,7 @@
       </div>
     <% } %>
 
-    <% if (isMechanic && packIsExecutable && taskEditable) { %>
+    <% if (isMechanic && packIsExecutable && task.status === 'IN_PROGRESS') { %>
       <form
         method="POST"
         action="/workpacks/tasks/<%= task.id %>/work-note"

@@ -1,0 +1,50 @@
+Follow the CHATGPT AI CODE CONTRACT.
+
+Key rules:
+
+* FULL FILES ONLY (no snippets, no partials)
+* NO GUESSING (ask for files or DDL if missing)
+* DO NOT refactor or change unrelated code
+* PRESERVE all existing logic and structure
+
+Process:
+
+1. Confirm understanding
+2. List files needed or to be changed
+3. If anything is missing → request it
+4. WAIT before writing code
+
+Task:
+[WRITE YOUR TASK HERE]
+-------------------------------------------------------------------------
+✅ Example — fixing a bug
+Follow the CHATGPT AI CODE CONTRACT.
+
+Key rules:
+- FULL FILES ONLY
+- NO GUESSING
+
+Fix this error in measurement.service.ts:
+[paste error]
+
+------------------------------------------------------------------------
+✅ Example — new feature
+Follow the CHATGPT AI CODE CONTRACT.
+
+Key rules:
+- FULL FILES ONLY
+- NO GUESSING
+
+Add recurring snag detection to workpacks.
+
+First inspect structure and tell me what files are required.
+Do NOT write code yet.
+
+---------------------------------------------------------------------------------
+✅ Example — when you want control
+Follow the CHATGPT AI CODE CONTRACT.
+
+Do NOT write code yet.
+
+Explain the safest implementation plan.
+List all files required.

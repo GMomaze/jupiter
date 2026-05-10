@@ -80,5 +80,19 @@ WorkpackSnagAuditLog.init(
     tableName: 'workpack_snag_audit_log',
     underscored: true,
     timestamps: false,
+    hooks: {
+      beforeUpdate() {
+        throw new Error('AUDIT_LOG_IMMUTABLE');
+      },
+      beforeDestroy() {
+        throw new Error('AUDIT_LOG_IMMUTABLE');
+      },
+      beforeBulkUpdate() {
+        throw new Error('AUDIT_LOG_IMMUTABLE');
+      },
+      beforeBulkDestroy() {
+        throw new Error('AUDIT_LOG_IMMUTABLE');
+      },
+    },
   }
 );

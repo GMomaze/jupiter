@@ -1,76 +1,100 @@
-✅ FINAL WORKFLOW (NEW SESSION)
-
-You do NOT paste multiple files one by one.
-
-You do this:
-
-🔹 STEP 1 — Use your snippet
+🔹 STEP 1 — Start with your snippet
 
 In VS Code:
 
 jstart + TAB
 
-Then fill:
+Fill it like:
 
-Active Phase: 3.1 — CRS document design
+Jupiter system — strict execution.
+
+Follow SESSION_START_PROTOCOL.
+
+Rules:
+- Single phase only
+- Define → Implement → Verify
+- FULL file responses only if code is ever returned
+- No refactoring
+- No schema changes unless explicitly approved
+- Schema is locked
+- Idempotent + transaction-safe
+- Verify with PASS/FAIL only
+
+Important:
+ChatGPT must NOT write implementation code directly.
+Codex must be used for implementation.
+
+Active Phase: X.X — <phase name>
 Mode: DEFINE
-🔹 STEP 2 — ADD ONE LINE (IMPORTANT)
-
-Right under it, add:
-
+🔹 STEP 2 — Add THIS line (you already do this right)
 Follow SESSION_START_PROTOCOL and use Codex for implementation (no direct code).
-🔹 STEP 3 — PASTE INTO CHATGPT
 
-That’s it.
+👉 This is critical. Keep it.
 
-🧠 What happens internally
+🔹 STEP 3 — Send it
 
-Your prompt already forces:
+That’s your entire start.
 
-MASTER_PROMPT → behavior
-SESSION_PROTOCOL → order (DEFINE → IMPLEMENT → VERIFY)
-CODEX RULE → no direct code
+❗ WHAT YOU DO NEXT (THIS IS WHAT YOU WERE MISSING)
 
-So you do NOT need to paste:
+After ChatGPT responds:
 
-❌ MASTER_EXECUTION_PLAN.md
-❌ SESSION_START_PROTOCOL.md
-❌ database.md
-❌ workflows.md
-🔒 WHY THIS WORKS
+👉 You must immediately give it the phase doc
 
-Because your short prompt now acts as:
+Example:
 
-Control layer → not documentation
-⚠️ IMPORTANT RULE
+Use docs/ChatGPT/ver2/phase-6.2-snag-suggestion-ui.md
 
-If the AI:
+Verify ONLY:
+Phase 6.2 — Snag Suggestion UI (Read-Only)
 
-writes code during DEFINE
-skips .md creation
-ignores phase
+OR for DEFINE:
 
-👉 you immediately respond:
+Create phase-6.2-snag-suggestion-ui.md
+🧠 KEY CLARIFICATION
+
+You said:
+
+“You don’t give files anymore”
+
+That’s not fully correct.
+
+✅ You DO give:
+Phase instruction (short)
++ reference to the phase .md
+❌ You do NOT give:
+❌ full database.md
+❌ full workflows.md
+❌ full master plan
+🔥 SIMPLE RULE
+New session =
+1 prompt (control)
++ 1 instruction (phase)
+⚠️ When things go wrong
+
+If ChatGPT:
+
+writes code in DEFINE ❌
+skips docs ❌
+mixes phases ❌
+
+You reply:
 
 Invalid. Follow SESSION_START_PROTOCOL.
-DEFINE mode does not allow code.
-🚀 WHEN YOU MOVE TO IMPLEMENT
+Mode violation.
+🚀 IMPLEMENT MODE (important)
 
-Then you use:
+When switching:
 
-Active Phase: 3.1 — CRS document design
+Active Phase: X.X — <phase>
 Mode: IMPLEMENT
 
-Use Codex instructions only. Do not write code.
-🎯 FINAL ANSWER (your exact question)
+Use Codex only. Do not write code.
+👍 Bottom line
 
-what is the order of files i give it
+Your understanding is 90% correct.
 
-You don’t give files anymore.
-You give ONE controlled prompt.
-👍 You are now set up correctly
+Final correction:
 
-If you want next:
-
-👉 I can give you exact Codex commands (copy/paste)
-👉 or we run Phase 3.1 verify properly under the new system
+You don't paste multiple files
+BUT you DO reference the phase .md

@@ -1,4 +1,4 @@
-import { Aircraft, TaskCard } from '../../../models/index.js';
+import { TaskCard } from '../../../models/index.js';
 import { AuditService } from '../../audit/audit.service.js';
 import { MeasurementService } from './measurement.service.js';
 import { SnagService } from './snag.service.js';
@@ -20,10 +20,11 @@ type ExecutablePackResult = {
 
 export class TaskExecutionService {
   static async createExecutionSnag(params: {
-    workpack_id: string;
+    workpack_id?: string | null;
     aircraft_id: string;
-    description: string;
-    user_id: string;
+    component_id?: string | null;
+    defect_text: string;
+    created_by: string;
   }) {
     return SnagService.createSnag(params);
   }
@@ -283,22 +284,26 @@ export class TaskExecutionService {
   static async signTask(
     taskId: string,
     actorId: string | undefined,
+    actorRoles: string[],
     sequelize: any,
     requireAuth: (actorId?: string) => void,
     getExecutablePackForTask: (
       taskId: string,
       transaction: any
     ) => Promise<ExecutablePackResult>,
-    ensureExecutionForTask: (
+    getLatestExecution: (
       packId: string,
-      task: any,
-      actorId: string | undefined,
+      taskId: string,
       transaction: any
     ) => Promise<any>
   ) {
     requireAuth(actorId);
 
     return sequelize.transaction(async (transaction: any) => {
+      if (!actorRoles.includes('ENGINEER')) {
+        throw new Error('TASK_CERTIFY_ROLE_BLOCKED');
+      }
+
       const task = await TaskCard.findByPk(taskId, {
         transaction,
         lock: transaction.LOCK.UPDATE
@@ -308,94 +313,39 @@ export class TaskExecutionService {
 
       const { pack } = await getExecutablePackForTask(taskId, transaction);
 
+      if (task.status === 'LOCKED') {
+        throw new Error('TASK_CERTIFY_LOCKED');
+      }
+
       if (task.status !== 'COMPLETED_BY_MECHANIC') {
         throw new Error('TASK_CERTIFY_BLOCKED');
       }
 
-      const execution = await ensureExecutionForTask(pack.id, task, actorId, transaction);
+      const execution = await getLatestExecution(pack.id, task.id, transaction);
+      if (!execution) {
+        throw new Error('TASK_CERTIFY_EXECUTION_MISSING');
+      }
+
+      if (execution.status !== 'COMPLETED_BY_MECHANIC') {
+        throw new Error('TASK_CERTIFY_EXECUTION_BLOCKED');
+      }
+
       const previousTaskStatus = task.status;
       const previousExecutionStatus = execution.status;
+      const certificationTimestamp = new Date();
 
       task.status = 'CERTIFIED_BY_ENGINEER';
       (task as any).engineer_certified_by = actorId ?? null;
-      (task as any).engineer_certified_at = new Date();
+      (task as any).engineer_certified_at = certificationTimestamp;
       task.version = (task.version || 0) + 1;
 
       await task.save({ transaction });
 
-      if (!execution.started_at) {
-        execution.started_at = new Date();
-      }
-      if (!execution.completed_at) {
-        execution.completed_at = new Date();
-      }
-      if (!execution.started_by) {
-        execution.started_by = (task as any).assigned_to || actorId || null;
-      }
-      if (!execution.completed_by) {
-        execution.completed_by = (task as any).mechanic_completed_by || actorId || null;
-      }
       execution.status = 'CERTIFIED_BY_ENGINEER';
       execution.certified_by = actorId ?? null;
-      execution.certified_at = new Date();
+      execution.certified_at = certificationTimestamp;
       execution.version = (execution.version || 0) + 1;
       await execution.save({ transaction });
-
-      if ((task as any).compliance_item_id) {
-        const aircraft = await Aircraft.findByPk((task as any).aircraft_id, {
-          attributes: ['id', 'total_time_hours'],
-          transaction,
-        });
-
-        const aircraftTotalTimeHours =
-          aircraft && (aircraft as any).total_time_hours !== null && (aircraft as any).total_time_hours !== undefined
-            ? Number((aircraft as any).total_time_hours)
-            : null;
-
-        await sequelize.query(
-          `
-          UPDATE workpack_compliance
-          SET status = 'COMPLETED',
-              completed_at = CURRENT_TIMESTAMP,
-              updated_at = CURRENT_TIMESTAMP
-          WHERE task_id = :taskId
-          `,
-          {
-            replacements: {
-              taskId: task.id,
-            },
-            transaction,
-          }
-        );
-
-        await sequelize.query(
-          `
-          UPDATE aircraft_compliance
-          SET status = 'COMPLIANT',
-              last_complied_at = CURRENT_TIMESTAMP,
-              last_complied_hours = :lastCompliedHours,
-              updated_at = CURRENT_TIMESTAMP
-          WHERE aircraft_id = :aircraftId
-            AND compliance_item_id = :complianceItemId
-          `,
-          {
-            replacements: {
-              aircraftId: (task as any).aircraft_id,
-              complianceItemId: (task as any).compliance_item_id,
-              lastCompliedHours: aircraftTotalTimeHours,
-            },
-            transaction,
-          }
-        );
-      }
-
-      await WorkpackExecutionService.recordExecutionSignature(
-        execution.id,
-        'ENGINEER',
-        'APPROVAL',
-        actorId,
-        transaction
-      );
 
       await AuditService.log({
         table_name: 'task_cards',
@@ -421,23 +371,6 @@ export class TaskExecutionService {
         },
         metadata: {
           certified_at: execution.certified_at?.toISOString?.() || execution.certified_at || null,
-        },
-      }, transaction);
-      await WorkpackAuditService.appendExecutionAuditEntry({
-        executionId: execution.id,
-        workpackId: pack.id,
-        taskId: task.id,
-        userId: actorId,
-        action: 'SIGNATURE_RECORDED',
-        field: 'engineer_signature',
-        oldValue: null,
-        newValue: {
-          role: 'ENGINEER',
-          signature_type: 'APPROVAL',
-          user_id: actorId ?? null,
-        },
-        metadata: {
-          signed_at: new Date().toISOString(),
         },
       }, transaction);
 
@@ -467,7 +400,7 @@ export class TaskExecutionService {
 
       await getExecutablePackForTask(taskId, transaction);
 
-      if (!['CERTIFIED_BY_ENGINEER', 'SIGNED'].includes(task.status)) {
+      if (task.status !== 'CERTIFIED_BY_ENGINEER') {
         throw new Error('TASK_LOCK_BLOCKED');
       }
 

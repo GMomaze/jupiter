@@ -36,6 +36,29 @@ type WorkpackValidationRow = {
   status_code: string | null;
   certified_by: string | null;
   certified_at: Date | string | null;
+  registration: string | null;
+  serial_number: string | null;
+  aircraft_model: string | null;
+};
+
+type ValidationStatusCountRow = {
+  status: string;
+  count: string | number;
+};
+
+type ValidationComplianceRow = {
+  item_type: 'AD' | 'SB';
+  code: string;
+  title: string;
+};
+
+type ValidationSnagCountRow = {
+  count: string | number;
+};
+
+type CrsValidationIssue = {
+  code: string;
+  message: string;
 };
 
 export class CrsDataService {
@@ -63,6 +86,28 @@ export class CrsDataService {
 
     const parsed = value instanceof Date ? value : new Date(value);
     return Number.isNaN(parsed.getTime()) ? null : parsed;
+  }
+
+  private static toCount(value: string | number | null | undefined) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+
+  private static pluralize(count: number, singular: string, plural?: string) {
+    return `${count} ${count === 1 ? singular : plural || `${singular}s`}`;
+  }
+
+  private static summarizeTaskStatus(status: string, count: number) {
+    switch (status) {
+      case 'OPEN':
+        return `${this.pluralize(count, 'task')} ${count === 1 ? 'is' : 'are'} still OPEN`;
+      case 'IN_PROGRESS':
+        return `${this.pluralize(count, 'task')} ${count === 1 ? 'is' : 'are'} still IN_PROGRESS`;
+      case 'COMPLETED_BY_MECHANIC':
+        return `${this.pluralize(count, 'task')} ${count === 1 ? 'is' : 'are'} still awaiting engineer certification`;
+      default:
+        return `${this.pluralize(count, 'task')} ${count === 1 ? 'is' : 'are'} not release-ready (${status})`;
+    }
   }
 
   static async getCrsDataForWorkpack(workpackId: string, transaction?: any) {
@@ -208,6 +253,7 @@ export class CrsDataService {
 
   static async validateCrsGeneration(workpackId: string, transaction?: any) {
     const errors: string[] = [];
+    const issues: CrsValidationIssue[] = [];
 
     const validationRows = await sequelize.query<WorkpackValidationRow>(
       `
@@ -215,10 +261,17 @@ export class CrsDataService {
         w.id AS workpack_id,
         s.code AS status_code,
         w.certified_by,
-        w.certified_at
+        w.certified_at,
+        a.registration,
+        a.serial_number,
+        cm.model_name AS aircraft_model
       FROM workpacks w
       LEFT JOIN rf_workpack_status s
         ON s.id = w.status_id
+      LEFT JOIN aircraft a
+        ON a.id = w.aircraft_id
+      LEFT JOIN component_models cm
+        ON cm.id = a.model_id
       WHERE w.id = :workpackId
       LIMIT 1
       `,
@@ -235,32 +288,67 @@ export class CrsDataService {
       return {
         valid: false,
         errors: ['WORKPACK_NOT_FOUND'],
+        issues: [
+          {
+            code: 'WORKPACK_NOT_FOUND',
+            message: 'Workpack was not found',
+          },
+        ],
       };
     }
 
     if (workpack.status_code !== 'CERTIFIED') {
       errors.push('WORKPACK_STATUS_NOT_CERTIFIED');
+      issues.push({
+        code: 'WORKPACK_STATUS_NOT_CERTIFIED',
+        message: 'Workpack is not CERTIFIED',
+      });
     }
 
     if (!workpack.certified_by) {
       errors.push('WORKPACK_CERTIFIED_BY_MISSING');
+      issues.push({
+        code: 'WORKPACK_CERTIFIED_BY_MISSING',
+        message: 'Certification record is missing certified_by',
+      });
     }
 
     if (!this.toDate(workpack.certified_at)) {
       errors.push('WORKPACK_CERTIFIED_AT_MISSING');
+      issues.push({
+        code: 'WORKPACK_CERTIFIED_AT_MISSING',
+        message: 'Certification record is missing certified_at',
+      });
     }
 
-    const invalidTaskRows = await sequelize.query<{ task_id: string; status: string }>(
+    if (!String(workpack.registration || '').trim()) {
+      errors.push('WORKPACK_AIRCRAFT_REGISTRATION_MISSING');
+      issues.push({
+        code: 'WORKPACK_AIRCRAFT_REGISTRATION_MISSING',
+        message: 'Aircraft registration is missing',
+      });
+    }
+
+    if (!String(workpack.aircraft_model || '').trim()) {
+      errors.push('WORKPACK_AIRCRAFT_MODEL_MISSING');
+      issues.push({
+        code: 'WORKPACK_AIRCRAFT_MODEL_MISSING',
+        message: 'Aircraft type/model is missing',
+      });
+    }
+
+    const invalidTaskRows = await sequelize.query<ValidationStatusCountRow>(
       `
       SELECT
-        t.id AS task_id,
-        t.status
+        t.status,
+        COUNT(*) AS count
       FROM task_cards t
       JOIN workpack_tasks wt
         ON wt.task_id = t.id
       WHERE wt.workpack_id = :workpackId
         AND t.status NOT IN ('CERTIFIED_BY_ENGINEER', 'LOCKED')
-      LIMIT 1
+      GROUP BY t.status
+      ORDER BY t.status ASC
       `,
       {
         replacements: { workpackId },
@@ -271,15 +359,26 @@ export class CrsDataService {
 
     if (invalidTaskRows.length > 0) {
       errors.push('WORKPACK_HAS_UNCERTIFIED_TASKS');
+      invalidTaskRows.forEach((row) => {
+        issues.push({
+          code: 'WORKPACK_HAS_UNCERTIFIED_TASKS',
+          message: this.summarizeTaskStatus(row.status, this.toCount(row.count)),
+        });
+      });
     }
 
-    const incompleteComplianceRows = await sequelize.query<{ id: string }>(
+    const incompleteComplianceRows = await sequelize.query<ValidationComplianceRow>(
       `
-      SELECT id
+      SELECT
+        ci.item_type,
+        ci.code,
+        ci.title
       FROM workpack_compliance
+      JOIN compliance_items ci
+        ON ci.id = workpack_compliance.compliance_item_id
       WHERE workpack_id = :workpackId
         AND status != 'COMPLETED'
-      LIMIT 1
+      ORDER BY ci.item_type ASC, ci.code ASC
       `,
       {
         replacements: { workpackId },
@@ -290,15 +389,20 @@ export class CrsDataService {
 
     if (incompleteComplianceRows.length > 0) {
       errors.push('WORKPACK_HAS_INCOMPLETE_COMPLIANCE');
+      incompleteComplianceRows.forEach((row) => {
+        issues.push({
+          code: 'WORKPACK_HAS_INCOMPLETE_COMPLIANCE',
+          message: `Compliance item ${row.item_type} ${row.code} is not COMPLETED`,
+        });
+      });
     }
 
-    const openSnagRows = await sequelize.query<{ id: string }>(
+    const openSnagRows = await sequelize.query<ValidationSnagCountRow>(
       `
-      SELECT id
+      SELECT COUNT(*) AS count
       FROM workpack_snags
       WHERE workpack_id = :workpackId
         AND status != 'CLOSED'
-      LIMIT 1
       `,
       {
         replacements: { workpackId },
@@ -307,13 +411,28 @@ export class CrsDataService {
       }
     );
 
-    if (openSnagRows.length > 0) {
+    const openSnagCount = this.toCount(openSnagRows[0]?.count);
+
+    if (openSnagCount > 0) {
       errors.push('WORKPACK_HAS_OPEN_SNAGS');
+      issues.push({
+        code: 'WORKPACK_HAS_OPEN_SNAGS',
+        message: `${this.pluralize(openSnagCount, 'snag')} ${openSnagCount === 1 ? 'is' : 'are'} not CLOSED`,
+      });
     }
 
     return {
       valid: errors.length === 0,
       errors,
+      issues,
     };
+  }
+
+  static async assertCrsGenerationAllowed(workpackId: string, transaction?: any) {
+    const validation = await this.validateCrsGeneration(workpackId, transaction);
+
+    if (!validation.valid) {
+      throw new Error(validation.errors[0] || 'WORKPACK_CRS_VALIDATION_FAILED');
+    }
   }
 }

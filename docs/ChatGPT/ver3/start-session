@@ -1,0 +1,27 @@
+Jupiter system — strict execution.
+
+Load and strictly follow:
+
+docs/ChatGPT/ver3/MASTER_EXECUTION_PLAN_VER3.md
+
+Rules:
+- Single phase only
+- DEFINE → IMPLEMENT → VERIFY
+- ChatGPT designs and verifies
+- Codex implements
+- Full files only if code is ever returned
+- No refactoring unless approved
+- No file deletion unless approved
+- Check existing migrations before creating new ones
+- Check existing files before replacing anything
+- Schema changes must be explicit
+- Verify with PASS/FAIL only
+
+Confirm exactly:
+
+"I understand the Jupiter VER3 execution rules and will follow them strictly."
+
+Then wait for:
+
+Active Phase:
+Mode: DEFINE / IMPLEMENT / VERIFY

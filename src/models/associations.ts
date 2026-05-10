@@ -1,3 +1,5 @@
+import { AirworthinessDirective } from './AirworthinessDirective.js';
+import { AdRelationship } from './AdRelationship.js';
 import { AssetType } from './AssetType.js';
 import { Manufacturer } from './Manufacturer.js';
 import { ComponentModel } from './ComponentModel.js';
@@ -6,6 +8,14 @@ import { ServiceBulletinModel } from './ServiceBulletinModel.js';
 import { AircraftSbCompliance } from './AircraftSbCompliance.js';
 import { CessnaSid } from './cessnaSid.model.js';
 import { ModelSid } from './ModelSid.js';
+import { SupplementalInspectionDocument } from './SupplementalInspectionDocument.js';
+import { SidModelApplicability } from './SidModelApplicability.js';
+import { MaintenanceTemplate } from './MaintenanceTemplate.js';
+import { MaintenanceTemplateItem } from './MaintenanceTemplateItem.js';
+import { PlanningSession } from './PlanningSession.js';
+import { Customer } from './Customer.js';
+import { CustomerAircraftLink } from './CustomerAircraftLink.js';
+import { CustomerUser } from './CustomerUser.js';
 
 import { Aircraft } from './core/Aircraft.js';
 import { AircraftComponent } from './core/AircraftComponent.js';
@@ -35,6 +45,15 @@ import { UserRole } from './rbac/UserRole.js';
 /* ============================================================
    CORE DOMAIN ASSOCIATIONS
 ============================================================ */
+
+AirworthinessDirective.hasMany(AdRelationship, {
+  foreignKey: 'ad_id',
+  as: 'Relationships',
+});
+AdRelationship.belongsTo(AirworthinessDirective, {
+  foreignKey: 'ad_id',
+  as: 'AirworthinessDirective',
+});
 
 AssetType.hasMany(ComponentModel, { foreignKey: 'asset_type_id' });
 ComponentModel.belongsTo(AssetType, { foreignKey: 'asset_type_id' });
@@ -66,6 +85,22 @@ CessnaSid.belongsToMany(ComponentModel, {
   foreignKey: 'sid_id',
   otherKey: 'model_id',
   as: 'ApplicableModels',
+});
+SupplementalInspectionDocument.hasMany(SidModelApplicability, {
+  foreignKey: 'sid_id',
+  as: 'ModelApplicability',
+});
+SidModelApplicability.belongsTo(SupplementalInspectionDocument, {
+  foreignKey: 'sid_id',
+  as: 'SupplementalInspectionDocument',
+});
+ComponentModel.hasMany(SidModelApplicability, {
+  foreignKey: 'model_id',
+  as: 'SidApplicability',
+});
+SidModelApplicability.belongsTo(ComponentModel, {
+  foreignKey: 'model_id',
+  as: 'ComponentModel',
 });
 
 Aircraft.belongsTo(ComponentModel, { foreignKey: 'model_id' });
@@ -133,6 +168,7 @@ WorkpackAuditLog.belongsTo(User, { foreignKey: 'user_id', as: 'Actor' });
 
 Workpack.hasMany(WorkpackSnag, { foreignKey: 'workpack_id', as: 'Snags' });
 WorkpackSnag.belongsTo(Workpack, { foreignKey: 'workpack_id', as: 'Workpack' });
+WorkpackSnag.belongsTo(AircraftComponent, { foreignKey: 'component_id', as: 'Component' });
 WorkpackSnag.belongsTo(User, { foreignKey: 'created_by', as: 'Reporter' });
 WorkpackSnag.belongsTo(User, { foreignKey: 'assigned_to', as: 'Assignee' });
 WorkpackSnag.belongsTo(User, { foreignKey: 'started_by', as: 'Starter' });
@@ -149,6 +185,78 @@ User.hasMany(AuditLog, { foreignKey: 'actor_id' });
 
 ComponentModel.hasMany(MaintenanceRequirement, { foreignKey: 'model_id' });
 MaintenanceRequirement.belongsTo(ComponentModel, { foreignKey: 'model_id' });
+ComponentModel.hasMany(MaintenanceTemplate, {
+  foreignKey: 'model_id',
+  as: 'MaintenanceTemplates',
+});
+MaintenanceTemplate.belongsTo(ComponentModel, {
+  foreignKey: 'model_id',
+  as: 'ComponentModel',
+});
+MaintenanceTemplate.hasMany(MaintenanceTemplateItem, {
+  foreignKey: 'template_id',
+  as: 'Items',
+});
+MaintenanceTemplateItem.belongsTo(MaintenanceTemplate, {
+  foreignKey: 'template_id',
+  as: 'Template',
+});
+PlanningSession.belongsTo(User, {
+  foreignKey: 'user_id',
+  as: 'Owner',
+});
+PlanningSession.belongsTo(User, {
+  foreignKey: 'created_by',
+  as: 'Creator',
+});
+PlanningSession.belongsTo(User, {
+  foreignKey: 'finalized_by',
+  as: 'Finalizer',
+});
+PlanningSession.belongsTo(Aircraft, {
+  foreignKey: 'aircraft_id',
+  as: 'Aircraft',
+});
+PlanningSession.belongsTo(MaintenanceTemplate, {
+  foreignKey: 'template_id',
+  as: 'Template',
+});
+PlanningSession.belongsTo(Workpack, {
+  foreignKey: 'generated_workpack_id',
+  as: 'GeneratedWorkpack',
+});
+PlanningSession.hasMany(Workpack, {
+  foreignKey: 'planning_session_id',
+  as: 'GeneratedWorkpacks',
+});
+Workpack.belongsTo(PlanningSession, {
+  foreignKey: 'planning_session_id',
+  as: 'PlanningSession',
+});
+Customer.hasMany(CustomerAircraftLink, {
+  foreignKey: 'customer_id',
+  as: 'AircraftLinks',
+});
+CustomerAircraftLink.belongsTo(Customer, {
+  foreignKey: 'customer_id',
+  as: 'Customer',
+});
+Aircraft.hasMany(CustomerAircraftLink, {
+  foreignKey: 'aircraft_id',
+  as: 'CustomerLinks',
+});
+CustomerAircraftLink.belongsTo(Aircraft, {
+  foreignKey: 'aircraft_id',
+  as: 'Aircraft',
+});
+Customer.hasMany(CustomerUser, {
+  foreignKey: 'customer_id',
+  as: 'Users',
+});
+CustomerUser.belongsTo(Customer, {
+  foreignKey: 'customer_id',
+  as: 'Customer',
+});
 
 /* ============================================================
    RBAC ASSOCIATIONS (CRITICAL FIX)

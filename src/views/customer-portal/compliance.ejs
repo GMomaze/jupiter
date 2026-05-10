@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>JUPITER AMMS - Customer Compliance</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <style>
+    :root {
+      --bg-top: #08111f;
+      --bg-bottom: #17314e;
+      --panel: rgba(8, 16, 30, 0.86);
+      --panel-border: rgba(148, 163, 184, 0.18);
+      --text: #e6eef8;
+      --muted: #9fb1c7;
+      --accent: #38bdf8;
+      --line: rgba(148, 163, 184, 0.16);
+      --badge: rgba(14, 116, 144, 0.24);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: var(--text);
+      background:
+        radial-gradient(circle at top, rgba(56, 189, 248, 0.2), transparent 34%),
+        linear-gradient(160deg, var(--bg-top) 0%, #10233b 55%, var(--bg-bottom) 100%);
+      padding: 24px;
+    }
+
+    .shell {
+      max-width: 1040px;
+      margin: 0 auto;
+      border-radius: 24px;
+      background: var(--panel);
+      border: 1px solid var(--panel-border);
+      box-shadow: 0 28px 80px rgba(0, 0, 0, 0.4);
+      overflow: hidden;
+      backdrop-filter: blur(12px);
+    }
+
+    .hero {
+      padding: 32px 36px 24px;
+      border-bottom: 1px solid var(--line);
+      background:
+        linear-gradient(135deg, rgba(2, 132, 199, 0.16), rgba(37, 99, 235, 0.04));
+    }
+
+    .eyebrow {
+      text-transform: uppercase;
+      letter-spacing: 0.16em;
+      font-size: 11px;
+      color: var(--accent);
+      margin-bottom: 10px;
+    }
+
+    .title {
+      margin: 0 0 8px;
+      font-size: 30px;
+      line-height: 1.1;
+    }
+
+    .subtitle {
+      margin: 0;
+      max-width: 760px;
+      color: var(--muted);
+      line-height: 1.6;
+      font-size: 15px;
+    }
+
+    .topbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+      margin-top: 22px;
+      flex-wrap: wrap;
+    }
+
+    .nav {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .nav-link,
+    .logout-btn {
+      border: 1px solid rgba(148, 163, 184, 0.24);
+      background: transparent;
+      color: var(--text);
+      padding: 10px 14px;
+      border-radius: 10px;
+      font-size: 14px;
+      font-weight: 600;
+      text-decoration: none;
+      cursor: pointer;
+    }
+
+    .nav-link.active {
+      border-color: rgba(56, 189, 248, 0.45);
+      color: #ffffff;
+    }
+
+    .logout-btn:hover,
+    .nav-link:hover {
+      border-color: rgba(56, 189, 248, 0.45);
+      color: #ffffff;
+    }
+
+    .content {
+      padding: 28px 36px 36px;
+      display: grid;
+      gap: 18px;
+    }
+
+    .summary {
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 18px;
+      background: rgba(15, 23, 42, 0.7);
+      color: var(--muted);
+      line-height: 1.6;
+      font-size: 14px;
+    }
+
+    .grid {
+      display: grid;
+      gap: 16px;
+    }
+
+    .item-card {
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      padding: 20px;
+      background: rgba(15, 23, 42, 0.74);
+    }
+
+    .row {
+      display: flex;
+      justify-content: space-between;
+      gap: 18px;
+      flex-wrap: wrap;
+      align-items: flex-start;
+    }
+
+    .item-title {
+      margin: 0;
+      font-size: 23px;
+      line-height: 1.1;
+    }
+
+    .meta {
+      margin-top: 8px;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.5;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 7px 10px;
+      border-radius: 999px;
+      background: var(--badge);
+      border: 1px solid rgba(56, 189, 248, 0.22);
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      color: #d6f4ff;
+    }
+
+    .detail-grid {
+      display: grid;
+      gap: 14px;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      margin-top: 18px;
+    }
+
+    .label {
+      display: block;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+      margin-bottom: 6px;
+    }
+
+    .value {
+      font-size: 15px;
+      line-height: 1.4;
+      word-break: break-word;
+    }
+
+    .empty {
+      border: 1px dashed rgba(148, 163, 184, 0.24);
+      border-radius: 16px;
+      padding: 28px;
+      color: var(--muted);
+      text-align: center;
+      line-height: 1.6;
+      background: rgba(15, 23, 42, 0.52);
+    }
+
+    @media (max-width: 640px) {
+      .hero,
+      .content {
+        padding-left: 22px;
+        padding-right: 22px;
+      }
+
+      .title {
+        font-size: 24px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <section class="hero">
+      <div class="eyebrow">Customer Portal</div>
+      <h1 class="title">Compliance Summary</h1>
+      <p class="subtitle">
+        This view includes only customer-safe compliance summaries tied to aircraft visible through your current approved customer-aircraft relationships.
+        Internal compliance notes, workflow routing, approval logic, planning data, audit data, and execution-control detail are intentionally excluded.
+      </p>
+
+      <div class="topbar">
+        <nav class="nav" aria-label="Customer portal navigation">
+          <a class="nav-link" href="/customer-portal">Portal Shell</a>
+          <a class="nav-link" href="/customer-portal/aircraft">Aircraft</a>
+          <a class="nav-link" href="/customer-portal/workpacks">Workpacks</a>
+          <a class="nav-link" href="/customer-portal/documents">Documents</a>
+          <a class="nav-link active" href="/customer-portal/compliance">Compliance</a>
+        </nav>
+
+        <form method="POST" action="/customer-auth/logout">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+          <button class="logout-btn" type="submit">Logout</button>
+        </form>
+      </div>
+    </section>
+
+    <section class="content">
+      <section class="summary">
+        Signed in as <strong><%= customerUser.display_name %></strong> (<%= customerUser.email %>).
+        <% if (customerName) { %>
+          Linked customer business: <strong><%= customerName %></strong>.
+        <% } %>
+      </section>
+
+      <% if (complianceSummaries && complianceSummaries.length > 0) { %>
+        <section class="grid">
+          <% complianceSummaries.forEach((item) => { %>
+            <article class="item-card">
+              <div class="row">
+                <div>
+                  <h2 class="item-title"><%= item.referenceCode %></h2>
+                  <div class="meta"><%= item.title %></div>
+                </div>
+                <div>
+                  <span class="badge"><%= item.status %></span>
+                </div>
+              </div>
+
+              <div class="detail-grid">
+                <div>
+                  <span class="label">Aircraft Registration</span>
+                  <div class="value"><%= item.aircraftRegistration %></div>
+                </div>
+                <div>
+                  <span class="label">Compliance Item Type</span>
+                  <div class="value"><%= item.itemType %></div>
+                </div>
+                <div>
+                  <span class="label">Reference Code</span>
+                  <div class="value"><%= item.referenceCode %></div>
+                </div>
+                <div>
+                  <span class="label">Compliance Title</span>
+                  <div class="value"><%= item.title %></div>
+                </div>
+                <div>
+                  <span class="label">Due Summary</span>
+                  <div class="value"><%= item.dueAt ? new Date(item.dueAt).toLocaleString() : 'Not available' %></div>
+                </div>
+                <div>
+                  <span class="label">Completed Summary</span>
+                  <div class="value"><%= item.completedAt ? new Date(item.completedAt).toLocaleString() : 'Not available' %></div>
+                </div>
+              </div>
+            </article>
+          <% }) %>
+        </section>
+      <% } else { %>
+        <section class="empty">
+          No customer-safe compliance summaries are currently available for this customer under the allowed current visibility relationships.
+        </section>
+      <% } %>
+    </section>
+  </main>
+</body>
+</html>

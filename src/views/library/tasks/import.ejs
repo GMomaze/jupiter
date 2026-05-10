@@ -1,0 +1,73 @@
+<%- include('../../partials/header') %>
+
+<main class="max-w-4xl mx-auto py-10 px-6 space-y-8">
+  <% if (messages?.success?.length || messages?.error?.length) { %>
+    <section class="space-y-3">
+      <% (messages?.success || []).forEach((message) => { %>
+        <div class="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+          <%= message %>
+        </div>
+      <% }) %>
+      <% (messages?.error || []).forEach((message) => { %>
+        <div class="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
+          <%= message %>
+        </div>
+      <% }) %>
+    </section>
+  <% } %>
+
+  <div>
+    <a href="/library" class="text-sm text-blue-600 hover:underline">Back to Library</a>
+  </div>
+
+  <section class="bg-white border rounded-xl p-6 shadow-sm space-y-5">
+    <div>
+      <h1 class="text-3xl font-bold text-slate-900">Standard Task CSV Preview</h1>
+      <p class="mt-2 text-sm text-slate-500">
+        Upload a CSV to validate and preview Standard Task rows in memory. This phase does not save anything to the database.
+      </p>
+    </div>
+
+    <form
+      method="POST"
+      action="/library/tasks/import/map?_csrf=<%= encodeURIComponent(csrfToken) %>"
+      enctype="multipart/form-data"
+      class="space-y-4 rounded-lg border border-slate-200 bg-slate-50 p-5"
+    >
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+
+      <div>
+        <p class="text-sm font-semibold text-slate-900">Supported CSV headers</p>
+        <p class="mt-1 text-xs text-slate-500">
+          `title`, `description`, `source_type`, `interval_hours`, `interval_months`, `model_applicability`, `aircraft_applicability`, `is_active`
+        </p>
+      </div>
+
+      <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
+        <input
+          type="file"
+          name="task_csv"
+          accept=".csv,text/csv"
+          required
+          class="block w-full rounded border bg-white px-3 py-2 text-sm text-slate-700"
+        >
+        <button
+          type="submit"
+          class="rounded bg-slate-800 px-4 py-2 text-sm font-bold text-white hover:bg-black"
+        >
+          Continue to Mapping
+        </button>
+      </div>
+
+      <ul class="text-xs text-slate-500 space-y-1">
+        <li>Required: `title`, `description`, `source_type`</li>
+        <li>`interval_hours` and `interval_months` must be numeric if provided</li>
+        <li>`is_active` accepts `true/false`, `yes/no`, `1/0`, `on/off`</li>
+        <li>Empty rows are ignored</li>
+        <li>Unknown columns are reported in preview and do not stop parsing</li>
+      </ul>
+    </form>
+  </section>
+</main>
+
+<%- include('../../partials/footer') %>

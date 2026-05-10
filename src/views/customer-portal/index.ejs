@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>JUPITER AMMS - Customer Portal</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <style>
+    :root {
+      --bg-top: #08111f;
+      --bg-bottom: #17314e;
+      --panel: rgba(8, 16, 30, 0.86);
+      --panel-border: rgba(148, 163, 184, 0.18);
+      --text: #e6eef8;
+      --muted: #9fb1c7;
+      --accent: #38bdf8;
+      --line: rgba(148, 163, 184, 0.16);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: var(--text);
+      background:
+        radial-gradient(circle at top, rgba(56, 189, 248, 0.2), transparent 34%),
+        linear-gradient(160deg, var(--bg-top) 0%, #10233b 55%, var(--bg-bottom) 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+
+    .shell {
+      width: 100%;
+      max-width: 760px;
+      border-radius: 24px;
+      background: var(--panel);
+      border: 1px solid var(--panel-border);
+      box-shadow: 0 28px 80px rgba(0, 0, 0, 0.4);
+      overflow: hidden;
+      backdrop-filter: blur(12px);
+    }
+
+    .hero {
+      padding: 40px 40px 28px;
+      border-bottom: 1px solid var(--line);
+      background:
+        linear-gradient(135deg, rgba(2, 132, 199, 0.16), rgba(37, 99, 235, 0.04));
+    }
+
+    .eyebrow {
+      text-transform: uppercase;
+      letter-spacing: 0.16em;
+      font-size: 11px;
+      color: var(--accent);
+      margin-bottom: 12px;
+    }
+
+    .title {
+      margin: 0 0 10px;
+      font-size: 32px;
+      line-height: 1.1;
+    }
+
+    .subtitle {
+      margin: 0;
+      max-width: 560px;
+      color: var(--muted);
+      line-height: 1.6;
+      font-size: 15px;
+    }
+
+    .content {
+      padding: 28px 40px 36px;
+      display: grid;
+      gap: 18px;
+    }
+
+    .card {
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 20px;
+      background: rgba(15, 23, 42, 0.7);
+    }
+
+    .card-title {
+      margin: 0 0 14px;
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: var(--accent);
+    }
+
+    .identity-grid {
+      display: grid;
+      gap: 14px;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    }
+
+    .label {
+      display: block;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+      margin-bottom: 6px;
+    }
+
+    .value {
+      font-size: 16px;
+      line-height: 1.4;
+      word-break: break-word;
+    }
+
+    .notice {
+      margin: 0;
+      color: var(--muted);
+      line-height: 1.6;
+      font-size: 14px;
+    }
+
+    .actions {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .nav {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .nav-link,
+    .logout-btn {
+      border: 1px solid rgba(148, 163, 184, 0.24);
+      background: transparent;
+      color: var(--text);
+      padding: 11px 16px;
+      border-radius: 10px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      text-decoration: none;
+    }
+
+    .nav-link:hover,
+    .logout-btn:hover {
+      border-color: rgba(56, 189, 248, 0.45);
+      color: #ffffff;
+    }
+
+    @media (max-width: 640px) {
+      .hero,
+      .content {
+        padding-left: 22px;
+        padding-right: 22px;
+      }
+
+      .title {
+        font-size: 26px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <section class="hero">
+      <div class="eyebrow">Customer Portal</div>
+      <h1 class="title">Authenticated Customer Shell</h1>
+      <p class="subtitle">
+        This landing shell confirms customer session identity only. Aircraft, workpacks, documents,
+        and customer-safe compliance summaries are available. Planning, audit, and execution-control information remain intentionally excluded.
+      </p>
+    </section>
+
+    <section class="content">
+      <section class="card">
+        <h2 class="card-title">Session Identity</h2>
+        <div class="identity-grid">
+          <div>
+            <span class="label">Customer User</span>
+            <div class="value"><%= customerUser.display_name %></div>
+          </div>
+          <div>
+            <span class="label">Email</span>
+            <div class="value"><%= customerUser.email %></div>
+          </div>
+          <% if (customerName) { %>
+            <div>
+              <span class="label">Customer Business</span>
+              <div class="value"><%= customerName %></div>
+            </div>
+          <% } %>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2 class="card-title">Boundary</h2>
+        <p class="notice">
+          This page is intentionally limited to safe identity and session confirmation. No aircraft lists,
+          task execution detail, internal workflow controls, staff navigation, or internal operational views
+          are available here.
+        </p>
+      </section>
+
+      <div class="actions">
+        <nav class="nav" aria-label="Customer portal navigation">
+          <a class="nav-link" href="/customer-portal/aircraft">View Aircraft</a>
+          <a class="nav-link" href="/customer-portal/workpacks">View Workpacks</a>
+          <a class="nav-link" href="/customer-portal/documents">View Documents</a>
+          <a class="nav-link" href="/customer-portal/compliance">View Compliance</a>
+        </nav>
+
+        <form method="POST" action="/customer-auth/logout">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+          <button class="logout-btn" type="submit">Logout</button>
+        </form>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

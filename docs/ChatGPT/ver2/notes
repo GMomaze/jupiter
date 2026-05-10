@@ -23,3 +23,18 @@ Recurrence due recalculation deferred until recurrence fields are added to compl
 3.2
 Known limitation:
 certification.licence_number is currently a placeholder / not a true licence field.
+
+6.4
+BACKLOG — Planner Unassigned Tasks UX
+
+Issue:
+Unassigned Tasks are global, not scoped per workpack.
+
+Root cause:
+Tasks filtered against any editable workpack aircraft instead of specific workpack.
+
+Required fix:
+Per-workpack task list or grouped by aircraft.
+
+Status:
+Known issue — not blocking core workflow

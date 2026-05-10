@@ -10,6 +10,18 @@
         </a>
     </div>
 
+    <% if (messages && messages.error && messages.error.length) { %>
+        <div class="mb-6 rounded border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            <%= messages.error[0] %>
+        </div>
+    <% } %>
+
+    <% if (messages && messages.success && messages.success.length) { %>
+        <div class="mb-6 rounded border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+            <%= messages.success[0] %>
+        </div>
+    <% } %>
+
     <div class="mb-8">
         <h1 class="text-3xl font-bold text-gray-900">
             Aircraft: <%= aircraft.registration %>
@@ -337,6 +349,165 @@
             <% } %>
         </div>
     </div>
+
+    <div class="mb-8 grid gap-6 lg:grid-cols-[1fr_1fr]">
+        <div class="rounded-lg bg-white p-6 shadow">
+            <div class="flex items-start justify-between gap-4">
+                <div>
+                    <h2 class="text-lg font-semibold text-slate-900">Current Customer Relationships</h2>
+                    <p class="mt-1 text-sm text-slate-500">
+                        Customer relationships are always driven by explicit customer-aircraft links.
+                    </p>
+                </div>
+                <a href="/customers" class="text-sm font-semibold text-blue-600 hover:underline">
+                    Manage Customers
+                </a>
+            </div>
+
+            <% if (currentCustomerLinks && currentCustomerLinks.length > 0) { %>
+                <div class="mt-4 space-y-4">
+                    <% currentCustomerLinks.forEach((currentCustomerLink) => { %>
+                        <div class="rounded-lg border border-emerald-200 bg-emerald-50 p-4">
+                            <div class="flex items-start justify-between gap-4">
+                                <div>
+                                    <p class="text-lg font-bold text-slate-900">
+                                        <%= currentCustomerLink.Customer?.name || 'Unknown Customer' %>
+                                    </p>
+                                    <p class="mt-1 text-sm text-slate-700">
+                                        Contact: <%= currentCustomerLink.Customer?.contact_person || '-' %>
+                                    </p>
+                                    <p class="text-sm text-slate-700">
+                                        Email: <%= currentCustomerLink.Customer?.email || '-' %>
+                                    </p>
+                                    <p class="text-sm text-slate-700">
+                                        Phone: <%= currentCustomerLink.Customer?.phone || '-' %>
+                                    </p>
+                                </div>
+                                <span class="rounded-full bg-emerald-100 px-3 py-1 text-xs font-bold uppercase tracking-widest text-emerald-700">
+                                    Current
+                                </span>
+                            </div>
+
+                            <div class="mt-4 grid gap-3 md:grid-cols-3 text-sm text-slate-700">
+                                <div>
+                                    <p class="text-xs font-bold uppercase tracking-widest text-slate-500">Relationship Type</p>
+                                    <p class="mt-1"><%= currentCustomerLink.relationship_type %></p>
+                                </div>
+                                <div>
+                                    <p class="text-xs font-bold uppercase tracking-widest text-slate-500">Start Date</p>
+                                    <p class="mt-1"><%= currentCustomerLink.start_date %></p>
+                                </div>
+                                <div>
+                                    <p class="text-xs font-bold uppercase tracking-widest text-slate-500">End Date</p>
+                                    <p class="mt-1"><%= currentCustomerLink.end_date || 'Open' %></p>
+                                </div>
+                            </div>
+
+                            <% if (currentCustomerLink.notes) { %>
+                                <div class="mt-4">
+                                    <p class="text-xs font-bold uppercase tracking-widest text-slate-500">Notes</p>
+                                    <p class="mt-1 whitespace-pre-wrap text-sm text-slate-700"><%= currentCustomerLink.notes %></p>
+                                </div>
+                            <% } %>
+                        </div>
+                    <% }) %>
+                </div>
+            <% } else { %>
+                <div class="mt-4 rounded-lg border border-dashed border-slate-300 bg-slate-50 p-4 text-sm text-slate-600">
+                    No current customer relationships are assigned to this aircraft.
+                </div>
+            <% } %>
+        </div>
+
+        <div class="rounded-lg bg-white p-6 shadow">
+            <h2 class="text-lg font-semibold text-slate-900">Add Customer Relationship</h2>
+            <p class="mt-1 text-sm text-slate-500">
+                Add a current customer relationship without replacing unrelated existing relationships.
+            </p>
+
+            <form action="/aircraft/<%= aircraft.id %>/customer-links" method="POST" class="mt-5 space-y-4">
+                <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+
+                <div>
+                    <label class="mb-1 block text-xs font-bold uppercase tracking-widest text-slate-600">Customer</label>
+                    <select name="customer_id" required class="w-full rounded border border-slate-300 px-3 py-2 text-sm">
+                        <option value="">Select Customer</option>
+                        <% customerOptions.forEach((customer) => { %>
+                            <option value="<%= customer.id %>">
+                                <%= customer.name %> (<%= customer.contact_person %>)
+                            </option>
+                        <% }) %>
+                    </select>
+                </div>
+
+                <div class="grid gap-4 md:grid-cols-2">
+                    <div>
+                        <label class="mb-1 block text-xs font-bold uppercase tracking-widest text-slate-600">Relationship Type</label>
+                        <select name="relationship_type" required class="w-full rounded border border-slate-300 px-3 py-2 text-sm">
+                            <option value="">Select Relationship</option>
+                            <% ['OWNER', 'CO_OWNER', 'OPERATOR', 'BILLING_CUSTOMER', 'MANAGEMENT_COMPANY', 'CONTACT_ONLY'].forEach((relationshipType) => { %>
+                                <option value="<%= relationshipType %>">
+                                    <%= relationshipType.replace(/_/g, ' ') %>
+                                </option>
+                            <% }) %>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="mb-1 block text-xs font-bold uppercase tracking-widest text-slate-600">Start Date</label>
+                        <input
+                            type="date"
+                            name="start_date"
+                            required
+                            value="<%= new Date().toISOString().slice(0, 10) %>"
+                            class="w-full rounded border border-slate-300 px-3 py-2 text-sm"
+                        >
+                    </div>
+                </div>
+
+                <div>
+                    <label class="mb-1 block text-xs font-bold uppercase tracking-widest text-slate-600">Notes</label>
+                    <textarea name="notes" rows="3" class="w-full rounded border border-slate-300 px-3 py-2 text-sm" placeholder="Optional assignment notes"></textarea>
+                </div>
+
+                <button type="submit" class="rounded bg-slate-800 px-5 py-2 text-sm font-bold text-white hover:bg-slate-700">
+                    Add Customer Relationship
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <% if (historicalCustomerLinks && historicalCustomerLinks.length > 0) { %>
+        <div class="mb-8 rounded-lg bg-white p-6 shadow">
+            <h2 class="text-lg font-semibold text-slate-900">Customer Ownership History</h2>
+            <p class="mt-1 text-sm text-slate-500">
+                Historical ownership links are preserved and never inferred from free text.
+            </p>
+
+            <div class="mt-4 space-y-3">
+                <% historicalCustomerLinks.forEach((link) => { %>
+                    <div class="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
+                        <div class="flex items-start justify-between gap-4">
+                            <div>
+                                <p class="text-sm font-semibold text-slate-900">
+                                    <%= link.Customer?.name || 'Unknown Customer' %>
+                                </p>
+                                <p class="mt-1 text-xs uppercase tracking-widest text-slate-500">
+                                    <%= link.relationship_type %>
+                                </p>
+                            </div>
+                            <div class="text-right text-sm text-slate-600">
+                                <p><%= link.start_date %> to <%= link.end_date || 'Open' %></p>
+                            </div>
+                        </div>
+
+                        <% if (link.notes) { %>
+                            <p class="mt-2 whitespace-pre-wrap text-sm text-slate-600"><%= link.notes %></p>
+                        <% } %>
+                    </div>
+                <% }) %>
+            </div>
+        </div>
+    <% } %>
 
     <div class="mb-8 border-b border-slate-200">
         <div class="flex flex-wrap gap-2" role="tablist" aria-label="Aircraft detail sections">

@@ -1,0 +1,112 @@
+<%- include('../../partials/header') %>
+
+<main class="max-w-7xl mx-auto py-10 px-6 space-y-8">
+  <div class="flex items-center justify-between gap-4">
+    <div>
+      <a href="/library" class="text-sm text-blue-600 hover:underline">Back to Library</a>
+      <h1 class="mt-3 text-3xl font-bold text-slate-900">Service Bulletins</h1>
+      <p class="mt-2 text-sm text-slate-500">
+        Read-only admin view of Service Bulletin records stored in <code>service_bulletins</code>.
+      </p>
+    </div>
+
+    <a
+      href="/library/sbs/import"
+      class="rounded bg-slate-800 px-4 py-2 text-sm font-bold text-white hover:bg-black"
+    >
+      Import SBs
+    </a>
+  </div>
+
+  <section class="rounded-xl border bg-white p-6 shadow-sm">
+    <div class="flex items-center justify-between gap-4">
+      <div>
+        <h2 class="text-lg font-bold text-slate-900">SB Library</h2>
+        <p class="mt-1 text-sm text-slate-500">
+          Showing manufacturer, reference, applicability, status, and created timestamp.
+        </p>
+      </div>
+      <div class="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-xs font-bold uppercase tracking-widest text-green-700">
+        <%= bulletins.length %> SB Records
+      </div>
+    </div>
+
+    <% if (!bulletins.length) { %>
+      <div class="mt-6 rounded-xl border border-slate-200 bg-slate-50 px-6 py-10 text-center">
+        <p class="text-sm font-semibold text-slate-700">No service bulletins exist yet.</p>
+        <p class="mt-2 text-sm text-slate-500">
+          Use the SB import flow to add bulletin records.
+        </p>
+      </div>
+    <% } else { %>
+      <div class="mt-6 overflow-x-auto rounded-lg border">
+        <table class="min-w-full divide-y divide-slate-200">
+          <thead class="bg-slate-50">
+            <tr>
+              <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Manufacturer</th>
+              <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Reference</th>
+              <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Title</th>
+              <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Issue Date</th>
+              <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Revision</th>
+              <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Status</th>
+              <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Category</th>
+              <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Applicability Make</th>
+              <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Applicability Model</th>
+              <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Active</th>
+              <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Created</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-100 bg-white">
+            <% bulletins.forEach((bulletin) => { %>
+              <tr>
+                <td class="px-3 py-3 align-top text-sm font-semibold text-slate-900">
+                  <%= bulletin.manufacturer || '-' %>
+                </td>
+                <td class="px-3 py-3 align-top text-sm font-semibold text-slate-900">
+                  <%= bulletin.sb_number || '-' %>
+                </td>
+                <td class="px-3 py-3 align-top text-sm text-slate-700">
+                  <%= bulletin.title || '-' %>
+                </td>
+                <td class="px-3 py-3 align-top text-xs text-slate-700">
+                  <%= bulletin.issued_on || '-' %>
+                </td>
+                <td class="px-3 py-3 align-top text-xs text-slate-700">
+                  <%= bulletin.revision || '-' %>
+                </td>
+                <td class="px-3 py-3 align-top text-xs text-slate-700">
+                  <%= bulletin.status || '-' %>
+                </td>
+                <td class="px-3 py-3 align-top text-xs text-slate-700">
+                  <%= bulletin.category || '-' %>
+                </td>
+                <td class="px-3 py-3 align-top text-xs text-slate-700">
+                  <%= bulletin.applicability_make || '-' %>
+                </td>
+                <td class="px-3 py-3 align-top text-xs text-slate-700">
+                  <%= bulletin.applicability_model || '-' %>
+                </td>
+                <td class="px-3 py-3 align-top">
+                  <% if (bulletin.is_active) { %>
+                    <span class="inline-flex rounded-full bg-emerald-100 px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-emerald-800">
+                      Active
+                    </span>
+                  <% } else { %>
+                    <span class="inline-flex rounded-full bg-slate-200 px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-700">
+                      Inactive
+                    </span>
+                  <% } %>
+                </td>
+                <td class="px-3 py-3 align-top text-xs text-slate-700">
+                  <%= bulletin.created_at ? new Date(bulletin.created_at).toLocaleString() : '-' %>
+                </td>
+              </tr>
+            <% }) %>
+          </tbody>
+        </table>
+      </div>
+    <% } %>
+  </section>
+</main>
+
+<%- include('../../partials/footer') %>

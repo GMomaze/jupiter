@@ -3,11 +3,13 @@
 <main class="max-w-7xl mx-auto py-10 px-4 sm:px-6 lg:px-8">
   <% const canManageWorkpacks = user?.roles?.some(role => role.code === 'PLANNER' || role.code === 'ADMIN'); %>
 
-  <% if (messages && messages.error && messages.error.length) { %>
-    <div class="mb-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
-      <%= messages.error[0] %>
-    </div>
-  <% } %>
+  <div id="planner-action-message" class="mb-6">
+    <% if (messages && messages.error && messages.error.length) { %>
+      <div class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
+        <%= messages.error[0] %>
+      </div>
+    <% } %>
+  </div>
 
   <% if (messages && messages.success && messages.success.length) { %>
     <div class="mb-6 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm font-medium text-green-700">
@@ -20,6 +22,247 @@
       Access Restricted - Planner or Admin Role Required
     </div>
   <% } else { %>
+
+  <section class="mb-8 rounded-xl border border-cyan-200 bg-cyan-50 p-5 shadow-sm">
+    <div class="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+      <div class="max-w-2xl">
+        <p class="text-xs font-black uppercase tracking-[0.3em] text-cyan-700">Phase 13 Planning</p>
+        <h2 class="mt-2 text-2xl font-black text-slate-900">Scheduled Maintenance Planning</h2>
+        <p class="mt-2 text-sm text-slate-600">
+          Select an aircraft and maintenance type to evaluate applicability, surface matching templates, and review candidate maintenance content before workpack generation.
+        </p>
+      </div>
+
+      <form method="GET" action="/workpacks/planner" class="grid w-full max-w-2xl grid-cols-1 gap-3 sm:grid-cols-2 lg:w-auto">
+        <select
+          name="planning_aircraft_id"
+          required
+          class="w-full rounded border border-cyan-200 bg-white p-2 text-sm focus:ring-2 focus:ring-cyan-500 outline-none"
+        >
+          <option value="">Select Aircraft</option>
+          <% aircraft.forEach(a => { %>
+            <option value="<%= a.id %>" <%= planningSelection?.aircraft_id === a.id ? 'selected' : '' %>>
+              <%= a.registration %>
+            </option>
+          <% }) %>
+        </select>
+
+        <select
+          name="maintenance_type"
+          required
+          class="w-full rounded border border-cyan-200 bg-white p-2 text-sm focus:ring-2 focus:ring-cyan-500 outline-none"
+        >
+          <option value="">Select Maintenance Type</option>
+          <% (planningMaintenanceTypes || []).forEach((type) => { %>
+            <option value="<%= type %>" <%= planningSelection?.maintenance_type === type ? 'selected' : '' %>>
+              <%= type %>
+            </option>
+          <% }) %>
+        </select>
+
+        <button
+          type="submit"
+          class="sm:col-span-2 rounded bg-cyan-700 px-4 py-2 text-xs font-bold uppercase tracking-wider text-white hover:bg-cyan-800"
+        >
+          Prepare Candidates
+        </button>
+      </form>
+    </div>
+
+    <% if (planningSelection?.aircraft_id && planningSelection?.maintenance_type) { %>
+      <div class="mt-5 grid grid-cols-1 gap-5 xl:grid-cols-[1.2fr_1.8fr]">
+        <div class="rounded-lg border border-cyan-100 bg-white p-4">
+          <h3 class="text-xs font-bold uppercase tracking-wider text-slate-500">Planning Context</h3>
+
+          <% if (planningAircraft) { %>
+            <dl class="mt-3 space-y-3 text-sm">
+              <div>
+                <dt class="font-semibold text-slate-700">Aircraft</dt>
+                <dd class="text-slate-900"><%= planningAircraft.registration %></dd>
+              </div>
+              <div>
+                <dt class="font-semibold text-slate-700">Maintenance Type</dt>
+                <dd class="text-slate-900"><%= planningSelection.maintenance_type %></dd>
+              </div>
+              <div>
+                <dt class="font-semibold text-slate-700">Aircraft Model</dt>
+                <dd class="break-all text-slate-900"><%= planningAircraft.model_id || 'Unknown' %></dd>
+              </div>
+              <div>
+                <dt class="font-semibold text-slate-700">Installed Components</dt>
+                <dd class="text-slate-900"><%= (planningAircraft.installed_components || []).length %></dd>
+              </div>
+            </dl>
+
+            <% if ((planningAircraft.installed_components || []).length > 0) { %>
+              <div class="mt-4 border-t border-cyan-100 pt-4">
+                <p class="text-[11px] font-bold uppercase tracking-wider text-slate-500">Installed Component Context</p>
+                <div class="mt-2 flex flex-wrap gap-2">
+                  <% planningAircraft.installed_components.forEach((component) => { %>
+                    <span class="inline-flex rounded-full border border-cyan-100 bg-cyan-50 px-2.5 py-1 text-[10px] font-semibold text-cyan-800">
+                      <%= component.ComponentModel?.model_name || component.serial_number || component.id %>
+                    </span>
+                  <% }) %>
+                </div>
+              </div>
+            <% } %>
+          <% } else { %>
+            <p class="mt-3 text-sm text-slate-500">Selected aircraft could not be resolved.</p>
+          <% } %>
+        </div>
+
+        <div class="rounded-lg border border-cyan-100 bg-white p-4">
+          <div class="flex items-start justify-between gap-3">
+            <div>
+              <h3 class="text-xs font-bold uppercase tracking-wider text-slate-500">Workpack Candidates</h3>
+              <p class="mt-1 text-sm text-slate-500">Matching templates for the selected aircraft and maintenance type. Open preview to review candidate content and choose items before generation.</p>
+            </div>
+            <span class="rounded-full bg-cyan-100 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-cyan-800">
+              <%= (planningCandidateTemplates || []).length %> Template<%= (planningCandidateTemplates || []).length === 1 ? '' : 's' %>
+            </span>
+          </div>
+
+          <% if (!planningAircraft) { %>
+            <p class="mt-4 text-sm text-slate-500">Select a valid aircraft to prepare workpack candidates.</p>
+          <% } else if ((planningCandidateTemplates || []).length === 0) { %>
+            <p class="mt-4 text-sm italic text-slate-500">No maintenance templates matched this aircraft and maintenance type.</p>
+          <% } else { %>
+            <div class="mt-4 space-y-3">
+              <% planningCandidateTemplates.forEach((template) => { %>
+                <div class="rounded-lg border border-cyan-100 bg-cyan-50/40 p-4">
+                  <div class="flex items-start justify-between gap-3">
+                    <div class="min-w-0">
+                      <div class="flex items-center gap-2">
+                        <span class="text-[10px] font-black uppercase tracking-wider text-cyan-700"><%= template.template_type %></span>
+                        <span class="truncate text-sm font-bold text-slate-900"><%= template.name %></span>
+                      </div>
+                      <p class="mt-2 text-sm text-slate-600"><%= template.description || 'Reusable maintenance package' %></p>
+                      <div class="mt-3 flex flex-wrap gap-3 text-[11px] text-slate-500">
+                        <span>Hours: <%= template.interval_hours ?? '-' %></span>
+                        <span>Months: <%= template.interval_months ?? '-' %></span>
+                      </div>
+                    </div>
+                    <a
+                      href="/workpacks/templates/<%= template.id %>/aircraft/<%= planningAircraft.id %>/preview?maintenance_type=<%= planningSelection.maintenance_type %>"
+                      class="rounded bg-cyan-700 px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-white hover:bg-cyan-800"
+                    >
+                      Review Candidate
+                    </a>
+                  </div>
+                </div>
+              <% }) %>
+            </div>
+          <% } %>
+        </div>
+      </div>
+    <% } %>
+  </section>
+
+  <section class="mb-8 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+    <div class="flex items-center justify-between gap-3">
+      <div>
+        <p class="text-xs font-black uppercase tracking-[0.3em] text-slate-500">Saved Sessions</p>
+        <h2 class="mt-2 text-xl font-black text-slate-900">Planning Sessions</h2>
+        <p class="mt-1 text-sm text-slate-500">Saved planning sessions remain separate from workpacks until you finalize generation.</p>
+      </div>
+      <span class="rounded-full bg-slate-100 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-700">
+        <%= (planningSessions || []).length %> Total
+      </span>
+    </div>
+
+    <form method="GET" action="/workpacks/planner" class="mt-4 grid grid-cols-1 gap-3 rounded-lg border border-slate-200 bg-slate-50 p-4 sm:grid-cols-3">
+      <input type="hidden" name="planning_aircraft_id" value="<%= planningSelection?.aircraft_id || '' %>">
+      <input type="hidden" name="maintenance_type" value="<%= planningSelection?.maintenance_type || '' %>">
+
+      <select
+        name="session_aircraft_id"
+        class="w-full rounded border border-slate-200 bg-white p-2 text-sm focus:ring-2 focus:ring-slate-500 outline-none"
+      >
+        <option value="">All Aircraft</option>
+        <% aircraft.forEach(a => { %>
+          <option value="<%= a.id %>" <%= planningSessionFilters?.aircraft_id === a.id ? 'selected' : '' %>>
+            <%= a.registration %>
+          </option>
+        <% }) %>
+      </select>
+
+      <select
+        name="session_status"
+        class="w-full rounded border border-slate-200 bg-white p-2 text-sm focus:ring-2 focus:ring-slate-500 outline-none"
+      >
+        <option value="">All Statuses</option>
+        <option value="OPEN" <%= planningSessionFilters?.status === 'OPEN' ? 'selected' : '' %>>In-Progress</option>
+        <option value="CLOSED" <%= planningSessionFilters?.status === 'CLOSED' ? 'selected' : '' %>>Finalized</option>
+        <option value="DRAFT" <%= planningSessionFilters?.status === 'DRAFT' ? 'selected' : '' %>>Draft</option>
+        <option value="IN_PROGRESS" <%= planningSessionFilters?.status === 'IN_PROGRESS' ? 'selected' : '' %>>Editing</option>
+        <option value="READY_FOR_GENERATION" <%= planningSessionFilters?.status === 'READY_FOR_GENERATION' ? 'selected' : '' %>>Ready for Generation</option>
+        <option value="GENERATED" <%= planningSessionFilters?.status === 'GENERATED' ? 'selected' : '' %>>Generated</option>
+      </select>
+
+      <button
+        type="submit"
+        class="rounded bg-slate-900 px-4 py-2 text-xs font-bold uppercase tracking-wider text-white hover:bg-black"
+      >
+        Filter Sessions
+      </button>
+    </form>
+
+    <% if (!planningSessions || planningSessions.length === 0) { %>
+      <p class="mt-4 text-sm italic text-slate-500">No saved planning sessions yet.</p>
+    <% } else { %>
+      <div class="mt-4 space-y-3">
+        <% planningSessions.forEach((session) => { %>
+          <div class="rounded-lg border border-slate-200 bg-slate-50 p-4">
+            <div class="flex items-start justify-between gap-3">
+              <div class="min-w-0">
+                <div class="flex flex-wrap items-center gap-2">
+                  <span class="text-[10px] font-black uppercase tracking-wider text-slate-500"><%= session.maintenance_type %></span>
+                  <span class="text-sm font-bold text-slate-900"><%= session.Template?.name || 'Saved Planning Session' %></span>
+                  <span class="rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider <%= session.status === 'GENERATED' ? 'bg-green-100 text-green-800' : session.status === 'READY_FOR_GENERATION' ? 'bg-blue-100 text-blue-800' : session.status === 'IN_PROGRESS' ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-700' %>">
+                    <%= session.status %>
+                  </span>
+                </div>
+                <p class="mt-1 text-sm text-slate-600">
+                  Aircraft: <%= session.Aircraft?.registration || session.aircraft_id %>
+                </p>
+                <p class="mt-2 text-[11px] text-slate-500">
+                  Updated: <%= session.updated_at ? new Date(session.updated_at).toLocaleString() : 'Unknown' %>
+                </p>
+              </div>
+              <div class="flex flex-wrap items-center gap-2">
+                <a
+                  href="/workpacks/planning-sessions/<%= session.id %>"
+                  class="rounded bg-slate-900 px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-white hover:bg-black"
+                >
+                  <%= session.status === 'GENERATED' ? 'View' : 'Resume' %>
+                </a>
+                <% if (session.status !== 'GENERATED') { %>
+                  <form method="POST" action="/workpacks/planning-sessions/<%= session.id %>/delete" onsubmit="return confirm('Delete this planning session?');">
+                    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                    <button
+                      type="submit"
+                      class="rounded border border-red-200 bg-red-50 px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-red-700 hover:bg-red-100"
+                    >
+                      Delete
+                    </button>
+                  </form>
+                <% } else { %>
+                  <span class="rounded border border-slate-200 bg-white px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                    Read-Only
+                  </span>
+                <% } %>
+              </div>
+            </div>
+            <% if (session.status === 'GENERATED' && session.GeneratedWorkpack?.work_order_number) { %>
+              <p class="mt-3 text-[11px] text-slate-500">
+                Generated workpack: <span class="font-semibold text-slate-700"><%= session.GeneratedWorkpack.work_order_number %></span>
+              </p>
+            <% } %>
+          </div>
+        <% }) %>
+      </div>
+    <% } %>
+  </section>
 
   <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
 
@@ -87,104 +330,44 @@
       </form>
     </section>
 
-    <section class="bg-gray-50 p-4 border rounded shadow-sm md:col-span-1">
+    <section id="planner-task-sources" class="bg-gray-50 p-4 border rounded shadow-sm md:col-span-1">
       <h2 class="font-bold mb-4 text-slate-700 uppercase text-xs tracking-wider">
         Available Templates
       </h2>
 
+      <p class="mb-3 text-xs text-slate-500">
+        Templates are added from each editable workpack card below so the task is assigned to the correct workpack.
+      </p>
+
       <% if (!taskTemplates || taskTemplates.length === 0) { %>
         <p class="text-xs text-slate-500 italic">No task templates available yet.</p>
-      <% } %>
-
-      <% const draftWorkpacks = workpacks.filter(wp => wp.WorkpackStatus.code === 'DRAFT'); %>
-      <div class="max-h-96 overflow-y-auto space-y-2 pr-1">
-        <% taskTemplates.forEach(template => { %>
-          <%
-            const compatibleDraftWorkpacks = draftWorkpacks.filter((wp) => {
-              const alreadyAdded = (wp.TaskCards || []).some((task) => task.template_source_id === template.id);
-              if (alreadyAdded) return false;
-              if (template.scope === 'GLOBAL') return true;
-              if (template.scope === 'MODEL') return wp.Aircraft?.model_id === template.aircraft_model_id;
-              if (template.scope === 'AIRCRAFT') return wp.aircraft_id === template.aircraft_id;
-              return false;
-            });
-          %>
-          <div class="bg-white p-3 border rounded shadow-sm flex justify-between items-center gap-3">
-            <div class="min-w-0">
-              <div class="flex items-center gap-2 mb-1">
-                <span class="text-[9px] font-bold text-slate-500">#<%= template.task_card_number %></span>
-                <span class="text-sm font-medium text-slate-900 truncate">
-                  <%= template.title %>
-                </span>
-              </div>
-              <div class="flex gap-1">
-                <% if(template.is_required_for_wood) { %><span class="text-[8px] bg-orange-100 text-orange-700 px-1 rounded">WOOD</span><% } %>
-                <% if(template.is_required_for_fabric) { %><span class="text-[8px] bg-purple-100 text-purple-700 px-1 rounded">FABRIC</span><% } %>
-                <% if(template.is_required_for_bungees) { %><span class="text-[8px] bg-green-100 text-green-700 px-1 rounded">BUNGEE</span><% } %>
-              </div>
-            </div>
-
-            <% if (compatibleDraftWorkpacks.length === 1) { %>
-              <form hx-post="/workpacks/templates/<%= template.id %>/add" hx-swap="none" class="flex items-center gap-2">
-                <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-                <input type="hidden" name="workpack_id" value="<%= compatibleDraftWorkpacks[0].id %>">
-                <button type="submit" class="rounded bg-slate-800 px-2 py-1 text-[10px] text-white">
-                  Add to <%= compatibleDraftWorkpacks[0].Aircraft.registration %>
-                </button>
-              </form>
-            <% } else if (compatibleDraftWorkpacks.length > 1) { %>
-              <form hx-post="/workpacks/templates/<%= template.id %>/add" hx-swap="none" class="flex items-center gap-2">
-                <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-                <select name="workpack_id" required class="text-[10px] border p-1 rounded bg-slate-50">
-                  <option value="">Add to...</option>
-                  <% compatibleDraftWorkpacks.forEach(wp => { %>
-                    <option value="<%= wp.id %>"><%= wp.Aircraft.registration %></option>
-                  <% }) %>
-                </select>
-                <button type="submit" class="rounded bg-slate-800 px-2 py-1 text-[10px] text-white">Add</button>
-              </form>
-            <% } else { %>
-              <span class="text-[10px] font-bold uppercase text-slate-400">
-                Added
-              </span>
-            <% } %>
-          </div>
-        <% }) %>
-      </div>
-    </section>
-
-    <section class="bg-gray-50 p-4 border rounded shadow-sm">
-      <h2 class="font-bold mb-4 text-slate-700 uppercase text-xs tracking-wider">
-        Unassigned Tasks
-      </h2>
-      <% if (unassignedTasks.length === 0) { %>
-        <div class="rounded border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">No unassigned tasks available.</div>
-      <% } %>
-      <% unassignedTasks.forEach(task => { %>
-        <div class="bg-white p-3 mb-2 border rounded shadow-sm flex justify-between items-center">
-          <div class="min-w-0">
-            <span class="block text-sm font-medium text-slate-900"><%= task.title %></span>
-            <span class="block text-[10px] font-bold uppercase tracking-wider text-slate-500">
-              Aircraft: <%= aircraft.find(a => a.id === task.aircraft_id)?.registration || 'Unknown' %>
-            </span>
-          </div>
-          <form hx-post="/workpacks/<%= task.id %>/add" hx-swap="none" class="flex items-center gap-2">
-            <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-            <select name="workpack_id" required class="text-xs border p-1 rounded bg-slate-50">
-              <option value="">Assign to...</option>
-              <% workpacks.filter(wp => wp.WorkpackStatus.code === 'DRAFT').forEach(wp => { %>
-                <option value="<%= wp.id %>">#<%= wp.work_order_number %> - <%= wp.Aircraft.registration %></option>
-              <% }) %>
-            </select>
-            <button type="submit" class="rounded bg-slate-800 px-3 py-1 text-[10px] text-white">Add</button>
-          </form>
+      <% } else { %>
+        <div class="rounded border border-dashed border-slate-300 bg-white px-4 py-6 text-xs text-slate-500">
+          Open an editable workpack card below and use its template section to add tasks.
         </div>
-      <% }) %>
+      <% } %>
     </section>
 
     <section class="md:col-span-2 space-y-6 mt-4">
-      <h2 class="font-bold text-slate-700 uppercase text-xs tracking-wider border-b pb-2">Draft Workpacks</h2>
-      <% workpacks.filter(wp => wp.WorkpackStatus.code === 'DRAFT').forEach(wp => { %>
+      <h2 class="font-bold text-slate-700 uppercase text-xs tracking-wider border-b pb-2">Planning Workpacks</h2>
+      <% workpacks.forEach(wp => { %>
+        <% const planningEditable = typeof wp.getDataValue === 'function' ? wp.getDataValue('planning_editable') : wp.planning_editable; %>
+        <% const planningLockedReason = typeof wp.getDataValue === 'function' ? wp.getDataValue('planning_locked_reason') : wp.planning_locked_reason; %>
+        <% const renderTemplateSection = planningEditable || wp.WorkpackStatus.code === 'DRAFT'; %>
+        <% const workpackUnassignedTasks = unassignedTasksByAircraftId?.[wp.aircraft_id] || []; %>
+        <% const workpackTemplates = (taskTemplates || []).filter((template) => {
+          const normalizedScope = String(template.scope || '').trim().toUpperCase();
+          const alreadyAdded = (wp.TaskCards || []).some((task) => task.template_source_id === template.id);
+          if (alreadyAdded) return false;
+          if (normalizedScope === 'GLOBAL') return true;
+          if (normalizedScope === 'MODEL') return wp.Aircraft?.model_id === template.aircraft_model_id;
+          if (normalizedScope === 'AIRCRAFT') return wp.aircraft_id === template.aircraft_id;
+          return false;
+        }); %>
+        <% const compatibleMaintenanceTemplates = (maintenanceTemplates || []).filter((template) => {
+          if (!template.is_active) return false;
+          return wp.Aircraft?.model_id === template.model_id;
+        }); %>
         <div class="bg-white border rounded-lg p-5 shadow-sm">
           <div class="flex justify-between items-start mb-4">
             <div>
@@ -194,10 +377,144 @@
             <%- include('../partials/status-badge', { status: wp.WorkpackStatus.code }) %>
           </div>
 
+          <% if (planningLockedReason) { %>
+            <div class="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-xs font-medium text-amber-800">
+              <%= planningLockedReason %>
+            </div>
+          <% } else if (wp.WorkpackStatus.code === 'ISSUED' && planningEditable) { %>
+            <div class="mb-4 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-xs text-blue-800">
+              <p class="font-semibold uppercase tracking-wide">Editable before execution starts</p>
+              <p class="mt-1">Use Available Templates or Unassigned Tasks above to add tasks.</p>
+              <a href="#planner-task-sources" class="mt-2 inline-flex text-[11px] font-semibold text-blue-700 underline underline-offset-2 hover:text-blue-900">
+                Add tasks
+              </a>
+            </div>
+          <% } %>
+
+          <% if (renderTemplateSection) { %>
+            <div class="mb-6 rounded-lg border border-cyan-100 bg-cyan-50 p-4">
+              <div class="flex items-center justify-between gap-3">
+                <div>
+                  <h4 class="text-sm font-bold uppercase text-slate-800">Maintenance Templates</h4>
+                  <p class="mt-1 text-xs text-slate-500">Reusable maintenance packages from the master library. Preview first, then generate structured planning content for this aircraft.</p>
+                </div>
+                <span class="text-[10px] font-bold uppercase tracking-wider text-cyan-600">
+                  <%= wp.Aircraft.registration %>
+                </span>
+              </div>
+
+              <% if (compatibleMaintenanceTemplates.length === 0) { %>
+                <p class="mt-3 text-xs italic text-slate-500">No active maintenance templates match this aircraft model.</p>
+              <% } else { %>
+                <div class="mt-3 space-y-2">
+                  <% compatibleMaintenanceTemplates.forEach((template) => { %>
+                    <div class="rounded border border-cyan-100 bg-white p-3 flex items-center justify-between gap-3">
+                      <div class="min-w-0">
+                        <div class="flex items-center gap-2 mb-1">
+                          <span class="text-[9px] font-bold text-cyan-700 uppercase"><%= template.template_type %></span>
+                          <span class="text-sm font-medium text-slate-900 truncate"><%= template.name %></span>
+                        </div>
+                        <p class="text-[11px] text-slate-500 truncate"><%= template.description || 'Reusable maintenance package' %></p>
+                        <div class="mt-2 flex gap-2 text-[10px] text-slate-500">
+                          <span>Hours: <%= template.interval_hours ?? '-' %></span>
+                          <span>Months: <%= template.interval_months ?? '-' %></span>
+                        </div>
+                      </div>
+                      <a
+                        href="/workpacks/templates/<%= template.id %>/aircraft/<%= wp.aircraft_id %>/preview"
+                        class="rounded bg-cyan-700 px-3 py-1 text-[10px] font-bold text-white hover:bg-cyan-800"
+                      >
+                        Preview
+                      </a>
+                    </div>
+                  <% }) %>
+                </div>
+              <% } %>
+            </div>
+
+            <div class="mb-6 rounded-lg border border-slate-100 bg-slate-50 p-4">
+              <div class="flex items-center justify-between gap-3">
+                <div>
+                  <h4 class="text-sm font-bold uppercase text-slate-800">Available Templates</h4>
+                  <p class="mt-1 text-xs text-slate-500">Templates added here will be assigned to this workpack only.</p>
+                </div>
+                <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                  <%= wp.Aircraft.registration %>
+                </span>
+              </div>
+
+              <% if (workpackTemplates.length === 0) { %>
+                <p class="mt-3 text-xs italic text-slate-500">No remaining compatible templates for this workpack.</p>
+              <% } else { %>
+                <div class="mt-3 space-y-2">
+                  <% workpackTemplates.forEach(template => { %>
+                    <div class="rounded border border-slate-200 bg-white p-3 flex items-center justify-between gap-3">
+                      <div class="min-w-0">
+                        <div class="flex items-center gap-2 mb-1">
+                          <span class="text-[9px] font-bold text-slate-500">#<%= template.task_card_number %></span>
+                          <span class="text-sm font-medium text-slate-900 truncate"><%= template.title %></span>
+                        </div>
+                        <div class="flex gap-1">
+                          <% if(template.is_required_for_wood) { %><span class="text-[8px] bg-orange-100 text-orange-700 px-1 rounded">WOOD</span><% } %>
+                          <% if(template.is_required_for_fabric) { %><span class="text-[8px] bg-purple-100 text-purple-700 px-1 rounded">FABRIC</span><% } %>
+                          <% if(template.is_required_for_bungees) { %><span class="text-[8px] bg-green-100 text-green-700 px-1 rounded">BUNGEE</span><% } %>
+                        </div>
+                      </div>
+                      <form
+                        hx-post="/workpacks/templates/<%= template.id %>/add"
+                        hx-target="#planner-action-message"
+                        hx-swap="innerHTML"
+                        class="flex items-center gap-2"
+                      >
+                        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                        <input type="hidden" name="workpack_id" value="<%= wp.id %>">
+                        <button type="submit" class="rounded bg-slate-800 px-3 py-1 text-[10px] text-white">
+                          Add
+                        </button>
+                      </form>
+                    </div>
+                  <% }) %>
+                </div>
+              <% } %>
+            </div>
+
+            <div id="planner-unassigned-tasks-<%= wp.id %>" class="mb-6 rounded-lg border border-amber-100 bg-amber-50 p-4">
+              <h4 class="text-sm font-bold uppercase text-slate-800">Unassigned Tasks</h4>
+              <% if (workpackUnassignedTasks.length === 0) { %>
+                <p class="mt-2 text-xs italic text-slate-500">No unassigned tasks available for this aircraft.</p>
+              <% } else { %>
+                <div class="mt-3 space-y-2">
+                  <% workpackUnassignedTasks.forEach(task => { %>
+                    <div class="rounded border border-amber-100 bg-white p-3 flex items-center justify-between gap-3">
+                      <div class="min-w-0">
+                        <p class="text-sm font-medium text-slate-900"><%= task.title %></p>
+                        <p class="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                          Aircraft: <%= wp.Aircraft.registration %>
+                        </p>
+                      </div>
+                      <form
+                        hx-post="/workpacks/<%= task.id %>/add"
+                        hx-target="#planner-action-message"
+                        hx-swap="innerHTML"
+                        class="flex items-center gap-2"
+                      >
+                        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                        <input type="hidden" name="workpack_id" value="<%= wp.id %>">
+                        <button type="submit" class="rounded bg-slate-800 px-3 py-1 text-[10px] text-white">
+                          Add
+                        </button>
+                      </form>
+                    </div>
+                  <% }) %>
+                </div>
+              <% } %>
+            </div>
+          <% } %>
+
           <div class="mb-6 rounded-lg border border-blue-100 bg-blue-50 p-4">
             <h4 class="text-sm font-bold uppercase text-slate-800">Service Bulletins</h4>
             <% const sbs = serviceBulletinsByWorkpackId?.[wp.id] || []; %>
-            <% if (sbs.length > 0) { %>
+            <% if (wp.WorkpackStatus.code === 'DRAFT' && sbs.length > 0) { %>
               <form method="POST" action="/workpacks/<%= wp.id %>/service-bulletins/add" class="mt-4 space-y-2 sb-bulk-form">
                 <input type="hidden" name="_csrf" value="<%= csrfToken %>">
 
@@ -215,6 +532,8 @@
                 </div>
                 <button type="submit" class="mt-4 bg-blue-600 text-white px-4 py-2 rounded text-[10px] font-bold hover:bg-blue-700">ADD SELECTED SBs</button>
               </form>
+            <% } else if (wp.WorkpackStatus.code !== 'DRAFT') { %>
+              <p class="mt-2 text-xs italic text-slate-500">Service bulletin planning changes remain available only while the workpack is in draft.</p>
             <% } else { %>
               <p class="mt-2 text-xs italic text-slate-500">No open SBs available for this aircraft.</p>
             <% } %>
@@ -230,7 +549,9 @@
                       <p class="text-[10px] font-bold text-slate-500">#<%= task.task_card_number %></p>
                       <p class="text-sm font-bold text-slate-800 leading-tight"><%= task.title %></p>
                     </div>
-                    <button hx-post="/workpacks/<%= wp.id %>/<%= task.id %>/remove" hx-headers='{"x-csrf-token":"<%= csrfToken %>"}' class="text-[10px] font-bold text-red-500 uppercase hover:underline">Remove</button>
+                    <% if (planningEditable) { %>
+                      <button hx-post="/workpacks/<%= wp.id %>/<%= task.id %>/remove" hx-headers='{"x-csrf-token":"<%= csrfToken %>"}' class="text-[10px] font-bold text-red-500 uppercase hover:underline">Remove</button>
+                    <% } %>
                   </div>
                   <% if (task.description) { %>
                     <div class="text-[11px] text-slate-600 border-t pt-2 mt-2 leading-relaxed whitespace-pre-wrap">
@@ -245,14 +566,16 @@
           </div>
 
           <div class="mt-6 flex gap-3">
-            <form method="POST" action="/workpacks/<%= wp.id %>/issue" class="flex-1">
-              <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-              <button class="w-full bg-slate-800 text-white text-xs font-bold py-3 rounded hover:bg-black">ISSUE WORKPACK</button>
-            </form>
-            <form method="POST" action="/workpacks/<%= wp.id %>/delete">
-              <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-              <button onclick="return confirm('Delete this draft?')" class="bg-red-50 text-red-700 border border-red-200 text-xs font-bold px-6 py-3 rounded hover:bg-red-100">DELETE</button>
-            </form>
+            <% if (wp.WorkpackStatus.code === 'DRAFT') { %>
+              <form method="POST" action="/workpacks/<%= wp.id %>/issue" class="flex-1">
+                <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                <button class="w-full bg-slate-800 text-white text-xs font-bold py-3 rounded hover:bg-black">ISSUE WORKPACK</button>
+              </form>
+              <form method="POST" action="/workpacks/<%= wp.id %>/delete">
+                <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                <button onclick="return confirm('Delete this draft?')" class="bg-red-50 text-red-700 border border-red-200 text-xs font-bold px-6 py-3 rounded hover:bg-red-100">DELETE</button>
+              </form>
+            <% } %>
           </div>
         </div>
       <% }) %>

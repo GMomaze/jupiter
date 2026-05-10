@@ -2,11 +2,22 @@
 
 <main class="p-6 bg-slate-50 min-h-screen max-w-6xl mx-auto">
 
-  <% if (!user?.roles?.some(role => role.code === 'ENGINEER' || role.code === 'MECHANIC')) { %>
+  <% if (!user?.roles?.some(role => role.code === 'ENGINEER' || role.code === 'MECHANIC' || role.code === 'SUPERVISOR')) { %>
     <div class="bg-red-100 text-red-700 p-4 rounded mb-6 text-center font-bold">
-      Access Restricted - Engineer or Mechanic Role Required
+      Access Restricted - Engineer, Mechanic, or Supervisor Role Required
     </div>
   <% } else { %>
+    <%
+      const allSnags = Array.isArray(snags) ? snags : [];
+      const activeSnags = Array.isArray(openSnags) ? openSnags : [];
+      const possibleRecurringSnags = Array.isArray(snagPatterns) ? snagPatterns : [];
+      const workpackStatusCode = String(pack?.WorkpackStatus?.code || '').trim().toUpperCase();
+      const isMechanic = user?.roles?.some(role => role.code === 'MECHANIC');
+      const isEngineer = user?.roles?.some(role => role.code === 'ENGINEER');
+      const isSupervisor = user?.roles?.some(role => role.code === 'SUPERVISOR');
+      const canStartSnag = isMechanic || isEngineer || isSupervisor;
+      const canResolveSnag = isMechanic || isEngineer || isSupervisor;
+    %>
 
     <div class="flex justify-between items-center mb-8">
       <div>
@@ -18,39 +29,37 @@
         </p>
       </div>
       <div class="flex items-center gap-3">
+        <a
+          href="/workpacks/<%= pack.id %>/audit"
+          class="rounded-lg border border-slate-300 bg-white px-4 py-2 text-xs font-bold uppercase tracking-widest text-slate-700 hover:bg-slate-50"
+        >
+          Audit
+        </a>
         <%- include('../partials/workpack-pdf-menu', { pack }) %>
-        <%- include('../partials/status-badge', { status: pack.WorkpackStatus.code }) %>
+        <%- include('../partials/status-badge', { status: workpackStatusCode }) %>
       </div>
     </div>
 
-    <div class="grid gap-6">
-      <%
-        const allSnags = Array.isArray(snags) ? snags : [];
-        const activeSnags = Array.isArray(openSnags) ? openSnags : [];
-        const possibleRecurringSnags = Array.isArray(snagPatterns) ? snagPatterns : [];
-        const normalizeSnagDescription = (value) => String(value || '')
-          .toLowerCase()
-          .trim()
-          .replace(/\bl\/h\b/g, 'left')
-          .replace(/\blh\b/g, 'left')
-          .replace(/\bleft-hand\b/g, 'left')
-          .replace(/\br\/h\b/g, 'right')
-          .replace(/\brh\b/g, 'right')
-          .replace(/\bright-hand\b/g, 'right')
-          .replace(/[^\w\s]/g, ' ')
-          .replace(/\b(the|a|an|on|at|of|to|from)\b/g, ' ')
-          .replace(/\s+/g, ' ')
-          .trim();
-        const recurringPatternMap = new Map(
-          possibleRecurringSnags.map((pattern) => [String(pattern.normalised_description || '').trim(), pattern])
-        );
-      %>
+    <% if (crsValidation && Array.isArray(crsValidation.issues) && crsValidation.issues.length > 0) { %>
+      <div class="mb-8 rounded-xl border border-red-200 bg-red-50 px-6 py-5 shadow-sm">
+        <p class="text-sm font-black uppercase tracking-widest text-red-700">
+          <%= crsValidation.title || 'CRS cannot be generated' %>
+        </p>
+        <ul class="mt-3 list-disc space-y-1 pl-5 text-sm text-red-900">
+          <% crsValidation.issues.forEach((issue) => { %>
+            <li class="leading-relaxed"><%= issue %></li>
+          <% }) %>
+        </ul>
+      </div>
+    <% } %>
 
+    <div class="grid gap-6">
       <div class="bg-white border-2 border-slate-200 rounded-xl shadow-sm overflow-hidden">
         <div class="px-6 py-4 bg-slate-50 border-b flex flex-wrap justify-between items-center gap-4">
           <div>
-            <span class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Workpack Snags</span>
+            <span class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Snags</span>
             <h2 class="text-lg font-bold text-slate-800">Execution Snag Register</h2>
+            <p class="mt-1 text-xs text-slate-500">Snag controls are separate from task controls and only use the snag lifecycle.</p>
           </div>
           <div class="flex flex-wrap items-center gap-2">
             <span class="text-[10px] font-bold uppercase px-2 py-1 rounded bg-slate-200 text-slate-600 border border-slate-300">
@@ -71,15 +80,16 @@
               <% } else { %>
                 <div class="space-y-3">
                   <% activeSnags.forEach((snag) => { %>
-                    <% const recurringPattern = recurringPatternMap.get(normalizeSnagDescription(snag.description)); %>
                     <div class="rounded-lg border border-amber-200 bg-white px-4 py-3">
                       <div class="flex items-start justify-between gap-3">
                         <div>
-                          <p class="text-sm font-semibold text-slate-900 whitespace-pre-wrap"><%= snag.description %></p>
-                          <% if (recurringPattern && Number(recurringPattern.occurrence_count || 0) >= 2) { %>
-                            <p class="mt-2">
-                              <span class="text-[10px] font-bold uppercase px-2 py-1 rounded bg-blue-100 text-blue-700 border border-blue-200">
-                                Possible recurring issue
+                          <p class="text-[10px] font-black uppercase tracking-widest text-slate-400">Snag</p>
+                          <p class="text-sm font-semibold text-slate-900 whitespace-pre-wrap"><%= snag.defect_text || snag.description %></p>
+                          <% if (snag.Component || snag.component_id) { %>
+                            <p class="mt-2 text-xs text-slate-500">
+                              Component:
+                              <span class="font-medium text-slate-700">
+                                <%= snag.Component?.position_code || snag.Component?.serial_number || snag.component_id %>
                               </span>
                             </p>
                           <% } %>
@@ -104,16 +114,29 @@
 
             <% if (possibleRecurringSnags.length > 0) { %>
               <div class="rounded-xl border border-slate-200 bg-slate-100 p-4">
-                <h3 class="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">Possible recurring issue detected</h3>
-                <p class="text-sm text-slate-600 mb-3">Consider creating a recurring inspection or maintenance task.</p>
+                <h3 class="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">Recurring Snags</h3>
+                <p class="text-sm text-slate-600 mb-3">Recurring snag detection is informational only and is derived from historical snag history on this aircraft.</p>
                 <div class="space-y-3">
                   <% possibleRecurringSnags.forEach((pattern) => { %>
                     <div class="rounded-lg border border-slate-200 bg-white px-4 py-3">
                       <div class="flex items-start justify-between gap-3">
-                        <p class="text-sm font-semibold text-slate-900 whitespace-pre-wrap"><%= pattern.normalised_description %></p>
-                        <span class="text-[10px] font-bold uppercase px-2 py-1 rounded bg-slate-100 text-slate-600 border border-slate-200">
-                          <%= pattern.occurrence_count %> occurrences
-                        </span>
+                        <div>
+                          <p class="text-[10px] font-black uppercase tracking-widest text-slate-400">Recurring Snag</p>
+                          <p class="text-sm font-semibold text-slate-900 whitespace-pre-wrap"><%= pattern.normalised_description %></p>
+                          <% if (pattern.component_id) { %>
+                            <p class="mt-1 text-xs text-slate-500">Grouped with component-specific history.</p>
+                          <% } %>
+                        </div>
+                        <div class="flex flex-col items-end gap-2">
+                          <span class="text-[10px] font-bold uppercase px-2 py-1 rounded bg-slate-100 text-slate-600 border border-slate-200">
+                            <%= pattern.occurrence_count %> occurrences
+                          </span>
+                          <% if (pattern.recurring) { %>
+                            <span class="text-[10px] font-bold uppercase px-2 py-1 rounded bg-amber-100 text-amber-700 border border-amber-200">
+                              Recurring Snag
+                            </span>
+                          <% } %>
+                        </div>
                       </div>
                       <p class="mt-2 text-xs text-slate-500">
                         Latest occurrence:
@@ -130,35 +153,77 @@
             <div class="rounded-xl border border-slate-200 bg-slate-50 p-4">
               <h3 class="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-3">All Snags</h3>
               <% if (allSnags.length === 0) { %>
-                <p class="text-sm text-slate-500">No snags have been recorded from execution yet.</p>
+                <p class="text-sm text-slate-500">No snags linked to this workpack have been recorded from execution yet.</p>
               <% } else { %>
-                <div class="space-y-2">
+                <div class="space-y-3">
                   <% allSnags.forEach((snag) => { %>
-                    <% const recurringPattern = recurringPatternMap.get(normalizeSnagDescription(snag.description)); %>
-                    <div class="rounded-lg border border-slate-200 bg-white px-4 py-3 flex items-start justify-between gap-3">
-                      <div>
-                        <p class="text-sm font-medium text-slate-900 whitespace-pre-wrap"><%= snag.description %></p>
-                        <% if (recurringPattern && Number(recurringPattern.occurrence_count || 0) >= 2) { %>
-                          <p class="mt-2">
-                            <span class="text-[10px] font-bold uppercase px-2 py-1 rounded bg-blue-100 text-blue-700 border border-blue-200">
-                              Possible recurring issue
-                            </span>
-                          </p>
-                        <% } %>
-                        <p class="mt-1 text-xs text-slate-500">
-                          <% if (snag.created_at) { %>
-                            <%= new Date(snag.created_at).toLocaleString('en-GB') %>
-                          <% } else { %>
-                            Created time unavailable
+                    <div class="rounded-lg border border-slate-200 bg-white px-4 py-3">
+                      <div class="flex items-start justify-between gap-3">
+                        <div class="min-w-0">
+                          <p class="text-[10px] font-black uppercase tracking-widest text-slate-400">Snag</p>
+                          <p class="text-sm font-medium text-slate-900 whitespace-pre-wrap"><%= snag.defect_text || snag.description %></p>
+                          <% if (snag.Component || snag.component_id) { %>
+                            <p class="mt-1 text-xs text-slate-500">
+                              Component:
+                              <span class="font-medium text-slate-700">
+                                <%= snag.Component?.position_code || snag.Component?.serial_number || snag.component_id %>
+                              </span>
+                            </p>
                           <% } %>
-                        </p>
+                          <p class="mt-1 text-xs text-slate-500">
+                            <% if (snag.created_at) { %>
+                              Logged <%= new Date(snag.created_at).toLocaleString('en-GB') %>
+                            <% } else { %>
+                              Created time unavailable
+                            <% } %>
+                          </p>
+                        </div>
+                        <span class="text-[10px] font-bold uppercase px-2 py-1 rounded border
+                          <%= snag.status === 'CLOSED'
+                            ? 'bg-emerald-100 text-emerald-700 border-emerald-200'
+                            : snag.status === 'RESOLVED'
+                              ? 'bg-blue-100 text-blue-700 border-blue-200'
+                              : snag.status === 'IN_PROGRESS'
+                                ? 'bg-amber-100 text-amber-700 border-amber-200'
+                                : 'bg-slate-100 text-slate-700 border-slate-200' %>">
+                          <%= snag.status.replace(/_/g, ' ') %>
+                        </span>
                       </div>
-                      <span class="text-[10px] font-bold uppercase px-2 py-1 rounded border
-                        <%= snag.status === 'CLOSED'
-                          ? 'bg-emerald-100 text-emerald-700 border-emerald-200'
-                          : 'bg-amber-100 text-amber-700 border-amber-200' %>">
-                        <%= snag.status.replace(/_/g, ' ') %>
-                      </span>
+
+                      <% if (snag.status === 'OPEN' && canStartSnag) { %>
+                        <form method="POST" action="/workpacks/<%= pack.id %>/snags/<%= snag.id %>/start" class="mt-3 flex justify-end">
+                          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                          <input type="hidden" name="return_to" value="execution">
+                          <button
+                            type="submit"
+                            class="bg-slate-800 text-white py-2 px-4 rounded-lg font-bold text-[11px] uppercase tracking-widest hover:bg-black transition-all shadow-sm">
+                            Start Snag
+                          </button>
+                        </form>
+                      <% } else if (snag.status === 'IN_PROGRESS' && canResolveSnag) { %>
+                        <form method="POST" action="/workpacks/<%= pack.id %>/snags/<%= snag.id %>/complete" class="mt-3 space-y-3">
+                          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                          <input type="hidden" name="return_to" value="execution">
+                          <textarea
+                            name="resolution_notes"
+                            rows="3"
+                            class="w-full rounded-lg border border-slate-200 p-3 text-sm text-slate-800 outline-none focus:border-blue-500"
+                            placeholder="Enter snag resolution notes before resolving..."
+                            required
+                          ></textarea>
+                          <div class="flex justify-end">
+                            <button
+                              type="submit"
+                              class="bg-blue-600 text-white py-2 px-4 rounded-lg font-bold text-[11px] uppercase tracking-widest hover:bg-blue-700 transition-all shadow-sm">
+                              Resolve Snag
+                            </button>
+                          </div>
+                        </form>
+                      <% } else if (snag.status === 'RESOLVED') { %>
+                        <div class="mt-3 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-[11px] font-bold uppercase tracking-widest text-blue-700">
+                          Snag resolved. Closure remains separate from task completion and workpack certification.
+                        </div>
+                      <% } %>
                     </div>
                   <% }) %>
                 </div>
@@ -166,20 +231,20 @@
             </div>
           </div>
 
-          <div class="rounded-xl border border-slate-200 bg-white p-5">
-            <div class="mb-4">
-              <h3 class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Create Snag</h3>
-              <p class="mt-2 text-sm text-slate-600">Log a snag directly from execution without changing any task or workpack status.</p>
-            </div>
+            <div class="rounded-xl border border-slate-200 bg-white p-5">
+              <div class="mb-4">
+                <h3 class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Create Snag</h3>
+                <p class="mt-2 text-sm text-slate-600">Log a snag directly from execution without changing any task or workpack status.</p>
+              </div>
 
             <form method="POST" action="/workpacks/<%= pack.id %>/execution/snags" class="space-y-4">
               <input type="hidden" name="_csrf" value="<%= csrfToken %>">
               <input type="hidden" name="workpack_id" value="<%= pack.id %>">
               <input type="hidden" name="aircraft_id" value="<%= pack.Aircraft?.id || '' %>">
-              <input type="hidden" name="user_id" value="<%= user?.id || '' %>">
+              <input type="hidden" name="created_by" value="<%= user?.id || '' %>">
 
               <textarea
-                name="description"
+                name="defect_text"
                 rows="6"
                 class="w-full rounded-lg border-2 border-slate-200 p-3 text-sm text-slate-800 outline-none focus:border-blue-500"
                 placeholder="Describe the snag found during execution..."
@@ -189,7 +254,7 @@
               <button
                 type="submit"
                 class="w-full bg-blue-600 text-white py-3 rounded-lg font-bold text-xs uppercase tracking-widest hover:bg-blue-700 transition-all shadow-md">
-                Create Execution Snag
+                Create Snag
               </button>
             </form>
           </div>
@@ -220,15 +285,13 @@
                   let description = task.description || '';
                   let inputIndex = 0;
                   const isMechanic = user?.roles?.some(role => role.code === 'MECHANIC');
-                  const isAdminOverride = user?.roles?.some(role => role.code === 'ADMIN' || role.code === 'SUPERVISOR');
+                  const isEngineer = user?.roles?.some(role => role.code === 'ENGINEER');
+                  const isSupervisor = user?.roles?.some(role => role.code === 'SUPERVISOR');
                   const taskOwnedByCurrentUser = !!user?.id && task.assigned_to === user.id;
                   const canEditTask = !['CERTIFIED_BY_ENGINEER', 'LOCKED'].includes(task.status)
-                    && (
-                      isAdminOverride ||
-                      (isMechanic && (
-                        task.status === 'IN_PROGRESS' && taskOwnedByCurrentUser
-                      ))
-                    );
+                    && isMechanic
+                    && task.status === 'IN_PROGRESS'
+                    && taskOwnedByCurrentUser;
 
                   let htmlDescription = description.replace(/\[\s*\]/g, () => {
                     inputIndex++;
@@ -255,6 +318,16 @@
                 <form hx-post="/workpacks/tasks/<%= task.id %>/work-note" hx-trigger="change delay:800ms" class="flex-1 flex flex-col">
                   <input type="hidden" name="_csrf" value="<%= csrfToken %>">
                   <textarea
+                    id="payload-<%= task.id %>"
+                    name="work_performed"
+                    class="hidden"
+                  ><%= task.work_performed || '' %></textarea>
+                  <textarea
+                    id="measurements-payload-<%= task.id %>"
+                    name="measurements_payload"
+                    class="hidden"
+                  ></textarea>
+                  <textarea
                     id="note-<%= task.id %>"
                     name="work_performed"
                     class="flex-1 w-full border-2 border-slate-200 rounded-lg p-3 text-sm focus:border-blue-500 outline-none min-h-[120px] transition-colors"
@@ -268,7 +341,7 @@
               <!-- 🔥 UPDATED BUTTON SECTION -->
               <div class="mt-6 pt-4 border-t flex gap-3">
 
-                <% if (task.status === 'OPEN' && (isMechanic || isAdminOverride)) { %>
+                <% if (task.status === 'OPEN' && isMechanic) { %>
                   <button 
                     hx-post="/workpacks/tasks/<%= task.id %>/start"
                     hx-target="#task-container-<%= task.id %>"
@@ -278,33 +351,82 @@
                   </button>
 
                 <% } else if (task.status === 'IN_PROGRESS' && canEditTask) { %>
-                  <button 
+                  <form
+                    method="POST"
+                    action="/workpacks/tasks/<%= task.id %>/complete"
                     hx-post="/workpacks/tasks/<%= task.id %>/complete"
                     hx-target="#task-container-<%= task.id %>"
                     hx-swap="outerHTML"
-                    class="flex-1 bg-emerald-600 text-white py-3 rounded-lg font-bold text-xs uppercase tracking-widest hover:bg-emerald-700 transition-all shadow-md">
-                    Complete (Mechanic)
-                  </button>
+                    hx-confirm="Mark this task completed?"
+                    hx-headers='{"x-csrf-token":"<%= csrfToken %>"}'
+                    hx-on::after-request="if (event.detail.successful) window.location.reload()"
+                    class="flex-1"
+                  >
+                    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                    <textarea
+                      id="complete-payload-<%= task.id %>"
+                      name="work_performed"
+                      class="hidden"
+                    ><%= task.work_performed || '' %></textarea>
+                    <textarea
+                      id="complete-measurements-payload-<%= task.id %>"
+                      name="measurements_payload"
+                      class="hidden"
+                    ></textarea>
+                    <button
+                      type="submit"
+                      hx-disabled-elt="this"
+                      class="w-full bg-emerald-600 text-white py-3 rounded-lg font-bold text-xs uppercase tracking-widest hover:bg-emerald-700 transition-all shadow-md"
+                    >
+                      Complete (Mechanic)
+                    </button>
+                  </form>
 
                 <% } else if (task.status === 'COMPLETED_BY_MECHANIC') { %>
 
                   <!-- 🔧 Mechanic Sign -->
-                  <% if (user.roles.some(r => r.code === 'MECHANIC')) { %>
+                  <% if (isMechanic) { %>
                     <div class="flex-1 bg-orange-100 text-orange-800 py-3 px-4 rounded-lg font-bold text-xs uppercase tracking-widest text-center border border-orange-200">
                       Awaiting Engineer Certification
                     </div>
                   <% } %>
 
                   <!-- 🔧 Engineer Sign -->
-                  <% if (user.roles.some(r => r.code === 'ENGINEER')) { %>
-                    <form method="POST" action="/workpacks/tasks/<%= task.id %>/sign" class="flex-1">
+                  <% if (isEngineer) { %>
+                    <form
+                      method="POST"
+                      action="/workpacks/tasks/<%= task.id %>/sign"
+                      hx-post="/workpacks/tasks/<%= task.id %>/sign"
+                      hx-target="#task-container-<%= task.id %>"
+                      hx-swap="outerHTML"
+                      hx-confirm="Certify this completed task?"
+                      hx-headers='{"x-csrf-token":"<%= csrfToken %>"}'
+                      hx-on::after-request="if (event.detail.successful) window.location.reload()"
+                      class="flex-1"
+                    >
                       <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-                      <button type="submit"
+                      <button
+                        type="submit"
+                        hx-disabled-elt="this"
                         class="w-full bg-blue-600 text-white py-3 rounded-lg font-bold text-xs uppercase tracking-widest hover:bg-blue-700 transition-all shadow-md">
                         Certify (Engineer Sign)
                       </button>
                     </form>
                   <% } %>
+
+                <% } else if (task.status === 'CERTIFIED_BY_ENGINEER' && isSupervisor) { %>
+                  <form method="POST" action="/workpacks/tasks/<%= task.id %>/lock" class="flex-1">
+                    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                    <button type="submit"
+                      class="w-full bg-slate-900 text-white py-3 rounded-lg font-bold text-xs uppercase tracking-widest hover:bg-black transition-all shadow-md">
+                      Lock Task
+                    </button>
+                  </form>
+
+                <% } else if (task.status === 'LOCKED') { %>
+                  <div class="flex-1 bg-slate-100 text-slate-700 py-3 px-4 rounded-lg font-bold text-xs uppercase tracking-widest text-center border border-slate-200">
+                    Locked - Read Only
+                  </div>
 
                 <% } %>
 
@@ -319,24 +441,31 @@
     </div>
 
     <% if (user?.roles?.some(role => role.code === 'ENGINEER')) { %>
-      <% const allTasksCertified = tasks.length > 0 && tasks.every(task => task.status === 'CERTIFIED_BY_ENGINEER'); %>
+      <% const allTasksTerminal = tasks.length > 0 && tasks.every(task => task.status === 'CERTIFIED_BY_ENGINEER' || task.status === 'LOCKED'); %>
       <div class="mt-12 border-t border-slate-200 pt-8 flex justify-end">
-        <% if (pack.WorkpackStatus.code === 'CERTIFIED') { %>
+        <% if (workpackStatusCode === 'CLOSED') { %>
           <div class="text-right">
             <span class="text-xs font-black text-emerald-600 uppercase tracking-widest">Completed</span>
-            <p class="text-sm text-slate-500">Workpack already certified and closed.</p>
+            <p class="text-sm text-slate-500">Workpack already closed.</p>
           </div>
-        <% } else if (pack.WorkpackStatus.code === 'IN_PROGRESS' && allTasksCertified) { %>
+        <% } else if (workpackStatusCode === 'CERTIFIED') { %>
           <form method="POST" action="/workpacks/<%= pack.id %>/close">
             <input type="hidden" name="_csrf" value="<%= csrfToken %>">
             <button type="submit" class="bg-emerald-700 text-white px-10 py-4 rounded-xl font-bold hover:bg-emerald-800 transition-all shadow-xl">
               Finalize & Issue CRS
             </button>
           </form>
+        <% } else if (workpackStatusCode === 'IN_PROGRESS' && allTasksTerminal) { %>
+          <form method="POST" action="/workpacks/<%= pack.id %>/certify">
+            <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+            <button type="submit" class="bg-blue-700 text-white px-10 py-4 rounded-xl font-bold hover:bg-blue-800 transition-all shadow-xl">
+              Certify Workpack
+            </button>
+          </form>
         <% } else { %>
           <div class="text-right bg-white p-5 rounded-xl border-2 border-slate-100 shadow-sm">
-            <p class="text-xs font-bold text-slate-400 uppercase tracking-widest">Engineer Closure Locked</p>
-            <p class="text-[11px] text-slate-500 mt-1 italic">All tasks must be certified before the workpack can be closed.</p>
+            <p class="text-xs font-bold text-slate-400 uppercase tracking-widest">Engineer Progress Locked</p>
+            <p class="text-[11px] text-slate-500 mt-1 italic">All tasks must be engineer certified or locked before workpack certification and close can proceed.</p>
           </div>
         <% } %>
       </div>
@@ -345,5 +474,100 @@
   <% } %>
 
 </main>
+
+<script>
+  (() => {
+    const START_MARKER = '[Captured Values]';
+    const END_MARKER = '[/Captured Values]';
+
+    function buildCapturedValues(taskId) {
+      return Array.from(document.querySelectorAll(`.measurement-input[data-task-id="${taskId}"]`))
+        .map((input) => {
+          const position = input.dataset.position?.trim();
+          const value = input.value.trim();
+          if (!position || !value) return '';
+          return `Value ${position}: ${value}`;
+        })
+        .filter(Boolean)
+        .join('\n');
+    }
+
+    function buildStructuredMeasurementPayload(taskId) {
+      return Array.from(document.querySelectorAll(`.measurement-input[data-task-id="${taskId}"]`))
+        .map((input, index) => {
+          const position = Number(input.dataset.position || index + 1);
+          return {
+            field_key: `field_${index}`,
+            field_label: `Value ${position}`,
+            position,
+            value: input.value.trim() || null,
+          };
+        });
+    }
+
+    function syncTaskPayload(taskId) {
+      const payload = document.getElementById(`payload-${taskId}`);
+      const completionPayload = document.getElementById(`complete-payload-${taskId}`);
+      const measurementPayload = document.getElementById(`measurements-payload-${taskId}`);
+      const completionMeasurementPayload = document.getElementById(`complete-measurements-payload-${taskId}`);
+      const noteEditor = document.getElementById(`note-${taskId}`);
+
+      if ((!payload && !completionPayload && !measurementPayload && !completionMeasurementPayload) || !noteEditor) {
+        return;
+      }
+
+      const captured = buildCapturedValues(taskId);
+      const structuredMeasurements = buildStructuredMeasurementPayload(taskId);
+      const note = noteEditor.value.trim();
+      const nextValue = captured
+        ? `${START_MARKER}\n${captured}\n${END_MARKER}${note ? `\n\n${note}` : ''}`
+        : note;
+
+      if (payload) {
+        payload.value = nextValue;
+      }
+
+      if (completionPayload) {
+        completionPayload.value = nextValue;
+      }
+
+      if (measurementPayload) {
+        measurementPayload.value = JSON.stringify(structuredMeasurements);
+      }
+
+      if (completionMeasurementPayload) {
+        completionMeasurementPayload.value = JSON.stringify(structuredMeasurements);
+      }
+    }
+
+    function initialiseAllTasks() {
+      document.querySelectorAll('[id^="note-"]').forEach((noteEditor) => {
+        const taskId = noteEditor.id.replace('note-', '');
+        if (taskId) {
+          syncTaskPayload(taskId);
+        }
+      });
+    }
+
+    initialiseAllTasks();
+
+    document.addEventListener('input', (event) => {
+      const target = event.target;
+
+      if (target instanceof HTMLInputElement && target.classList.contains('measurement-input')) {
+        syncTaskPayload(target.dataset.taskId);
+        return;
+      }
+
+      if (target instanceof HTMLTextAreaElement && target.id.startsWith('note-')) {
+        syncTaskPayload(target.id.replace('note-', ''));
+      }
+    });
+
+    document.body.addEventListener('htmx:afterSwap', () => {
+      initialiseAllTasks();
+    });
+  })();
+</script>
 
 <%- include('../partials/footer') %>

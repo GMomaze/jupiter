@@ -47,19 +47,21 @@ YOU MUST NOT:
 
 ---
 
-# STEP 4 — IMPLEMENT GATE
+# STEP 4 —  IMPLEMENT MODE
 
-If Mode = IMPLEMENT:
+ChatGPT must NOT write implementation code.
 
-You MUST:
+ChatGPT must produce Codex instructions only, including:
+- Active phase
+- Phase file path
+- Relevant files
+- Exact implementation scope
+- Constraints
+- Verification checklist
 
-1. Confirm:
-   Phase is already Defined ✅
+Codex performs implementation inside the repository.
 
-2. Only then:
-   Implement code
-
-3. Return FULL files only
+ChatGPT must not return code files in IMPLEMENT mode.
 
 ---
 

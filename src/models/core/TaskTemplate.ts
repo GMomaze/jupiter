@@ -3,11 +3,16 @@ import sequelize from '../../config/database.js';
 
 export class TaskTemplate extends Model {
   declare id: string;
-  declare scope: 'GLOBAL' | 'MODEL' | 'AIRCRAFT';
+  declare scope: 'GLOBAL' | 'MODEL' | 'AIRCRAFT' | 'MPI';
   declare task_card_number: string;
   declare sort_order: number;
   declare title: string;
   declare description: string;
+  declare source_type: string | null;
+  declare interval_hours: number | null;
+  declare interval_months: number | null;
+  declare model_applicability: string | null;
+  declare aircraft_applicability: string | null;
   declare aircraft_model_id: string | null;
   declare aircraft_id: string | null;
   declare is_active: boolean;
@@ -47,6 +52,26 @@ TaskTemplate.init(
     description: {
       type: DataTypes.TEXT,
       allowNull: false,
+    },
+    source_type: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
+    interval_hours: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+    },
+    interval_months: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+    },
+    model_applicability: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+    },
+    aircraft_applicability: {
+      type: DataTypes.TEXT,
+      allowNull: true,
     },
     aircraft_model_id: {
       type: DataTypes.UUID,

@@ -131,11 +131,13 @@ After changes, suggest minimal test:
 
 ## SYSTEM CONTEXT
 
-- Workpack-driven system
+- Canonical workflow: import -> applicability -> template -> workpack -> execute -> certify
+- Workpacks are operational snapshots, not source of truth
 - Task lifecycle enforced
 - Compliance enforcement active
-- Snag lifecycle being introduced
+- Snag lifecycle enforced
 - Documents (CRS/CRMA) are separate concerns
+- Planning sessions are separate from workpacks
 
 ---
 
@@ -143,4 +145,4 @@ After changes, suggest minimal test:
 
 Always follow:
 
-docs/ChatGPT/ver2/
+docs/ChatGPT/ver3/
