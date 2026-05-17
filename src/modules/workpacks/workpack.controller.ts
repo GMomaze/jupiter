@@ -12,6 +12,8 @@ import { WorkpackGenerationService } from './services/workpack-generation.servic
 import { WorkpackPreviewService } from './services/workpack-preview.service.js';
 import { PlanningSessionService } from './services/planning-session.service.js';
 import { PlanningValidationError } from './services/planning-validation.service.js';
+import { WorkpackComponentIntegrationService } from './services/workpack-component-integration.service.js';
+import { WorkpackOperationalMaturityService } from './services/workpack-operational-maturity.service.js';
 import {
   DocumentVerificationError,
   DocumentVerificationService,
@@ -552,7 +554,16 @@ export class WorkpackController {
     }
   ) {
     const pack = await Workpack.findByPk(packId, {
-      include: [WorkpackStatus, WorkpackController.workpackAircraftInclude, { model: TaskCard, include: [{ model: ServiceBulletin, as: 'ServiceBulletin' }, { model: User, as: 'Assignee' }, { model: User, as: 'MechanicCompleter' }, { model: User, as: 'EngineerCertifier' }] }]
+      include: [WorkpackStatus, WorkpackController.workpackAircraftInclude, {
+        model: TaskCard,
+        include: [
+          { model: ServiceBulletin, as: 'ServiceBulletin' },
+          { model: User, as: 'Assignee' },
+          { model: User, as: 'MechanicCompleter' },
+          { model: User, as: 'EngineerCertifier' },
+          { model: AircraftComponent, as: 'Component', required: false },
+        ],
+      }]
     });
     if (!pack) return res.status(404).send('Workpack not found');
     const tasks = await WorkpackController.attachLatestExecutions(packId, (pack as any).TaskCards || []);
@@ -562,6 +573,16 @@ export class WorkpackController {
     const snagPatterns = aircraftId
       ? await SnagService.getSnagPatternSummaryForAircraft(aircraftId)
       : [];
+    const componentExecutionContext = await WorkpackComponentIntegrationService.buildForWorkpack({
+      aircraftId,
+      tasks,
+      snags,
+    });
+    const operationalMaturity = WorkpackOperationalMaturityService.build({
+      tasks,
+      snags,
+      componentExecutionContext,
+    });
 
     return res.status(options?.status || 200).render('workpacks/execution', {
       pack,
@@ -569,6 +590,8 @@ export class WorkpackController {
       snags,
       openSnags,
       snagPatterns,
+      componentExecutionContext,
+      operationalMaturity,
       crsValidation: options?.crsValidation || null,
       user: req.user
     });
@@ -1491,6 +1514,7 @@ export class WorkpackController {
         { model: User, as: 'Assignee', required: false },
         { model: User, as: 'MechanicCompleter', required: false },
         { model: User, as: 'EngineerCertifier', required: false },
+        { model: AircraftComponent, as: 'Component', required: false },
       ],
       order: [
         ['task_card_number', 'ASC'],
@@ -1499,12 +1523,18 @@ export class WorkpackController {
     });
     const tasks = (await WorkpackController.attachLatestExecutions(packId, linkedTasks as any[]))
       .filter((t: any) => !t.service_bulletin_id);
+    const aircraftId = String((pack as any).aircraft_id || (pack as any).Aircraft?.id || '').trim();
+    const componentExecutionContext = await WorkpackComponentIntegrationService.buildForWorkpack({
+      aircraftId,
+      tasks,
+    });
     res.render('workpacks/tasks', {
       pack,
       tasks,
       availableTemplates,
       canShowAvailableTemplates,
       planningEditable,
+      componentExecutionContext,
       user: req.user
     });
   }
