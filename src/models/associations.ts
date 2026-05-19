@@ -3,6 +3,10 @@ import { AdRelationship } from './AdRelationship.js';
 import { AssetType } from './AssetType.js';
 import { Manufacturer } from './Manufacturer.js';
 import { ComponentModel } from './ComponentModel.js';
+import { SerializedComponent } from './SerializedComponent.js';
+import { SerializedComponentLifeState } from './SerializedComponentLifeState.js';
+import { ComponentLifeLimit } from './ComponentLifeLimit.js';
+import { AircraftComponentInstallation } from './AircraftComponentInstallation.js';
 import { ServiceBulletin } from './ServiceBulletin.js';
 import { ServiceBulletinModel } from './ServiceBulletinModel.js';
 import { AircraftSbCompliance } from './AircraftSbCompliance.js';
@@ -119,6 +123,22 @@ Aircraft.hasMany(AircraftComponent, {
 AircraftComponent.belongsTo(Aircraft, { foreignKey: 'aircraft_id' });
 
 AircraftComponent.belongsTo(ComponentModel, { foreignKey: 'model_id' });
+AircraftComponentInstallation.belongsTo(SerializedComponent, {
+  foreignKey: 'serialized_component_id',
+  as: 'SerializedComponent',
+});
+SerializedComponent.belongsTo(ComponentModel, {
+  foreignKey: 'component_model_id',
+  as: 'ComponentModel',
+});
+SerializedComponent.hasOne(SerializedComponentLifeState, {
+  foreignKey: 'serialized_component_id',
+  as: 'LifeState',
+});
+ComponentModel.hasMany(ComponentLifeLimit, {
+  foreignKey: 'component_model_id',
+  as: 'LifeLimits',
+});
 
 Workpack.belongsTo(Aircraft, { foreignKey: 'aircraft_id' });
 Aircraft.hasMany(Workpack, { foreignKey: 'aircraft_id' });
