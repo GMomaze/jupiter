@@ -5,6 +5,7 @@ import { Manufacturer } from './Manufacturer.js';
 import { ComponentModel } from './ComponentModel.js';
 import { SerializedComponent } from './SerializedComponent.js';
 import { SerializedComponentLifeState } from './SerializedComponentLifeState.js';
+import { SerializedComponentMaintenanceEvent } from './SerializedComponentMaintenanceEvent.js';
 import { ComponentLifeLimit } from './ComponentLifeLimit.js';
 import { AircraftComponentInstallation } from './AircraftComponentInstallation.js';
 import { ServiceBulletin } from './ServiceBulletin.js';
@@ -134,6 +135,10 @@ SerializedComponent.belongsTo(ComponentModel, {
 SerializedComponent.hasOne(SerializedComponentLifeState, {
   foreignKey: 'serialized_component_id',
   as: 'LifeState',
+});
+SerializedComponentMaintenanceEvent.belongsTo(User, {
+  foreignKey: 'recorded_by',
+  as: 'Recorder',
 });
 ComponentModel.hasMany(ComponentLifeLimit, {
   foreignKey: 'component_model_id',
