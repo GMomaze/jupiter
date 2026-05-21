@@ -1,0 +1,506 @@
+<% const installedUx = installedComponentOperationalUx || { summary: {}, position_context: { occupied_positions: [], recent_positions: [], suggested_positions: [] }, available_candidates: [], active_installations: [], explanation: '' }; %>
+<% const installedUxSummary = installedUx.summary || {}; %>
+<% const positionContext = installedUx.position_context || { occupied_positions: [], recent_positions: [], suggested_positions: [] }; %>
+
+<section id="installed-components-panel" class="aircraft-tab-panel hidden">
+    <div class="bg-white shadow rounded-lg p-6 mb-10">
+        <div class="mb-6 flex items-start justify-between gap-4">
+            <div>
+                <h2 class="text-xl font-semibold">Installed Components</h2>
+                <p class="mt-1 text-sm text-slate-500">
+                    Installed-component operational UX remains downstream of explicit install/remove workflow authority.
+                </p>
+                <p class="mt-3 text-sm text-slate-700"><%= installedUx.explanation || 'Installed-component operational UX explanation unavailable.' %></p>
+            </div>
+            <div class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800">
+                <p class="text-[11px] font-bold uppercase tracking-[0.3em] text-slate-500">Operational Boundary</p>
+                <p class="mt-2 max-w-xs text-sm leading-6"><%= installedUxSummary.operational_boundary_notice || 'Operational UX only.' %></p>
+            </div>
+        </div>
+
+        <div class="mb-8 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            <article class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <p class="text-[11px] font-bold uppercase tracking-[0.3em] text-slate-500">Active Serialized</p>
+                <p class="mt-2 text-2xl font-bold text-slate-900"><%= installedUxSummary.active_serialized_count || 0 %></p>
+                <p class="mt-2 text-sm text-slate-600">Current active serialized installations visible on this aircraft.</p>
+            </article>
+            <article class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <p class="text-[11px] font-bold uppercase tracking-[0.3em] text-slate-500">Available Candidates</p>
+                <p class="mt-2 text-2xl font-bold text-slate-900"><%= installedUxSummary.available_candidate_count || 0 %></p>
+                <p class="mt-2 text-sm text-slate-600">Serialized components currently AVAILABLE and eligible to be selected through the authoritative install workflow.</p>
+            </article>
+            <article class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <p class="text-[11px] font-bold uppercase tracking-[0.3em] text-slate-500">Occupied Positions</p>
+                <p class="mt-2 text-2xl font-bold text-slate-900"><%= installedUxSummary.occupied_position_count || 0 %></p>
+                <p class="mt-2 text-sm text-slate-600">Current captured installation positions visible before a new install action is entered.</p>
+            </article>
+            <article class="rounded-2xl border border-amber-200 bg-amber-50 p-4">
+                <p class="text-[11px] font-bold uppercase tracking-[0.3em] text-amber-700">Due Attention</p>
+                <p class="mt-2 text-2xl font-bold text-slate-900"><%= installedUxSummary.due_attention_count || 0 %></p>
+                <p class="mt-2 text-sm text-slate-600">Derived due, overdue, or due-soon contributors already visible from bounded technical visibility.</p>
+            </article>
+            <article class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <p class="text-[11px] font-bold uppercase tracking-[0.3em] text-slate-500">Unknown Visibility</p>
+                <p class="mt-2 text-2xl font-bold text-slate-900"><%= installedUxSummary.unknown_attention_count || 0 %></p>
+                <p class="mt-2 text-sm text-slate-600">Installed serialized contributors that still require missing-data clarification.</p>
+            </article>
+            <article class="rounded-2xl border border-slate-200 bg-white p-4">
+                <p class="text-[11px] font-bold uppercase tracking-[0.3em] text-slate-500">Operational Headline</p>
+                <p class="mt-2 text-sm font-semibold leading-6 text-slate-900"><%= installedUxSummary.quick_headline || 'Installed-component workflow context is available.' %></p>
+            </article>
+        </div>
+
+        <div class="mb-8 rounded-2xl border border-slate-200 bg-slate-50 p-5">
+            <div class="mb-5 flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+                <div>
+                    <h3 class="text-lg font-semibold text-slate-900">Install Serialized Component</h3>
+                    <p class="mt-1 text-sm text-slate-500">
+                        Search and review the serialized component first, then enter explicit install workflow details.
+                    </p>
+                </div>
+                <div class="rounded-xl bg-white px-4 py-3 text-sm text-slate-700">
+                    Eligible candidates remain sourced only from serialized components in the authoritative <span class="font-semibold">AVAILABLE</span> status.
+                </div>
+            </div>
+
+            <form action="/aircraft/<%= aircraft.id %>/serialized-components"
+                  method="POST"
+                  class="space-y-5">
+                <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+
+                <div class="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
+                    <div class="rounded-2xl border border-slate-200 bg-white p-4">
+                        <label for="serialized-component-search" class="block text-xs font-bold uppercase tracking-[0.3em] text-slate-500">
+                            Serialized Search
+                        </label>
+                        <input
+                            id="serialized-component-search"
+                            type="search"
+                            placeholder="Search by serial, part number, manufacturer, model, or asset type"
+                            class="mt-2 block w-full rounded border border-slate-300 px-3 py-2 text-sm"
+                        >
+                        <p id="serialized-component-search-count" class="mt-2 text-xs text-slate-500">
+                            <%= (installedUx.available_candidates || []).length %> available candidate<%= (installedUx.available_candidates || []).length === 1 ? '' : 's' %> visible.
+                        </p>
+
+                        <div class="mt-4">
+                            <label for="serialized-component-select" class="block text-xs font-bold uppercase tracking-[0.3em] text-slate-500">
+                                Available Serialized Component
+                            </label>
+                            <select
+                                id="serialized-component-select"
+                                name="serialized_component_id"
+                                required
+                                class="mt-2 block w-full rounded border border-slate-300 px-3 py-2 text-sm"
+                            >
+                                <option value="">Select Serialized Component</option>
+                                <% (installedUx.available_candidates || []).forEach((candidate) => { %>
+                                    <option value="<%= candidate.serialized_component_id %>">
+                                        <%= candidate.asset_type_code %> | <%= candidate.manufacturer_name || 'Unknown' %> | <%= candidate.model_name %> | S/N <%= candidate.serial_number %><% if (candidate.part_number) { %> | P/N <%= candidate.part_number %><% } %>
+                                    </option>
+                                <% }) %>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div id="serialized-component-preview" class="rounded-2xl border border-slate-200 bg-white p-4">
+                        <p class="text-[11px] font-bold uppercase tracking-[0.3em] text-slate-500">Selection Context</p>
+                        <p class="mt-3 text-sm text-slate-600">
+                            Select a serialized component to review quick eligibility, prior fitment context, and suggested position visibility before installation.
+                        </p>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+                    <div>
+                        <label class="block text-xs font-bold uppercase tracking-[0.3em] text-slate-500">
+                            Installation Date
+                        </label>
+                        <input
+                            type="date"
+                            name="installed_at"
+                            value="<%= new Date().toISOString().slice(0, 10) %>"
+                            required
+                            class="mt-2 block w-full rounded border border-slate-300 px-3 py-2 text-sm"
+                        >
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-bold uppercase tracking-[0.3em] text-slate-500">
+                            Position
+                        </label>
+                        <input
+                            id="serialized-component-position"
+                            type="text"
+                            name="position"
+                            list="serialized-position-suggestions"
+                            placeholder="LH-MAG, NAV-1, BAT-1"
+                            class="mt-2 block w-full rounded border border-slate-300 px-3 py-2 text-sm"
+                        >
+                        <datalist id="serialized-position-suggestions">
+                            <% (positionContext.suggested_positions || []).forEach((position) => { %>
+                                <option value="<%= position %>"></option>
+                            <% }) %>
+                        </datalist>
+                        <p id="serialized-position-helper" class="mt-2 text-xs text-slate-500">
+                            Position capture remains explicit. Suggested positions are guidance only and do not reserve or infer installation authority.
+                        </p>
+                    </div>
+                </div>
+
+                <% if ((positionContext.occupied_positions || []).length > 0) { %>
+                    <div class="rounded-2xl border border-rose-200 bg-rose-50 p-4">
+                        <p class="text-[11px] font-bold uppercase tracking-[0.3em] text-rose-700">Currently Occupied Positions</p>
+                        <div class="mt-3 flex flex-wrap gap-2">
+                            <% positionContext.occupied_positions.forEach((position) => { %>
+                                <span class="rounded-full bg-white px-3 py-1 text-[11px] font-bold uppercase tracking-[0.3em] text-rose-700"><%= position %></span>
+                            <% }) %>
+                        </div>
+                    </div>
+                <% } %>
+
+                <% if ((positionContext.recent_positions || []).length > 0) { %>
+                    <div class="rounded-2xl border border-slate-200 bg-white p-4">
+                        <p class="text-[11px] font-bold uppercase tracking-[0.3em] text-slate-500">Recent Position History</p>
+                        <div class="mt-3 flex flex-wrap gap-2">
+                            <% positionContext.recent_positions.forEach((position) => { %>
+                                <button type="button" class="position-suggestion-chip rounded-full border border-slate-300 bg-slate-50 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.3em] text-slate-700" data-position-value="<%= position %>">
+                                    <%= position %>
+                                </button>
+                            <% }) %>
+                        </div>
+                    </div>
+                <% } %>
+
+                <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+                    <div>
+                        <label class="block text-xs font-bold uppercase tracking-[0.3em] text-slate-500">
+                            Install TSN
+                        </label>
+                        <input
+                            type="number"
+                            step="0.01"
+                            name="install_tsn"
+                            class="mt-2 block w-full rounded border border-slate-300 px-3 py-2 text-sm"
+                        >
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-bold uppercase tracking-[0.3em] text-slate-500">
+                            Install TSO
+                        </label>
+                        <input
+                            type="number"
+                            step="0.01"
+                            name="install_tso"
+                            class="mt-2 block w-full rounded border border-slate-300 px-3 py-2 text-sm"
+                        >
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-bold uppercase tracking-[0.3em] text-slate-500">
+                        Notes
+                    </label>
+                    <textarea
+                        name="notes"
+                        rows="3"
+                        class="mt-2 block w-full rounded border border-slate-300 px-3 py-2 text-sm"
+                        placeholder="Optional serialized installation notes"
+                    ></textarea>
+                </div>
+
+                <div class="rounded-2xl border border-slate-200 bg-white p-4">
+                    <p class="text-sm leading-6 text-slate-700">
+                        Installing a serialized component remains an explicit workflow action. Submitting this form creates a new active installation record and updates the selected serialized component from <span class="font-semibold">AVAILABLE</span> to <span class="font-semibold">INSTALLED</span> only through the authoritative workflow.
+                    </p>
+                </div>
+
+                <button type="submit"
+                        class="rounded bg-slate-800 px-4 py-2 text-sm font-bold text-white hover:bg-black">
+                    Install Serialized Component
+                </button>
+            </form>
+        </div>
+
+        <div class="mb-8 rounded-2xl border border-slate-200 bg-slate-50 p-5">
+            <div class="mb-5 flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+                <div>
+                    <h3 class="text-lg font-semibold text-slate-900">Active Serialized Installations</h3>
+                    <p class="mt-1 text-sm text-slate-500">
+                        Removal context, quick technical visibility, and authoritative history drilldown remain visible without bypassing the workflow.
+                    </p>
+                </div>
+                <div class="rounded-full bg-white px-3 py-1 text-xs font-bold uppercase tracking-[0.3em] text-slate-700">
+                    <%= (installedUx.active_installations || []).length %> Active
+                </div>
+            </div>
+
+            <% if ((installedUx.active_installations || []).length === 0) { %>
+                <div class="rounded-2xl border border-dashed border-slate-300 bg-white px-5 py-6 text-sm text-slate-500">
+                    No active serialized components are currently installed on this aircraft.
+                </div>
+            <% } else { %>
+                <div class="space-y-4">
+                    <% installedUx.active_installations.forEach((item) => { %>
+                        <article class="rounded-2xl border border-slate-200 bg-white p-5">
+                            <div class="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+                                <div>
+                                    <div class="flex flex-wrap items-center gap-2">
+                                        <span class="rounded-full bg-slate-100 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.3em] text-slate-700">
+                                            <%= item.asset_type_code %>
+                                        </span>
+                                        <span class="rounded-full bg-blue-100 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.3em] text-blue-700">
+                                            <%= item.status %>
+                                        </span>
+                                        <span class="rounded-full px-3 py-1 text-[11px] font-bold uppercase tracking-[0.3em] <%= item.due_state === 'OVERDUE' ? 'bg-rose-100 text-rose-800' : item.due_state === 'DUE' ? 'bg-amber-100 text-amber-800' : item.due_state === 'DUE_SOON' ? 'bg-yellow-100 text-yellow-800' : item.due_state === 'NOT_DUE' ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-700' %>">
+                                            <%= item.due_state.replace(/_/g, ' ') %>
+                                        </span>
+                                    </div>
+                                    <h4 class="mt-3 text-base font-bold text-slate-900">
+                                        <%= item.manufacturer_name || 'Unknown Manufacturer' %> <%= item.model_name %>
+                                    </h4>
+                                    <p class="mt-1 text-sm text-slate-600">
+                                        Serial <%= item.serial_number %>
+                                        <% if (item.part_number) { %>
+                                            | Part Number <%= item.part_number %>
+                                        <% } %>
+                                        <% if (item.model_code) { %>
+                                            | <%= item.model_code %>
+                                        <% } %>
+                                    </p>
+                                </div>
+
+                                <div class="grid gap-3 text-sm text-slate-700 md:grid-cols-2 xl:min-w-[26rem]">
+                                    <div>
+                                        <p class="text-xs font-bold uppercase tracking-[0.3em] text-slate-500">Position</p>
+                                        <p class="mt-1 font-semibold text-slate-900"><%= item.position || 'Position Not Captured' %></p>
+                                    </div>
+                                    <div>
+                                        <p class="text-xs font-bold uppercase tracking-[0.3em] text-slate-500">Installed At</p>
+                                        <p class="mt-1"><%= item.installed_at || '-' %></p>
+                                    </div>
+                                    <div>
+                                        <p class="text-xs font-bold uppercase tracking-[0.3em] text-slate-500">Install TSN</p>
+                                        <p class="mt-1"><%= item.install_tsn ?? '-' %></p>
+                                    </div>
+                                    <div>
+                                        <p class="text-xs font-bold uppercase tracking-[0.3em] text-slate-500">Install TSO</p>
+                                        <p class="mt-1"><%= item.install_tso ?? '-' %></p>
+                                    </div>
+                                    <div>
+                                        <p class="text-xs font-bold uppercase tracking-[0.3em] text-slate-500">Condition</p>
+                                        <p class="mt-1"><%= item.condition || '-' %></p>
+                                    </div>
+                                    <div>
+                                        <p class="text-xs font-bold uppercase tracking-[0.3em] text-slate-500">History Entries</p>
+                                        <p class="mt-1"><%= (item.history_entries || []).length %></p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="mt-4 grid gap-4 xl:grid-cols-2">
+                                <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                                    <p class="text-[11px] font-bold uppercase tracking-[0.3em] text-slate-500">Install Traceability</p>
+                                    <p class="mt-2 text-sm leading-6 text-slate-700"><%= item.install_traceability %></p>
+                                </div>
+                                <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                                    <p class="text-[11px] font-bold uppercase tracking-[0.3em] text-slate-500">Removal Context</p>
+                                    <p class="mt-2 text-sm leading-6 text-slate-700"><%= item.removal_context_explanation %></p>
+                                </div>
+                            </div>
+
+                            <% if ((item.missing_data || []).length > 0) { %>
+                                <div class="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                                    <p class="text-[11px] font-bold uppercase tracking-[0.3em] text-slate-500">Missing Technical Inputs</p>
+                                    <p class="mt-2 text-sm text-slate-700"><%= item.missing_data.join(', ') %></p>
+                                </div>
+                            <% } %>
+
+                            <div class="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                                <p class="text-[11px] font-bold uppercase tracking-[0.3em] text-slate-500">Technical Visibility</p>
+                                <p class="mt-2 text-sm leading-6 text-slate-700"><%= item.due_explanation %></p>
+                            </div>
+
+                            <details class="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                                <summary class="cursor-pointer text-sm font-bold uppercase tracking-[0.3em] text-slate-600">
+                                    Installation History Drilldown
+                                </summary>
+                                <% if ((item.history_entries || []).length > 0) { %>
+                                    <div class="mt-4 overflow-x-auto">
+                                        <table class="min-w-full divide-y divide-slate-200">
+                                            <thead class="bg-white">
+                                                <tr>
+                                                    <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-[0.3em] text-slate-500">Aircraft</th>
+                                                    <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-[0.3em] text-slate-500">Installed</th>
+                                                    <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-[0.3em] text-slate-500">Removed</th>
+                                                    <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-[0.3em] text-slate-500">Position</th>
+                                                    <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-[0.3em] text-slate-500">Trace</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody class="divide-y divide-slate-100 bg-white">
+                                                <% item.history_entries.forEach((historyEntry) => { %>
+                                                    <tr>
+                                                        <td class="px-3 py-2 text-sm text-slate-700"><%= historyEntry.aircraft_registration || 'Unknown Aircraft' %></td>
+                                                        <td class="px-3 py-2 text-sm text-slate-700"><%= historyEntry.installed_at || '-' %></td>
+                                                        <td class="px-3 py-2 text-sm text-slate-700"><%= historyEntry.removed_at || 'Active' %></td>
+                                                        <td class="px-3 py-2 text-sm text-slate-700"><%= historyEntry.position || '-' %></td>
+                                                        <td class="px-3 py-2 text-sm text-slate-700">
+                                                            <div><%= historyEntry.event_label %></div>
+                                                            <% if (historyEntry.notes) { %>
+                                                                <div class="mt-1 text-xs text-slate-500"><%= historyEntry.notes %></div>
+                                                            <% } %>
+                                                        </td>
+                                                    </tr>
+                                                <% }) %>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                <% } else { %>
+                                    <p class="mt-4 text-sm text-slate-500">No installation history entries are available for this serialized component yet.</p>
+                                <% } %>
+                            </details>
+
+                            <form
+                                action="/aircraft/<%= aircraft.id %>/serialized-components/<%= item.installation_id %>/remove"
+                                method="POST"
+                                class="mt-4 border-t border-slate-200 pt-4"
+                            >
+                                <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+
+                                <div class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-5">
+                                    <div>
+                                        <label class="block text-xs font-bold uppercase tracking-[0.3em] text-slate-500">Removed At</label>
+                                        <input
+                                            type="date"
+                                            name="removed_at"
+                                            required
+                                            value="<%= new Date().toISOString().slice(0, 10) %>"
+                                            class="mt-2 block w-full rounded border border-slate-300 px-3 py-2 text-sm"
+                                        >
+                                    </div>
+                                    <div>
+                                        <label class="block text-xs font-bold uppercase tracking-[0.3em] text-slate-500">Removal TSN</label>
+                                        <input
+                                            type="number"
+                                            step="0.01"
+                                            name="removal_tsn"
+                                            class="mt-2 block w-full rounded border border-slate-300 px-3 py-2 text-sm"
+                                        >
+                                    </div>
+                                    <div>
+                                        <label class="block text-xs font-bold uppercase tracking-[0.3em] text-slate-500">Removal TSO</label>
+                                        <input
+                                            type="number"
+                                            step="0.01"
+                                            name="removal_tso"
+                                            class="mt-2 block w-full rounded border border-slate-300 px-3 py-2 text-sm"
+                                        >
+                                    </div>
+                                    <div>
+                                        <label class="block text-xs font-bold uppercase tracking-[0.3em] text-slate-500">Resulting Status</label>
+                                        <select
+                                            name="resulting_status"
+                                            required
+                                            class="mt-2 block w-full rounded border border-slate-300 px-3 py-2 text-sm"
+                                        >
+                                            <% (serializedRemovalStatuses || []).forEach((status) => { %>
+                                                <option value="<%= status %>"><%= status %></option>
+                                            <% }) %>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label class="block text-xs font-bold uppercase tracking-[0.3em] text-slate-500">Notes</label>
+                                        <input
+                                            type="text"
+                                            name="notes"
+                                            class="mt-2 block w-full rounded border border-slate-300 px-3 py-2 text-sm"
+                                            placeholder="Optional removal notes"
+                                        >
+                                    </div>
+                                </div>
+
+                                <p class="mt-3 text-xs leading-6 text-slate-500">
+                                    Removing this serialized component remains an explicit workflow action. Submission closes the active installation record and sets the selected valid resulting status only through authoritative workflow logic.
+                                </p>
+
+                                <div class="mt-4">
+                                    <button
+                                        type="submit"
+                                        class="rounded bg-rose-600 px-4 py-2 text-sm font-bold text-white hover:bg-rose-700"
+                                    >
+                                        Remove Serialized Component
+                                    </button>
+                                </div>
+                            </form>
+                        </article>
+                    <% }) %>
+                </div>
+            <% } %>
+        </div>
+
+        <% if (installedComponents.length > 0) { %>
+            <div class="space-y-4">
+                <% installedComponents.forEach((component) => { %>
+                    <% const model = component.ComponentModel; %>
+                    <% const manufacturer = model?.Manufacturer; %>
+                    <% const assetTypeCode = model?.AssetType?.code || 'UNCLASSIFIED'; %>
+                    <% const assetTypeLabel = model?.AssetType?.label || assetTypeCode; %>
+                    <% const isInstalled = component.current_status === 'INSTALLED'; %>
+                    <article class="rounded-lg border border-slate-200 p-4">
+                        <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                            <div>
+                                <div class="flex flex-wrap items-center gap-2">
+                                    <span class="rounded-full bg-slate-100 px-3 py-1 text-[11px] font-bold uppercase tracking-widest text-slate-700">
+                                        <%= assetTypeLabel %>
+                                    </span>
+                                    <span class="rounded-full px-3 py-1 text-[11px] font-bold uppercase tracking-widest <%= isInstalled ? 'bg-emerald-100 text-emerald-800' : component.current_status === 'QUARANTINED' ? 'bg-rose-100 text-rose-800' : 'bg-slate-200 text-slate-700' %>">
+                                        <%= component.current_status %>
+                                    </span>
+                                </div>
+                                <h3 class="mt-3 text-base font-bold text-slate-900">
+                                    <%= manufacturer?.name || 'Unknown Manufacturer' %>
+                                    <%= model?.model_name || 'Unknown Model' %>
+                                </h3>
+                                <p class="mt-1 text-sm text-slate-600">
+                                    Model Code: <%= model?.model_code || '-' %>
+                                </p>
+                            </div>
+
+                            <div class="grid gap-3 text-sm text-slate-700 md:grid-cols-2 lg:min-w-[22rem]">
+                                <div>
+                                    <p class="text-xs font-bold uppercase tracking-widest text-slate-500">Serial Number</p>
+                                    <p class="mt-1 font-semibold text-slate-900"><%= component.serial_number %></p>
+                                </div>
+                                <div>
+                                    <p class="text-xs font-bold uppercase tracking-widest text-slate-500">Position</p>
+                                    <p class="mt-1 font-semibold text-slate-900"><%= component.position_code || '-' %></p>
+                                </div>
+                                <div>
+                                    <p class="text-xs font-bold uppercase tracking-widest text-slate-500">Installation Date</p>
+                                    <p class="mt-1"><%= component.installation_date || '-' %></p>
+                                </div>
+                                <div>
+                                    <p class="text-xs font-bold uppercase tracking-widest text-slate-500">Aircraft Hours At Install</p>
+                                    <p class="mt-1"><%= component.install_af_hours %></p>
+                                </div>
+                                <div>
+                                    <p class="text-xs font-bold uppercase tracking-widest text-slate-500">TSN At Install</p>
+                                    <p class="mt-1"><%= component.tsn_at_install %></p>
+                                </div>
+                                <div>
+                                    <p class="text-xs font-bold uppercase tracking-widest text-slate-500">TSO At Install</p>
+                                    <p class="mt-1"><%= component.tso_at_install %></p>
+                                </div>
+                            </div>
+                        </div>
+                    </article>
+                <% }) %>
+            </div>
+        <% } else { %>
+            <p class="text-gray-500 text-sm">No components installed.</p>
+        <% } %>
+    </div>
+
+    <script type="application/json" id="serialized-component-candidate-data"><%- JSON.stringify(installedUx.available_candidates || []) %></script>
+</section>

@@ -1,0 +1,93 @@
+<%- include('../partials/header') %>
+
+<main class="max-w-5xl mx-auto py-10 px-6">
+    <% const safeCanEditAircraft = typeof canEditAircraft !== 'undefined' ? canEditAircraft : false; %>
+    <% const safeCategories = typeof categories !== 'undefined' ? categories : []; %>
+    <% const safeManufacturers = typeof manufacturers !== 'undefined' ? manufacturers : []; %>
+    <% const safeManufacturerModels = typeof manufacturerModels !== 'undefined' ? manufacturerModels : []; %>
+    <% const safeCustomerOptions = typeof customerOptions !== 'undefined' ? customerOptions : []; %>
+    <% const safeCurrentCustomerLinks = typeof currentCustomerLinks !== 'undefined' ? currentCustomerLinks : []; %>
+    <% const safeHistoricalCustomerLinks = typeof historicalCustomerLinks !== 'undefined' ? historicalCustomerLinks : []; %>
+    <% const safeComponentModels = typeof componentModels !== 'undefined' ? componentModels : []; %>
+    <% const safeAvailableSerializedComponents = typeof availableSerializedComponents !== 'undefined' ? availableSerializedComponents : []; %>
+    <% const safeSerializedRemovalStatuses = typeof serializedRemovalStatuses !== 'undefined' ? serializedRemovalStatuses : []; %>
+    <% const safeServiceBulletins = typeof serviceBulletins !== 'undefined' ? serviceBulletins : []; %>
+    <% const safeMessages = typeof messages !== 'undefined' ? messages : {}; %>
+    <% const safeBulletinFilters = typeof bulletinFilters !== 'undefined' ? bulletinFilters : (typeof sbFilters !== 'undefined' ? sbFilters : {}); %>
+    <% const safeTechnicalDashboard = typeof technicalDashboard !== 'undefined' ? technicalDashboard : (typeof aircraftTechnicalDashboard !== 'undefined' ? aircraftTechnicalDashboard : {}); %>
+    <% const safeTechnicalStatus = typeof technicalStatus !== 'undefined' ? technicalStatus : (typeof aircraftTechnicalStatus !== 'undefined' ? aircraftTechnicalStatus : {}); %>
+    <% const safeDashboardSummary = typeof dashboardSummary !== 'undefined' ? dashboardSummary : (safeTechnicalDashboard.summary || {}); %>
+    <% const safeTechnicalStatusSummary = typeof technicalStatusSummary !== 'undefined' ? technicalStatusSummary : (safeTechnicalStatus.summary || {}); %>
+    <% const safeComplianceVisibility = typeof complianceVisibility !== 'undefined' ? complianceVisibility : (typeof aircraftComplianceVisibility !== 'undefined' ? aircraftComplianceVisibility : {}); %>
+    <% const safeInstalledComponentOperationalUx = typeof installedComponentOperationalUx !== 'undefined' ? installedComponentOperationalUx : {}; %>
+    <% const safeCsrfToken = typeof csrfToken !== 'undefined' ? csrfToken : null; %>
+    <% const safeAircraftViewPath = typeof aircraftViewPath !== 'undefined' ? aircraftViewPath : null; %>
+    <% const safeAircraftId = typeof aircraftId !== 'undefined' ? aircraftId : null; %>
+    <% const safeSb = typeof sb !== 'undefined' ? sb : null; %>
+    <% const sortedInstalledComponents = (aircraft.installed_components || []).slice().sort((left, right) => { %>
+    <%   const leftType = left.ComponentModel?.AssetType?.code || ''; %>
+    <%   const rightType = right.ComponentModel?.AssetType?.code || ''; %>
+    <%   if (leftType !== rightType) return leftType.localeCompare(rightType); %>
+    <%   const leftPosition = left.position_code || ''; %>
+    <%   const rightPosition = right.position_code || ''; %>
+    <%   if (leftPosition !== rightPosition) return leftPosition.localeCompare(rightPosition); %>
+    <%   return (left.serial_number || '').localeCompare(right.serial_number || ''); %>
+    <% }); %>
+    <% const safeInstalledComponents = typeof installedComponents !== 'undefined' ? installedComponents : sortedInstalledComponents; %>
+    <% const derivedActiveInstalledComponents = safeInstalledComponents.filter(component => component.current_status === 'INSTALLED'); %>
+    <% const safeActiveInstalledComponents = typeof activeInstalledComponents !== 'undefined' ? activeInstalledComponents : derivedActiveInstalledComponents; %>
+    <% const safeActiveSerializedInstallations = typeof activeSerializedInstallations !== 'undefined' ? activeSerializedInstallations : (typeof serializedInstallations !== 'undefined' ? serializedInstallations : []); %>
+    <% const derivedActiveInstalledComponentGroups = Object.entries(safeActiveInstalledComponents.reduce((groups, component) => { %>
+    <%   const assetTypeCode = component.ComponentModel?.AssetType?.code || 'UNCLASSIFIED'; %>
+    <%   const assetTypeLabel = component.ComponentModel?.AssetType?.label || assetTypeCode; %>
+    <%   groups[assetTypeCode] = groups[assetTypeCode] || { code: assetTypeCode, label: assetTypeLabel, count: 0, components: [] }; %>
+    <%   groups[assetTypeCode].count += 1; %>
+    <%   groups[assetTypeCode].components.push(component); %>
+    <%   return groups; %>
+    <% }, {})).sort((left, right) => left[0].localeCompare(right[0])); %>
+    <% const safeActiveInstalledComponentGroups = typeof activeInstalledComponentGroups !== 'undefined' ? activeInstalledComponentGroups : derivedActiveInstalledComponentGroups; %>
+    <% const aircraftViewLocals = {
+      aircraft,
+      user,
+      messages: safeMessages,
+      canEditAircraft: safeCanEditAircraft,
+      categories: safeCategories,
+      manufacturers: safeManufacturers,
+      manufacturerModels: safeManufacturerModels,
+      customerOptions: safeCustomerOptions,
+      currentCustomerLinks: safeCurrentCustomerLinks,
+      historicalCustomerLinks: safeHistoricalCustomerLinks,
+      componentModels: safeComponentModels,
+      availableSerializedComponents: safeAvailableSerializedComponents,
+      installedComponents: safeInstalledComponents,
+      activeInstalledComponents: safeActiveInstalledComponents,
+      activeSerializedInstallations: safeActiveSerializedInstallations,
+      activeInstalledComponentGroups: safeActiveInstalledComponentGroups,
+      serializedRemovalStatuses: safeSerializedRemovalStatuses,
+      serviceBulletins: safeServiceBulletins,
+      bulletinFilters: safeBulletinFilters,
+      technicalDashboard: safeTechnicalDashboard,
+      technicalStatus: safeTechnicalStatus,
+      dashboardSummary: safeDashboardSummary,
+      technicalStatusSummary: safeTechnicalStatusSummary,
+      complianceVisibility: safeComplianceVisibility,
+      installedComponentOperationalUx: safeInstalledComponentOperationalUx,
+      csrfToken: safeCsrfToken,
+      aircraftViewPath: safeAircraftViewPath,
+      aircraftDataViewPath: typeof aircraftDataViewPath !== 'undefined' ? aircraftDataViewPath : safeAircraftViewPath,
+      aircraftTechnicalViewPath: typeof aircraftTechnicalViewPath !== 'undefined' ? aircraftTechnicalViewPath : safeAircraftViewPath,
+      aircraftScreen: typeof aircraftScreen !== 'undefined' ? aircraftScreen : 'technical',
+      aircraftId: safeAircraftId,
+      sb: safeSb,
+    }; %>
+
+    <%- include('./partials/view-page-header', aircraftViewLocals) %>
+    <%- include('./partials/view-tab-nav', aircraftViewLocals) %>
+    <%- include('./partials/view-technical-dashboard', aircraftViewLocals) %>
+    <%- include('./partials/view-overview-panel', aircraftViewLocals) %>
+    <%- include('./partials/view-service-bulletins-panel', aircraftViewLocals) %>
+    <%- include('./partials/installed-components-operational-ux', aircraftViewLocals) %>
+</main>
+
+<%- include('./partials/view-page-script') %>
+<%- include('../partials/footer') %>

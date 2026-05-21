@@ -1,0 +1,294 @@
+<section id="overview-panel" class="aircraft-tab-panel">
+    <div class="mb-6 grid gap-4 xl:grid-cols-[1.4fr_0.6fr]">
+        <div class="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+            <p class="text-xs font-bold uppercase tracking-widest text-slate-500">Active Installed Component Configuration</p>
+            <% if (activeInstalledComponentGroups.length > 0) { %>
+                <div class="mt-3 space-y-4">
+                    <% activeInstalledComponentGroups.forEach(([, group]) => { %>
+                        <div class="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                            <div class="flex items-center justify-between gap-3">
+                                <div>
+                                    <p class="text-sm font-semibold text-slate-900"><%= group.label %></p>
+                                    <p class="mt-1 text-xs uppercase tracking-widest text-slate-500"><%= group.code %></p>
+                                </div>
+                                <span class="rounded-full bg-white px-3 py-1 text-[11px] font-bold uppercase tracking-widest text-slate-700">
+                                    <%= group.count %> Active
+                                </span>
+                            </div>
+                            <div class="mt-3 space-y-2">
+                                <% group.components.forEach((component) => { %>
+                                    <div class="rounded-lg bg-white p-3">
+                                        <p class="text-sm font-semibold text-slate-900">
+                                            <%= component.ComponentModel?.Manufacturer?.name || 'Unknown Manufacturer' %>
+                                            <%= component.ComponentModel?.model_name || 'Unknown Model' %>
+                                        </p>
+                                        <p class="mt-1 text-xs uppercase tracking-widest text-slate-500">
+                                            <%= component.position_code || 'Position Not Captured' %>
+                                        </p>
+                                        <p class="mt-2 text-sm text-slate-700">S/N: <%= component.serial_number %></p>
+                                        <p class="text-sm text-slate-700">Installed: <%= component.installation_date || '-' %></p>
+                                    </div>
+                                <% }) %>
+                            </div>
+                        </div>
+                    <% }) %>
+                </div>
+            <% } else { %>
+                <p class="mt-3 text-sm text-slate-500">No active installed components recorded.</p>
+            <% } %>
+        </div>
+
+        <div class="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+            <p class="text-xs font-bold uppercase tracking-widest text-slate-500">Configuration Readiness</p>
+            <dl class="mt-3 space-y-2 text-sm text-slate-700">
+                <div class="flex items-center justify-between gap-4">
+                    <dt>Aircraft Hours</dt>
+                    <dd class="font-semibold text-slate-900"><%= aircraft.total_time_hours %></dd>
+                </div>
+                <div class="flex items-center justify-between gap-4">
+                    <dt>Installed Component Rows</dt>
+                    <dd class="font-semibold text-slate-900"><%= activeInstalledComponents.length %></dd>
+                </div>
+                <div class="flex items-center justify-between gap-4">
+                    <dt>Active Serialized Installations</dt>
+                    <dd class="font-semibold text-slate-900"><%= activeSerializedInstallations.length %></dd>
+                </div>
+            </dl>
+            <% if (activeInstalledComponentGroups.length > 0) { %>
+                <div class="mt-4 border-t border-slate-200 pt-3">
+                    <p class="text-xs font-bold uppercase tracking-widest text-slate-500">Installed Component Types</p>
+                    <div class="mt-2 space-y-2">
+                        <% activeInstalledComponentGroups.forEach(([, group]) => { %>
+                            <div class="rounded-lg bg-slate-50 px-3 py-2">
+                                <div class="flex items-center justify-between gap-3 text-sm">
+                                    <span class="font-semibold text-slate-900"><%= group.label %> <span class="text-slate-500">(<%= group.code %>)</span></span>
+                                    <span class="text-slate-600"><%= group.count %></span>
+                                </div>
+                                <p class="mt-1 text-xs text-slate-500">
+                                    <%= group.components.map((component) => `${component.ComponentModel?.Manufacturer?.name || 'Unknown'} ${component.ComponentModel?.model_name || 'Model'} (${component.serial_number || 'No Serial'})`).join(', ') %>
+                                </p>
+                            </div>
+                        <% }) %>
+                    </div>
+                </div>
+            <% } %>
+            <p class="mt-4 text-xs text-slate-500">
+                Printable outputs remain downstream only and will read active installed component records from Jupiter.
+            </p>
+        </div>
+    </div>
+
+    <div class="bg-white shadow rounded-lg p-6 mb-10">
+        <h2 class="text-xl font-semibold mb-4">
+            Install Component on <%= aircraft.registration %>
+        </h2>
+        <p class="mb-4 text-sm text-slate-500">
+            Capture the serialized installed unit, its position, the installation date, and the carried TSN / TSO values.
+        </p>
+
+        <form action="/aircraft/<%= aircraft.id %>/components"
+              method="POST"
+              class="space-y-4">
+            <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+
+            <div>
+                <label class="block text-sm font-medium text-gray-700">
+                    Component Model
+                </label>
+
+                <select name="model_id"
+                        required
+                        class="mt-1 block w-full border-gray-300 rounded-md shadow-sm">
+
+                    <% componentModels.forEach(model => { %>
+                        <option value="<%= model.id %>">
+                            <%= model.Manufacturer?.name %> -
+                            <%= model.model_name %>
+                            (<%= model.AssetType?.code || 'UNCLASSIFIED' %>)
+                        </option>
+                    <% }) %>
+
+                </select>
+            </div>
+
+            <div>
+                <label class="block text-sm font-medium text-gray-700">
+                    Serial Number
+                </label>
+                <input type="text"
+                       name="serial_number"
+                       required
+                       class="mt-1 block w-full border-gray-300 rounded-md shadow-sm">
+            </div>
+
+            <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">
+                        Position Code
+                    </label>
+                    <input type="text"
+                           name="position_code"
+                           placeholder="Position reference if applicable"
+                           class="mt-1 block w-full border-gray-300 rounded-md shadow-sm">
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">
+                        Installation Date
+                    </label>
+                    <input type="date"
+                           name="installation_date"
+                           value="<%= new Date().toISOString().slice(0, 10) %>"
+                           class="mt-1 block w-full border-gray-300 rounded-md shadow-sm">
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">
+                        Aircraft Hours at Install
+                    </label>
+                    <input type="text"
+                           value="<%= aircraft.total_time_hours %>"
+                           disabled
+                           class="mt-1 block w-full border-gray-300 rounded-md bg-slate-50 text-slate-500 shadow-sm">
+                    <p class="mt-1 text-xs text-slate-500">
+                        Stored automatically from the current aircraft hours.
+                    </p>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">
+                        TSN at Install
+                    </label>
+                    <input type="number"
+                           step="0.01"
+                           name="tsn_at_install"
+                           value="0"
+                           required
+                           class="mt-1 block w-full border-gray-300 rounded-md shadow-sm">
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">
+                        TSO at Install
+                    </label>
+                    <input type="number"
+                           step="0.01"
+                           name="tso_at_install"
+                           value="0"
+                           required
+                           class="mt-1 block w-full border-gray-300 rounded-md shadow-sm">
+                </div>
+
+            </div>
+
+            <button type="submit"
+                    class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">
+                Finalize Installation
+            </button>
+
+        </form>
+    </div>
+
+    <div class="bg-white shadow rounded-lg p-6 mb-10">
+        <h2 class="text-xl font-semibold mb-4">
+            Install Serialized Component on <%= aircraft.registration %>
+        </h2>
+        <p class="mb-4 text-sm text-slate-500">
+            Select an available serialized component and capture its installation details without changing the existing aircraft component workflow.
+        </p>
+
+        <form action="/aircraft/<%= aircraft.id %>/serialized-components"
+              method="POST"
+              class="space-y-4">
+            <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+
+            <div>
+                <label class="block text-sm font-medium text-gray-700">
+                    Available Serialized Component
+                </label>
+
+                <select name="serialized_component_id"
+                        required
+                        class="mt-1 block w-full border-gray-300 rounded-md shadow-sm">
+                    <option value="">Select Serialized Component</option>
+                    <% (availableSerializedComponents || []).forEach((component) => { %>
+                        <option value="<%= component.id %>">
+                            <%= component.ComponentModel?.AssetType?.code || 'UNCLASSIFIED' %> |
+                            <%= component.ComponentModel?.Manufacturer?.name || 'Unknown' %> |
+                            <%= component.ComponentModel?.model_name || 'Unknown Model' %> |
+                            S/N <%= component.serial_number %>
+                            <% if (component.part_number) { %>
+                                | P/N <%= component.part_number %>
+                            <% } %>
+                        </option>
+                    <% }) %>
+                </select>
+            </div>
+
+            <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">
+                        Installation Date
+                    </label>
+                    <input type="date"
+                           name="installed_at"
+                           value="<%= new Date().toISOString().slice(0, 10) %>"
+                           required
+                           class="mt-1 block w-full border-gray-300 rounded-md shadow-sm">
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">
+                        Position
+                    </label>
+                    <input type="text"
+                           name="position"
+                           placeholder="LH-MAG, NAV-1, BAT-1"
+                           class="mt-1 block w-full border-gray-300 rounded-md shadow-sm">
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">
+                        Install TSN
+                    </label>
+                    <input type="number"
+                           step="0.01"
+                           name="install_tsn"
+                           class="mt-1 block w-full border-gray-300 rounded-md shadow-sm">
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">
+                        Install TSO
+                    </label>
+                    <input type="number"
+                           step="0.01"
+                           name="install_tso"
+                           class="mt-1 block w-full border-gray-300 rounded-md shadow-sm">
+                </div>
+            </div>
+
+            <div>
+                <label class="block text-sm font-medium text-gray-700">
+                    Notes
+                </label>
+                <textarea
+                    name="notes"
+                    rows="3"
+                    class="mt-1 block w-full border-gray-300 rounded-md shadow-sm"
+                    placeholder="Optional serialized installation notes"
+                ></textarea>
+            </div>
+
+            <button type="submit"
+                    class="bg-slate-800 text-white px-4 py-2 rounded hover:bg-black">
+                Install Serialized Component
+            </button>
+
+        </form>
+    </div>
+</section>
