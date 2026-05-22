@@ -182,17 +182,54 @@ export class AircraftController {
   }
 
   private static buildSerializedDocumentVisibilitySummary(params: {
+    installation: any;
     serializedComponent: any;
   }) {
+    const installation = params.installation;
     const serializedComponent = params.serializedComponent;
     const hasComponentNotes = Boolean(String(serializedComponent?.notes || '').trim());
+    const isBaselineCapture =
+      String(installation?.installation_context || '') === 'BASELINE_CAPTURE';
+    const evidenceBadges = [
+      'No Supporting Documents Visible',
+      'No Maintenance-Event-Linked Documents',
+      'No Component-Only Documents',
+      isBaselineCapture ? 'Baseline Provenance Preserved' : 'Authoritative Install Preserved',
+      hasComponentNotes ? 'Operational Notes Visible' : null,
+    ].filter(Boolean);
+    const warnings = [
+      'Document Visibility Limited',
+      'No Maintenance-Event-Linked Documents Visible',
+      'No Component-Only Evidence Visible',
+    ];
 
     return {
       document_count: 0,
-      headline: 'No component-document visibility is currently linked in this operational layer.',
+      maintenance_event_linked_document_count: 0,
+      component_only_document_count: 0,
+      document_types: [] as string[],
+      evidence_badges: evidenceBadges,
+      headline: 'No supporting component documents are currently linked in this operational layer.',
       explanation: hasComponentNotes
-        ? 'Operational notes are visible on the serialized component, but supporting component-document visibility is not yet linked here.'
-        : 'No linked component-document visibility is available here, so operational understanding may rely on installation traceability and available notes only.',
+        ? 'Operational notes are visible on the serialized component, but they are not treated as component documents or maintenance evidence. Supporting component-document visibility is not yet linked here.'
+        : 'No linked component-document visibility is available here, so operational understanding relies on installation traceability, provenance, and any captured notes only.',
+      maintenance_event_relationship:
+        'No maintenance-event-linked document records are visible in this operational layer.',
+      component_relationship:
+        'No component-only document records are visible in this operational layer.',
+      traceability_summary: isBaselineCapture
+        ? 'Baseline provenance remains separate from document visibility. Missing documents do not convert this onboarding record into maintenance evidence.'
+        : 'Authoritative installation provenance remains visible, but no supporting component documents are linked here as evidence.',
+      explainability_summary: hasComponentNotes
+        ? 'Stored component notes improve operational explainability, but document-backed evidence visibility remains limited.'
+        : 'Document-backed explainability is limited because no supporting component documents are visible for this serialized component.',
+      readiness_summary: {
+        state: 'LIMITED',
+        label: 'Evidence Visibility Limited',
+        explanation:
+          'Advisory only: no supporting component documents are linked here, so evidence visibility remains incomplete and should not be treated as compliance or maintenance completion.',
+      },
+      warnings,
       visibility_state: 'NO_DOCUMENT_VISIBILITY',
     };
   }
@@ -302,6 +339,7 @@ export class AircraftController {
         });
       const documentVisibilitySummary =
         AircraftController.buildSerializedDocumentVisibilitySummary({
+          installation: normalizedInstallation,
           serializedComponent,
         });
       const readinessSummary = AircraftController.buildSerializedReadinessSummary({
@@ -321,6 +359,7 @@ export class AircraftController {
         documentVisibilitySummary.visibility_state === 'NO_DOCUMENT_VISIBILITY'
           ? 'No Component-Document Visibility'
           : null,
+        ...(documentVisibilitySummary.warnings || []),
       ].filter(Boolean);
 
       return {
@@ -378,6 +417,14 @@ export class AircraftController {
       ).length,
       document_visibility_limited_count: serializedInstallationsWithHistory.filter(
         (installation: any) => installation.document_visibility_summary?.visibility_state !== 'DOCUMENTED'
+      ).length,
+      maintenance_event_linked_document_visible_count: serializedInstallationsWithHistory.filter(
+        (installation: any) =>
+          Number(installation.document_visibility_summary?.maintenance_event_linked_document_count || 0) > 0
+      ).length,
+      component_only_document_visible_count: serializedInstallationsWithHistory.filter(
+        (installation: any) =>
+          Number(installation.document_visibility_summary?.component_only_document_count || 0) > 0
       ).length,
       occupied_position_count: occupiedPositions.length,
     };
