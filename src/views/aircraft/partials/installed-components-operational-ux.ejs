@@ -50,6 +50,146 @@
             </article>
         </div>
 
+        <div class="mb-8 rounded-2xl border border-amber-200 bg-amber-50 p-5">
+            <div class="mb-5 flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+                <div>
+                    <h3 class="text-lg font-semibold text-slate-900">Baseline Capture</h3>
+                    <p class="mt-1 text-sm text-slate-700">
+                        Capture Existing Installed Component is for inherited aircraft configuration onboarding only and remains distinct from authoritative installation activity.
+                    </p>
+                </div>
+                <div class="rounded-xl bg-white px-4 py-3 text-sm text-slate-700">
+                    Baseline Capture: Existing aircraft configuration captured during onboarding.
+                </div>
+            </div>
+
+            <form action="/aircraft/<%= aircraft.id %>/serialized-components/baseline-capture"
+                  method="POST"
+                  class="space-y-5">
+                <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+
+                <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+                    <div>
+                        <label class="block text-xs font-bold uppercase tracking-[0.3em] text-slate-500">
+                            Capture Existing Installed Component
+                        </label>
+                        <select
+                            name="serialized_component_id"
+                            required
+                            class="mt-2 block w-full rounded border border-slate-300 px-3 py-2 text-sm"
+                        >
+                            <option value="">Select Serialized Component</option>
+                            <% (installedUx.available_candidates || []).forEach((candidate) => { %>
+                                <option value="<%= candidate.serialized_component_id %>">
+                                    <%= candidate.asset_type_code %> | <%= candidate.manufacturer_name || 'Unknown' %> | <%= candidate.model_name %> | S/N <%= candidate.serial_number %><% if (candidate.part_number) { %> | P/N <%= candidate.part_number %><% } %>
+                                </option>
+                            <% }) %>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-bold uppercase tracking-[0.3em] text-slate-500">
+                            Effective Baseline Date
+                        </label>
+                        <input
+                            type="date"
+                            name="installed_at"
+                            value="<%= new Date().toISOString().slice(0, 10) %>"
+                            required
+                            class="mt-2 block w-full rounded border border-slate-300 px-3 py-2 text-sm"
+                        >
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+                    <div>
+                        <label class="block text-xs font-bold uppercase tracking-[0.3em] text-slate-500">
+                            Position
+                        </label>
+                        <input
+                            type="text"
+                            name="position"
+                            placeholder="LH-MAG, NAV-1, BAT-1"
+                            class="mt-2 block w-full rounded border border-slate-300 px-3 py-2 text-sm"
+                        >
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-bold uppercase tracking-[0.3em] text-slate-500">
+                            Inherited Aircraft Configuration
+                        </label>
+                        <input
+                            type="text"
+                            name="inherited_status_context"
+                            placeholder="Known inherited configuration context"
+                            class="mt-2 block w-full rounded border border-slate-300 px-3 py-2 text-sm"
+                        >
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+                    <div>
+                        <label class="block text-xs font-bold uppercase tracking-[0.3em] text-slate-500">
+                            Inherited TSN at Baseline
+                        </label>
+                        <input
+                            type="number"
+                            step="0.01"
+                            name="install_tsn"
+                            class="mt-2 block w-full rounded border border-slate-300 px-3 py-2 text-sm"
+                        >
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-bold uppercase tracking-[0.3em] text-slate-500">
+                            Inherited TSO at Baseline
+                        </label>
+                        <input
+                            type="number"
+                            step="0.01"
+                            name="install_tso"
+                            class="mt-2 block w-full rounded border border-slate-300 px-3 py-2 text-sm"
+                        >
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-bold uppercase tracking-[0.3em] text-slate-500">
+                        Uncertainty or Evidence Limitations
+                    </label>
+                    <textarea
+                        name="uncertainty_notes"
+                        rows="3"
+                        class="mt-2 block w-full rounded border border-slate-300 px-3 py-2 text-sm"
+                        placeholder="Explain unknown, estimated, or partially evidenced historical information."
+                    ></textarea>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-bold uppercase tracking-[0.3em] text-slate-500">
+                        Additional Notes
+                    </label>
+                    <textarea
+                        name="notes"
+                        rows="3"
+                        class="mt-2 block w-full rounded border border-slate-300 px-3 py-2 text-sm"
+                        placeholder="Optional baseline capture notes"
+                    ></textarea>
+                </div>
+
+                <div class="rounded-2xl border border-amber-300 bg-white p-4">
+                    <p class="text-sm leading-6 text-slate-700">
+                        This action creates active installation visibility for inherited onboarding state only. It does not fabricate maintenance history, and later removals still use the normal authoritative removal workflow.
+                    </p>
+                </div>
+
+                <button type="submit"
+                        class="rounded bg-amber-600 px-4 py-2 text-sm font-bold text-white hover:bg-amber-700">
+                    Capture Existing Installed Component
+                </button>
+            </form>
+        </div>
+
         <div class="mb-8 rounded-2xl border border-slate-200 bg-slate-50 p-5">
             <div class="mb-5 flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
                 <div>
@@ -250,6 +390,9 @@
                                         <span class="rounded-full bg-slate-100 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.3em] text-slate-700">
                                             <%= item.asset_type_code %>
                                         </span>
+                                        <span class="rounded-full px-3 py-1 text-[11px] font-bold uppercase tracking-[0.3em] <%= item.installation_context === 'BASELINE_CAPTURE' ? 'bg-amber-100 text-amber-800' : 'bg-blue-100 text-blue-700' %>">
+                                            <%= item.installation_context === 'BASELINE_CAPTURE' ? 'Baseline Capture' : 'Authoritative Install' %>
+                                        </span>
                                         <span class="rounded-full bg-blue-100 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.3em] text-blue-700">
                                             <%= item.status %>
                                         </span>
@@ -309,6 +452,13 @@
                                     <p class="mt-2 text-sm leading-6 text-slate-700"><%= item.removal_context_explanation %></p>
                                 </div>
                             </div>
+
+                            <% if (item.history_entries && item.history_entries[0] && item.history_entries[0].notes) { %>
+                                <div class="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                                    <p class="text-[11px] font-bold uppercase tracking-[0.3em] text-slate-500">Audit Explainability</p>
+                                    <p class="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-700"><%= item.history_entries[0].notes %></p>
+                                </div>
+                            <% } %>
 
                             <% if ((item.missing_data || []).length > 0) { %>
                                 <div class="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">

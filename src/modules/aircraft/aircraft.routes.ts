@@ -35,6 +35,9 @@ router.post('/:id/transition', AircraftController.transition);
 
 // Components
 router.post('/:id/components', AircraftController.installComponent);
+router.post('/:id/serialized-components', AircraftController.installSerializedComponent);
+router.post('/:id/serialized-components/baseline-capture', AircraftController.baselineCaptureSerializedComponent);
+router.post('/:id/serialized-components/:installationId/remove', AircraftController.removeSerializedComponent);
 router.post('/:id/customer-links', AircraftController.assignCustomer);
 router.post('/:id/service-bulletins/:serviceBulletinId/compliance', AircraftController.updateServiceBulletinCompliance);
 router.post('/:id/sb/:sbId/comply', AircraftController.complyServiceBulletin);
