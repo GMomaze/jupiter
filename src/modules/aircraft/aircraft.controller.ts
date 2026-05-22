@@ -26,6 +26,8 @@ export class AircraftController {
     return Array.isArray(value) ? value[0] || '' : value || '';
   }
 
+  private static readonly serializedRemovalStatuses = ['REMOVED', 'AVAILABLE'];
+
   private static readonly serviceBulletinAttributes = [
     'id',
     'sb_number',
@@ -71,6 +73,325 @@ export class AircraftController {
       model: ComponentModel,
       attributes: AircraftController.componentModelAttributes,
       include: [AircraftController.manufacturerInclude()],
+    };
+  }
+
+  private static getSerializedHistoryEventLabel(entry: any) {
+    const installationContext = String(entry?.installation_context || 'MAINTENANCE_INSTALL');
+
+    if (installationContext === 'BASELINE_CAPTURE') {
+      return entry?.removed_at ? 'Closed Baseline Installation' : 'Baseline Capture';
+    }
+
+    return entry?.removed_at ? 'Closed Installation' : 'Active Installation';
+  }
+
+  private static getSerializedProvenanceLabel(installationContext: string) {
+    return installationContext === 'BASELINE_CAPTURE'
+      ? 'Baseline Capture'
+      : 'Authoritative Install';
+  }
+
+  private static buildSerializedTraceabilitySummary(installation: any) {
+    const provenanceLabel =
+      AircraftController.getSerializedProvenanceLabel(
+        String(installation?.installation_context || 'MAINTENANCE_INSTALL')
+      );
+
+    return [
+      provenanceLabel === 'Baseline Capture'
+        ? (installation?.installed_at
+            ? `Baseline captured effective ${installation.installed_at}`
+            : 'Baseline capture effective date unavailable')
+        : (installation?.installed_at
+            ? `Installed through authoritative workflow on ${installation.installed_at}`
+            : 'Authoritative install date unavailable'),
+      installation?.position
+        ? `Position ${installation.position}`
+        : 'Position not captured',
+      installation?.install_tsn !== null && installation?.install_tsn !== undefined && installation?.install_tsn !== ''
+        ? `Install TSN ${installation.install_tsn}`
+        : 'Install TSN unavailable',
+      installation?.install_tso !== null && installation?.install_tso !== undefined && installation?.install_tso !== ''
+        ? `Install TSO ${installation.install_tso}`
+        : 'Install TSO unavailable',
+      `Provenance ${provenanceLabel}`,
+    ].join(' | ');
+  }
+
+  private static buildSerializedUncertaintyFlags(params: {
+    installation: any;
+    serializedComponent: any;
+    historyEntries: any[];
+  }) {
+    const flags: string[] = [];
+    const installation = params.installation;
+    const serializedComponent = params.serializedComponent;
+    const historyEntries = params.historyEntries || [];
+    const notes = String(installation?.notes || '').toLowerCase();
+
+    if (!installation?.position) {
+      flags.push('Position Not Captured');
+    }
+
+    if (installation?.install_tsn === null || installation?.install_tsn === undefined || installation?.install_tsn === '') {
+      flags.push('Unknown Install TSN');
+    }
+
+    if (installation?.install_tso === null || installation?.install_tso === undefined || installation?.install_tso === '') {
+      flags.push('Unknown Install TSO');
+    }
+
+    if (String(installation?.installation_context || '') === 'BASELINE_CAPTURE') {
+      flags.push('Inherited Visibility');
+    }
+
+    if (notes.includes('uncertainty')) {
+      flags.push('Evidence Limited');
+    }
+
+    if (!serializedComponent?.condition) {
+      flags.push('Condition Not Captured');
+    }
+
+    if (historyEntries.length === 0) {
+      flags.push('Limited Installation History');
+    }
+
+    return Array.from(new Set(flags));
+  }
+
+  private static buildSerializedMaintenanceContextSummary(params: {
+    installation: any;
+    historyEntries: any[];
+  }) {
+    const installation = params.installation;
+    const historyEntries = params.historyEntries || [];
+    const closedHistoryCount = historyEntries.filter((entry) => Boolean(entry?.removed_at)).length;
+
+    return {
+      maintenance_event_count: 0,
+      headline: closedHistoryCount > 0
+        ? 'Installation lifecycle history is visible, but no separate maintenance-event records are linked here yet.'
+        : 'No maintenance-event visibility is currently available for this serialized component.',
+      explanation: String(installation?.installation_context || '') === 'BASELINE_CAPTURE'
+        ? 'Baseline provenance remains visible. Operational review can use installation history and notes, but separate maintenance-event visibility is not yet linked in this layer.'
+        : 'Authoritative installation provenance remains visible. Operational review can use installation history and notes, but separate maintenance-event visibility is not yet linked in this layer.',
+      visibility_state: closedHistoryCount > 0 ? 'LIMITED_CONTEXT' : 'NO_EVENT_VISIBILITY',
+    };
+  }
+
+  private static buildSerializedDocumentVisibilitySummary(params: {
+    serializedComponent: any;
+  }) {
+    const serializedComponent = params.serializedComponent;
+    const hasComponentNotes = Boolean(String(serializedComponent?.notes || '').trim());
+
+    return {
+      document_count: 0,
+      headline: 'No component-document visibility is currently linked in this operational layer.',
+      explanation: hasComponentNotes
+        ? 'Operational notes are visible on the serialized component, but supporting component-document visibility is not yet linked here.'
+        : 'No linked component-document visibility is available here, so operational understanding may rely on installation traceability and available notes only.',
+      visibility_state: 'NO_DOCUMENT_VISIBILITY',
+    };
+  }
+
+  private static buildSerializedReadinessSummary(params: {
+    installation: any;
+    uncertaintyFlags: string[];
+    maintenanceContextSummary: any;
+    documentVisibilitySummary: any;
+  }) {
+    const uncertaintyFlags = params.uncertaintyFlags || [];
+    const missingCriticalInputs = uncertaintyFlags.filter((flag) =>
+      [
+        'Position Not Captured',
+        'Unknown Install TSN',
+        'Unknown Install TSO',
+      ].includes(flag)
+    ).length;
+
+    if (missingCriticalInputs >= 2) {
+      return {
+        state: 'LIMITED',
+        label: 'Operational Visibility Limited',
+        explanation:
+          'Advisory only: multiple core operational inputs remain unknown or uncaptured, so aircraft component understanding should be reviewed before relying on this visibility alone.',
+      };
+    }
+
+    if (
+      uncertaintyFlags.length > 0 ||
+      params.maintenanceContextSummary?.visibility_state !== 'LIMITED_CONTEXT' ||
+      params.documentVisibilitySummary?.visibility_state !== 'DOCUMENTED'
+    ) {
+      return {
+        state: 'REVIEW',
+        label: 'Operational Review Recommended',
+        explanation:
+          'Advisory only: serialized component visibility is usable, but supporting context or technical certainty remains incomplete and should be reviewed operationally.',
+      };
+    }
+
+    return {
+      state: 'CLEAR',
+      label: 'Operationally Clear',
+      explanation:
+        'Advisory only: the serialized component currently appears operationally legible from visible traceability and captured inputs.',
+    };
+  }
+
+  private static async getSerializedWorkflowContext(aircraftId: string) {
+    const [availableSerializedComponents, activeSerializedInstallations] = await Promise.all([
+      AircraftComponentService.getAvailableSerializedComponents(),
+      AircraftComponentService.getActiveSerializedInstallationsForAircraft(aircraftId),
+    ]);
+
+    const serializedComponentIds = activeSerializedInstallations
+      .map((installation: any) => String(
+        installation?.serialized_component_id ||
+        installation?.SerializedComponent?.id ||
+        ''
+      ).trim())
+      .filter(Boolean);
+
+    const serializedInstallationHistory =
+      await AircraftComponentService.getSerializedInstallationHistoryForComponents(
+        serializedComponentIds
+      );
+
+    const serializedInstallationHistoryByComponentId = serializedInstallationHistory.reduce(
+      (accumulator: Record<string, any[]>, entry: any) => {
+        const key = String(entry?.serialized_component_id || '').trim();
+
+        if (!key) {
+          return accumulator;
+        }
+
+        accumulator[key] = accumulator[key] || [];
+        accumulator[key].push({
+          ...(typeof entry?.toJSON === 'function' ? entry.toJSON() : entry),
+          event_label: AircraftController.getSerializedHistoryEventLabel(entry),
+        });
+
+        return accumulator;
+      },
+      {} as Record<string, any[]>
+    );
+
+    const serializedInstallationsWithHistory = activeSerializedInstallations.map((installation: any) => {
+      const normalizedInstallation =
+        typeof installation?.toJSON === 'function' ? installation.toJSON() : installation;
+      const serializedComponentId = String(
+        normalizedInstallation?.serialized_component_id ||
+        normalizedInstallation?.SerializedComponent?.id ||
+        ''
+      ).trim();
+      const historyEntries = serializedInstallationHistoryByComponentId[serializedComponentId] || [];
+      const serializedComponent = normalizedInstallation?.SerializedComponent || null;
+      const uncertaintyFlags = AircraftController.buildSerializedUncertaintyFlags({
+        installation: normalizedInstallation,
+        serializedComponent,
+        historyEntries,
+      });
+      const maintenanceContextSummary =
+        AircraftController.buildSerializedMaintenanceContextSummary({
+          installation: normalizedInstallation,
+          historyEntries,
+        });
+      const documentVisibilitySummary =
+        AircraftController.buildSerializedDocumentVisibilitySummary({
+          serializedComponent,
+        });
+      const readinessSummary = AircraftController.buildSerializedReadinessSummary({
+        installation: normalizedInstallation,
+        uncertaintyFlags,
+        maintenanceContextSummary,
+        documentVisibilitySummary,
+      });
+      const provenanceLabel = AircraftController.getSerializedProvenanceLabel(
+        String(normalizedInstallation?.installation_context || 'MAINTENANCE_INSTALL')
+      );
+      const operationalWarnings = [
+        ...uncertaintyFlags,
+        maintenanceContextSummary.visibility_state === 'NO_EVENT_VISIBILITY'
+          ? 'No Maintenance-Event Visibility'
+          : null,
+        documentVisibilitySummary.visibility_state === 'NO_DOCUMENT_VISIBILITY'
+          ? 'No Component-Document Visibility'
+          : null,
+      ].filter(Boolean);
+
+      return {
+        ...normalizedInstallation,
+        history_entries: historyEntries,
+        provenance_label: provenanceLabel,
+        traceability_summary:
+          AircraftController.buildSerializedTraceabilitySummary(normalizedInstallation),
+        explainability_summary: normalizedInstallation?.notes
+          ? 'Operational explainability is supported by stored installation notes and provenance context.'
+          : 'Operational explainability is limited because no installation notes were captured.',
+        uncertainty_flags: uncertaintyFlags,
+        maintenance_context_summary: maintenanceContextSummary,
+        document_visibility_summary: documentVisibilitySummary,
+        readiness_summary: readinessSummary,
+        operational_warnings: operationalWarnings,
+      };
+    });
+
+    const occupiedPositions = Array.from(
+      new Set(
+        serializedInstallationsWithHistory
+          .map((installation: any) => String(installation?.position || '').trim())
+          .filter(Boolean)
+      )
+    ).sort();
+
+    const recentPositions = Array.from(
+      new Set(
+        serializedInstallationHistory
+          .map((entry: any) => String(entry?.position || '').trim())
+          .filter(Boolean)
+      )
+    ).sort();
+
+    const operationalSummary = {
+      active_serialized_count: serializedInstallationsWithHistory.length,
+      baseline_capture_count: serializedInstallationsWithHistory.filter(
+        (installation: any) => installation.installation_context === 'BASELINE_CAPTURE'
+      ).length,
+      authoritative_install_count: serializedInstallationsWithHistory.filter(
+        (installation: any) => installation.installation_context !== 'BASELINE_CAPTURE'
+      ).length,
+      readiness_limited_count: serializedInstallationsWithHistory.filter(
+        (installation: any) => installation.readiness_summary?.state === 'LIMITED'
+      ).length,
+      review_recommended_count: serializedInstallationsWithHistory.filter(
+        (installation: any) => installation.readiness_summary?.state === 'REVIEW'
+      ).length,
+      uncertainty_visible_count: serializedInstallationsWithHistory.filter(
+        (installation: any) => (installation.uncertainty_flags || []).length > 0
+      ).length,
+      maintenance_context_limited_count: serializedInstallationsWithHistory.filter(
+        (installation: any) => installation.maintenance_context_summary?.visibility_state !== 'LIMITED_CONTEXT'
+      ).length,
+      document_visibility_limited_count: serializedInstallationsWithHistory.filter(
+        (installation: any) => installation.document_visibility_summary?.visibility_state !== 'DOCUMENTED'
+      ).length,
+      occupied_position_count: occupiedPositions.length,
+    };
+
+    return {
+      availableSerializedComponents,
+      activeSerializedInstallations: serializedInstallationsWithHistory,
+      serializedRemovalStatuses: AircraftController.serializedRemovalStatuses,
+      serializedInstallationHistoryByComponentId,
+      serializedOperationalSummary: operationalSummary,
+      serializedPositionContext: {
+        occupied_positions: occupiedPositions,
+        recent_positions: recentPositions,
+      },
     };
   }
 
@@ -360,6 +681,8 @@ export class AircraftController {
       });
       const currentCustomerLinks = customerLinks.filter((link: any) => link.is_current);
       const historicalCustomerLinks = customerLinks.filter((link: any) => !link.is_current);
+      const serializedWorkflowContext =
+        await AircraftController.getSerializedWorkflowContext(aircraft.id);
 
       res.render('aircraft/view', {
         aircraft,
@@ -373,6 +696,7 @@ export class AircraftController {
         customerOptions,
         currentCustomerLinks,
         historicalCustomerLinks,
+        ...serializedWorkflowContext,
       });
     } catch (err: any) {
       res.status(500).send(err.message);
@@ -497,6 +821,8 @@ export class AircraftController {
       });
       const currentCustomerLinks = customerLinks.filter((link: any) => link.is_current);
       const historicalCustomerLinks = customerLinks.filter((link: any) => !link.is_current);
+      const serializedWorkflowContext =
+        await AircraftController.getSerializedWorkflowContext(aircraft.id);
 
       res.render('aircraft/view', {
         aircraft,
@@ -510,6 +836,7 @@ export class AircraftController {
         customerOptions,
         currentCustomerLinks,
         historicalCustomerLinks,
+        ...serializedWorkflowContext,
       });
     } catch (err: any) {
       res.status(500).send(err.message);
@@ -642,6 +969,59 @@ export class AircraftController {
     } catch (err: any) {
       res.status(400).send(err.message);
     }
+  }
+
+  static async installSerializedComponent(req: Request, res: Response) {
+    const aircraftId = AircraftController.getParam(req.params.id);
+
+    try {
+      await AircraftComponentService.installSerializedComponent({
+        ...req.body,
+        aircraft_id: aircraftId,
+      });
+
+      req.flash('success', 'Serialized authoritative installation recorded successfully.');
+    } catch (err: any) {
+      req.flash('error', err.message);
+    }
+
+    res.redirect(`/aircraft/view/${aircraftId}?tab=installed-components`);
+  }
+
+  static async baselineCaptureSerializedComponent(req: Request, res: Response) {
+    const aircraftId = AircraftController.getParam(req.params.id);
+
+    try {
+      await AircraftComponentService.baselineCaptureSerializedComponent({
+        ...req.body,
+        aircraft_id: aircraftId,
+      });
+
+      req.flash('success', 'Baseline capture recorded for inherited aircraft configuration.');
+    } catch (err: any) {
+      req.flash('error', err.message);
+    }
+
+    res.redirect(`/aircraft/view/${aircraftId}?tab=installed-components`);
+  }
+
+  static async removeSerializedComponent(req: Request, res: Response) {
+    const aircraftId = AircraftController.getParam(req.params.id);
+    const installationId = AircraftController.getParam(req.params.installationId);
+
+    try {
+      await AircraftComponentService.removeSerializedComponent({
+        ...req.body,
+        aircraft_id: aircraftId,
+        installation_id: installationId,
+      });
+
+      req.flash('success', 'Serialized component removal recorded successfully.');
+    } catch (err: any) {
+      req.flash('error', err.message);
+    }
+
+    res.redirect(`/aircraft/view/${aircraftId}?tab=installed-components`);
   }
 
   static async updateServiceBulletinCompliance(req: Request, res: Response) {

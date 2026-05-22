@@ -3,6 +3,11 @@
 <main class="max-w-5xl mx-auto py-10 px-6">
     <% const bulletinFilters = sbFilters || {}; %>
     <% const canEditAircraft = user?.roles?.some(role => role.code === 'ADMIN'); %>
+    <% const safeAvailableSerializedComponents = typeof availableSerializedComponents !== 'undefined' ? availableSerializedComponents : []; %>
+    <% const safeActiveSerializedInstallations = typeof activeSerializedInstallations !== 'undefined' ? activeSerializedInstallations : []; %>
+    <% const safeSerializedRemovalStatuses = typeof serializedRemovalStatuses !== 'undefined' ? serializedRemovalStatuses : []; %>
+    <% const safeSerializedOperationalSummary = typeof serializedOperationalSummary !== 'undefined' ? serializedOperationalSummary : {}; %>
+    <% const safeSerializedPositionContext = typeof serializedPositionContext !== 'undefined' ? serializedPositionContext : { occupied_positions: [], recent_positions: [] }; %>
 
     <div class="mb-6">
         <a href="/aircraft" class="text-sm text-blue-600 hover:underline">
@@ -615,6 +620,266 @@
 
             </form>
         </div>
+
+        <div class="grid gap-6 xl:grid-cols-2">
+            <div class="rounded-lg border border-amber-200 bg-amber-50 p-6 shadow">
+                <div class="flex items-start justify-between gap-4">
+                    <div>
+                        <p class="text-xs font-bold uppercase tracking-widest text-amber-700">Inherited Aircraft Configuration</p>
+                        <h2 class="mt-2 text-xl font-semibold text-slate-900">Baseline Capture</h2>
+                        <p class="mt-2 text-sm text-slate-700">
+                            Capture Existing Installed Component is for onboarding an aircraft's already-installed serialized component state. This is not an authoritative installation action.
+                        </p>
+                    </div>
+                    <span class="rounded-full bg-white px-3 py-1 text-xs font-bold uppercase tracking-widest text-amber-700">
+                        Onboarding Only
+                    </span>
+                </div>
+
+                <div class="mt-4 rounded-lg border border-amber-300 bg-white p-4 text-sm text-slate-700">
+                    <p class="font-semibold text-slate-900">Baseline Capture: Existing aircraft configuration captured during onboarding.</p>
+                    <p class="mt-2">
+                        Use this only when the serialized component is already installed on the real aircraft and Jupiter is capturing inherited operational state. Future removals and swaps must still use the normal authoritative workflow.
+                    </p>
+                </div>
+
+                <form action="/aircraft/<%= aircraft.id %>/serialized-components/baseline-capture"
+                      method="POST"
+                      class="mt-5 space-y-4">
+                    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">
+                            Capture Existing Installed Component
+                        </label>
+                        <select name="serialized_component_id"
+                                required
+                                class="mt-1 block w-full border-gray-300 rounded-md shadow-sm">
+                            <option value="">Select Serialized Component</option>
+                            <% safeAvailableSerializedComponents.forEach((component) => { %>
+                                <option value="<%= component.id %>">
+                                    <%= component.ComponentModel?.AssetType?.code || 'UNCLASSIFIED' %> |
+                                    <%= component.ComponentModel?.Manufacturer?.name || 'Unknown' %> |
+                                    <%= component.ComponentModel?.model_name || 'Unknown Model' %> |
+                                    S/N <%= component.serial_number %>
+                                    <% if (component.part_number) { %>
+                                        | P/N <%= component.part_number %>
+                                    <% } %>
+                                </option>
+                            <% }) %>
+                        </select>
+                    </div>
+
+                    <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">
+                                Effective Baseline Date
+                            </label>
+                            <input type="date"
+                                   name="installed_at"
+                                   value="<%= new Date().toISOString().slice(0, 10) %>"
+                                   required
+                                   class="mt-1 block w-full border-gray-300 rounded-md shadow-sm">
+                            <p class="mt-1 text-xs text-slate-500">
+                                Capture the effective inherited installed state date known during onboarding.
+                            </p>
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">
+                                Position
+                            </label>
+                            <input type="text"
+                                   name="position"
+                                   placeholder="LH-MAG, NAV-1, BAT-1"
+                                   class="mt-1 block w-full border-gray-300 rounded-md shadow-sm">
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">
+                                Inherited TSN at Baseline
+                            </label>
+                            <input type="number"
+                                   step="0.01"
+                                   name="install_tsn"
+                                   class="mt-1 block w-full border-gray-300 rounded-md shadow-sm">
+                            <p class="mt-1 text-xs text-slate-500">
+                                Enter the best known inherited TSN if supported by records. Leave blank if unknown.
+                            </p>
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">
+                                Inherited TSO at Baseline
+                            </label>
+                            <input type="number"
+                                   step="0.01"
+                                   name="install_tso"
+                                   class="mt-1 block w-full border-gray-300 rounded-md shadow-sm">
+                            <p class="mt-1 text-xs text-slate-500">
+                                Enter the best known inherited TSO if supported by records. Leave blank if unknown.
+                            </p>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">
+                            Inherited Aircraft Configuration
+                        </label>
+                        <textarea
+                            name="inherited_status_context"
+                            rows="3"
+                            class="mt-1 block w-full border-gray-300 rounded-md shadow-sm"
+                            placeholder="Describe what is known about this inherited installed state."
+                        ></textarea>
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">
+                            Uncertainty or Evidence Limitations
+                        </label>
+                        <textarea
+                            name="uncertainty_notes"
+                            rows="3"
+                            class="mt-1 block w-full border-gray-300 rounded-md shadow-sm"
+                            placeholder="Explain any unknown, estimated, or partially evidenced historical information."
+                        ></textarea>
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">
+                            Additional Notes
+                        </label>
+                        <textarea
+                            name="notes"
+                            rows="3"
+                            class="mt-1 block w-full border-gray-300 rounded-md shadow-sm"
+                            placeholder="Optional baseline capture notes"
+                        ></textarea>
+                    </div>
+
+                    <div class="rounded-lg border border-amber-300 bg-white p-4 text-sm text-slate-700">
+                        This action creates active installation visibility for onboarding, preserves baseline provenance, and does not fabricate maintenance history.
+                    </div>
+
+                    <button type="submit"
+                            class="bg-amber-600 text-white px-4 py-2 rounded hover:bg-amber-700">
+                        Capture Existing Installed Component
+                    </button>
+                </form>
+            </div>
+
+            <div class="rounded-lg border border-slate-200 bg-white p-6 shadow">
+                <div class="flex items-start justify-between gap-4">
+                    <div>
+                        <p class="text-xs font-bold uppercase tracking-widest text-slate-500">Maintenance Workflow</p>
+                        <h2 class="mt-2 text-xl font-semibold text-slate-900">Install Serialized Component</h2>
+                        <p class="mt-2 text-sm text-slate-500">
+                            Use this only for a current authoritative installation event. This remains separate from Baseline Capture.
+                        </p>
+                    </div>
+                    <span class="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold uppercase tracking-widest text-slate-700">
+                        Explicit Workflow
+                    </span>
+                </div>
+
+                <form action="/aircraft/<%= aircraft.id %>/serialized-components"
+                      method="POST"
+                      class="mt-5 space-y-4">
+                    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">
+                            Available Serialized Component
+                        </label>
+                        <select name="serialized_component_id"
+                                required
+                                class="mt-1 block w-full border-gray-300 rounded-md shadow-sm">
+                            <option value="">Select Serialized Component</option>
+                            <% safeAvailableSerializedComponents.forEach((component) => { %>
+                                <option value="<%= component.id %>">
+                                    <%= component.ComponentModel?.AssetType?.code || 'UNCLASSIFIED' %> |
+                                    <%= component.ComponentModel?.Manufacturer?.name || 'Unknown' %> |
+                                    <%= component.ComponentModel?.model_name || 'Unknown Model' %> |
+                                    S/N <%= component.serial_number %>
+                                    <% if (component.part_number) { %>
+                                        | P/N <%= component.part_number %>
+                                    <% } %>
+                                </option>
+                            <% }) %>
+                        </select>
+                    </div>
+
+                    <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">
+                                Installation Date
+                            </label>
+                            <input type="date"
+                                   name="installed_at"
+                                   value="<%= new Date().toISOString().slice(0, 10) %>"
+                                   required
+                                   class="mt-1 block w-full border-gray-300 rounded-md shadow-sm">
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">
+                                Position
+                            </label>
+                            <input type="text"
+                                   name="position"
+                                   placeholder="LH-MAG, NAV-1, BAT-1"
+                                   class="mt-1 block w-full border-gray-300 rounded-md shadow-sm">
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">
+                                Install TSN
+                            </label>
+                            <input type="number"
+                                   step="0.01"
+                                   name="install_tsn"
+                                   class="mt-1 block w-full border-gray-300 rounded-md shadow-sm">
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">
+                                Install TSO
+                            </label>
+                            <input type="number"
+                                   step="0.01"
+                                   name="install_tso"
+                                   class="mt-1 block w-full border-gray-300 rounded-md shadow-sm">
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">
+                            Notes
+                        </label>
+                        <textarea
+                            name="notes"
+                            rows="3"
+                            class="mt-1 block w-full border-gray-300 rounded-md shadow-sm"
+                            placeholder="Optional serialized installation notes"
+                        ></textarea>
+                    </div>
+
+                    <div class="rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
+                        This action records a current authoritative installation event and remains separate from inherited onboarding capture.
+                    </div>
+
+                    <button type="submit"
+                            class="bg-slate-800 text-white px-4 py-2 rounded hover:bg-black">
+                        Install Serialized Component
+                    </button>
+                </form>
+            </div>
+        </div>
     </section>
 
     <section id="service-bulletins-panel" class="aircraft-tab-panel hidden">
@@ -726,6 +991,347 @@
     <section id="installed-components-panel" class="aircraft-tab-panel hidden">
         <div class="bg-white shadow rounded-lg p-6 mb-10">
             <h2 class="text-xl font-semibold mb-4">Installed Components</h2>
+
+            <div class="mb-6 rounded-lg border border-slate-200 bg-slate-50 p-4">
+                <p class="text-sm text-slate-700">
+                    Active serialized installation visibility remains downstream of authoritative workflow actions. Baseline Capture stays explicitly marked as inherited onboarding provenance and does not replace install/remove authority.
+                </p>
+            </div>
+
+            <div class="mb-8 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                <article class="rounded-lg border border-slate-200 bg-slate-50 p-4">
+                    <p class="text-[11px] font-bold uppercase tracking-widest text-slate-500">Active Serialized</p>
+                    <p class="mt-2 text-2xl font-bold text-slate-900"><%= safeSerializedOperationalSummary.active_serialized_count || 0 %></p>
+                    <p class="mt-2 text-sm text-slate-600">Current serialized installations visible in active aircraft configuration.</p>
+                </article>
+                <article class="rounded-lg border border-amber-200 bg-amber-50 p-4">
+                    <p class="text-[11px] font-bold uppercase tracking-widest text-amber-700">Baseline Provenance</p>
+                    <p class="mt-2 text-2xl font-bold text-slate-900"><%= safeSerializedOperationalSummary.baseline_capture_count || 0 %></p>
+                    <p class="mt-2 text-sm text-slate-600">Active installations currently visible through inherited baseline capture provenance.</p>
+                </article>
+                <article class="rounded-lg border border-blue-200 bg-blue-50 p-4">
+                    <p class="text-[11px] font-bold uppercase tracking-widest text-blue-700">Authoritative Install</p>
+                    <p class="mt-2 text-2xl font-bold text-slate-900"><%= safeSerializedOperationalSummary.authoritative_install_count || 0 %></p>
+                    <p class="mt-2 text-sm text-slate-600">Active installations currently visible from explicit authoritative install workflow.</p>
+                </article>
+                <article class="rounded-lg border border-rose-200 bg-rose-50 p-4">
+                    <p class="text-[11px] font-bold uppercase tracking-widest text-rose-700">Visibility Limited</p>
+                    <p class="mt-2 text-2xl font-bold text-slate-900"><%= Number(safeSerializedOperationalSummary.readiness_limited_count || 0) + Number(safeSerializedOperationalSummary.review_recommended_count || 0) %></p>
+                    <p class="mt-2 text-sm text-slate-600">Advisory-only count of active serialized installations that still need operational review or clarification.</p>
+                </article>
+                <article class="rounded-lg border border-slate-200 bg-slate-50 p-4">
+                    <p class="text-[11px] font-bold uppercase tracking-widest text-slate-500">Uncertainty Visible</p>
+                    <p class="mt-2 text-2xl font-bold text-slate-900"><%= safeSerializedOperationalSummary.uncertainty_visible_count || 0 %></p>
+                    <p class="mt-2 text-sm text-slate-600">Active installations carrying inherited, unknown, or limited-evidence visibility flags.</p>
+                </article>
+                <article class="rounded-lg border border-slate-200 bg-slate-50 p-4">
+                    <p class="text-[11px] font-bold uppercase tracking-widest text-slate-500">Maintenance Context Limited</p>
+                    <p class="mt-2 text-2xl font-bold text-slate-900"><%= safeSerializedOperationalSummary.maintenance_context_limited_count || 0 %></p>
+                    <p class="mt-2 text-sm text-slate-600">Active serialized installations without linked maintenance-event visibility in this operational layer.</p>
+                </article>
+                <article class="rounded-lg border border-slate-200 bg-slate-50 p-4">
+                    <p class="text-[11px] font-bold uppercase tracking-widest text-slate-500">Document Visibility Limited</p>
+                    <p class="mt-2 text-2xl font-bold text-slate-900"><%= safeSerializedOperationalSummary.document_visibility_limited_count || 0 %></p>
+                    <p class="mt-2 text-sm text-slate-600">Active serialized installations without linked component-document visibility in this operational layer.</p>
+                </article>
+                <article class="rounded-lg border border-slate-200 bg-slate-50 p-4">
+                    <p class="text-[11px] font-bold uppercase tracking-widest text-slate-500">Occupied Positions</p>
+                    <p class="mt-2 text-2xl font-bold text-slate-900"><%= safeSerializedOperationalSummary.occupied_position_count || 0 %></p>
+                    <p class="mt-2 text-sm text-slate-600">Current explicit serialized installation positions captured on this aircraft.</p>
+                </article>
+            </div>
+
+            <% if ((safeSerializedPositionContext.occupied_positions || []).length > 0 || (safeSerializedPositionContext.recent_positions || []).length > 0) { %>
+                <div class="mb-8 grid gap-4 xl:grid-cols-2">
+                    <% if ((safeSerializedPositionContext.occupied_positions || []).length > 0) { %>
+                        <div class="rounded-lg border border-rose-200 bg-rose-50 p-4">
+                            <p class="text-[11px] font-bold uppercase tracking-widest text-rose-700">Currently Occupied Positions</p>
+                            <div class="mt-3 flex flex-wrap gap-2">
+                                <% safeSerializedPositionContext.occupied_positions.forEach((position) => { %>
+                                    <span class="rounded-full bg-white px-3 py-1 text-[11px] font-bold uppercase tracking-widest text-rose-700"><%= position %></span>
+                                <% }) %>
+                            </div>
+                        </div>
+                    <% } %>
+
+                    <% if ((safeSerializedPositionContext.recent_positions || []).length > 0) { %>
+                        <div class="rounded-lg border border-slate-200 bg-slate-50 p-4">
+                            <p class="text-[11px] font-bold uppercase tracking-widest text-slate-500">Recent Position History</p>
+                            <div class="mt-3 flex flex-wrap gap-2">
+                                <% safeSerializedPositionContext.recent_positions.forEach((position) => { %>
+                                    <span class="rounded-full bg-white px-3 py-1 text-[11px] font-bold uppercase tracking-widest text-slate-700"><%= position %></span>
+                                <% }) %>
+                            </div>
+                        </div>
+                    <% } %>
+                </div>
+            <% } %>
+
+            <div class="mb-8">
+                <div class="mb-4 flex items-center justify-between gap-4">
+                    <div>
+                        <h3 class="text-lg font-semibold text-slate-900">Active Serialized Installations</h3>
+                        <p class="mt-1 text-sm text-slate-500">
+                            Provenance, inherited context, uncertainty, and installation history remain visible for operational review.
+                        </p>
+                    </div>
+                    <span class="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold uppercase tracking-widest text-slate-700">
+                        <%= safeActiveSerializedInstallations.length %> Active
+                    </span>
+                </div>
+
+                <% if (safeActiveSerializedInstallations.length > 0) { %>
+                    <div class="space-y-4">
+                        <% safeActiveSerializedInstallations.forEach((installation) => { %>
+                            <% const serializedComponent = installation.SerializedComponent; %>
+                            <% const serializedModel = serializedComponent?.ComponentModel; %>
+                            <% const serializedManufacturer = serializedModel?.Manufacturer; %>
+                            <% const serializedAssetType = serializedModel?.AssetType; %>
+                            <% const historyEntries = installation.history_entries || []; %>
+                            <% const isBaselineCapture = installation.installation_context === 'BASELINE_CAPTURE'; %>
+                            <% const uncertaintyFlags = installation.uncertainty_flags || []; %>
+                            <% const readinessSummary = installation.readiness_summary || {}; %>
+                            <% const maintenanceContextSummary = installation.maintenance_context_summary || {}; %>
+                            <% const documentVisibilitySummary = installation.document_visibility_summary || {}; %>
+                            <% const operationalWarnings = installation.operational_warnings || []; %>
+                            <article class="rounded-lg border border-slate-200 bg-white p-5">
+                                <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                                    <div>
+                                        <div class="flex flex-wrap items-center gap-2">
+                                            <span class="rounded-full bg-slate-100 px-3 py-1 text-[11px] font-bold uppercase tracking-widest text-slate-700">
+                                                <%= serializedAssetType?.code || 'UNCLASSIFIED' %>
+                                            </span>
+                                            <span class="rounded-full px-3 py-1 text-[11px] font-bold uppercase tracking-widest <%= isBaselineCapture ? 'bg-amber-100 text-amber-800' : 'bg-blue-100 text-blue-800' %>">
+                                                <%= isBaselineCapture ? 'Baseline Capture' : 'Authoritative Install' %>
+                                            </span>
+                                            <span class="rounded-full bg-emerald-100 px-3 py-1 text-[11px] font-bold uppercase tracking-widest text-emerald-800">
+                                                <%= serializedComponent?.status || 'INSTALLED' %>
+                                            </span>
+                                            <span class="rounded-full px-3 py-1 text-[11px] font-bold uppercase tracking-widest <%= readinessSummary.state === 'LIMITED' ? 'bg-rose-100 text-rose-800' : readinessSummary.state === 'REVIEW' ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800' %>">
+                                                <%= readinessSummary.label || 'Operational Review Recommended' %>
+                                            </span>
+                                        </div>
+                                        <h3 class="mt-3 text-base font-bold text-slate-900">
+                                            <%= serializedManufacturer?.name || 'Unknown Manufacturer' %>
+                                            <%= serializedModel?.model_name || 'Unknown Model' %>
+                                        </h3>
+                                        <p class="mt-1 text-sm text-slate-600">
+                                            Serial <%= serializedComponent?.serial_number || '-' %>
+                                            <% if (serializedComponent?.part_number) { %>
+                                                | Part Number <%= serializedComponent.part_number %>
+                                            <% } %>
+                                            <% if (serializedModel?.model_code) { %>
+                                                | <%= serializedModel.model_code %>
+                                            <% } %>
+                                        </p>
+                                    </div>
+
+                                    <div class="grid gap-3 text-sm text-slate-700 md:grid-cols-2 lg:min-w-[24rem]">
+                                        <div>
+                                            <p class="text-xs font-bold uppercase tracking-widest text-slate-500">Provenance</p>
+                                            <p class="mt-1 font-semibold text-slate-900"><%= installation.provenance_label || installation.installation_context %></p>
+                                        </div>
+                                        <div>
+                                            <p class="text-xs font-bold uppercase tracking-widest text-slate-500">Installed At</p>
+                                            <p class="mt-1"><%= installation.installed_at || '-' %></p>
+                                        </div>
+                                        <div>
+                                            <p class="text-xs font-bold uppercase tracking-widest text-slate-500">Position</p>
+                                            <p class="mt-1"><%= installation.position || 'Position Not Captured' %></p>
+                                        </div>
+                                        <div>
+                                            <p class="text-xs font-bold uppercase tracking-widest text-slate-500">History Entries</p>
+                                            <p class="mt-1"><%= historyEntries.length %></p>
+                                        </div>
+                                        <div>
+                                            <p class="text-xs font-bold uppercase tracking-widest text-slate-500">Install TSN</p>
+                                            <p class="mt-1"><%= installation.install_tsn ?? '-' %></p>
+                                        </div>
+                                        <div>
+                                            <p class="text-xs font-bold uppercase tracking-widest text-slate-500">Install TSO</p>
+                                            <p class="mt-1"><%= installation.install_tso ?? '-' %></p>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-4">
+                                    <p class="text-xs font-bold uppercase tracking-widest text-slate-500">Operational Readiness Advisory</p>
+                                    <p class="mt-2 text-sm font-semibold text-slate-900"><%= readinessSummary.label || 'Operational Review Recommended' %></p>
+                                    <p class="mt-2 text-sm leading-6 text-slate-700"><%= readinessSummary.explanation || 'Advisory only: review current serialized component visibility carefully.' %></p>
+                                </div>
+
+                                <% if (uncertaintyFlags.length > 0) { %>
+                                    <div class="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-4">
+                                        <p class="text-xs font-bold uppercase tracking-widest text-amber-700">Uncertainty and Missing Data</p>
+                                        <div class="mt-3 flex flex-wrap gap-2">
+                                            <% uncertaintyFlags.forEach((flag) => { %>
+                                                <span class="rounded-full bg-white px-3 py-1 text-[11px] font-bold uppercase tracking-widest text-amber-800"><%= flag %></span>
+                                            <% }) %>
+                                        </div>
+                                    </div>
+                                <% } %>
+
+                                <% if (operationalWarnings.length > 0) { %>
+                                    <div class="mt-4 rounded-lg border border-rose-200 bg-rose-50 p-4">
+                                        <p class="text-xs font-bold uppercase tracking-widest text-rose-700">Operational Warnings</p>
+                                        <div class="mt-3 flex flex-wrap gap-2">
+                                            <% operationalWarnings.forEach((warning) => { %>
+                                                <span class="rounded-full bg-white px-3 py-1 text-[11px] font-bold uppercase tracking-widest text-rose-700"><%= warning %></span>
+                                            <% }) %>
+                                        </div>
+                                    </div>
+                                <% } %>
+
+                                <% if (installation.notes) { %>
+                                    <div class="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-4">
+                                        <p class="text-xs font-bold uppercase tracking-widest text-slate-500">Audit Explainability</p>
+                                        <p class="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-700"><%= installation.notes %></p>
+                                    </div>
+                                <% } %>
+
+                                <div class="mt-4 grid gap-4 xl:grid-cols-2">
+                                    <div class="rounded-lg border border-slate-200 bg-slate-50 p-4">
+                                        <p class="text-xs font-bold uppercase tracking-widest text-slate-500">Operational Traceability</p>
+                                        <p class="mt-2 text-sm leading-6 text-slate-700"><%= installation.traceability_summary || 'Serialized installation traceability unavailable.' %></p>
+                                    </div>
+                                    <div class="rounded-lg border border-slate-200 bg-slate-50 p-4">
+                                        <p class="text-xs font-bold uppercase tracking-widest text-slate-500">Explainability Summary</p>
+                                        <p class="mt-2 text-sm leading-6 text-slate-700"><%= installation.explainability_summary || 'Explainability summary unavailable.' %></p>
+                                    </div>
+                                </div>
+
+                                <div class="mt-4 grid gap-4 xl:grid-cols-2">
+                                    <div class="rounded-lg border border-slate-200 bg-slate-50 p-4">
+                                        <p class="text-xs font-bold uppercase tracking-widest text-slate-500">Maintenance Context Visibility</p>
+                                        <p class="mt-2 text-sm font-semibold text-slate-900"><%= maintenanceContextSummary.headline || 'Maintenance context visibility unavailable.' %></p>
+                                        <p class="mt-2 text-sm leading-6 text-slate-700"><%= maintenanceContextSummary.explanation || 'No maintenance-context explanation available.' %></p>
+                                    </div>
+                                    <div class="rounded-lg border border-slate-200 bg-slate-50 p-4">
+                                        <p class="text-xs font-bold uppercase tracking-widest text-slate-500">Component Document Visibility</p>
+                                        <p class="mt-2 text-sm font-semibold text-slate-900"><%= documentVisibilitySummary.headline || 'Component-document visibility unavailable.' %></p>
+                                        <p class="mt-2 text-sm leading-6 text-slate-700"><%= documentVisibilitySummary.explanation || 'No component-document explanation available.' %></p>
+                                    </div>
+                                </div>
+
+                                <details class="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-4">
+                                    <summary class="cursor-pointer text-sm font-bold uppercase tracking-widest text-slate-600">
+                                        Installation History
+                                    </summary>
+                                    <% if (historyEntries.length > 0) { %>
+                                        <div class="mt-4 overflow-x-auto">
+                                            <table class="min-w-full divide-y divide-slate-200">
+                                                <thead class="bg-white">
+                                                    <tr>
+                                                        <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Event</th>
+                                                        <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Installed</th>
+                                                        <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Removed</th>
+                                                        <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Position</th>
+                                                        <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Notes</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody class="divide-y divide-slate-100 bg-white">
+                                                    <% historyEntries.forEach((historyEntry) => { %>
+                                                        <tr>
+                                                            <td class="px-3 py-2 text-sm text-slate-700"><%= historyEntry.event_label %></td>
+                                                            <td class="px-3 py-2 text-sm text-slate-700"><%= historyEntry.installed_at || '-' %></td>
+                                                            <td class="px-3 py-2 text-sm text-slate-700"><%= historyEntry.removed_at || 'Active' %></td>
+                                                            <td class="px-3 py-2 text-sm text-slate-700"><%= historyEntry.position || '-' %></td>
+                                                            <td class="px-3 py-2 text-sm text-slate-700">
+                                                                <% if (historyEntry.notes) { %>
+                                                                    <span class="whitespace-pre-wrap"><%= historyEntry.notes %></span>
+                                                                <% } else { %>
+                                                                    -
+                                                                <% } %>
+                                                            </td>
+                                                        </tr>
+                                                    <% }) %>
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    <% } else { %>
+                                        <p class="mt-4 text-sm text-slate-500">No serialized installation history is visible for this component yet.</p>
+                                    <% } %>
+                                </details>
+
+                                <form
+                                    action="/aircraft/<%= aircraft.id %>/serialized-components/<%= installation.id %>/remove"
+                                    method="POST"
+                                    class="mt-4 border-t border-slate-200 pt-4"
+                                >
+                                    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+
+                                    <div class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-5">
+                                        <div>
+                                            <label class="block text-xs font-bold uppercase tracking-widest text-slate-500">Removed At</label>
+                                            <input
+                                                type="date"
+                                                name="removed_at"
+                                                required
+                                                value="<%= new Date().toISOString().slice(0, 10) %>"
+                                                class="mt-2 block w-full rounded border border-slate-300 px-3 py-2 text-sm"
+                                            >
+                                        </div>
+                                        <div>
+                                            <label class="block text-xs font-bold uppercase tracking-widest text-slate-500">Removal TSN</label>
+                                            <input
+                                                type="number"
+                                                step="0.01"
+                                                name="removal_tsn"
+                                                class="mt-2 block w-full rounded border border-slate-300 px-3 py-2 text-sm"
+                                            >
+                                        </div>
+                                        <div>
+                                            <label class="block text-xs font-bold uppercase tracking-widest text-slate-500">Removal TSO</label>
+                                            <input
+                                                type="number"
+                                                step="0.01"
+                                                name="removal_tso"
+                                                class="mt-2 block w-full rounded border border-slate-300 px-3 py-2 text-sm"
+                                            >
+                                        </div>
+                                        <div>
+                                            <label class="block text-xs font-bold uppercase tracking-widest text-slate-500">Resulting Status</label>
+                                            <select
+                                                name="resulting_status"
+                                                required
+                                                class="mt-2 block w-full rounded border border-slate-300 px-3 py-2 text-sm"
+                                            >
+                                                <% safeSerializedRemovalStatuses.forEach((status) => { %>
+                                                    <option value="<%= status %>"><%= status %></option>
+                                                <% }) %>
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label class="block text-xs font-bold uppercase tracking-widest text-slate-500">Notes</label>
+                                            <input
+                                                type="text"
+                                                name="notes"
+                                                class="mt-2 block w-full rounded border border-slate-300 px-3 py-2 text-sm"
+                                                placeholder="Optional removal notes"
+                                            >
+                                        </div>
+                                    </div>
+
+                                    <p class="mt-3 text-xs leading-6 text-slate-500">
+                                        Removal remains an explicit authoritative workflow action. Baseline provenance stays visible in history, but future lifecycle changes still occur only through the normal removal workflow.
+                                    </p>
+
+                                    <div class="mt-4">
+                                        <button
+                                            type="submit"
+                                            class="rounded bg-rose-600 px-4 py-2 text-sm font-bold text-white hover:bg-rose-700"
+                                        >
+                                            Remove Serialized Component
+                                        </button>
+                                    </div>
+                                </form>
+                            </article>
+                        <% }) %>
+                    </div>
+                <% } else { %>
+                    <p class="text-sm text-slate-500">No active serialized installations are currently visible on this aircraft.</p>
+                <% } %>
+            </div>
 
             <% if (aircraft.installed_components && aircraft.installed_components.length > 0) { %>
                 <ul class="divide-y divide-gray-200">
