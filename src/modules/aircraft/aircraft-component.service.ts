@@ -2,11 +2,17 @@ import { sequelize } from '../../models/index.js';
 import {
   Aircraft,
   AircraftComponent,
+  AircraftComponentInstallation,
   ComponentModel,
-  AssetType
+  AssetType,
+  SerializedComponent,
+  SerializedComponentLifeState,
+  ComponentLifeLimit,
+  Manufacturer,
 } from '../../models/index.js';
 
 export class AircraftComponentService {
+  private static readonly serializedInstallStatuses = ['REMOVED', 'AVAILABLE'];
   private static readonly aircraftAttributes = [
     'id',
     'status',
@@ -25,6 +31,272 @@ export class AircraftComponentService {
     attributes: ['id', 'code', 'label', 'is_installable_on_aircraft', 'is_required_for_aircraft'],
   };
 
+  private static async hasLegacyPositionConflict(params: {
+    aircraftId: string;
+    assetTypeId: string;
+    position: string;
+    transaction: any;
+  }) {
+    const conflict = await AircraftComponent.findOne({
+      where: {
+        aircraft_id: params.aircraftId,
+        position_code: params.position,
+        current_status: 'INSTALLED'
+      },
+      include: [
+        {
+          model: ComponentModel,
+          attributes: ['id', 'asset_type_id'],
+          required: true,
+          where: {
+            asset_type_id: params.assetTypeId,
+          },
+        },
+      ],
+      transaction: params.transaction,
+      lock: params.transaction.LOCK.UPDATE,
+    });
+
+    return Boolean(conflict);
+  }
+
+  private static async hasSerializedPositionConflict(params: {
+    aircraftId: string;
+    assetTypeId: string;
+    position: string;
+    transaction: any;
+  }) {
+    const conflict = await AircraftComponentInstallation.findOne({
+      where: {
+        aircraft_id: params.aircraftId,
+        position: params.position,
+        removed_at: null,
+      },
+      include: [
+        {
+          model: SerializedComponent,
+          as: 'SerializedComponent',
+          attributes: ['id', 'component_model_id'],
+          required: true,
+          include: [
+            {
+              model: ComponentModel,
+              as: 'ComponentModel',
+              attributes: ['id', 'asset_type_id'],
+              required: true,
+              where: {
+                asset_type_id: params.assetTypeId,
+              },
+            },
+          ],
+        },
+      ],
+      transaction: params.transaction,
+      lock: params.transaction.LOCK.UPDATE,
+    });
+
+    return Boolean(conflict);
+  }
+
+  static async getAvailableSerializedComponents() {
+    return SerializedComponent.findAll({
+      attributes: [
+        'id',
+        'component_model_id',
+        'serial_number',
+        'part_number',
+        'status',
+        'condition',
+        'notes',
+      ],
+      where: { status: 'AVAILABLE' },
+      include: [
+        {
+          model: ComponentModel,
+          as: 'ComponentModel',
+          attributes: ['id', 'model_name', 'model_code', 'manufacturer_id', 'asset_type_id'],
+          required: true,
+          include: [
+            {
+              model: Manufacturer,
+              attributes: ['id', 'name', 'code'],
+              required: false,
+            },
+            {
+              model: AssetType,
+              attributes: ['id', 'code', 'label', 'is_installable_on_aircraft'],
+              required: true,
+              where: { is_installable_on_aircraft: true },
+            },
+          ],
+        },
+      ],
+      order: [
+        [{ model: ComponentModel, as: 'ComponentModel' }, { model: AssetType, as: 'AssetType' }, 'code', 'ASC'],
+        [{ model: ComponentModel, as: 'ComponentModel' }, { model: Manufacturer, as: 'Manufacturer' }, 'name', 'ASC'],
+        [{ model: ComponentModel, as: 'ComponentModel' }, 'model_name', 'ASC'],
+        ['serial_number', 'ASC'],
+      ],
+    });
+  }
+
+  static async getActiveSerializedInstallationsForAircraft(aircraftId: string) {
+    return AircraftComponentInstallation.findAll({
+      attributes: [
+        'id',
+        'aircraft_id',
+        'serialized_component_id',
+        'installation_context',
+        'installed_at',
+        'removed_at',
+        'position',
+        'install_tsn',
+        'install_tso',
+        'notes',
+      ],
+      where: {
+        aircraft_id: aircraftId,
+        removed_at: null,
+      },
+      include: [
+        {
+          model: SerializedComponent,
+          as: 'SerializedComponent',
+          attributes: [
+            'id',
+            'component_model_id',
+            'serial_number',
+            'part_number',
+            'status',
+            'condition',
+            'notes',
+          ],
+          required: true,
+          include: [
+            {
+              model: ComponentModel,
+              as: 'ComponentModel',
+              attributes: ['id', 'model_name', 'model_code', 'manufacturer_id', 'asset_type_id'],
+              required: false,
+              include: [
+                {
+                  model: Manufacturer,
+                  attributes: ['id', 'name', 'code'],
+                  required: false,
+                },
+                {
+                  model: AssetType,
+                  attributes: ['id', 'code', 'label', 'is_required_for_aircraft'],
+                  required: false,
+                },
+                {
+                  model: ComponentLifeLimit,
+                  as: 'LifeLimits',
+                  required: false,
+                },
+              ],
+            },
+            {
+              model: SerializedComponentLifeState,
+              as: 'LifeState',
+              required: false,
+            },
+          ],
+        },
+      ],
+      order: [
+        [{ model: SerializedComponent, as: 'SerializedComponent' }, { model: ComponentModel, as: 'ComponentModel' }, { model: AssetType, as: 'AssetType' }, 'code', 'ASC'],
+        ['position', 'ASC'],
+        ['installed_at', 'DESC'],
+      ],
+    });
+  }
+
+  static async getSerializedInstallationHistoryForComponents(serializedComponentIds: string[]) {
+    const ids = Array.from(
+      new Set(
+        (serializedComponentIds || [])
+          .map((value) => String(value || '').trim())
+          .filter(Boolean)
+      )
+    );
+
+    if (ids.length === 0) {
+      return [];
+    }
+
+    return AircraftComponentInstallation.findAll({
+      attributes: [
+        'id',
+        'aircraft_id',
+        'serialized_component_id',
+        'installation_context',
+        'installed_at',
+        'removed_at',
+        'position',
+        'install_tsn',
+        'install_tso',
+        'removal_tsn',
+        'removal_tso',
+        'notes',
+        'created_at',
+        'updated_at',
+      ],
+      where: {
+        serialized_component_id: ids,
+      },
+      include: [
+        {
+          model: Aircraft,
+          as: 'Aircraft',
+          attributes: ['id', 'registration', 'serial_number'],
+          required: false,
+        },
+      ],
+      order: [['installed_at', 'DESC'], ['created_at', 'DESC']],
+    });
+  }
+
+  static async getTechnicalStatusInstallableLegacyComponentsForAircraft(aircraftId: string) {
+    return AircraftComponent.findAll({
+      attributes: [
+        'id',
+        'aircraft_id',
+        'model_id',
+        'serial_number',
+        'position_code',
+        'current_status',
+      ],
+      where: {
+        aircraft_id: aircraftId,
+        current_status: 'INSTALLED',
+      },
+      include: [
+        {
+          model: ComponentModel,
+          attributes: AircraftComponentService.componentModelAttributes,
+          required: false,
+          include: [
+            {
+              model: Manufacturer,
+              attributes: ['id', 'name', 'code'],
+              required: false,
+            },
+            {
+              model: AssetType,
+              attributes: ['id', 'code', 'label', 'is_installable_on_aircraft', 'is_required_for_aircraft'],
+              required: false,
+            },
+          ],
+        },
+      ],
+      order: [
+        [{ model: ComponentModel, as: 'ComponentModel' }, { model: AssetType, as: 'AssetType' }, 'code', 'ASC'],
+        ['position_code', 'ASC'],
+      ],
+    });
+  }
+
   /**
    * INSTALL COMPONENT (Concurrency Safe)
    */
@@ -38,10 +310,24 @@ export class AircraftComponentService {
         aircraft_id,
         model_id,
         serial_number,
+        installation_date,
         tsn_at_install,
         tso_at_install,
         position_code
       } = data;
+      const normalizedSerialNumber = String(serial_number || '').trim();
+      const normalizedPositionCode = String(position_code || '').trim().toUpperCase() || null;
+      const normalizedInstallationDate = String(installation_date || '').trim() || null;
+
+      if (!normalizedSerialNumber)
+        throw new Error('SERIAL_NUMBER_REQUIRED');
+
+      if (
+        normalizedInstallationDate &&
+        Number.isNaN(new Date(normalizedInstallationDate).getTime())
+      ) {
+        throw new Error('INVALID_INSTALLATION_DATE');
+      }
 
       const aircraft = await Aircraft.findByPk(
         aircraft_id,
@@ -72,7 +358,7 @@ export class AircraftComponentService {
         throw new Error('ASSET_TYPE_NOT_INSTALLABLE_ON_AIRCRAFT');
 
       const serialInUse = await AircraftComponent.findOne({
-        where: { serial_number, current_status: 'INSTALLED' },
+        where: { serial_number: normalizedSerialNumber, current_status: 'INSTALLED' },
         transaction,
         lock: transaction.LOCK.UPDATE
       });
@@ -80,21 +366,28 @@ export class AircraftComponentService {
       if (serialInUse)
         throw new Error('SERIAL_ALREADY_INSTALLED_ON_ANOTHER_AIRCRAFT');
 
-      if (position_code) {
+      if (normalizedPositionCode) {
+        const assetTypeId = String(componentModel.asset_type_id || '').trim();
+        const hasConflict =
+          Boolean(assetTypeId) &&
+          (
+            await AircraftComponentService.hasLegacyPositionConflict({
+              aircraftId: aircraft_id,
+              assetTypeId,
+              position: normalizedPositionCode,
+              transaction,
+            }) ||
+            await AircraftComponentService.hasSerializedPositionConflict({
+              aircraftId: aircraft_id,
+              assetTypeId,
+              position: normalizedPositionCode,
+              transaction,
+            })
+          );
 
-        const conflict = await AircraftComponent.findOne({
-          where: {
-            aircraft_id,
-            position_code,
-            current_status: 'INSTALLED'
-          },
-          transaction,
-          lock: transaction.LOCK.UPDATE
-        });
-
-        if (conflict)
+        if (hasConflict)
           throw new Error(
-            `POSITION_OCCUPIED: ${position_code}`
+            `POSITION_OCCUPIED: ${normalizedPositionCode}`
           );
       }
 
@@ -112,8 +405,9 @@ export class AircraftComponentService {
         {
           aircraft_id,
           model_id,
-          serial_number,
-          position_code: position_code || null,
+          serial_number: normalizedSerialNumber,
+          position_code: normalizedPositionCode,
+          installation_date: normalizedInstallationDate || undefined,
           tsn_at_install: tsn_at_install || 0,
           tso_at_install: tso_at_install || 0,
           install_af_hours: aircraft.total_time_hours || 0,
@@ -337,6 +631,352 @@ export class AircraftComponentService {
 
       await transaction.commit();
 
+    } catch (error) {
+      await transaction.rollback();
+      throw error;
+    }
+  }
+
+  static async installSerializedComponent(data: any) {
+    const transaction = await sequelize.transaction();
+
+    try {
+      const aircraftId = String(data.aircraft_id || '').trim();
+      const serializedComponentId = String(data.serialized_component_id || '').trim();
+      const installedAt = String(data.installed_at || '').trim();
+      const position = String(data.position || '').trim().toUpperCase() || null;
+      const notes = String(data.notes || '').trim() || null;
+      const installTsn = data.install_tsn !== undefined && data.install_tsn !== ''
+        ? Number(data.install_tsn)
+        : null;
+      const installTso = data.install_tso !== undefined && data.install_tso !== ''
+        ? Number(data.install_tso)
+        : null;
+
+      if (!aircraftId) throw new Error('AIRCRAFT_NOT_FOUND');
+      if (!serializedComponentId) throw new Error('SERIALIZED_COMPONENT_NOT_FOUND');
+      if (!installedAt || Number.isNaN(new Date(installedAt).getTime())) {
+        throw new Error('INVALID_INSTALLATION_DATE');
+      }
+      if (installTsn !== null && Number.isNaN(installTsn)) {
+        throw new Error('INVALID_INSTALL_TSN');
+      }
+      if (installTso !== null && Number.isNaN(installTso)) {
+        throw new Error('INVALID_INSTALL_TSO');
+      }
+
+      const aircraft = await Aircraft.findByPk(aircraftId, {
+        attributes: ['id'],
+        transaction,
+        lock: transaction.LOCK.UPDATE,
+      });
+
+      if (!aircraft) throw new Error('AIRCRAFT_NOT_FOUND');
+
+      const serializedComponent = await SerializedComponent.findByPk(serializedComponentId, {
+        attributes: ['id', 'status', 'component_model_id'],
+        transaction,
+        lock: transaction.LOCK.UPDATE,
+      });
+
+      if (!serializedComponent) throw new Error('SERIALIZED_COMPONENT_NOT_FOUND');
+      if (serializedComponent.status !== 'AVAILABLE') {
+        throw new Error('SERIALIZED_COMPONENT_NOT_AVAILABLE');
+      }
+
+      const serializedComponentModel = serializedComponent.component_model_id
+        ? await ComponentModel.findByPk(serializedComponent.component_model_id, {
+            attributes: ['id', 'asset_type_id'],
+            transaction,
+          })
+        : null;
+
+      const activeInstallation = await AircraftComponentInstallation.findOne({
+        where: {
+          serialized_component_id: serializedComponentId,
+          removed_at: null,
+        },
+        transaction,
+        lock: transaction.LOCK.UPDATE,
+      });
+
+      if (activeInstallation) {
+        throw new Error('SERIALIZED_COMPONENT_ALREADY_INSTALLED');
+      }
+
+      if (position) {
+        const assetTypeId = String(serializedComponentModel?.asset_type_id || '').trim();
+        const hasConflict =
+          Boolean(assetTypeId) &&
+          (
+            await AircraftComponentService.hasSerializedPositionConflict({
+              aircraftId,
+              assetTypeId,
+              position,
+              transaction,
+            }) ||
+            await AircraftComponentService.hasLegacyPositionConflict({
+              aircraftId,
+              assetTypeId,
+              position,
+              transaction,
+            })
+          );
+
+        if (hasConflict) {
+          throw new Error(`POSITION_OCCUPIED: ${position}`);
+        }
+      }
+
+      await AircraftComponentInstallation.create(
+        {
+          aircraft_id: aircraftId,
+          serialized_component_id: serializedComponentId,
+          installation_context: 'MAINTENANCE_INSTALL',
+          installed_at: installedAt,
+          removed_at: null,
+          position,
+          install_tsn: installTsn,
+          install_tso: installTso,
+          installed_by: data.installed_by || null,
+          notes,
+        },
+        { transaction }
+      );
+
+      await serializedComponent.update(
+        { status: 'INSTALLED' },
+        { transaction }
+      );
+
+      await transaction.commit();
+    } catch (error) {
+      await transaction.rollback();
+      throw error;
+    }
+  }
+
+  static async baselineCaptureSerializedComponent(data: any) {
+    const transaction = await sequelize.transaction();
+
+    try {
+      const aircraftId = String(data.aircraft_id || '').trim();
+      const serializedComponentId = String(data.serialized_component_id || '').trim();
+      const installedAt = String(data.installed_at || '').trim();
+      const position = String(data.position || '').trim().toUpperCase() || null;
+      const installTsn = data.install_tsn !== undefined && data.install_tsn !== ''
+        ? Number(data.install_tsn)
+        : null;
+      const installTso = data.install_tso !== undefined && data.install_tso !== ''
+        ? Number(data.install_tso)
+        : null;
+      const notes = String(data.notes || '').trim();
+      const uncertaintyNotes = String(data.uncertainty_notes || '').trim();
+      const inheritedStatusContext = String(data.inherited_status_context || '').trim();
+
+      if (!aircraftId) throw new Error('AIRCRAFT_NOT_FOUND');
+      if (!serializedComponentId) throw new Error('SERIALIZED_COMPONENT_NOT_FOUND');
+      if (!installedAt || Number.isNaN(new Date(installedAt).getTime())) {
+        throw new Error('INVALID_INSTALLATION_DATE');
+      }
+      if (installTsn !== null && Number.isNaN(installTsn)) {
+        throw new Error('INVALID_INSTALL_TSN');
+      }
+      if (installTso !== null && Number.isNaN(installTso)) {
+        throw new Error('INVALID_INSTALL_TSO');
+      }
+
+      const aircraft = await Aircraft.findByPk(aircraftId, {
+        attributes: ['id'],
+        transaction,
+        lock: transaction.LOCK.UPDATE,
+      });
+
+      if (!aircraft) throw new Error('AIRCRAFT_NOT_FOUND');
+
+      const serializedComponent = await SerializedComponent.findByPk(serializedComponentId, {
+        attributes: ['id', 'status', 'component_model_id'],
+        transaction,
+        lock: transaction.LOCK.UPDATE,
+      });
+
+      if (!serializedComponent) throw new Error('SERIALIZED_COMPONENT_NOT_FOUND');
+      if (serializedComponent.status !== 'AVAILABLE') {
+        throw new Error('SERIALIZED_COMPONENT_NOT_AVAILABLE');
+      }
+
+      const serializedComponentModel = serializedComponent.component_model_id
+        ? await ComponentModel.findByPk(serializedComponent.component_model_id, {
+            attributes: ['id', 'asset_type_id'],
+            transaction,
+          })
+        : null;
+
+      const activeInstallation = await AircraftComponentInstallation.findOne({
+        where: {
+          serialized_component_id: serializedComponentId,
+          removed_at: null,
+        },
+        transaction,
+        lock: transaction.LOCK.UPDATE,
+      });
+
+      if (activeInstallation) {
+        throw new Error('SERIALIZED_COMPONENT_ALREADY_INSTALLED');
+      }
+
+      if (position) {
+        const assetTypeId = String(serializedComponentModel?.asset_type_id || '').trim();
+        const hasConflict =
+          Boolean(assetTypeId) &&
+          (
+            await AircraftComponentService.hasSerializedPositionConflict({
+              aircraftId,
+              assetTypeId,
+              position,
+              transaction,
+            }) ||
+            await AircraftComponentService.hasLegacyPositionConflict({
+              aircraftId,
+              assetTypeId,
+              position,
+              transaction,
+            })
+          );
+
+        if (hasConflict) {
+          throw new Error(`POSITION_OCCUPIED: ${position}`);
+        }
+      }
+
+      const composedNotes = [
+        'Baseline Capture: Existing aircraft configuration captured during onboarding.',
+        inheritedStatusContext ? `Inherited Status Context: ${inheritedStatusContext}` : null,
+        uncertaintyNotes ? `Uncertainty Notes: ${uncertaintyNotes}` : null,
+        notes || null,
+      ].filter(Boolean).join('\n');
+
+      await AircraftComponentInstallation.create(
+        {
+          aircraft_id: aircraftId,
+          serialized_component_id: serializedComponentId,
+          installation_context: 'BASELINE_CAPTURE',
+          installed_at: installedAt,
+          removed_at: null,
+          position,
+          install_tsn: installTsn,
+          install_tso: installTso,
+          installed_by: data.installed_by || null,
+          notes: composedNotes || null,
+        },
+        { transaction }
+      );
+
+      await serializedComponent.update(
+        { status: 'INSTALLED' },
+        { transaction }
+      );
+
+      await transaction.commit();
+    } catch (error) {
+      await transaction.rollback();
+      throw error;
+    }
+  }
+
+  static async removeSerializedComponent(data: any) {
+    const transaction = await sequelize.transaction();
+
+    try {
+      const aircraftId = String(data.aircraft_id || '').trim();
+      const installationId = String(data.installation_id || '').trim();
+      const removedAt = String(data.removed_at || '').trim();
+      const notes = String(data.notes || '').trim() || null;
+      const resultingStatus = String(data.resulting_status || '').trim().toUpperCase();
+      const removalTsn = data.removal_tsn !== undefined && data.removal_tsn !== ''
+        ? Number(data.removal_tsn)
+        : null;
+      const removalTso = data.removal_tso !== undefined && data.removal_tso !== ''
+        ? Number(data.removal_tso)
+        : null;
+
+      if (!aircraftId) throw new Error('AIRCRAFT_NOT_FOUND');
+      if (!installationId) throw new Error('ACTIVE_SERIALIZED_INSTALLATION_NOT_FOUND');
+      if (!removedAt || Number.isNaN(new Date(removedAt).getTime())) {
+        throw new Error('INVALID_REMOVAL_DATE');
+      }
+      if (!AircraftComponentService.serializedInstallStatuses.includes(resultingStatus)) {
+        throw new Error('INVALID_RESULTING_STATUS');
+      }
+      if (removalTsn !== null && Number.isNaN(removalTsn)) {
+        throw new Error('INVALID_REMOVAL_TSN');
+      }
+      if (removalTso !== null && Number.isNaN(removalTso)) {
+        throw new Error('INVALID_REMOVAL_TSO');
+      }
+
+      const aircraft = await Aircraft.findByPk(aircraftId, {
+        attributes: ['id'],
+        transaction,
+        lock: transaction.LOCK.UPDATE,
+      });
+
+      if (!aircraft) throw new Error('AIRCRAFT_NOT_FOUND');
+
+      const installation = await AircraftComponentInstallation.findOne({
+        where: {
+          id: installationId,
+          aircraft_id: aircraftId,
+          removed_at: null,
+        },
+        transaction,
+        lock: transaction.LOCK.UPDATE,
+      });
+
+      if (!installation) {
+        throw new Error('ACTIVE_SERIALIZED_INSTALLATION_NOT_FOUND');
+      }
+
+      if (new Date(removedAt).getTime() < new Date(installation.installed_at).getTime()) {
+        throw new Error('REMOVAL_BEFORE_INSTALL');
+      }
+
+      const serializedComponent = await SerializedComponent.findByPk(
+        installation.serialized_component_id,
+        {
+          attributes: ['id', 'status'],
+          transaction,
+          lock: transaction.LOCK.UPDATE,
+        }
+      );
+
+      if (!serializedComponent) {
+        throw new Error('SERIALIZED_COMPONENT_NOT_FOUND');
+      }
+
+      if (serializedComponent.status !== 'INSTALLED') {
+        throw new Error('SERIALIZED_COMPONENT_NOT_INSTALLED');
+      }
+
+      await installation.update(
+        {
+          removed_at: removedAt,
+          removal_tsn: removalTsn,
+          removal_tso: removalTso,
+          removed_by: data.removed_by || null,
+          notes: notes
+            ? [installation.notes, `Removal: ${notes}`].filter(Boolean).join('\n')
+            : installation.notes,
+        },
+        { transaction }
+      );
+
+      await serializedComponent.update(
+        { status: resultingStatus },
+        { transaction }
+      );
+
+      await transaction.commit();
     } catch (error) {
       await transaction.rollback();
       throw error;
