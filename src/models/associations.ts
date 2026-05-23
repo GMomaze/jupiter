@@ -124,9 +124,17 @@ Aircraft.hasMany(AircraftComponent, {
 AircraftComponent.belongsTo(Aircraft, { foreignKey: 'aircraft_id' });
 
 AircraftComponent.belongsTo(ComponentModel, { foreignKey: 'model_id' });
+AircraftComponentInstallation.belongsTo(Aircraft, {
+  foreignKey: 'aircraft_id',
+  as: 'Aircraft',
+});
 AircraftComponentInstallation.belongsTo(SerializedComponent, {
   foreignKey: 'serialized_component_id',
   as: 'SerializedComponent',
+});
+SerializedComponent.hasMany(AircraftComponentInstallation, {
+  foreignKey: 'serialized_component_id',
+  as: 'Installations',
 });
 SerializedComponent.belongsTo(ComponentModel, {
   foreignKey: 'component_model_id',
