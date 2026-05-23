@@ -1,10 +1,12 @@
 import { Router } from 'express';
+import csrf from 'csurf';
 import { AircraftController } from './aircraft.controller.js';
 import { aircraftPhotoUpload } from '../../middleware/upload.middleware.js';
 import { requireAuth } from '../../middleware/auth.middleware.js';
 import { requireRole } from '../../middleware/rbac.middleware.js';
 
 const router = Router();
+const csrfProtection = csrf();
 
 /**
  * Static routes MUST come before dynamic routes.
@@ -26,9 +28,9 @@ router.get(
 router.get('/view/:id', AircraftController.showView);
 router.get('/:id/applicability', AircraftController.showApplicability);
 router.get('/:id/service-bulletins', AircraftController.getServiceBulletins);
-router.post('/', aircraftPhotoUpload.single('aircraft_photo'), AircraftController.create);
-router.post('/:id', requireAuth, requireRole('ADMIN'), aircraftPhotoUpload.single('aircraft_photo'), AircraftController.update);
-router.patch('/:id', requireAuth, requireRole('ADMIN'), aircraftPhotoUpload.single('aircraft_photo'), AircraftController.update);
+router.post('/', aircraftPhotoUpload.single('aircraft_photo'), csrfProtection, AircraftController.create);
+router.post('/:id', requireAuth, requireRole('ADMIN'), aircraftPhotoUpload.single('aircraft_photo'), csrfProtection, AircraftController.update);
+router.patch('/:id', requireAuth, requireRole('ADMIN'), aircraftPhotoUpload.single('aircraft_photo'), csrfProtection, AircraftController.update);
 
 // Transition
 router.post('/:id/transition', AircraftController.transition);

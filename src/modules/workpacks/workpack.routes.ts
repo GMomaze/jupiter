@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import csrf from 'csurf';
 import { WorkpackController } from './workpack.controller.js';
 import { requireAuth } from '../../middleware/auth.middleware.js';
 import { requireAnyRole, requireRole } from '../../middleware/rbac.middleware.js';
@@ -6,6 +7,7 @@ import multer from 'multer';
 
 const router = Router();
 const upload = multer({ storage: multer.memoryStorage() });
+const csrfProtection = csrf();
 
 /* ============================================================
     VIEW ROUTES
@@ -159,6 +161,7 @@ router.post(
   requireAuth,
   requireRole('PLANNER'),
   upload.single('task_csv'),
+  csrfProtection,
   WorkpackController.handleImportTemplates
 );
 

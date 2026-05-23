@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import multer from 'multer';
+import csrf from 'csurf';
 import { LibraryService } from './library.service.js';
 import { LibraryController } from './library.controller.js';
 import { StandardTaskImportController } from './standard-task-import.controller.js';
@@ -14,6 +15,7 @@ const sidCsvUpload = multer({ storage: multer.memoryStorage() });
 const standardTaskCsvUpload = multer({ storage: multer.memoryStorage() });
 const adImportUpload = multer({ storage: multer.memoryStorage() });
 const sbImportUpload = multer({ storage: multer.memoryStorage() });
+const csrfProtection = csrf();
 
 function getParam(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] || '' : value || '';
@@ -119,6 +121,7 @@ router.post(
   '/tasks/import/map',
   requirePermission('LIBRARY_EDIT'),
   standardTaskCsvUpload.single('task_csv'),
+  csrfProtection,
   StandardTaskImportController.renderMappingPage
 );
 
@@ -132,6 +135,7 @@ router.post(
   '/ads/import/preview',
   requirePermission('LIBRARY_EDIT'),
   adImportUpload.single('ad_file'),
+  csrfProtection,
   AdImportController.previewImport
 );
 
@@ -139,6 +143,7 @@ router.post(
   '/sbs/import/preview',
   requirePermission('LIBRARY_EDIT'),
   sbImportUpload.single('sb_file'),
+  csrfProtection,
   SbImportController.previewImport
 );
 
@@ -191,7 +196,7 @@ router.get('/manufacturers/:id', async (req, res, next) => {
   }
 });
 
-router.post('/manufacturers', requirePermission('LIBRARY_EDIT'), manufacturerLogoUpload.single('logo_file'), async (req, res, next) => {
+router.post('/manufacturers', requirePermission('LIBRARY_EDIT'), manufacturerLogoUpload.single('logo_file'), csrfProtection, async (req, res, next) => {
   try {
     const {
       name,
@@ -258,7 +263,7 @@ router.post('/manufacturers', requirePermission('LIBRARY_EDIT'), manufacturerLog
   }
 });
 
-router.post('/manufacturers/:id/update', requirePermission('LIBRARY_EDIT'), manufacturerLogoUpload.single('logo_file'), async (req, res, next) => {
+router.post('/manufacturers/:id/update', requirePermission('LIBRARY_EDIT'), manufacturerLogoUpload.single('logo_file'), csrfProtection, async (req, res, next) => {
   const manufacturerId = getParam(req.params.id);
 
   try {
@@ -409,6 +414,7 @@ router.post(
   '/model/:id/sids/import',
   requirePermission('LIBRARY_EDIT'),
   sidCsvUpload.single('sid_csv'),
+  csrfProtection,
   async (req: any, res, next) => {
     try {
       const modelId = getParam(req.params.id);

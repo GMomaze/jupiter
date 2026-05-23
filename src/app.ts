@@ -297,6 +297,35 @@ app.use(sessionTimeout);
 // ===============================
 const csrfProtection = csrf();
 
+function isMultipartCsrfHandledAtRoute(req: express.Request) {
+  if (!req.is('multipart/form-data')) {
+    return false;
+  }
+
+  if (req.method === 'POST' && /^\/aircraft(?:\/[^/]+)?$/.test(req.path)) {
+    return true;
+  }
+
+  if (req.method === 'PATCH' && /^\/aircraft\/[^/]+$/.test(req.path)) {
+    return true;
+  }
+
+  if (req.method === 'POST') {
+    return [
+      /^\/library\/tasks\/import\/map$/,
+      /^\/library\/ads\/import\/preview$/,
+      /^\/library\/sbs\/import\/preview$/,
+      /^\/library\/manufacturers$/,
+      /^\/library\/manufacturers\/[^/]+\/update$/,
+      /^\/library\/model\/[^/]+\/sids\/import$/,
+      /^\/sb\/sync$/,
+      /^\/workpacks\/templates\/import$/,
+    ].some((pattern) => pattern.test(req.path));
+  }
+
+  return false;
+}
+
 app.use((req, res, next) => {
   const host =
     req.headers['x-forwarded-host'] ||
@@ -310,6 +339,10 @@ app.use((req, res, next) => {
     req.path.startsWith('/test-sync/') ||
     (typeof host === 'string' && host.includes('ngrok'))
   ) {
+    return next();
+  }
+
+  if (isMultipartCsrfHandledAtRoute(req)) {
     return next();
   }
 

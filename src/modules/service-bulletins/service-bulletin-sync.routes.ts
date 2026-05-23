@@ -1,8 +1,10 @@
 import { Router } from 'express';
+import csrf from 'csurf';
 import { ServiceBulletinSyncService } from './service-bulletin-sync.service.js';
 import { serviceBulletinImportUpload } from '../../middleware/upload.middleware.js';
 
 const router = Router();
+const csrfProtection = csrf();
 
 router.post(
   '/sync',
@@ -10,6 +12,7 @@ router.post(
     { name: 'veryon_csv_file', maxCount: 1 },
     { name: 'piper_pdf_file', maxCount: 1 },
   ]),
+  csrfProtection,
   async (req: any, res, next) => {
     try {
       const files = req.files as {
