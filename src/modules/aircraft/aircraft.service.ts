@@ -22,6 +22,7 @@ export class AircraftService {
     'id',
     'status',
     'total_time_hours',
+    'version',
   ];
   private static readonly editableAircraftAttributes = [
     'id',
