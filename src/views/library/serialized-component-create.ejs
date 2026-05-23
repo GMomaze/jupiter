@@ -1,0 +1,94 @@
+<%- include('../partials/header') %>
+
+<main class="max-w-4xl mx-auto py-10 px-4 sm:px-6 lg:px-8">
+  <div class="mb-8 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+    <div>
+      <h1 class="text-3xl font-black text-slate-900 tracking-tight">
+        Create Serialized Component
+      </h1>
+      <p class="mt-2 text-sm text-slate-500">
+        Add a serialized component record to the library without changing aircraft or workpack workflows.
+      </p>
+    </div>
+
+    <div class="flex gap-4 text-sm font-semibold">
+      <a href="/library" class="text-blue-600 hover:underline">Back to Library</a>
+      <a href="/library/serialized-components" class="text-blue-600 hover:underline">View Serialized Components</a>
+    </div>
+  </div>
+
+  <section class="rounded-xl border bg-white p-6 shadow-sm">
+    <form method="POST" action="/library/serialized-components?_csrf=<%= encodeURIComponent(csrfToken) %>" class="grid gap-4 md:grid-cols-2">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+
+      <div class="md:col-span-2">
+        <label class="mb-1 block text-xs font-bold uppercase tracking-widest text-slate-500">
+          Component Model
+        </label>
+        <select name="component_model_id" required class="w-full rounded border px-3 py-2 text-sm">
+          <option value="">Select a model</option>
+          <% manufacturers.forEach((manufacturer) => { %>
+            <% const models = manufacturer.ComponentModels || []; %>
+            <% if (models.length > 0) { %>
+              <optgroup label="<%= manufacturer.name %>">
+                <% models.forEach((model) => { %>
+                  <option value="<%= model.id %>">
+                    <%= model.model_name %><%= model.model_code ? ` (${model.model_code})` : '' %>
+                  </option>
+                <% }) %>
+              </optgroup>
+            <% } %>
+          <% }) %>
+        </select>
+      </div>
+
+      <div>
+        <label class="mb-1 block text-xs font-bold uppercase tracking-widest text-slate-500">
+          Serial Number
+        </label>
+        <input type="text" name="serial_number" required class="w-full rounded border px-3 py-2 text-sm">
+      </div>
+
+      <div>
+        <label class="mb-1 block text-xs font-bold uppercase tracking-widest text-slate-500">
+          Part Number
+        </label>
+        <input type="text" name="part_number" class="w-full rounded border px-3 py-2 text-sm">
+      </div>
+
+      <div>
+        <label class="mb-1 block text-xs font-bold uppercase tracking-widest text-slate-500">
+          Status
+        </label>
+        <select name="status" class="w-full rounded border px-3 py-2 text-sm">
+          <option value="AVAILABLE">AVAILABLE</option>
+          <option value="INSTALLED">INSTALLED</option>
+          <option value="QUARANTINED">QUARANTINED</option>
+          <option value="REMOVED">REMOVED</option>
+        </select>
+      </div>
+
+      <div>
+        <label class="mb-1 block text-xs font-bold uppercase tracking-widest text-slate-500">
+          Condition
+        </label>
+        <input type="text" name="condition" class="w-full rounded border px-3 py-2 text-sm">
+      </div>
+
+      <div class="md:col-span-2">
+        <label class="mb-1 block text-xs font-bold uppercase tracking-widest text-slate-500">
+          Notes
+        </label>
+        <textarea name="notes" rows="4" class="w-full rounded border px-3 py-2 text-sm"></textarea>
+      </div>
+
+      <div class="md:col-span-2">
+        <button type="submit" class="rounded bg-slate-800 px-4 py-2 text-sm font-bold text-white hover:bg-black">
+          Save Serialized Component
+        </button>
+      </div>
+    </form>
+  </section>
+</main>
+
+<%- include('../partials/footer') %>

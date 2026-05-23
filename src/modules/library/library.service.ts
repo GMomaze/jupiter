@@ -16,6 +16,7 @@ import {
   CessnaSid,
   ModelSid,
   TaskTemplate,
+  SerializedComponent,
 } from '../../models/index.js';
 import { Op } from 'sequelize';
 import sequelize from '../../config/database.js';
@@ -316,6 +317,22 @@ export class LibraryService {
     });
   }
 
+  static async getManufacturersWithModels() {
+    const attributes = await this.getSelectableManufacturerAttributes();
+
+    return Manufacturer.findAll({
+      attributes,
+      include: [
+        {
+          model: ComponentModel,
+          attributes: ['id', 'model_name', 'model_code', 'manufacturer_id', 'asset_type_id', 'is_active'],
+          required: false,
+        },
+      ],
+      order: [['name', 'ASC'], [ComponentModel, 'model_name', 'ASC']],
+    });
+  }
+
   static async getStandardTasks() {
     return TaskTemplate.findAll({
       attributes: [
@@ -524,6 +541,60 @@ export class LibraryService {
           ],
         },
       ],
+    });
+  }
+
+  static async getSerializedComponents() {
+    return SerializedComponent.findAll({
+      attributes: [
+        'id',
+        'component_model_id',
+        'serial_number',
+        'part_number',
+        'status',
+        'condition',
+        'notes',
+        'created_at',
+      ],
+      include: [
+        {
+          model: ComponentModel,
+          as: 'ComponentModel',
+          attributes: ['id', 'model_name', 'model_code'],
+          required: false,
+          include: [
+            {
+              model: Manufacturer,
+              attributes: ['id', 'name', 'code'],
+              required: false,
+            },
+            {
+              model: AssetType,
+              attributes: ['id', 'code', 'label'],
+              required: false,
+            },
+          ],
+        },
+      ],
+      order: [['created_at', 'DESC'], ['serial_number', 'ASC']],
+    });
+  }
+
+  static async createSerializedComponent(data: {
+    component_model_id: string;
+    serial_number: string;
+    part_number?: string | undefined;
+    status?: string | undefined;
+    condition?: string | undefined;
+    notes?: string | undefined;
+  }) {
+    return SerializedComponent.create({
+      component_model_id: data.component_model_id,
+      serial_number: data.serial_number.trim(),
+      part_number: data.part_number?.trim() || null,
+      status: data.status?.trim() || 'AVAILABLE',
+      condition: data.condition?.trim() || null,
+      notes: data.notes?.trim() || null,
     });
   }
 

@@ -23,15 +23,15 @@ export default {
       { type: Sequelize.QueryTypes.SELECT }
     );
 
-    const [zsSwu] = await queryInterface.sequelize.query(
+  /*  const [zsSwu] = await queryInterface.sequelize.query(
       `SELECT * FROM aircraft WHERE registration = 'ZS-SWU' LIMIT 1`,
       { type: Sequelize.QueryTypes.SELECT }
     );
-
+*/
     // =========================================
     // TEMPLATES
     // =========================================
-    const templates = [
+    const templates = []/*
       {
         scope: 'GLOBAL',
         task_card_number: 'TPL-GLOBAL-001',
@@ -77,7 +77,7 @@ export default {
       if (t.scope === 'AIRCRAFT') return Boolean(t.aircraft_id);
       return true;
     });
-
+*/
     // =========================================
     // INSERT
     // =========================================

@@ -144,6 +144,14 @@ SerializedComponent.hasOne(SerializedComponentLifeState, {
   foreignKey: 'serialized_component_id',
   as: 'LifeState',
 });
+SerializedComponentMaintenanceEvent.belongsTo(SerializedComponent, {
+  foreignKey: 'serialized_component_id',
+  as: 'SerializedComponent',
+});
+SerializedComponent.hasMany(SerializedComponentMaintenanceEvent, {
+  foreignKey: 'serialized_component_id',
+  as: 'MaintenanceEvents',
+});
 SerializedComponentMaintenanceEvent.belongsTo(User, {
   foreignKey: 'recorded_by',
   as: 'Recorder',

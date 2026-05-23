@@ -1,0 +1,70 @@
+<%- include('../partials/header') %>
+
+<main class="max-w-6xl mx-auto py-10 px-4 sm:px-6 lg:px-8">
+  <div class="mb-8 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+    <div>
+      <h1 class="text-3xl font-black text-slate-900 tracking-tight">
+        Serialized Components
+      </h1>
+      <p class="mt-2 text-sm text-slate-500">
+        Review serialized component inventory captured in the maintenance library.
+      </p>
+    </div>
+
+    <div class="flex gap-4 text-sm font-semibold">
+      <a href="/library" class="text-blue-600 hover:underline">Back to Library</a>
+      <a href="/library/serialized-components/create" class="text-blue-600 hover:underline">Create Serialized Component</a>
+    </div>
+  </div>
+
+  <section class="overflow-hidden rounded-xl border bg-white shadow-sm">
+    <% if (!serializedComponents || serializedComponents.length === 0) { %>
+      <div class="px-6 py-12 text-center text-sm text-slate-500">
+        No serialized components captured yet.
+      </div>
+    <% } else { %>
+      <div class="overflow-x-auto">
+        <table class="min-w-full divide-y divide-slate-200">
+          <thead class="bg-slate-50">
+            <tr>
+              <th class="px-6 py-3 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Serial</th>
+              <th class="px-6 py-3 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Model</th>
+              <th class="px-6 py-3 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Manufacturer</th>
+              <th class="px-6 py-3 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Status</th>
+              <th class="px-6 py-3 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Condition</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-100 bg-white">
+            <% serializedComponents.forEach((component) => { %>
+              <% const model = component.ComponentModel; %>
+              <tr>
+                <td class="px-6 py-4 text-sm font-semibold text-slate-900">
+                  <%= component.serial_number %>
+                  <div class="mt-1 text-xs font-normal text-slate-500">
+                    P/N <%= component.part_number || '-' %>
+                  </div>
+                </td>
+                <td class="px-6 py-4 text-sm text-slate-700">
+                  <%= model?.model_name || '-' %>
+                  <div class="mt-1 text-xs text-slate-500">
+                    <%= model?.model_code || '-' %>
+                  </div>
+                </td>
+                <td class="px-6 py-4 text-sm text-slate-700">
+                  <%= model?.Manufacturer?.name || '-' %>
+                  <div class="mt-1 text-xs text-slate-500">
+                    <%= model?.AssetType?.code || '-' %>
+                  </div>
+                </td>
+                <td class="px-6 py-4 text-sm text-slate-700"><%= component.status || '-' %></td>
+                <td class="px-6 py-4 text-sm text-slate-700"><%= component.condition || '-' %></td>
+              </tr>
+            <% }) %>
+          </tbody>
+        </table>
+      </div>
+    <% } %>
+  </section>
+</main>
+
+<%- include('../partials/footer') %>

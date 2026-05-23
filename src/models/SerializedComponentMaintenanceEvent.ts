@@ -8,6 +8,7 @@ export class SerializedComponentMaintenanceEvent extends Model {
   declare occurred_at: string | null;
   declare recorded_by: string | null;
   declare notes: string | null;
+  declare SerializedComponent?: any;
   declare Recorder?: any;
 }
 

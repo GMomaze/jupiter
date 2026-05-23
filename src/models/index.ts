@@ -21,6 +21,7 @@ export { ServiceBulletin } from './ServiceBulletin.js';
 export { ServiceBulletinModel } from './ServiceBulletinModel.js';
 export { AircraftSbCompliance } from './AircraftSbCompliance.js';
 export { ServiceBulletinSyncRun } from './ServiceBulletinSyncRun.js';
+export { ComplianceItem } from './ComplianceItem.js';
 export { CessnaSid } from './cessnaSid.model.js';
 export { ModelSid } from './ModelSid.js';
 export { SupplementalInspectionDocument } from './SupplementalInspectionDocument.js';

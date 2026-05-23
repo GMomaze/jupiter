@@ -117,6 +117,38 @@ router.get(
   LibraryController.renderStandardTaskList
 );
 
+router.get(
+  '/serialized-components',
+  requirePermission('LIBRARY_EDIT'),
+  async (_req, res, next) => {
+    try {
+      const serializedComponents = await LibraryService.getSerializedComponents();
+
+      res.render('library/serialized-components', {
+        serializedComponents,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+router.get(
+  '/serialized-components/create',
+  requirePermission('LIBRARY_EDIT'),
+  async (_req, res, next) => {
+    try {
+      const manufacturers = await LibraryService.getManufacturersWithModels();
+
+      res.render('library/serialized-component-create', {
+        manufacturers,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
 router.post(
   '/tasks/import/map',
   requirePermission('LIBRARY_EDIT'),
@@ -163,6 +195,45 @@ router.post(
   '/tasks/import/commit',
   requirePermission('LIBRARY_EDIT'),
   StandardTaskImportController.commitImport
+);
+
+router.post(
+  '/serialized-components',
+  requirePermission('LIBRARY_EDIT'),
+  csrfProtection,
+  async (req, res, next) => {
+    try {
+      const {
+        component_model_id,
+        serial_number,
+        part_number,
+        status,
+        condition,
+        notes,
+      } = req.body;
+
+      if (!component_model_id || !String(component_model_id).trim()) {
+        throw new Error('Component model is required.');
+      }
+
+      if (!serial_number || !String(serial_number).trim()) {
+        throw new Error('Serial number is required.');
+      }
+
+      await LibraryService.createSerializedComponent({
+        component_model_id: String(component_model_id),
+        serial_number: String(serial_number),
+        part_number,
+        status,
+        condition,
+        notes,
+      });
+
+      res.redirect('/library/serialized-components');
+    } catch (error) {
+      next(error);
+    }
+  }
 );
 
 router.get('/manufacturers', async (_req, res, next) => {

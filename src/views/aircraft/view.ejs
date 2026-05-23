@@ -1147,8 +1147,36 @@
                 </div>
 
                 <% if (safeActiveSerializedInstallations.length > 0) { %>
-                    <div class="space-y-4">
-                        <% safeActiveSerializedInstallations.forEach((installation) => { %>
+                    <div class="rounded-lg border border-slate-200 bg-slate-50 p-4">
+                        <label for="active-serialized-installation-selector" class="block text-xs font-bold uppercase tracking-widest text-slate-500">
+                            Select Active Serialized Installation
+                        </label>
+                        <select
+                            id="active-serialized-installation-selector"
+                            class="mt-2 block w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900"
+                        >
+                            <% safeActiveSerializedInstallations.forEach((installation, installationIndex) => { %>
+                                <% const selectorSerializedComponent = installation.SerializedComponent; %>
+                                <% const selectorSerializedModel = selectorSerializedComponent?.ComponentModel; %>
+                                <% const selectorSerializedAssetType = selectorSerializedModel?.AssetType; %>
+                                <option
+                                    value="<%= installation.id %>"
+                                    <%= installationIndex === 0 ? 'selected' : '' %>
+                                >
+                                    <%= selectorSerializedAssetType?.code || 'UNCLASSIFIED' %> |
+                                    <%= selectorSerializedModel?.model_name || 'Unknown Model' %> |
+                                    S/N <%= selectorSerializedComponent?.serial_number || '-' %> |
+                                    POS <%= installation.position || 'Unspecified' %>
+                                </option>
+                            <% }) %>
+                        </select>
+                        <p class="mt-2 text-sm text-slate-600">
+                            Aircraft-wide summary visibility remains above. Select one active installation to review full provenance, warnings, evidence visibility, history, and removal workflow detail.
+                        </p>
+                    </div>
+
+                    <div class="mt-4 space-y-4">
+                        <% safeActiveSerializedInstallations.forEach((installation, installationIndex) => { %>
                             <% const serializedComponent = installation.SerializedComponent; %>
                             <% const serializedModel = serializedComponent?.ComponentModel; %>
                             <% const serializedManufacturer = serializedModel?.Manufacturer; %>
@@ -1163,7 +1191,10 @@
                             <% const evidenceBadges = documentVisibilitySummary.evidence_badges || []; %>
                             <% const documentTypes = documentVisibilitySummary.document_types || []; %>
                             <% const operationalWarnings = installation.operational_warnings || []; %>
-                            <article class="rounded-lg border border-slate-200 bg-white p-5">
+                            <article
+                                class="serialized-installation-detail-panel rounded-lg border border-slate-200 bg-white p-5 <%= installationIndex === 0 ? '' : 'hidden' %>"
+                                data-installation-id="<%= installation.id %>"
+                            >
                                 <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                                     <div>
                                         <div class="flex flex-wrap items-center gap-2">
@@ -1516,6 +1547,8 @@
     const editForm = document.getElementById('aircraft-edit-form');
     const tabs = Array.from(document.querySelectorAll('.aircraft-tab'));
     const panels = Array.from(document.querySelectorAll('.aircraft-tab-panel'));
+    const serializedInstallationSelector = document.getElementById('active-serialized-installation-selector');
+    const serializedInstallationPanels = Array.from(document.querySelectorAll('.serialized-installation-detail-panel'));
     const tabMap = {
       overview: 'overview-panel',
       'service-bulletins': 'service-bulletins-panel',
@@ -1583,6 +1616,19 @@
     cancelEditButton?.addEventListener('click', () => {
       setEditFormVisible(false);
     });
+
+    function setActiveSerializedInstallation(installationId) {
+      serializedInstallationPanels.forEach((panel) => {
+        panel.classList.toggle('hidden', panel.dataset.installationId !== installationId);
+      });
+    }
+
+    if (serializedInstallationSelector && serializedInstallationPanels.length > 0) {
+      setActiveSerializedInstallation(serializedInstallationSelector.value);
+      serializedInstallationSelector.addEventListener('change', (event) => {
+        setActiveSerializedInstallation(event.target.value);
+      });
+    }
 
     const activeTab = new URLSearchParams(window.location.search).get('tab');
     if (activeTab && tabMap[activeTab]) {

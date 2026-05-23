@@ -133,7 +133,7 @@ export default {
       // =========================================
       // AIRCRAFT
       // =========================================
-      const [aircraftRes] = await queryInterface.sequelize.query(
+   /*   const [aircraftRes] = await queryInterface.sequelize.query(
         `
         INSERT INTO aircraft (
           id, registration, serial_number, category_id,
@@ -225,7 +225,7 @@ export default {
           }
         );
       }
-
+*/
       console.log('✈️ Operational seed complete');
 
     } catch (error) {
