@@ -4,10 +4,15 @@ import sequelize from '../config/database.js';
 export class SerializedComponentLifeState extends Model {
   declare id: string;
   declare serialized_component_id: string;
-  declare total_time_hours: number | null;
-  declare total_time_cycles: number | null;
-  declare total_time_days: number | null;
+  declare tsn_hours: number | null;
+  declare tso_hours: number | null;
+  declare csn_cycles: number | null;
+  declare cso_cycles: number | null;
+  declare overhaul_reference_date: string | null;
+  declare calendar_reference_date: string | null;
   declare notes: string | null;
+  declare created_at: Date;
+  declare updated_at: Date;
 }
 
 SerializedComponentLifeState.init(
@@ -21,16 +26,28 @@ SerializedComponentLifeState.init(
       type: DataTypes.UUID,
       allowNull: false,
     },
-    total_time_hours: {
+    tsn_hours: {
       type: DataTypes.DECIMAL(10, 2),
       allowNull: true,
     },
-    total_time_cycles: {
+    tso_hours: {
+      type: DataTypes.DECIMAL(10, 2),
+      allowNull: true,
+    },
+    csn_cycles: {
       type: DataTypes.INTEGER,
       allowNull: true,
     },
-    total_time_days: {
+    cso_cycles: {
       type: DataTypes.INTEGER,
+      allowNull: true,
+    },
+    overhaul_reference_date: {
+      type: DataTypes.DATEONLY,
+      allowNull: true,
+    },
+    calendar_reference_date: {
+      type: DataTypes.DATEONLY,
       allowNull: true,
     },
     notes: {

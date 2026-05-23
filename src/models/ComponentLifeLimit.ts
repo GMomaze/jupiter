@@ -5,9 +5,14 @@ export class ComponentLifeLimit extends Model {
   declare id: string;
   declare component_model_id: string;
   declare limit_type: string;
-  declare threshold_value: number | null;
-  declare threshold_unit: string | null;
-  declare notes: string | null;
+  declare basis: string;
+  declare limit_hours: number | null;
+  declare limit_cycles: number | null;
+  declare limit_months: number | null;
+  declare description: string | null;
+  declare is_active: boolean;
+  declare created_at: Date;
+  declare updated_at: Date;
 }
 
 ComponentLifeLimit.init(
@@ -25,17 +30,30 @@ ComponentLifeLimit.init(
       type: DataTypes.STRING,
       allowNull: false,
     },
-    threshold_value: {
+    basis: {
+      type: DataTypes.STRING,
+      allowNull: false,
+    },
+    limit_hours: {
       type: DataTypes.DECIMAL(10, 2),
       allowNull: true,
     },
-    threshold_unit: {
-      type: DataTypes.STRING,
+    limit_cycles: {
+      type: DataTypes.INTEGER,
       allowNull: true,
     },
-    notes: {
+    limit_months: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+    },
+    description: {
       type: DataTypes.TEXT,
       allowNull: true,
+    },
+    is_active: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: true,
     },
   },
   {
