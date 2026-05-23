@@ -3,6 +3,7 @@
 <main class="max-w-5xl mx-auto py-10 px-6">
     <% const bulletinFilters = sbFilters || {}; %>
     <% const canEditAircraft = user?.roles?.some(role => role.code === 'ADMIN'); %>
+    <% const isAircraftActive = aircraft.status === 'ACTIVE'; %>
     <% const safeAvailableSerializedComponents = typeof availableSerializedComponents !== 'undefined' ? availableSerializedComponents : []; %>
     <% const safeActiveSerializedInstallations = typeof activeSerializedInstallations !== 'undefined' ? activeSerializedInstallations : []; %>
     <% const safeSerializedRemovalStatuses = typeof serializedRemovalStatuses !== 'undefined' ? serializedRemovalStatuses : []; %>
@@ -91,6 +92,43 @@
                     <% } %>
                 </div>
             </div>
+
+            <% if (aircraft.status === 'REGISTERED') { %>
+                <div class="mb-6 rounded-lg border border-blue-200 bg-blue-50 p-4">
+                    <h3 class="text-sm font-bold uppercase tracking-widest text-blue-900">Activation Required</h3>
+                    <p class="mt-2 text-sm text-blue-900">
+                        Activate this aircraft when onboarding/setup is complete and it is ready for normal maintenance workflow.
+                    </p>
+                    <form
+                        action="/aircraft/<%= aircraft.id %>/transition"
+                        method="POST"
+                        class="mt-4 grid gap-3 md:grid-cols-[1fr_auto]"
+                    >
+                        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                        <input type="hidden" name="action" value="ACTIVATE">
+                        <div>
+                            <label class="mb-1 block text-xs font-bold uppercase tracking-widest text-blue-900">
+                                Activation Reason
+                            </label>
+                            <input
+                                type="text"
+                                name="reason"
+                                required
+                                value="Airworthiness Certificate Issued"
+                                class="w-full rounded border border-blue-300 px-3 py-2 text-sm text-slate-900"
+                            >
+                        </div>
+                        <div class="flex items-end">
+                            <button
+                                type="submit"
+                                class="w-full rounded bg-blue-700 px-4 py-2 text-sm font-bold text-white hover:bg-blue-800 md:w-auto"
+                            >
+                                Activate Aircraft
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            <% } %>
 
             <div class="grid gap-4 md:grid-cols-2 text-sm">
                 <div>
@@ -552,6 +590,22 @@
                 Install Component on <%= aircraft.registration %>
             </h2>
 
+            <% if (isAircraftActive) { %>
+                <div class="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800">
+                    Normal maintenance install is available because this aircraft is currently <span class="font-bold">ACTIVE</span>.
+                </div>
+            <% } else { %>
+                <div class="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+                    <p class="font-semibold">Normal maintenance install is blocked until this aircraft is ACTIVE.</p>
+                    <p class="mt-2">
+                        Current aircraft status is <span class="font-bold"><%= aircraft.status %></span>, so this normal install workflow cannot be used yet.
+                    </p>
+                    <p class="mt-2">
+                        If this aircraft is still being onboarded and the component is already physically fitted, use <span class="font-bold">Baseline Capture</span> below instead of normal maintenance install.
+                    </p>
+                </div>
+            <% } %>
+
             <form action="/aircraft/<%= aircraft.id %>/components"
                   method="POST"
                   class="space-y-4">
@@ -615,7 +669,8 @@
                 </div>
 
                 <button type="submit"
-                        class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">
+                        <%= isAircraftActive ? '' : 'disabled' %>
+                        class="<%= isAircraftActive ? 'bg-blue-600 text-white hover:bg-blue-700' : 'cursor-not-allowed bg-slate-300 text-slate-600' %> px-4 py-2 rounded">
                     Finalize Installation
                 </button>
 
