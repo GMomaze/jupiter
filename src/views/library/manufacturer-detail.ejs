@@ -43,7 +43,6 @@
       </div>
 
       <form method="POST" action="/library/manufacturers/<%= manufacturer.id %>/update?_csrf=<%= encodeURIComponent(csrfToken) %>" enctype="multipart/form-data" class="grid gap-4 md:grid-cols-2">
-        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
 
         <div>
           <label class="mb-1 block text-xs font-bold uppercase tracking-widest text-slate-500">Manufacturer Name</label>
