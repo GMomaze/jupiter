@@ -17,6 +17,8 @@ import {
   ModelSid,
   TaskTemplate,
   SerializedComponent,
+  AircraftComponentInstallation,
+  Aircraft,
 } from '../../models/index.js';
 import { Op } from 'sequelize';
 import sequelize from '../../config/database.js';
@@ -580,6 +582,57 @@ export class LibraryService {
     });
   }
 
+  static async getSerializedComponentById(id: string) {
+    return SerializedComponent.findByPk(id, {
+      attributes: [
+        'id',
+        'component_model_id',
+        'serial_number',
+        'part_number',
+        'status',
+        'condition',
+        'notes',
+        'created_at',
+        'updated_at',
+      ],
+      include: [
+        {
+          model: ComponentModel,
+          as: 'ComponentModel',
+          attributes: ['id', 'model_name', 'model_code'],
+          required: false,
+          include: [
+            {
+              model: Manufacturer,
+              attributes: ['id', 'name', 'code'],
+              required: false,
+            },
+            {
+              model: AssetType,
+              attributes: ['id', 'code', 'label'],
+              required: false,
+            },
+          ],
+        },
+        {
+          model: AircraftComponentInstallation,
+          as: 'Installations',
+          attributes: ['id', 'aircraft_id', 'position', 'installed_at', 'removed_at'],
+          where: { removed_at: null },
+          required: false,
+          include: [
+            {
+              model: Aircraft,
+              as: 'Aircraft',
+              attributes: ['id', 'registration', 'status'],
+              required: false,
+            },
+          ],
+        },
+      ],
+    });
+  }
+
   static async createSerializedComponent(data: {
     component_model_id: string;
     serial_number: string;
@@ -596,6 +649,84 @@ export class LibraryService {
       condition: data.condition?.trim() || null,
       notes: data.notes?.trim() || null,
     });
+  }
+
+  static async updateSerializedComponent(
+    id: string,
+    data: {
+      component_model_id?: string | undefined;
+      serial_number?: string | undefined;
+      part_number?: string | undefined;
+      status?: string | undefined;
+      condition?: string | undefined;
+      notes?: string | undefined;
+    }
+  ) {
+    const serializedComponent = await this.getSerializedComponentById(id);
+
+    if (!serializedComponent) {
+      throw new Error('SERIALIZED_COMPONENT_NOT_FOUND');
+    }
+
+    const activeInstallation = Array.isArray((serializedComponent as any).Installations)
+      ? (serializedComponent as any).Installations[0] || null
+      : null;
+    const isInstalled = Boolean(activeInstallation);
+
+    const nextSerialNumber = String(data.serial_number || '').trim();
+
+    if (!nextSerialNumber) {
+      throw new Error('Serial number is required.');
+    }
+
+    const updates: Record<string, string | null> = {
+      serial_number: nextSerialNumber,
+      part_number: String(data.part_number || '').trim() || null,
+      condition: String(data.condition || '').trim() || null,
+      notes: String(data.notes || '').trim() || null,
+    };
+
+    if (!isInstalled) {
+      const nextComponentModelId = String(data.component_model_id || '').trim();
+
+      if (!nextComponentModelId) {
+        throw new Error('Component model is required.');
+      }
+
+      const model = await ComponentModel.findByPk(nextComponentModelId, {
+        attributes: ['id'],
+      });
+
+      if (!model) {
+        throw new Error('Component model not found.');
+      }
+
+      updates.component_model_id = nextComponentModelId;
+
+      const safeStatuses = new Set(['AVAILABLE', 'QUARANTINED']);
+      const currentStatus = String(serializedComponent.status || '').trim().toUpperCase();
+      const requestedStatus = String(data.status || '').trim().toUpperCase();
+
+      if (requestedStatus) {
+        if (!safeStatuses.has(currentStatus)) {
+          throw new Error(
+            'Serialized component status is currently controlled by operational lifecycle state and cannot be changed from the Library edit screen.'
+          );
+        }
+
+        if (!safeStatuses.has(requestedStatus)) {
+          throw new Error(
+            'Serialized component status can only be changed between AVAILABLE and QUARANTINED from the Library edit screen.'
+          );
+        }
+
+        updates.status = requestedStatus;
+      }
+    }
+
+    await serializedComponent.update(updates);
+
+    return this.getSerializedComponentById(id);
   }
 
   static async getManufacturerById(id: string) {

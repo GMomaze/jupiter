@@ -32,6 +32,7 @@
               <th class="px-6 py-3 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Manufacturer</th>
               <th class="px-6 py-3 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Status</th>
               <th class="px-6 py-3 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Condition</th>
+              <th class="px-6 py-3 text-right text-xs font-bold uppercase tracking-widest text-slate-500">Action</th>
             </tr>
           </thead>
           <tbody class="divide-y divide-slate-100 bg-white">
@@ -58,6 +59,14 @@
                 </td>
                 <td class="px-6 py-4 text-sm text-slate-700"><%= component.status || '-' %></td>
                 <td class="px-6 py-4 text-sm text-slate-700"><%= component.condition || '-' %></td>
+                <td class="px-6 py-4 text-right text-sm">
+                  <a
+                    href="/library/serialized-components/<%= component.id %>/edit"
+                    class="font-semibold text-blue-600 hover:underline"
+                  >
+                    Edit
+                  </a>
+                </td>
               </tr>
             <% }) %>
           </tbody>

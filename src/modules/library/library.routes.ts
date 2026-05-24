@@ -149,6 +149,37 @@ router.get(
   }
 );
 
+router.get(
+  '/serialized-components/:id/edit',
+  requirePermission('LIBRARY_EDIT'),
+  async (req, res, next) => {
+    try {
+      const serializedComponent = await LibraryService.getSerializedComponentById(
+        getParam(req.params.id)
+      );
+
+      if (!serializedComponent) {
+        res.status(404).send('Serialized component not found.');
+        return;
+      }
+
+      const manufacturers = await LibraryService.getManufacturersWithModels();
+      const activeInstallation = Array.isArray((serializedComponent as any).Installations)
+        ? (serializedComponent as any).Installations[0] || null
+        : null;
+
+      res.render('library/serialized-component-edit', {
+        serializedComponent,
+        manufacturers,
+        activeInstallation,
+        safeEditableStatuses: ['AVAILABLE', 'QUARANTINED'],
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
 router.post(
   '/tasks/import/map',
   requirePermission('LIBRARY_EDIT'),
@@ -227,6 +258,28 @@ router.post(
         status,
         condition,
         notes,
+      });
+
+      res.redirect('/library/serialized-components');
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+router.post(
+  '/serialized-components/:id/update',
+  requirePermission('LIBRARY_EDIT'),
+  csrfProtection,
+  async (req, res, next) => {
+    try {
+      await LibraryService.updateSerializedComponent(getParam(req.params.id), {
+        component_model_id: req.body.component_model_id,
+        serial_number: req.body.serial_number,
+        part_number: req.body.part_number,
+        status: req.body.status,
+        condition: req.body.condition,
+        notes: req.body.notes,
       });
 
       res.redirect('/library/serialized-components');

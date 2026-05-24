@@ -1,0 +1,189 @@
+<%- include('../partials/header') %>
+
+<main class="max-w-4xl mx-auto py-10 px-4 sm:px-6 lg:px-8">
+  <% const model = serializedComponent.ComponentModel; %>
+  <% const activeAircraft = activeInstallation?.Aircraft; %>
+  <% const isInstalled = Boolean(activeInstallation); %>
+  <% const safeStatuses = safeEditableStatuses || []; %>
+  <% const canEditStatus = !isInstalled && safeStatuses.includes(serializedComponent.status); %>
+
+  <div class="mb-8 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+    <div>
+      <h1 class="text-3xl font-black text-slate-900 tracking-tight">
+        Edit Serialized Component
+      </h1>
+      <p class="mt-2 text-sm text-slate-500">
+        Update Library-controlled serialized component information without changing aircraft installation history or maintenance authority.
+      </p>
+    </div>
+
+    <div class="flex gap-4 text-sm font-semibold">
+      <a href="/library/serialized-components" class="text-blue-600 hover:underline">Back to Serialized Components</a>
+      <a href="/library" class="text-blue-600 hover:underline">Back to Library</a>
+    </div>
+  </div>
+
+  <% if (isInstalled) { %>
+    <section class="mb-6 rounded-xl border border-amber-200 bg-amber-50 p-5">
+      <h2 class="text-sm font-bold uppercase tracking-widest text-amber-800">Installed Component Lock</h2>
+      <p class="mt-2 text-sm leading-6 text-amber-900">
+        This serialized component is currently installed on
+        <span class="font-semibold"><%= activeAircraft?.registration || 'an aircraft' %></span>
+        <% if (activeInstallation?.position) { %>
+          at position <span class="font-semibold"><%= activeInstallation.position %></span>
+        <% } %>.
+        Library edit is limited to non-lifecycle metadata only.
+      </p>
+      <p class="mt-2 text-sm leading-6 text-amber-900">
+        Component model and status are locked here because installation and removal state must remain controlled by operational install/remove workflows, not by Library edits.
+      </p>
+    </section>
+  <% } %>
+
+  <section class="rounded-xl border bg-white p-6 shadow-sm">
+    <div class="mb-6 grid gap-4 rounded-lg border border-slate-200 bg-slate-50 p-4 md:grid-cols-2">
+      <div>
+        <p class="text-xs font-bold uppercase tracking-widest text-slate-500">Current Model</p>
+        <p class="mt-1 text-sm font-semibold text-slate-900">
+          <%= model?.Manufacturer?.name || '-' %> <%= model?.model_name || '-' %>
+        </p>
+        <p class="mt-1 text-xs text-slate-500">
+          <%= model?.AssetType?.code || '-' %><% if (model?.model_code) { %> | <%= model.model_code %><% } %>
+        </p>
+      </div>
+      <div>
+        <p class="text-xs font-bold uppercase tracking-widest text-slate-500">Current Status</p>
+        <p class="mt-1 text-sm font-semibold text-slate-900"><%= serializedComponent.status || '-' %></p>
+        <p class="mt-1 text-xs text-slate-500">
+          Created <%= serializedComponent.created_at || '-' %>
+        </p>
+      </div>
+    </div>
+
+    <form method="POST" action="/library/serialized-components/<%= serializedComponent.id %>/update?_csrf=<%= encodeURIComponent(csrfToken) %>" class="grid gap-4 md:grid-cols-2">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+
+      <div class="md:col-span-2">
+        <label class="mb-1 block text-xs font-bold uppercase tracking-widest text-slate-500">
+          Component Model
+        </label>
+
+        <% if (isInstalled) { %>
+          <div class="w-full rounded border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
+            <%= model?.Manufacturer?.name || '-' %> - <%= model?.model_name || '-' %>
+          </div>
+          <p class="mt-1 text-xs text-slate-500">
+            Locked while installed to preserve current aircraft installation identity and operational history.
+          </p>
+        <% } else { %>
+          <select name="component_model_id" required class="w-full rounded border px-3 py-2 text-sm">
+            <option value="">Select a model</option>
+            <% manufacturers.forEach((manufacturer) => { %>
+              <% const models = manufacturer.ComponentModels || []; %>
+              <% if (models.length > 0) { %>
+                <optgroup label="<%= manufacturer.name %>">
+                  <% models.forEach((manufacturerModel) => { %>
+                    <option
+                      value="<%= manufacturerModel.id %>"
+                      <%= manufacturerModel.id === serializedComponent.component_model_id ? 'selected' : '' %>
+                    >
+                      <%= manufacturerModel.model_name %><%= manufacturerModel.model_code ? ` (${manufacturerModel.model_code})` : '' %>
+                    </option>
+                  <% }) %>
+                </optgroup>
+              <% } %>
+            <% }) %>
+          </select>
+        <% } %>
+      </div>
+
+      <div>
+        <label class="mb-1 block text-xs font-bold uppercase tracking-widest text-slate-500">
+          Serial Number
+        </label>
+        <input
+          type="text"
+          name="serial_number"
+          required
+          value="<%= serializedComponent.serial_number || '' %>"
+          class="w-full rounded border px-3 py-2 text-sm"
+        >
+      </div>
+
+      <div>
+        <label class="mb-1 block text-xs font-bold uppercase tracking-widest text-slate-500">
+          Part Number
+        </label>
+        <input
+          type="text"
+          name="part_number"
+          value="<%= serializedComponent.part_number || '' %>"
+          class="w-full rounded border px-3 py-2 text-sm"
+        >
+      </div>
+
+      <div>
+        <label class="mb-1 block text-xs font-bold uppercase tracking-widest text-slate-500">
+          Status
+        </label>
+
+        <% if (!canEditStatus) { %>
+          <div class="w-full rounded border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
+            <%= serializedComponent.status || '-' %>
+          </div>
+          <p class="mt-1 text-xs text-slate-500">
+            Locked because install/remove lifecycle state cannot be changed from the Library edit screen.
+          </p>
+        <% } else { %>
+          <select name="status" class="w-full rounded border px-3 py-2 text-sm">
+            <% safeStatuses.forEach((statusOption) => { %>
+              <option
+                value="<%= statusOption %>"
+                <%= statusOption === serializedComponent.status ? 'selected' : '' %>
+              >
+                <%= statusOption %>
+              </option>
+            <% }) %>
+          </select>
+          <p class="mt-1 text-xs text-slate-500">
+            Only non-lifecycle status changes are allowed here. Install/remove state remains controlled by operational workflows.
+          </p>
+        <% } %>
+      </div>
+
+      <div>
+        <label class="mb-1 block text-xs font-bold uppercase tracking-widest text-slate-500">
+          Condition
+        </label>
+        <input
+          type="text"
+          name="condition"
+          value="<%= serializedComponent.condition || '' %>"
+          class="w-full rounded border px-3 py-2 text-sm"
+        >
+      </div>
+
+      <div class="md:col-span-2">
+        <label class="mb-1 block text-xs font-bold uppercase tracking-widest text-slate-500">
+          Notes
+        </label>
+        <textarea
+          name="notes"
+          rows="4"
+          class="w-full rounded border px-3 py-2 text-sm"
+        ><%= serializedComponent.notes || '' %></textarea>
+      </div>
+
+      <div class="md:col-span-2 flex flex-wrap items-center gap-3">
+        <button type="submit" class="rounded bg-slate-800 px-4 py-2 text-sm font-bold text-white hover:bg-black">
+          Save Serialized Component
+        </button>
+        <a href="/library/serialized-components" class="text-sm font-semibold text-slate-600 hover:underline">
+          Cancel
+        </a>
+      </div>
+    </form>
+  </section>
+</main>
+
+<%- include('../partials/footer') %>
