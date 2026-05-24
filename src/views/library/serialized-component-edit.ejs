@@ -55,7 +55,11 @@
         <p class="text-xs font-bold uppercase tracking-widest text-slate-500">Current Status</p>
         <p class="mt-1 text-sm font-semibold text-slate-900"><%= serializedComponent.status || '-' %></p>
         <p class="mt-1 text-xs text-slate-500">
-          Created <%= serializedComponent.created_at || '-' %>
+          <% if (isInstalled) { %>
+            Installed <%= activeInstallation?.installed_at || '-' %>
+          <% } else { %>
+            Created <%= serializedComponent.created_at || '-' %>
+          <% } %>
         </p>
       </div>
     </div>
