@@ -322,6 +322,9 @@ export class AircraftComponentService {
       if (!normalizedSerialNumber)
         throw new Error('SERIAL_NUMBER_REQUIRED');
 
+      if (!normalizedInstallationDate)
+        throw new Error('INSTALLATION_DATE_REQUIRED');
+
       if (
         normalizedInstallationDate &&
         Number.isNaN(new Date(normalizedInstallationDate).getTime())
@@ -407,7 +410,7 @@ export class AircraftComponentService {
           model_id,
           serial_number: normalizedSerialNumber,
           position_code: normalizedPositionCode,
-          installation_date: normalizedInstallationDate || undefined,
+          installation_date: normalizedInstallationDate,
           tsn_at_install: tsn_at_install || 0,
           tso_at_install: tso_at_install || 0,
           install_af_hours: aircraft.total_time_hours || 0,
