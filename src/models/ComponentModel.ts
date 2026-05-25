@@ -17,6 +17,7 @@ export class ComponentModel extends Model {
   declare is_life_limited: boolean;
   declare is_active: boolean;
   declare warning_threshold_percent: number | null;
+  declare created_at: Date | null;
   declare Manufacturer?: any;
   declare AssetType?: any;
 }
@@ -79,6 +80,10 @@ ComponentModel.init(
     is_active: {
       type: DataTypes.BOOLEAN,
       defaultValue: true,
+    },
+    created_at: {
+      type: DataTypes.DATE,
+      allowNull: true,
     },
   },
   {

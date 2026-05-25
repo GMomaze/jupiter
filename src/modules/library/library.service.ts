@@ -201,8 +201,14 @@ export class LibraryService {
         'asset_type_id',
         'default_tbo_hours',
         'default_tbo_months',
+        'service_interval_hours',
+        'service_interval_months',
+        'overhaul_interval_hours',
+        'overhaul_interval_months',
+        'maintenance_notes',
         'is_life_limited',
         'is_active',
+        'created_at',
       ],
       include: [
         {
@@ -737,7 +743,22 @@ export class LibraryService {
       include: [
         {
           model: ComponentModel,
-          attributes: ['id', 'model_name', 'model_code', 'manufacturer_id', 'asset_type_id', 'is_active'],
+          attributes: [
+            'id',
+            'model_name',
+            'model_code',
+            'manufacturer_id',
+            'asset_type_id',
+            'default_tbo_hours',
+            'default_tbo_months',
+            'service_interval_hours',
+            'service_interval_months',
+            'overhaul_interval_hours',
+            'overhaul_interval_months',
+            'maintenance_notes',
+            'is_life_limited',
+            'is_active',
+          ],
           include: [
             {
               model: AssetType,
