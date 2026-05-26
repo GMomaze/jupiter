@@ -367,6 +367,7 @@ router.post('/manufacturers', requirePermission('LIBRARY_EDIT'), manufacturerLog
       notes,
     });
 
+    req.flash('success', `Manufacturer ${String(name).trim()} created successfully.`);
     res.redirect('/library/manufacturers');
   } catch (error) {
     const message = getFriendlyLibraryErrorMessage(error);

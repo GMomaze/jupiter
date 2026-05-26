@@ -1,6 +1,21 @@
 <%- include('../partials/header') %>
 
 <main class="max-w-6xl mx-auto py-10 px-4 sm:px-6 lg:px-8">
+  <% if (messages?.success?.length || messages?.error?.length) { %>
+    <section class="mb-8 space-y-3">
+      <% (messages?.success || []).forEach((message) => { %>
+        <div class="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+          <%= message %>
+        </div>
+      <% }) %>
+      <% (messages?.error || []).forEach((message) => { %>
+        <div class="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
+          <%= message %>
+        </div>
+      <% }) %>
+    </section>
+  <% } %>
+
   <div class="mb-8 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
     <div>
       <h1 class="text-3xl font-black text-slate-900 tracking-tight">
