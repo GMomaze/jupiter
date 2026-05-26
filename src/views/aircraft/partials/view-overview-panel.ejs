@@ -1,32 +1,32 @@
 <section id="overview-panel" class="aircraft-tab-panel">
     <div class="mb-6 grid gap-4 xl:grid-cols-[1.4fr_0.6fr]">
-        <div class="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-            <p class="text-xs font-bold uppercase tracking-widest text-slate-500">Active Installed Component Configuration</p>
+        <div class="rounded-2xl border border-[#334155] bg-[#1e293b] p-4 shadow-[0_16px_40px_rgba(0,0,0,0.28)]">
+            <p class="text-xs font-bold uppercase tracking-widest text-[#94a3b8]">Active Installed Component Configuration</p>
             <% if (activeInstalledComponentGroups.length > 0) { %>
                 <div class="mt-3 space-y-4">
                     <% activeInstalledComponentGroups.forEach(([, group]) => { %>
-                        <div class="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                        <div class="rounded-xl border border-[#334155] bg-[#0f172a] p-3">
                             <div class="flex items-center justify-between gap-3">
                                 <div>
-                                    <p class="text-sm font-semibold text-slate-900"><%= group.label %></p>
-                                    <p class="mt-1 text-xs uppercase tracking-widest text-slate-500"><%= group.code %></p>
+                                    <p class="text-sm font-semibold text-[#e2e8f0]"><%= group.label %></p>
+                                    <p class="mt-1 text-xs uppercase tracking-widest text-[#94a3b8]"><%= group.code %></p>
                                 </div>
-                                <span class="rounded-full bg-white px-3 py-1 text-[11px] font-bold uppercase tracking-widest text-slate-700">
+                                <span class="rounded-full border border-[#334155] bg-[#1e293b] px-3 py-1 text-[11px] font-bold uppercase tracking-widest text-[#94a3b8]">
                                     <%= group.count %> Active
                                 </span>
                             </div>
                             <div class="mt-3 space-y-2">
                                 <% group.components.forEach((component) => { %>
-                                    <div class="rounded-lg bg-white p-3">
-                                        <p class="text-sm font-semibold text-slate-900">
+                                    <div class="rounded-xl border border-[#334155] bg-[#1e293b] p-3">
+                                        <p class="text-sm font-semibold text-[#e2e8f0]">
                                             <%= component.ComponentModel?.Manufacturer?.name || 'Unknown Manufacturer' %>
                                             <%= component.ComponentModel?.model_name || 'Unknown Model' %>
                                         </p>
-                                        <p class="mt-1 text-xs uppercase tracking-widest text-slate-500">
+                                        <p class="mt-1 text-xs uppercase tracking-widest text-[#94a3b8]">
                                             <%= component.position_code || 'Position Not Captured' %>
                                         </p>
-                                        <p class="mt-2 text-sm text-slate-700">S/N: <%= component.serial_number %></p>
-                                        <p class="text-sm text-slate-700">Installed: <%= component.installation_date || '-' %></p>
+                                        <p class="mt-2 text-sm text-[#94a3b8]">S/N: <%= component.serial_number %></p>
+                                        <p class="text-sm text-[#94a3b8]">Installed: <%= component.installation_date || '-' %></p>
                                     </div>
                                 <% }) %>
                             </div>
@@ -34,37 +34,37 @@
                     <% }) %>
                 </div>
             <% } else { %>
-                <p class="mt-3 text-sm text-slate-500">No active installed components recorded.</p>
+                <p class="mt-3 text-sm text-[#94a3b8]">No active installed components recorded.</p>
             <% } %>
         </div>
 
-        <div class="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-            <p class="text-xs font-bold uppercase tracking-widest text-slate-500">Configuration Readiness</p>
-            <dl class="mt-3 space-y-2 text-sm text-slate-700">
+        <div class="rounded-2xl border border-[#334155] bg-[#1e293b] p-4 shadow-[0_16px_40px_rgba(0,0,0,0.28)]">
+            <p class="text-xs font-bold uppercase tracking-widest text-[#94a3b8]">Configuration Readiness</p>
+            <dl class="mt-3 space-y-2 text-sm text-[#94a3b8]">
                 <div class="flex items-center justify-between gap-4">
                     <dt>Aircraft Hours</dt>
-                    <dd class="font-semibold text-slate-900"><%= aircraft.total_time_hours %></dd>
+                    <dd class="font-semibold text-[#e2e8f0]"><%= aircraft.total_time_hours %></dd>
                 </div>
                 <div class="flex items-center justify-between gap-4">
                     <dt>Installed Component Rows</dt>
-                    <dd class="font-semibold text-slate-900"><%= activeInstalledComponents.length %></dd>
+                    <dd class="font-semibold text-[#e2e8f0]"><%= activeInstalledComponents.length %></dd>
                 </div>
                 <div class="flex items-center justify-between gap-4">
                     <dt>Active Serialized Installations</dt>
-                    <dd class="font-semibold text-slate-900"><%= activeSerializedInstallations.length %></dd>
+                    <dd class="font-semibold text-[#e2e8f0]"><%= activeSerializedInstallations.length %></dd>
                 </div>
             </dl>
             <% if (activeInstalledComponentGroups.length > 0) { %>
-                <div class="mt-4 border-t border-slate-200 pt-3">
-                    <p class="text-xs font-bold uppercase tracking-widest text-slate-500">Installed Component Types</p>
+                <div class="mt-4 border-t border-[#334155] pt-3">
+                    <p class="text-xs font-bold uppercase tracking-widest text-[#94a3b8]">Installed Component Types</p>
                     <div class="mt-2 space-y-2">
                         <% activeInstalledComponentGroups.forEach(([, group]) => { %>
-                            <div class="rounded-lg bg-slate-50 px-3 py-2">
+                            <div class="rounded-xl border border-[#334155] bg-[#0f172a] px-3 py-2">
                                 <div class="flex items-center justify-between gap-3 text-sm">
-                                    <span class="font-semibold text-slate-900"><%= group.label %> <span class="text-slate-500">(<%= group.code %>)</span></span>
-                                    <span class="text-slate-600"><%= group.count %></span>
+                                    <span class="font-semibold text-[#e2e8f0]"><%= group.label %> <span class="text-[#94a3b8]">(<%= group.code %>)</span></span>
+                                    <span class="text-[#94a3b8]"><%= group.count %></span>
                                 </div>
-                                <p class="mt-1 text-xs text-slate-500">
+                                <p class="mt-1 text-xs text-[#94a3b8]">
                                     <%= group.components.map((component) => `${component.ComponentModel?.Manufacturer?.name || 'Unknown'} ${component.ComponentModel?.model_name || 'Model'} (${component.serial_number || 'No Serial'})`).join(', ') %>
                                 </p>
                             </div>
@@ -72,20 +72,20 @@
                     </div>
                 </div>
             <% } %>
-            <p class="mt-4 text-xs text-slate-500">
+            <p class="mt-4 text-xs text-[#94a3b8]">
                 Printable outputs remain downstream only and will read active installed component records from Jupiter.
             </p>
         </div>
     </div>
 
     <div class="grid gap-6 xl:grid-cols-2">
-        <div class="rounded-lg border border-amber-200 bg-amber-50 p-6 shadow">
-            <p class="text-xs font-bold uppercase tracking-widest text-amber-700">Inherited Aircraft Configuration</p>
-            <h2 class="mt-2 text-xl font-semibold text-slate-900">Baseline Capture</h2>
-            <p class="mt-2 text-sm text-slate-700">
+        <div class="rounded-2xl border border-[#334155] bg-[#1e293b] p-6 shadow-[0_16px_40px_rgba(0,0,0,0.28)]">
+            <p class="text-xs font-bold uppercase tracking-widest text-[#94a3b8]">Inherited Aircraft Configuration</p>
+            <h2 class="mt-2 text-xl font-semibold text-[#e2e8f0]">Baseline Capture</h2>
+            <p class="mt-2 text-sm text-[#94a3b8]">
                 Capture Existing Installed Component is for onboarding an already-installed serialized component state without implying an authoritative installation event.
             </p>
-            <p class="mt-3 rounded-lg border border-amber-300 bg-white p-3 text-sm text-slate-700">
+            <p class="mt-3 rounded-xl border border-[#334155] bg-[#0f172a] p-3 text-sm text-[#94a3b8]">
                 Baseline Capture: Existing aircraft configuration captured during onboarding.
             </p>
 
@@ -95,8 +95,8 @@
                 <input type="hidden" name="_csrf" value="<%= csrfToken %>">
 
                 <div>
-                    <label class="block text-sm font-medium text-gray-700">Capture Existing Installed Component</label>
-                    <select name="serialized_component_id" required class="mt-1 block w-full border-gray-300 rounded-md shadow-sm">
+                    <label class="block text-sm font-medium text-[#94a3b8]">Capture Existing Installed Component</label>
+                    <select name="serialized_component_id" required class="mt-1 block w-full rounded-md border border-[#334155] bg-[#0f172a] text-[#e2e8f0] shadow-sm">
                         <option value="">Select Serialized Component</option>
                         <% (availableSerializedComponents || []).forEach((component) => { %>
                             <option value="<%= component.id %>">
@@ -111,50 +111,50 @@
 
                 <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
                     <div>
-                        <label class="block text-sm font-medium text-gray-700">Effective Baseline Date</label>
-                        <input type="date" name="installed_at" value="<%= new Date().toISOString().slice(0, 10) %>" required class="mt-1 block w-full border-gray-300 rounded-md shadow-sm">
+                        <label class="block text-sm font-medium text-[#94a3b8]">Effective Baseline Date</label>
+                        <input type="date" name="installed_at" value="<%= new Date().toISOString().slice(0, 10) %>" required class="mt-1 block w-full rounded-md border border-[#334155] bg-[#0f172a] text-[#e2e8f0] shadow-sm">
                     </div>
                     <div>
-                        <label class="block text-sm font-medium text-gray-700">Position</label>
-                        <input type="text" name="position" placeholder="LH-MAG, NAV-1, BAT-1" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm">
+                        <label class="block text-sm font-medium text-[#94a3b8]">Position</label>
+                        <input type="text" name="position" placeholder="LH-MAG, NAV-1, BAT-1" class="mt-1 block w-full rounded-md border border-[#334155] bg-[#0f172a] text-[#e2e8f0] shadow-sm">
                     </div>
                 </div>
 
                 <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
                     <div>
-                        <label class="block text-sm font-medium text-gray-700">Inherited TSN at Baseline</label>
-                        <input type="number" step="0.01" name="install_tsn" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm">
+                        <label class="block text-sm font-medium text-[#94a3b8]">Inherited TSN at Baseline</label>
+                        <input type="number" step="0.01" name="install_tsn" class="mt-1 block w-full rounded-md border border-[#334155] bg-[#0f172a] text-[#e2e8f0] shadow-sm">
                     </div>
                     <div>
-                        <label class="block text-sm font-medium text-gray-700">Inherited TSO at Baseline</label>
-                        <input type="number" step="0.01" name="install_tso" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm">
+                        <label class="block text-sm font-medium text-[#94a3b8]">Inherited TSO at Baseline</label>
+                        <input type="number" step="0.01" name="install_tso" class="mt-1 block w-full rounded-md border border-[#334155] bg-[#0f172a] text-[#e2e8f0] shadow-sm">
                     </div>
                 </div>
 
                 <div>
-                    <label class="block text-sm font-medium text-gray-700">Inherited Aircraft Configuration</label>
-                    <textarea name="inherited_status_context" rows="3" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm" placeholder="Describe what is known about this inherited installed state."></textarea>
+                    <label class="block text-sm font-medium text-[#94a3b8]">Inherited Aircraft Configuration</label>
+                    <textarea name="inherited_status_context" rows="3" class="mt-1 block w-full rounded-md border border-[#334155] bg-[#0f172a] text-[#e2e8f0] shadow-sm" placeholder="Describe what is known about this inherited installed state."></textarea>
                 </div>
 
                 <div>
-                    <label class="block text-sm font-medium text-gray-700">Uncertainty or Evidence Limitations</label>
-                    <textarea name="uncertainty_notes" rows="3" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm" placeholder="Explain any unknown, estimated, or partially evidenced historical information."></textarea>
+                    <label class="block text-sm font-medium text-[#94a3b8]">Uncertainty or Evidence Limitations</label>
+                    <textarea name="uncertainty_notes" rows="3" class="mt-1 block w-full rounded-md border border-[#334155] bg-[#0f172a] text-[#e2e8f0] shadow-sm" placeholder="Explain any unknown, estimated, or partially evidenced historical information."></textarea>
                 </div>
 
                 <div>
-                    <label class="block text-sm font-medium text-gray-700">Additional Notes</label>
-                    <textarea name="notes" rows="3" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm" placeholder="Optional baseline capture notes"></textarea>
+                    <label class="block text-sm font-medium text-[#94a3b8]">Additional Notes</label>
+                    <textarea name="notes" rows="3" class="mt-1 block w-full rounded-md border border-[#334155] bg-[#0f172a] text-[#e2e8f0] shadow-sm" placeholder="Optional baseline capture notes"></textarea>
                 </div>
 
-                <button type="submit" class="bg-amber-600 text-white px-4 py-2 rounded hover:bg-amber-700">
+                <button type="submit" class="rounded border border-[#334155] bg-[#2563eb] px-4 py-2 font-bold text-white hover:bg-blue-700">
                     Capture Existing Installed Component
                 </button>
             </form>
         </div>
 
-        <div class="bg-white shadow rounded-lg p-6">
-            <h2 class="text-xl font-semibold mb-4">Install Serialized Component</h2>
-            <p class="mb-4 text-sm text-slate-500">
+        <div class="rounded-2xl border border-[#334155] bg-[#1e293b] p-6 shadow-[0_16px_40px_rgba(0,0,0,0.28)]">
+            <h2 class="text-xl font-semibold text-[#e2e8f0]">Install Serialized Component</h2>
+            <p class="mb-4 mt-1 text-sm text-[#94a3b8]">
                 Use this only for a current authoritative installation event. This remains distinct from Baseline Capture.
             </p>
 
@@ -164,13 +164,13 @@
                 <input type="hidden" name="_csrf" value="<%= csrfToken %>">
 
                 <div>
-                    <label class="block text-sm font-medium text-gray-700">
+                    <label class="block text-sm font-medium text-[#94a3b8]">
                         Available Serialized Component
                     </label>
 
                     <select name="serialized_component_id"
                             required
-                            class="mt-1 block w-full border-gray-300 rounded-md shadow-sm">
+                            class="mt-1 block w-full rounded-md border border-[#334155] bg-[#0f172a] text-[#e2e8f0] shadow-sm">
                         <option value="">Select Serialized Component</option>
                         <% (availableSerializedComponents || []).forEach((component) => { %>
                             <option value="<%= component.id %>">
@@ -188,63 +188,63 @@
 
                 <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
                     <div>
-                        <label class="block text-sm font-medium text-gray-700">
+                        <label class="block text-sm font-medium text-[#94a3b8]">
                             Installation Date
                         </label>
                         <input type="date"
                                name="installed_at"
                                value="<%= new Date().toISOString().slice(0, 10) %>"
                                required
-                               class="mt-1 block w-full border-gray-300 rounded-md shadow-sm">
+                               class="mt-1 block w-full rounded-md border border-[#334155] bg-[#0f172a] text-[#e2e8f0] shadow-sm">
                     </div>
 
                     <div>
-                        <label class="block text-sm font-medium text-gray-700">
+                        <label class="block text-sm font-medium text-[#94a3b8]">
                             Position
                         </label>
                         <input type="text"
                                name="position"
                                placeholder="LH-MAG, NAV-1, BAT-1"
-                               class="mt-1 block w-full border-gray-300 rounded-md shadow-sm">
+                               class="mt-1 block w-full rounded-md border border-[#334155] bg-[#0f172a] text-[#e2e8f0] shadow-sm">
                     </div>
                 </div>
 
                 <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
                     <div>
-                        <label class="block text-sm font-medium text-gray-700">
+                        <label class="block text-sm font-medium text-[#94a3b8]">
                             Install TSN
                         </label>
                         <input type="number"
                                step="0.01"
                                name="install_tsn"
-                               class="mt-1 block w-full border-gray-300 rounded-md shadow-sm">
+                               class="mt-1 block w-full rounded-md border border-[#334155] bg-[#0f172a] text-[#e2e8f0] shadow-sm">
                     </div>
 
                     <div>
-                        <label class="block text-sm font-medium text-gray-700">
+                        <label class="block text-sm font-medium text-[#94a3b8]">
                             Install TSO
                         </label>
                         <input type="number"
                                step="0.01"
                                name="install_tso"
-                               class="mt-1 block w-full border-gray-300 rounded-md shadow-sm">
+                               class="mt-1 block w-full rounded-md border border-[#334155] bg-[#0f172a] text-[#e2e8f0] shadow-sm">
                     </div>
                 </div>
 
                 <div>
-                    <label class="block text-sm font-medium text-gray-700">
+                    <label class="block text-sm font-medium text-[#94a3b8]">
                         Notes
                     </label>
                     <textarea
                         name="notes"
                         rows="3"
-                        class="mt-1 block w-full border-gray-300 rounded-md shadow-sm"
+                        class="mt-1 block w-full rounded-md border border-[#334155] bg-[#0f172a] text-[#e2e8f0] shadow-sm"
                         placeholder="Optional serialized installation notes"
                     ></textarea>
                 </div>
 
                 <button type="submit"
-                        class="bg-slate-800 text-white px-4 py-2 rounded hover:bg-black">
+                        class="rounded border border-[#334155] bg-[#2563eb] px-4 py-2 font-bold text-white hover:bg-blue-700">
                     Install Serialized Component
                 </button>
 

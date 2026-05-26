@@ -1,6 +1,6 @@
 <%- include('../partials/header') %>
 
-<main class="max-w-5xl mx-auto py-10 px-6">
+<main class="max-w-5xl mx-auto bg-[#0f172a] py-10 px-6">
     <% const bulletinFilters = sbFilters || {}; %>
     <% const canEditAircraft = user?.roles?.some(role => role.code === 'ADMIN'); %>
     <% const isAircraftActive = aircraft.status === 'ACTIVE'; %>
@@ -11,29 +11,30 @@
     <% const safeSerializedPositionContext = typeof serializedPositionContext !== 'undefined' ? serializedPositionContext : { occupied_positions: [], recent_positions: [] }; %>
 
     <div class="mb-6">
-        <a href="/aircraft" class="text-sm text-blue-600 hover:underline">
+        <a href="/aircraft" class="text-sm font-semibold text-[#94a3b8] hover:text-[#e2e8f0]">
             Back to Fleet
         </a>
     </div>
 
     <% if (messages && messages.error && messages.error.length) { %>
-        <div class="mb-6 rounded border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        <div class="mb-6 rounded-xl border border-[#334155] bg-[#1e293b] px-4 py-3 text-sm text-[#e2e8f0]">
             <%= messages.error[0] %>
         </div>
     <% } %>
 
     <% if (messages && messages.success && messages.success.length) { %>
-        <div class="mb-6 rounded border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+        <div class="mb-6 rounded-xl border border-[#334155] bg-[#1e293b] px-4 py-3 text-sm text-[#e2e8f0]">
             <%= messages.success[0] %>
         </div>
     <% } %>
 
     <div class="mb-8">
-        <h1 class="text-3xl font-bold text-gray-900">
+        <p class="text-[11px] font-black uppercase tracking-[0.35em] text-[#94a3b8]">Aircraft Operations</p>
+        <h1 class="mt-2 text-3xl font-black tracking-tight text-[#e2e8f0]">
             Aircraft: <%= aircraft.registration %>
         </h1>
 
-        <p class="text-sm text-gray-500 mt-1">
+        <p class="mt-1 text-sm text-[#94a3b8]">
             Manufacturer:
             <%= aircraft.ComponentModel?.Manufacturer?.name || '-' %>
             |
@@ -44,46 +45,46 @@
             <%= aircraft.serial_number %>
         </p>
 
-        <p class="text-xs text-gray-400 mt-2 uppercase tracking-widest">
+        <p class="mt-2 text-xs uppercase tracking-widest text-[#94a3b8]">
             Asset Type:
             <%= aircraft.ComponentModel?.AssetType?.code || '-' %>
         </p>
     </div>
 
     <div class="grid gap-6 mb-8 lg:grid-cols-[0.8fr_1.2fr]">
-        <div class="bg-white shadow rounded-lg p-4">
+        <div class="rounded-2xl border border-[#334155] bg-[#1e293b] p-4 shadow-[0_16px_40px_rgba(0,0,0,0.28)]">
             <% if (aircraft.photo_url) { %>
                 <img
                     src="<%= aircraft.photo_url %>"
                     alt="<%= aircraft.registration %> photo"
-                    class="w-full h-64 object-cover rounded-lg border"
+                    class="h-64 w-full rounded-lg border border-[#334155] object-cover"
                 >
             <% } else { %>
-                <div class="flex h-64 items-center justify-center rounded-lg border border-dashed text-sm text-slate-500">
+                <div class="flex h-64 items-center justify-center rounded-lg border border-dashed border-[#334155] text-sm text-[#94a3b8]">
                     No aircraft photo loaded
                 </div>
             <% } %>
         </div>
 
-        <div class="bg-white shadow rounded-lg p-6">
+        <div class="rounded-2xl border border-[#334155] bg-[#1e293b] p-6 shadow-[0_16px_40px_rgba(0,0,0,0.28)]">
             <% const selectedManufacturerId = aircraft.ComponentModel?.manufacturer_id || aircraft.ComponentModel?.Manufacturer?.id || ''; %>
 
             <div class="mb-4 flex items-start justify-between gap-4">
                 <div>
-                    <h2 class="text-lg font-semibold text-slate-900">Aircraft Data</h2>
-                    <p class="mt-1 text-sm text-slate-500">
+                    <h2 class="text-lg font-semibold text-[#e2e8f0]">Aircraft Data</h2>
+                    <p class="mt-1 text-sm text-[#94a3b8]">
                         Review registration, model details, hours, dates, and reference data.
                     </p>
                 </div>
                 <div class="flex flex-wrap items-center gap-3">
-                    <span class="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold uppercase tracking-widest text-slate-600">
+                    <span class="rounded-full border border-[#334155] bg-[#0f172a] px-3 py-1 text-xs font-bold uppercase tracking-widest text-[#94a3b8]">
                         Status: <%= aircraft.status %>
                     </span>
                     <% if (canEditAircraft) { %>
                         <button
                             type="button"
                             id="toggle-aircraft-edit"
-                            class="rounded bg-slate-800 px-4 py-2 text-xs font-bold uppercase tracking-widest text-white hover:bg-slate-700"
+                            class="rounded border border-[#334155] bg-[#2563eb] px-4 py-2 text-xs font-bold uppercase tracking-widest text-white hover:bg-blue-700"
                             aria-expanded="false"
                             aria-controls="aircraft-edit-form"
                         >
@@ -94,9 +95,9 @@
             </div>
 
             <% if (aircraft.status === 'REGISTERED') { %>
-                <div class="mb-6 rounded-lg border border-blue-200 bg-blue-50 p-4">
-                    <h3 class="text-sm font-bold uppercase tracking-widest text-blue-900">Activation Required</h3>
-                    <p class="mt-2 text-sm text-blue-900">
+                <div class="mb-6 rounded-xl border border-[#334155] bg-[#0f172a] p-4">
+                    <h3 class="text-sm font-bold uppercase tracking-widest text-[#94a3b8]">Activation Required</h3>
+                    <p class="mt-2 text-sm text-[#94a3b8]">
                         Activate this aircraft when onboarding/setup is complete and it is ready for normal maintenance workflow.
                     </p>
                     <form
@@ -107,7 +108,7 @@
                         <input type="hidden" name="_csrf" value="<%= csrfToken %>">
                         <input type="hidden" name="action" value="ACTIVATE">
                         <div>
-                            <label class="mb-1 block text-xs font-bold uppercase tracking-widest text-blue-900">
+                            <label class="mb-1 block text-xs font-bold uppercase tracking-widest text-[#94a3b8]">
                                 Activation Reason
                             </label>
                             <input
@@ -115,13 +116,13 @@
                                 name="reason"
                                 required
                                 value="Airworthiness Certificate Issued"
-                                class="w-full rounded border border-blue-300 px-3 py-2 text-sm text-slate-900"
+                                class="w-full rounded border border-[#334155] bg-[#1e293b] px-3 py-2 text-sm text-[#e2e8f0]"
                             >
                         </div>
                         <div class="flex items-end">
                             <button
                                 type="submit"
-                                class="w-full rounded bg-blue-700 px-4 py-2 text-sm font-bold text-white hover:bg-blue-800 md:w-auto"
+                                class="w-full rounded border border-[#334155] bg-[#2563eb] px-4 py-2 text-sm font-bold text-white hover:bg-blue-700 md:w-auto"
                             >
                                 Activate Aircraft
                             </button>
@@ -132,46 +133,46 @@
 
             <div class="grid gap-4 md:grid-cols-2 text-sm">
                 <div>
-                    <p class="text-xs font-bold uppercase tracking-widest text-slate-500">Registration</p>
-                    <p class="mt-1 text-slate-900"><%= aircraft.registration %></p>
+                    <p class="text-xs font-bold uppercase tracking-widest text-[#94a3b8]">Registration</p>
+                    <p class="mt-1 text-[#e2e8f0]"><%= aircraft.registration %></p>
                 </div>
                 <div>
-                    <p class="text-xs font-bold uppercase tracking-widest text-slate-500">Serial Number</p>
-                    <p class="mt-1 text-slate-900"><%= aircraft.serial_number %></p>
+                    <p class="text-xs font-bold uppercase tracking-widest text-[#94a3b8]">Serial Number</p>
+                    <p class="mt-1 text-[#e2e8f0]"><%= aircraft.serial_number %></p>
                 </div>
                 <div>
-                    <p class="text-xs font-bold uppercase tracking-widest text-slate-500">Manufacturer</p>
-                    <p class="mt-1 text-slate-900"><%= aircraft.ComponentModel?.Manufacturer?.name || '-' %></p>
+                    <p class="text-xs font-bold uppercase tracking-widest text-[#94a3b8]">Manufacturer</p>
+                    <p class="mt-1 text-[#e2e8f0]"><%= aircraft.ComponentModel?.Manufacturer?.name || '-' %></p>
                 </div>
                 <div>
-                    <p class="text-xs font-bold uppercase tracking-widest text-slate-500">Model</p>
-                    <p class="mt-1 text-slate-900"><%= aircraft.ComponentModel?.model_name || '-' %></p>
+                    <p class="text-xs font-bold uppercase tracking-widest text-[#94a3b8]">Model</p>
+                    <p class="mt-1 text-[#e2e8f0]"><%= aircraft.ComponentModel?.model_name || '-' %></p>
                 </div>
                 <div>
-                    <p class="text-xs font-bold uppercase tracking-widest text-slate-500">Current Hours</p>
-                    <p class="mt-1 text-slate-900"><%= aircraft.total_time_hours %></p>
+                    <p class="text-xs font-bold uppercase tracking-widest text-[#94a3b8]">Current Hours</p>
+                    <p class="mt-1 text-[#e2e8f0]"><%= aircraft.total_time_hours %></p>
                 </div>
                 <div>
-                    <p class="text-xs font-bold uppercase tracking-widest text-slate-500">Loaded Into System</p>
-                    <p class="mt-1 text-slate-900"><%= aircraft.loaded_into_system_at || '-' %></p>
+                    <p class="text-xs font-bold uppercase tracking-widest text-[#94a3b8]">Loaded Into System</p>
+                    <p class="mt-1 text-[#e2e8f0]"><%= aircraft.loaded_into_system_at || '-' %></p>
                 </div>
                 <div>
-                    <p class="text-xs font-bold uppercase tracking-widest text-slate-500">Manufacture Date</p>
-                    <p class="mt-1 text-slate-900"><%= aircraft.manufacture_date || '-' %></p>
+                    <p class="text-xs font-bold uppercase tracking-widest text-[#94a3b8]">Manufacture Date</p>
+                    <p class="mt-1 text-[#e2e8f0]"><%= aircraft.manufacture_date || '-' %></p>
                 </div>
                 <div>
-                    <p class="text-xs font-bold uppercase tracking-widest text-slate-500">Aircraft Category</p>
-                    <p class="mt-1 text-slate-900"><%= categories.find(category => category.id === aircraft.category_id)?.label || '-' %></p>
+                    <p class="text-xs font-bold uppercase tracking-widest text-[#94a3b8]">Aircraft Category</p>
+                    <p class="mt-1 text-[#e2e8f0]"><%= categories.find(category => category.id === aircraft.category_id)?.label || '-' %></p>
                 </div>
                 <div>
-                    <p class="text-xs font-bold uppercase tracking-widest text-slate-500">TCDS Number</p>
-                    <p class="mt-1 text-slate-900"><%= aircraft.tcds_number || '-' %></p>
+                    <p class="text-xs font-bold uppercase tracking-widest text-[#94a3b8]">TCDS Number</p>
+                    <p class="mt-1 text-[#e2e8f0]"><%= aircraft.tcds_number || '-' %></p>
                 </div>
                 <div class="md:col-span-2">
-                    <p class="text-xs font-bold uppercase tracking-widest text-slate-500">TCDS URL</p>
-                    <p class="mt-1 text-slate-900">
+                    <p class="text-xs font-bold uppercase tracking-widest text-[#94a3b8]">TCDS URL</p>
+                    <p class="mt-1 text-[#e2e8f0]">
                         <% if (aircraft.tcds_url) { %>
-                            <a href="<%= aircraft.tcds_url %>" target="_blank" rel="noreferrer" class="text-blue-600 hover:underline">
+                            <a href="<%= aircraft.tcds_url %>" target="_blank" rel="noreferrer" class="text-[#94a3b8] hover:text-[#e2e8f0]">
                                 <%= aircraft.tcds_url %>
                             </a>
                         <% } else { %>
@@ -187,7 +188,7 @@
                     action="/aircraft/<%= aircraft.id %>?_csrf=<%= encodeURIComponent(csrfToken) %>"
                     method="POST"
                     enctype="multipart/form-data"
-                    class="mt-6 hidden space-y-5 border-t border-slate-200 pt-6"
+                    class="mt-6 hidden space-y-5 border-t border-[#334155] pt-6"
                 >
                     <input type="hidden" name="_csrf" value="<%= csrfToken %>">
                     <input type="hidden" name="version" value="<%= aircraft.version %>">
@@ -394,15 +395,15 @@
     </div>
 
     <div class="mb-8 grid gap-6 lg:grid-cols-[1fr_1fr]">
-        <div class="rounded-lg bg-white p-6 shadow">
+        <div class="rounded-2xl border border-[#334155] bg-[#1e293b] p-6 shadow-[0_16px_40px_rgba(0,0,0,0.28)]">
             <div class="flex items-start justify-between gap-4">
                 <div>
-                    <h2 class="text-lg font-semibold text-slate-900">Current Customer Relationships</h2>
-                    <p class="mt-1 text-sm text-slate-500">
+                    <h2 class="text-lg font-semibold text-[#e2e8f0]">Current Customer Relationships</h2>
+                    <p class="mt-1 text-sm text-[#94a3b8]">
                         Customer relationships are always driven by explicit customer-aircraft links.
                     </p>
                 </div>
-                <a href="/customers" class="text-sm font-semibold text-blue-600 hover:underline">
+                <a href="/customers" class="text-sm font-semibold text-[#94a3b8] hover:text-[#e2e8f0]">
                     Manage Customers
                 </a>
             </div>
@@ -410,61 +411,61 @@
             <% if (currentCustomerLinks && currentCustomerLinks.length > 0) { %>
                 <div class="mt-4 space-y-4">
                     <% currentCustomerLinks.forEach((currentCustomerLink) => { %>
-                        <div class="rounded-lg border border-emerald-200 bg-emerald-50 p-4">
+                        <div class="rounded-xl border border-[#334155] bg-[#0f172a] p-4">
                             <div class="flex items-start justify-between gap-4">
                                 <div>
-                                    <p class="text-lg font-bold text-slate-900">
+                                    <p class="text-lg font-bold text-[#e2e8f0]">
                                         <%= currentCustomerLink.Customer?.name || 'Unknown Customer' %>
                                     </p>
-                                    <p class="mt-1 text-sm text-slate-700">
+                                    <p class="mt-1 text-sm text-[#94a3b8]">
                                         Contact: <%= currentCustomerLink.Customer?.contact_person || '-' %>
                                     </p>
-                                    <p class="text-sm text-slate-700">
+                                    <p class="text-sm text-[#94a3b8]">
                                         Email: <%= currentCustomerLink.Customer?.email || '-' %>
                                     </p>
-                                    <p class="text-sm text-slate-700">
+                                    <p class="text-sm text-[#94a3b8]">
                                         Phone: <%= currentCustomerLink.Customer?.phone || '-' %>
                                     </p>
                                 </div>
-                                <span class="rounded-full bg-emerald-100 px-3 py-1 text-xs font-bold uppercase tracking-widest text-emerald-700">
+                                <span class="rounded-full border border-[#334155] bg-[#1e293b] px-3 py-1 text-xs font-bold uppercase tracking-widest text-[#94a3b8]">
                                     Current
                                 </span>
                             </div>
 
-                            <div class="mt-4 grid gap-3 md:grid-cols-3 text-sm text-slate-700">
+                            <div class="mt-4 grid gap-3 text-sm text-[#94a3b8] md:grid-cols-3">
                                 <div>
-                                    <p class="text-xs font-bold uppercase tracking-widest text-slate-500">Relationship Type</p>
+                                    <p class="text-xs font-bold uppercase tracking-widest text-[#94a3b8]">Relationship Type</p>
                                     <p class="mt-1"><%= currentCustomerLink.relationship_type %></p>
                                 </div>
                                 <div>
-                                    <p class="text-xs font-bold uppercase tracking-widest text-slate-500">Start Date</p>
+                                    <p class="text-xs font-bold uppercase tracking-widest text-[#94a3b8]">Start Date</p>
                                     <p class="mt-1"><%= currentCustomerLink.start_date %></p>
                                 </div>
                                 <div>
-                                    <p class="text-xs font-bold uppercase tracking-widest text-slate-500">End Date</p>
+                                    <p class="text-xs font-bold uppercase tracking-widest text-[#94a3b8]">End Date</p>
                                     <p class="mt-1"><%= currentCustomerLink.end_date || 'Open' %></p>
                                 </div>
                             </div>
 
                             <% if (currentCustomerLink.notes) { %>
                                 <div class="mt-4">
-                                    <p class="text-xs font-bold uppercase tracking-widest text-slate-500">Notes</p>
-                                    <p class="mt-1 whitespace-pre-wrap text-sm text-slate-700"><%= currentCustomerLink.notes %></p>
+                                    <p class="text-xs font-bold uppercase tracking-widest text-[#94a3b8]">Notes</p>
+                                    <p class="mt-1 whitespace-pre-wrap text-sm text-[#94a3b8]"><%= currentCustomerLink.notes %></p>
                                 </div>
                             <% } %>
                         </div>
                     <% }) %>
                 </div>
             <% } else { %>
-                <div class="mt-4 rounded-lg border border-dashed border-slate-300 bg-slate-50 p-4 text-sm text-slate-600">
+                <div class="mt-4 rounded-xl border border-dashed border-[#334155] bg-[#0f172a] p-4 text-sm text-[#94a3b8]">
                     No current customer relationships are assigned to this aircraft.
                 </div>
             <% } %>
         </div>
 
-        <div class="rounded-lg bg-white p-6 shadow">
-            <h2 class="text-lg font-semibold text-slate-900">Add Customer Relationship</h2>
-            <p class="mt-1 text-sm text-slate-500">
+        <div class="rounded-2xl border border-[#334155] bg-[#1e293b] p-6 shadow-[0_16px_40px_rgba(0,0,0,0.28)]">
+            <h2 class="text-lg font-semibold text-[#e2e8f0]">Add Customer Relationship</h2>
+            <p class="mt-1 text-sm text-[#94a3b8]">
                 Add a current customer relationship without replacing unrelated existing relationships.
             </p>
 
@@ -472,8 +473,8 @@
                 <input type="hidden" name="_csrf" value="<%= csrfToken %>">
 
                 <div>
-                    <label class="mb-1 block text-xs font-bold uppercase tracking-widest text-slate-600">Customer</label>
-                    <select name="customer_id" required class="w-full rounded border border-slate-300 px-3 py-2 text-sm">
+                    <label class="mb-1 block text-xs font-bold uppercase tracking-widest text-[#94a3b8]">Customer</label>
+                    <select name="customer_id" required class="w-full rounded border border-[#334155] bg-[#0f172a] px-3 py-2 text-sm text-[#e2e8f0]">
                         <option value="">Select Customer</option>
                         <% customerOptions.forEach((customer) => { %>
                             <option value="<%= customer.id %>">
@@ -485,8 +486,8 @@
 
                 <div class="grid gap-4 md:grid-cols-2">
                     <div>
-                        <label class="mb-1 block text-xs font-bold uppercase tracking-widest text-slate-600">Relationship Type</label>
-                        <select name="relationship_type" required class="w-full rounded border border-slate-300 px-3 py-2 text-sm">
+                        <label class="mb-1 block text-xs font-bold uppercase tracking-widest text-[#94a3b8]">Relationship Type</label>
+                        <select name="relationship_type" required class="w-full rounded border border-[#334155] bg-[#0f172a] px-3 py-2 text-sm text-[#e2e8f0]">
                             <option value="">Select Relationship</option>
                             <% ['OWNER', 'CO_OWNER', 'OPERATOR', 'BILLING_CUSTOMER', 'MANAGEMENT_COMPANY', 'CONTACT_ONLY'].forEach((relationshipType) => { %>
                                 <option value="<%= relationshipType %>">
@@ -496,23 +497,23 @@
                         </select>
                     </div>
                     <div>
-                        <label class="mb-1 block text-xs font-bold uppercase tracking-widest text-slate-600">Start Date</label>
+                        <label class="mb-1 block text-xs font-bold uppercase tracking-widest text-[#94a3b8]">Start Date</label>
                         <input
                             type="date"
                             name="start_date"
                             required
                             value="<%= new Date().toISOString().slice(0, 10) %>"
-                            class="w-full rounded border border-slate-300 px-3 py-2 text-sm"
+                            class="w-full rounded border border-[#334155] bg-[#0f172a] px-3 py-2 text-sm text-[#e2e8f0]"
                         >
                     </div>
                 </div>
 
                 <div>
-                    <label class="mb-1 block text-xs font-bold uppercase tracking-widest text-slate-600">Notes</label>
-                    <textarea name="notes" rows="3" class="w-full rounded border border-slate-300 px-3 py-2 text-sm" placeholder="Optional assignment notes"></textarea>
+                    <label class="mb-1 block text-xs font-bold uppercase tracking-widest text-[#94a3b8]">Notes</label>
+                    <textarea name="notes" rows="3" class="w-full rounded border border-[#334155] bg-[#0f172a] px-3 py-2 text-sm text-[#e2e8f0]" placeholder="Optional assignment notes"></textarea>
                 </div>
 
-                <button type="submit" class="rounded bg-slate-800 px-5 py-2 text-sm font-bold text-white hover:bg-slate-700">
+                <button type="submit" class="rounded border border-[#334155] bg-[#2563eb] px-5 py-2 text-sm font-bold text-white hover:bg-blue-700">
                     Add Customer Relationship
                 </button>
             </form>
@@ -520,31 +521,31 @@
     </div>
 
     <% if (historicalCustomerLinks && historicalCustomerLinks.length > 0) { %>
-        <div class="mb-8 rounded-lg bg-white p-6 shadow">
-            <h2 class="text-lg font-semibold text-slate-900">Customer Ownership History</h2>
-            <p class="mt-1 text-sm text-slate-500">
+        <div class="mb-8 rounded-2xl border border-[#334155] bg-[#1e293b] p-6 shadow-[0_16px_40px_rgba(0,0,0,0.28)]">
+            <h2 class="text-lg font-semibold text-[#e2e8f0]">Customer Ownership History</h2>
+            <p class="mt-1 text-sm text-[#94a3b8]">
                 Historical ownership links are preserved and never inferred from free text.
             </p>
 
             <div class="mt-4 space-y-3">
                 <% historicalCustomerLinks.forEach((link) => { %>
-                    <div class="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
+                    <div class="rounded-xl border border-[#334155] bg-[#0f172a] px-4 py-3">
                         <div class="flex items-start justify-between gap-4">
                             <div>
-                                <p class="text-sm font-semibold text-slate-900">
+                                <p class="text-sm font-semibold text-[#e2e8f0]">
                                     <%= link.Customer?.name || 'Unknown Customer' %>
                                 </p>
-                                <p class="mt-1 text-xs uppercase tracking-widest text-slate-500">
+                                <p class="mt-1 text-xs uppercase tracking-widest text-[#94a3b8]">
                                     <%= link.relationship_type %>
                                 </p>
                             </div>
-                            <div class="text-right text-sm text-slate-600">
+                            <div class="text-right text-sm text-[#94a3b8]">
                                 <p><%= link.start_date %> to <%= link.end_date || 'Open' %></p>
                             </div>
                         </div>
 
                         <% if (link.notes) { %>
-                            <p class="mt-2 whitespace-pre-wrap text-sm text-slate-600"><%= link.notes %></p>
+                            <p class="mt-2 whitespace-pre-wrap text-sm text-[#94a3b8]"><%= link.notes %></p>
                         <% } %>
                     </div>
                 <% }) %>
@@ -552,11 +553,11 @@
         </div>
     <% } %>
 
-    <div class="mb-8 border-b border-slate-200">
+    <div class="mb-8 border-b border-[#334155]">
         <div class="flex flex-wrap gap-2" role="tablist" aria-label="Aircraft detail sections">
             <button
                 type="button"
-                class="aircraft-tab rounded-t-lg border border-b-0 border-slate-300 bg-slate-900 px-4 py-3 text-xs font-bold uppercase tracking-widest text-white"
+                class="aircraft-tab rounded-t-lg border border-b-0 border-[#334155] bg-[#2563eb] px-4 py-3 text-xs font-bold uppercase tracking-widest text-white"
                 data-tab-target="overview-panel"
                 aria-selected="true"
                 role="tab"
@@ -565,7 +566,7 @@
             </button>
             <button
                 type="button"
-                class="aircraft-tab rounded-t-lg border border-b-0 border-slate-300 bg-white px-4 py-3 text-xs font-bold uppercase tracking-widest text-slate-600"
+                class="aircraft-tab rounded-t-lg border border-b-0 border-[#334155] bg-[#1e293b] px-4 py-3 text-xs font-bold uppercase tracking-widest text-[#94a3b8]"
                 data-tab-target="service-bulletins-panel"
                 aria-selected="false"
                 role="tab"
@@ -574,7 +575,7 @@
             </button>
             <button
                 type="button"
-                class="aircraft-tab rounded-t-lg border border-b-0 border-slate-300 bg-white px-4 py-3 text-xs font-bold uppercase tracking-widest text-slate-600"
+                class="aircraft-tab rounded-t-lg border border-b-0 border-[#334155] bg-[#1e293b] px-4 py-3 text-xs font-bold uppercase tracking-widest text-[#94a3b8]"
                 data-tab-target="installed-components-panel"
                 aria-selected="false"
                 role="tab"
@@ -1538,7 +1539,7 @@
                     <% }) %>
                 </ul>
             <% } else { %>
-                <p class="text-gray-500 text-sm">No components installed.</p>
+                <p class="text-sm text-[#94a3b8]">No components installed.</p>
             <% } %>
         </div>
     </section>
@@ -1584,10 +1585,10 @@
       tabs.forEach((tab) => {
         const isActive = tab.dataset.tabTarget === targetId;
         tab.setAttribute('aria-selected', isActive ? 'true' : 'false');
-        tab.classList.toggle('bg-slate-900', isActive);
+        tab.classList.toggle('bg-[#2563eb]', isActive);
         tab.classList.toggle('text-white', isActive);
-        tab.classList.toggle('bg-white', !isActive);
-        tab.classList.toggle('text-slate-600', !isActive);
+        tab.classList.toggle('bg-[#1e293b]', !isActive);
+        tab.classList.toggle('text-[#94a3b8]', !isActive);
       });
 
       panels.forEach((panel) => {
@@ -1648,10 +1649,10 @@
       installedComponentsSubtabs.forEach((tab) => {
         const isActive = tab.dataset.installedComponentsSubtabTarget === targetSubtab;
         tab.setAttribute('aria-selected', isActive ? 'true' : 'false');
-        tab.classList.toggle('bg-slate-900', isActive);
+        tab.classList.toggle('bg-[#2563eb]', isActive);
         tab.classList.toggle('text-white', isActive);
-        tab.classList.toggle('bg-white', !isActive);
-        tab.classList.toggle('text-slate-600', !isActive);
+        tab.classList.toggle('bg-[#1e293b]', !isActive);
+        tab.classList.toggle('text-[#94a3b8]', !isActive);
       });
 
       installedComponentsSummaryPanels.forEach((panel) => {

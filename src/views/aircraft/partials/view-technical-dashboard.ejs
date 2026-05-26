@@ -1,16 +1,16 @@
-<section class="mb-8 rounded-lg bg-white p-6 shadow">
+<section class="mb-8 rounded-2xl border border-[#334155] bg-[#1e293b] p-6 shadow-[0_16px_40px_rgba(0,0,0,0.28)]">
     <% const safeComplianceVisibility = typeof complianceVisibility !== 'undefined' ? complianceVisibility : { summary: {}, items: [] }; %>
     <% const complianceVisibilitySummary = safeComplianceVisibility.summary || {}; %>
     <div class="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
         <div class="max-w-3xl">
-            <p class="text-xs font-bold uppercase tracking-[0.3em] text-slate-500">Aircraft Technical Dashboard</p>
-            <h2 class="mt-2 text-2xl font-semibold text-slate-900"><%= technicalDashboard.overview?.headline || 'Aircraft technical visibility dashboard' %></h2>
-            <p class="mt-2 text-sm text-slate-600">
+            <p class="text-xs font-bold uppercase tracking-[0.3em] text-[#94a3b8]">Aircraft Technical Dashboard</p>
+            <h2 class="mt-2 text-2xl font-semibold text-[#e2e8f0]"><%= technicalDashboard.overview?.headline || 'Aircraft technical visibility dashboard' %></h2>
+            <p class="mt-2 text-sm text-[#94a3b8]">
                 <%= technicalDashboard.explanation || 'Aircraft technical dashboard visibility is derived downstream from aircraft technical status only.' %>
             </p>
-            <p class="mt-3 text-sm text-slate-700"><%= technicalStatus.explanation || 'No technical-status explanation available.' %></p>
+            <p class="mt-3 text-sm text-[#94a3b8]"><%= technicalStatus.explanation || 'No technical-status explanation available.' %></p>
         </div>
-        <div class="rounded-2xl border px-4 py-3 text-sm <%= dashboardSummary.readiness_tone === 'emerald' ? 'border-emerald-200 bg-emerald-50 text-emerald-900' : dashboardSummary.readiness_tone === 'amber' ? 'border-amber-200 bg-amber-50 text-amber-900' : dashboardSummary.readiness_tone === 'rose' ? 'border-rose-200 bg-rose-50 text-rose-900' : 'border-slate-200 bg-slate-50 text-slate-800' %>">
+        <div class="rounded-2xl border border-[#334155] bg-[#0f172a] px-4 py-3 text-sm text-[#e2e8f0]">
             <p class="text-[11px] font-bold uppercase tracking-[0.3em]">Readiness Visibility</p>
             <p class="mt-2 text-lg font-semibold"><%= dashboardSummary.readiness_label || (technicalStatusSummary.readiness_indicator || 'UNKNOWN_VISIBILITY').replace(/_/g, ' ') %></p>
             <p class="mt-2 max-w-sm text-sm leading-6"><%= dashboardSummary.readiness_explanation || technicalStatusSummary.readiness_explanation || 'No readiness explanation available.' %></p>
@@ -19,40 +19,40 @@
 
     <div class="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         <% (technicalDashboard.overview?.cards || []).forEach((card) => { %>
-            <article class="rounded-2xl border p-4 <%= card.tone === 'rose' ? 'border-rose-200 bg-rose-50' : card.tone === 'amber' ? 'border-amber-200 bg-amber-50' : card.tone === 'emerald' ? 'border-emerald-200 bg-emerald-50' : 'border-slate-200 bg-slate-50' %>">
-                <p class="text-[11px] font-bold uppercase tracking-[0.3em] <%= card.tone === 'rose' ? 'text-rose-700' : card.tone === 'amber' ? 'text-amber-700' : card.tone === 'emerald' ? 'text-emerald-700' : 'text-slate-500' %>"><%= card.label %></p>
-                <p class="mt-2 text-2xl font-bold text-slate-900"><%= card.value %></p>
-                <p class="mt-2 text-sm leading-6 text-slate-700"><%= card.caption %></p>
+            <article class="rounded-2xl border border-[#334155] bg-[#0f172a] p-4">
+                <p class="text-[11px] font-bold uppercase tracking-[0.3em] text-[#94a3b8]"><%= card.label %></p>
+                <p class="mt-2 text-2xl font-bold text-[#e2e8f0]"><%= card.value %></p>
+                <p class="mt-2 text-sm leading-6 text-[#94a3b8]"><%= card.caption %></p>
             </article>
         <% }) %>
     </div>
 
     <div class="mt-6 grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
-        <article class="rounded-2xl border border-slate-200 bg-slate-50 p-5">
-            <p class="text-xs font-bold uppercase tracking-[0.3em] text-slate-500">Operational Overview</p>
-            <p class="mt-3 text-sm leading-6 text-slate-700"><%= technicalDashboard.overview?.explanation || 'No dashboard overview explanation available.' %></p>
+        <article class="rounded-2xl border border-[#334155] bg-[#0f172a] p-5">
+            <p class="text-xs font-bold uppercase tracking-[0.3em] text-[#94a3b8]">Operational Overview</p>
+            <p class="mt-3 text-sm leading-6 text-[#94a3b8]"><%= technicalDashboard.overview?.explanation || 'No dashboard overview explanation available.' %></p>
             <div class="mt-4 grid gap-3 md:grid-cols-2">
-                <div class="rounded-xl bg-white p-4">
-                    <p class="text-[11px] font-bold uppercase tracking-[0.3em] text-slate-500">Attention Items</p>
-                    <p class="mt-2 text-2xl font-bold text-slate-900"><%= dashboardSummary.attention_count || 0 %></p>
-                    <p class="mt-2 text-sm text-slate-600">Combined due, overdue, unknown, and missing-required contributors currently visible in the dashboard.</p>
+                <div class="rounded-xl border border-[#334155] bg-[#1e293b] p-4">
+                    <p class="text-[11px] font-bold uppercase tracking-[0.3em] text-[#94a3b8]">Attention Items</p>
+                    <p class="mt-2 text-2xl font-bold text-[#e2e8f0]"><%= dashboardSummary.attention_count || 0 %></p>
+                    <p class="mt-2 text-sm text-[#94a3b8]">Combined due, overdue, unknown, and missing-required contributors currently visible in the dashboard.</p>
                 </div>
-                <div class="rounded-xl bg-white p-4">
-                    <p class="text-[11px] font-bold uppercase tracking-[0.3em] text-slate-500">Legacy Install Rows</p>
-                    <p class="mt-2 text-2xl font-bold text-slate-900"><%= dashboardSummary.legacy_installed_count || 0 %></p>
-                    <p class="mt-2 text-sm text-slate-600">Existing aircraft component rows considered alongside serialized installation visibility for configuration context.</p>
+                <div class="rounded-xl border border-[#334155] bg-[#1e293b] p-4">
+                    <p class="text-[11px] font-bold uppercase tracking-[0.3em] text-[#94a3b8]">Legacy Install Rows</p>
+                    <p class="mt-2 text-2xl font-bold text-[#e2e8f0]"><%= dashboardSummary.legacy_installed_count || 0 %></p>
+                    <p class="mt-2 text-sm text-[#94a3b8]">Existing aircraft component rows considered alongside serialized installation visibility for configuration context.</p>
                 </div>
             </div>
         </article>
 
-        <article class="rounded-2xl border border-slate-200 bg-white p-5">
-            <p class="text-xs font-bold uppercase tracking-[0.3em] text-slate-500">Operational Boundary</p>
-            <p class="mt-3 text-sm leading-6 text-slate-700"><%= dashboardSummary.operational_boundary_notice || 'Operational visibility only.' %></p>
+        <article class="rounded-2xl border border-[#334155] bg-[#0f172a] p-5">
+            <p class="text-xs font-bold uppercase tracking-[0.3em] text-[#94a3b8]">Operational Boundary</p>
+            <p class="mt-3 text-sm leading-6 text-[#94a3b8]"><%= dashboardSummary.operational_boundary_notice || 'Operational visibility only.' %></p>
             <div class="mt-4 space-y-3">
                 <% (technicalDashboard.audit?.source_record_counts || []).forEach((entry) => { %>
-                    <div class="flex items-center justify-between gap-4 rounded-xl bg-slate-50 px-4 py-3 text-sm">
-                        <span class="text-slate-600"><%= entry.label %></span>
-                        <span class="font-semibold text-slate-900"><%= entry.value %></span>
+                    <div class="flex items-center justify-between gap-4 rounded-xl border border-[#334155] bg-[#1e293b] px-4 py-3 text-sm">
+                        <span class="text-[#94a3b8]"><%= entry.label %></span>
+                        <span class="font-semibold text-[#e2e8f0]"><%= entry.value %></span>
                     </div>
                 <% }) %>
             </div>
@@ -60,49 +60,49 @@
     </div>
 
     <div class="mt-6 grid gap-4 xl:grid-cols-2">
-        <article class="rounded-2xl border border-amber-200 bg-amber-50 p-5">
-            <p class="text-xs font-bold uppercase tracking-[0.3em] text-amber-700">Due Burden Visibility</p>
-            <h3 class="mt-2 text-lg font-semibold text-slate-900"><%= technicalDashboard.due_burden?.headline || 'Due burden visibility unavailable.' %></h3>
-            <p class="mt-2 text-sm leading-6 text-slate-700"><%= technicalDashboard.due_burden?.explanation || 'No due burden explanation available.' %></p>
+        <article class="rounded-2xl border border-[#334155] bg-[#1e293b] p-5">
+            <p class="text-xs font-bold uppercase tracking-[0.3em] text-[#94a3b8]">Due Burden Visibility</p>
+            <h3 class="mt-2 text-lg font-semibold text-[#e2e8f0]"><%= technicalDashboard.due_burden?.headline || 'Due burden visibility unavailable.' %></h3>
+            <p class="mt-2 text-sm leading-6 text-[#94a3b8]"><%= technicalDashboard.due_burden?.explanation || 'No due burden explanation available.' %></p>
             <% if ((technicalDashboard.due_burden?.contributors || []).length > 0) { %>
                 <div class="mt-4 space-y-3">
                     <% technicalDashboard.due_burden.contributors.forEach((item) => { %>
-                        <div class="rounded-xl border border-amber-200 bg-white p-4">
+                        <div class="rounded-xl border border-[#334155] bg-[#0f172a] p-4">
                             <div class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                                 <div>
-                                    <p class="font-semibold text-slate-900">
+                                    <p class="font-semibold text-[#e2e8f0]">
                                         <%= item.manufacturer_name || 'Unknown Manufacturer' %> <%= item.model_name %>
                                     </p>
-                                    <p class="mt-1 text-xs uppercase tracking-[0.3em] text-slate-500">
+                                    <p class="mt-1 text-xs uppercase tracking-[0.3em] text-[#94a3b8]">
                                         <%= item.asset_type_code %> | SN <%= item.serial_number %> | <%= item.position || 'Position Not Captured' %>
                                     </p>
                                 </div>
-                                <span class="rounded-full px-3 py-1 text-[11px] font-bold uppercase tracking-[0.3em] <%= item.due_state === 'OVERDUE' ? 'bg-rose-100 text-rose-800' : item.due_state === 'DUE' ? 'bg-amber-100 text-amber-800' : 'bg-yellow-100 text-yellow-800' %>">
+                                <span class="rounded-full border border-[#334155] bg-[#1e293b] px-3 py-1 text-[11px] font-bold uppercase tracking-[0.3em] text-[#e2e8f0]">
                                     <%= item.due_state.replace(/_/g, ' ') %>
                                 </span>
                             </div>
-                            <p class="mt-3 text-sm leading-6 text-slate-700"><%= item.due_explanation %></p>
+                            <p class="mt-3 text-sm leading-6 text-[#94a3b8]"><%= item.due_explanation %></p>
                         </div>
                     <% }) %>
                 </div>
             <% } else { %>
-                <div class="mt-4 rounded-xl border border-dashed border-amber-300 bg-white px-4 py-5 text-sm text-slate-600">
+                <div class="mt-4 rounded-xl border border-dashed border-[#334155] bg-[#0f172a] px-4 py-5 text-sm text-[#94a3b8]">
                     No due or overdue contributors are currently visible in the dashboard.
                 </div>
             <% } %>
         </article>
 
-        <article class="rounded-2xl border border-slate-200 bg-slate-50 p-5">
-            <p class="text-xs font-bold uppercase tracking-[0.3em] text-slate-500">Unknown Or Missing Visibility</p>
-            <h3 class="mt-2 text-lg font-semibold text-slate-900"><%= technicalDashboard.unknown_visibility?.headline || 'Unknown visibility unavailable.' %></h3>
-            <p class="mt-2 text-sm leading-6 text-slate-700"><%= technicalDashboard.unknown_visibility?.explanation || 'No unknown-visibility explanation available.' %></p>
+        <article class="rounded-2xl border border-[#334155] bg-[#1e293b] p-5">
+            <p class="text-xs font-bold uppercase tracking-[0.3em] text-[#94a3b8]">Unknown Or Missing Visibility</p>
+            <h3 class="mt-2 text-lg font-semibold text-[#e2e8f0]"><%= technicalDashboard.unknown_visibility?.headline || 'Unknown visibility unavailable.' %></h3>
+            <p class="mt-2 text-sm leading-6 text-[#94a3b8]"><%= technicalDashboard.unknown_visibility?.explanation || 'No unknown-visibility explanation available.' %></p>
 
             <% if ((technicalDashboard.unknown_visibility?.missing_required_asset_types || []).length > 0) { %>
-                <div class="mt-4 rounded-xl border border-rose-200 bg-rose-50 p-4">
-                    <p class="text-[11px] font-bold uppercase tracking-[0.3em] text-rose-700">Missing Required Asset-Type Visibility</p>
+                <div class="mt-4 rounded-xl border border-[#334155] bg-[#0f172a] p-4">
+                    <p class="text-[11px] font-bold uppercase tracking-[0.3em] text-[#94a3b8]">Missing Required Asset-Type Visibility</p>
                     <div class="mt-3 flex flex-wrap gap-2">
                         <% technicalDashboard.unknown_visibility.missing_required_asset_types.forEach((assetType) => { %>
-                            <span class="rounded-full bg-white px-3 py-1 text-[11px] font-bold uppercase tracking-[0.3em] text-rose-700">
+                            <span class="rounded-full border border-[#334155] bg-[#1e293b] px-3 py-1 text-[11px] font-bold uppercase tracking-[0.3em] text-[#e2e8f0]">
                                 <%= assetType.code %> - <%= assetType.label %>
                             </span>
                         <% }) %>
@@ -113,26 +113,26 @@
             <% if ((technicalDashboard.unknown_visibility?.contributors || []).length > 0) { %>
                 <div class="mt-4 space-y-3">
                     <% technicalDashboard.unknown_visibility.contributors.forEach((item) => { %>
-                        <div class="rounded-xl border border-slate-200 bg-white p-4">
-                            <p class="font-semibold text-slate-900">
+                        <div class="rounded-xl border border-[#334155] bg-[#0f172a] p-4">
+                            <p class="font-semibold text-[#e2e8f0]">
                                 <%= item.manufacturer_name || 'Unknown Manufacturer' %> <%= item.model_name %>
                             </p>
-                            <p class="mt-1 text-xs uppercase tracking-[0.3em] text-slate-500">
+                            <p class="mt-1 text-xs uppercase tracking-[0.3em] text-[#94a3b8]">
                                 <%= item.asset_type_code %> | SN <%= item.serial_number %> | <%= item.position || 'Position Not Captured' %>
                             </p>
-                            <p class="mt-3 text-sm text-slate-700">
+                            <p class="mt-3 text-sm text-[#94a3b8]">
                                 <% if ((item.missing_data || []).length > 0) { %>
                                     Missing Data: <%= item.missing_data.join(', ') %>
                                 <% } else { %>
                                     Missing Data: No missing-data labels captured, but the current derived view still marked this contributor as partially unknown.
                                 <% } %>
                             </p>
-                            <p class="mt-2 text-sm leading-6 text-slate-700"><%= item.due_explanation %></p>
+                            <p class="mt-2 text-sm leading-6 text-[#94a3b8]"><%= item.due_explanation %></p>
                         </div>
                     <% }) %>
                 </div>
             <% } else if ((technicalDashboard.unknown_visibility?.missing_required_asset_types || []).length === 0) { %>
-                <div class="mt-4 rounded-xl border border-dashed border-slate-300 bg-white px-4 py-5 text-sm text-slate-600">
+                <div class="mt-4 rounded-xl border border-dashed border-[#334155] bg-[#0f172a] px-4 py-5 text-sm text-[#94a3b8]">
                     No unknown or missing-data contributors are currently visible in the dashboard.
                 </div>
             <% } %>

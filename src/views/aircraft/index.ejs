@@ -1,60 +1,63 @@
 <%- include('../partials/header') %>
 
-<main class="max-w-6xl mx-auto py-10 px-6">
+<main class="max-w-6xl mx-auto bg-[#0f172a] py-10 px-6">
 
-  <div class="flex justify-between items-center mb-8">
-    <h1 class="text-3xl font-bold text-gray-900">Fleet</h1>
+  <div class="mb-8 flex items-center justify-between">
+    <div>
+      <p class="text-[11px] font-black uppercase tracking-[0.35em] text-[#94a3b8]">Operational Control</p>
+      <h1 class="mt-2 text-3xl font-black tracking-tight text-[#e2e8f0]">Fleet</h1>
+    </div>
 
     <% if (user?.roles?.some(role => role.code === 'PLANNER')) { %>
       <a href="/aircraft/create"
-         class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">
+         class="rounded border border-[#334155] bg-[#2563eb] px-4 py-2 text-sm font-bold text-white hover:bg-blue-700">
         + Add Aircraft
       </a>
     <% } %>
   </div>
 
-  <div class="bg-white shadow rounded-lg overflow-hidden">
-    <table class="min-w-full divide-y divide-gray-200">
+  <div class="overflow-hidden rounded-2xl border border-[#334155] bg-[#1e293b] shadow-[0_20px_50px_rgba(0,0,0,0.35)]">
+    <table class="min-w-full divide-y divide-[#334155]">
 
-      <thead class="bg-gray-50">
+      <thead class="bg-[#0f172a]">
         <tr>
-          <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+          <th class="px-6 py-3 text-left text-xs font-bold uppercase tracking-[0.25em] text-[#94a3b8]">
             Registration
           </th>
-          <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+          <th class="px-6 py-3 text-left text-xs font-bold uppercase tracking-[0.25em] text-[#94a3b8]">
             Manufacturer
           </th>
-          <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+          <th class="px-6 py-3 text-left text-xs font-bold uppercase tracking-[0.25em] text-[#94a3b8]">
             Model
           </th>
-          <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+          <th class="px-6 py-3 text-left text-xs font-bold uppercase tracking-[0.25em] text-[#94a3b8]">
             Serial
           </th>
-          <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+          <th class="px-6 py-3 text-left text-xs font-bold uppercase tracking-[0.25em] text-[#94a3b8]">
             Status
           </th>
         </tr>
       </thead>
 
-      <tbody class="bg-white divide-y divide-gray-200">
+      <tbody class="bg-[#1e293b] divide-y divide-[#334155]">
 
         <% aircraft.forEach(ac => { %>
-          <tr class="hover:bg-gray-50 cursor-pointer"
+          <tr class="cursor-pointer transition hover:bg-[#0f172a]"
               onclick="window.location='/aircraft/view/<%= ac.id %>'">
 
-            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+            <td class="px-6 py-4 whitespace-nowrap text-sm font-semibold text-[#e2e8f0]">
               <%= ac.registration %>
             </td>
 
-            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
-              <%= ac.ComponentModel?.Manufacturer?.name || '—' %>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-[#94a3b8]">
+              <%= ac.ComponentModel?.Manufacturer?.name || 'â€”' %>
             </td>
 
-            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
-              <%= ac.ComponentModel?.model_name || '—' %>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-[#94a3b8]">
+              <%= ac.ComponentModel?.model_name || 'â€”' %>
             </td>
 
-            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-[#94a3b8]">
               <%= ac.serial_number %>
             </td>
 
