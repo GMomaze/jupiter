@@ -1,180 +1,253 @@
 <%- include('../partials/header') %>
 
-<main class="max-w-7xl mx-auto py-10 px-4 sm:px-6 lg:px-8">
+<main class="max-w-7xl mx-auto bg-[#0f172a] py-10 px-4 sm:px-6 lg:px-8">
     <% const safeMetrics = typeof metrics !== 'undefined' ? metrics : {}; %>
     <% const summaryCards = [
       {
         key: 'totalAircraft',
         label: 'Total Aircraft',
-        tone: 'border-slate-700 bg-slate-900 text-white',
-        helper: 'Registered fleet records currently visible in Jupiter.',
+        helper: 'Fleet',
       },
       {
         key: 'activeAircraft',
         label: 'Active Aircraft',
-        tone: 'border-emerald-200 bg-emerald-50 text-emerald-950',
-        helper: 'Aircraft currently in ACTIVE operational status.',
+        helper: 'Operational',
       },
       {
         key: 'openWorkpacks',
         label: 'Open Workpacks',
-        tone: 'border-blue-200 bg-blue-50 text-blue-950',
-        helper: 'All workpacks not yet in CLOSED status.',
+        helper: 'Control',
       },
       {
         key: 'awaitingCertification',
         label: 'Awaiting Certification',
-        tone: 'border-amber-200 bg-amber-50 text-amber-950',
-        helper: 'In-progress workpacks awaiting engineer certification flow.',
+        helper: 'Engineer Queue',
       },
       {
         key: 'openSnags',
         label: 'Open Snags',
-        tone: 'border-rose-200 bg-rose-50 text-rose-950',
-        helper: 'Snags not yet closed across the current system state.',
+        helper: 'Defects',
       },
       {
         key: 'serializedComponents',
         label: 'Serialized Components',
-        tone: 'border-cyan-200 bg-cyan-50 text-cyan-950',
-        helper: 'Serialized component records available in the library.',
+        helper: 'Component Library',
       },
       {
         key: 'activeCustomers',
         label: 'Active Customers',
-        tone: 'border-violet-200 bg-violet-50 text-violet-950',
-        helper: 'Customer master records currently marked ACTIVE.',
+        helper: 'Accounts',
+      },
+    ]; %>
+    <% const attentionCards = [
+      {
+        key: 'openSnags',
+        label: 'Open Snags',
+        href: '/workpacks',
+      },
+      {
+        key: 'awaitingCertification',
+        label: 'Awaiting Certification',
+        href: '/workpacks',
+      },
+      {
+        key: 'openWorkpacks',
+        label: 'Open Workpacks',
+        href: '/workpacks/hangar',
+      },
+    ]; %>
+    <% const coreLinks = [
+      {
+        href: '/aircraft',
+        eyebrow: 'Fleet',
+        title: 'Aircraft',
+        subtitle: 'Aircraft register and technical views',
+      },
+      {
+        href: '/workpacks',
+        eyebrow: 'Workpacks',
+        title: 'Operations',
+        subtitle: 'Planner, execution, and audit paths',
+      },
+      {
+        href: '/library',
+        eyebrow: 'Library',
+        title: 'Reference Data',
+        subtitle: 'Manufacturers, models, and serialized stock',
+      },
+    ]; %>
+    <% const supportLinks = [
+      {
+        href: '/service-bulletins',
+        title: 'Service Bulletins',
+        subtitle: 'Bulletin management and sync visibility',
+      },
+      {
+        href: '/customers',
+        title: 'Customers',
+        subtitle: 'Customer master records and links',
+      },
+      {
+        href: '/workpacks/hangar',
+        title: 'Hangar Floor',
+        subtitle: 'Active execution access by role',
       },
     ]; %>
 
-    <section class="overflow-hidden rounded-3xl border border-slate-800 bg-slate-900 shadow-2xl">
-        <div class="grid gap-8 px-6 py-8 lg:grid-cols-[1.4fr_0.6fr] lg:px-8">
-            <div>
-                <p class="text-xs font-black uppercase tracking-[0.35em] text-slate-400">
-                    Operational Overview
+    <section class="overflow-hidden rounded-2xl border border-[#334155] bg-[#1e3a8a] shadow-[0_20px_50px_rgba(0,0,0,0.35)]">
+        <div class="grid gap-4 px-5 py-5 lg:grid-cols-[1.25fr_0.75fr] lg:px-6">
+            <div class="min-w-0">
+                <p class="text-[11px] font-black uppercase tracking-[0.35em] text-[#94a3b8]">
+                    Operational Control
                 </p>
-                <h1 class="mt-3 text-4xl font-black tracking-tight text-white">
+                <h1 class="mt-2 text-3xl font-black tracking-tight text-[#e2e8f0]">
                     Jupiter Dashboard
                 </h1>
-                <p class="mt-4 max-w-2xl text-sm leading-7 text-slate-300">
-                    Read-only operational visibility for fleet, workpacks, components, and customers. Core navigation remains unchanged and available below.
-                </p>
-
-                <% if (typeof metricsWarning === 'string' && metricsWarning) { %>
-                    <div class="mt-5 rounded-2xl border border-amber-400/40 bg-amber-300/10 px-4 py-3 text-sm text-amber-100">
-                        <%= metricsWarning %>
-                    </div>
-                <% } %>
             </div>
 
-            <div class="rounded-2xl border border-slate-700 bg-slate-800/80 p-5">
-                <p class="text-xs font-black uppercase tracking-[0.3em] text-slate-400">
-                    Guidance
-                </p>
-                <p class="mt-3 text-lg font-semibold text-white">
-                    Use this page as a read-only launch point for operational review.
-                </p>
-                <ul class="mt-4 space-y-3 text-sm leading-6 text-slate-300">
-                    <li>Fleet, Workpacks, and Library links remain available exactly as before.</li>
-                    <li>Summary cards show live counts only from existing Jupiter records.</li>
-                    <li>No dashboard action on this page changes lifecycle, certification, or maintenance state.</li>
-                </ul>
+            <div class="grid gap-2 sm:grid-cols-3">
+                <div class="rounded-xl border border-[#334155] bg-[#0f172a] px-4 py-3">
+                    <p class="text-[10px] font-black uppercase tracking-[0.25em] text-[#94a3b8]">Status</p>
+                    <p class="mt-2 text-sm font-semibold text-[#e2e8f0]">Read Only</p>
+                </div>
+                <div class="rounded-xl border border-[#334155] bg-[#0f172a] px-4 py-3">
+                    <p class="text-[10px] font-black uppercase tracking-[0.25em] text-[#94a3b8]">Scope</p>
+                    <p class="mt-2 text-sm font-semibold text-[#e2e8f0]">Fleet + Workpacks</p>
+                </div>
+                <div class="rounded-xl border border-[#334155] bg-[#0f172a] px-4 py-3">
+                    <p class="text-[10px] font-black uppercase tracking-[0.25em] text-[#94a3b8]">Mode</p>
+                    <p class="mt-2 text-sm font-semibold text-[#e2e8f0]">Navigation</p>
+                </div>
             </div>
         </div>
     </section>
 
-    <section class="mt-8">
-        <div class="mb-4 flex items-end justify-between gap-4">
-            <div>
-                <h2 class="text-2xl font-black tracking-tight text-slate-900">Operational Summary</h2>
-                <p class="mt-1 text-sm text-slate-500">Live counts from current aircraft, workpack, snag, component, and customer records.</p>
-            </div>
+    <% if (typeof metricsWarning === 'string' && metricsWarning) { %>
+        <div class="mt-4 rounded-2xl border border-[#334155] bg-[#1f2937] px-4 py-3 text-sm text-[#e2e8f0] shadow-sm">
+            <%= metricsWarning %>
+        </div>
+    <% } %>
+
+    <section class="mt-6">
+        <div class="mb-3">
+            <p class="text-[11px] font-black uppercase tracking-[0.3em] text-[#94a3b8]">Operational Summary</p>
+            <h2 class="mt-1 text-xl font-black tracking-tight text-[#e2e8f0]">Live Counts</h2>
         </div>
 
-        <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
             <% summaryCards.forEach((card) => { %>
                 <% const rawValue = safeMetrics[card.key]; %>
                 <% const hasValue = typeof rawValue === 'number'; %>
-                <article class="rounded-2xl border p-5 shadow-sm <%= card.tone %>">
-                    <p class="text-[11px] font-black uppercase tracking-[0.3em] <%= card.key === 'totalAircraft' ? 'text-slate-300' : 'text-current opacity-70' %>">
+                <article class="rounded-2xl border border-[#334155] bg-[#1e293b] p-4 shadow-[0_12px_30px_rgba(0,0,0,0.25)]">
+                    <div class="flex items-start justify-between gap-3">
+                        <p class="text-[11px] font-black uppercase tracking-[0.3em] text-[#94a3b8]">
+                            <%= card.helper %>
+                        </p>
+                        <% if (!hasValue) { %>
+                            <span class="rounded-full border border-[#334155] bg-[#0f172a] px-2 py-1 text-[10px] font-black uppercase tracking-[0.2em] text-[#94a3b8] shadow-sm">
+                                Missing
+                            </span>
+                        <% } %>
+                    </div>
+                    <p class="mt-3 text-xs font-bold uppercase tracking-[0.25em] text-[#94a3b8]">
                         <%= card.label %>
                     </p>
-                    <p class="mt-4 text-4xl font-black tracking-tight">
+                    <p class="mt-2 text-4xl font-black tracking-tight text-[#e2e8f0]">
                         <%= hasValue ? rawValue : '-' %>
                     </p>
-                    <p class="mt-3 text-sm leading-6 <%= card.key === 'totalAircraft' ? 'text-slate-300' : 'text-current opacity-80' %>">
-                        <%= card.helper %>
-                    </p>
-                    <% if (!hasValue) { %>
-                        <p class="mt-3 text-xs font-bold uppercase tracking-[0.25em] <%= card.key === 'totalAircraft' ? 'text-amber-200' : 'text-amber-700' %>">
-                            Unavailable
-                        </p>
-                    <% } %>
                 </article>
             <% }) %>
         </div>
     </section>
 
-    <section class="mt-10 grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
-        <div class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-            <div class="mb-5">
-                <p class="text-xs font-black uppercase tracking-[0.3em] text-slate-500">Core Destinations</p>
-                <h2 class="mt-2 text-2xl font-black tracking-tight text-slate-900">Primary Access</h2>
-                <p class="mt-2 text-sm text-slate-500">Existing dashboard destinations remain clear, direct, and unchanged.</p>
+    <section class="mt-6 grid gap-4 xl:grid-cols-[0.78fr_1.22fr]">
+        <div class="space-y-4">
+            <div class="rounded-2xl border border-[#334155] bg-[#1e293b] p-5 shadow-[0_16px_40px_rgba(0,0,0,0.28)]">
+                <div class="mb-4">
+                    <p class="text-[11px] font-black uppercase tracking-[0.3em] text-[#94a3b8]">Requires Attention</p>
+                    <h2 class="mt-1 text-xl font-black tracking-tight text-[#e2e8f0]">Operational Queue</h2>
+                </div>
+
+                <div class="space-y-3">
+                    <% attentionCards.forEach((card) => { %>
+                        <% const rawValue = safeMetrics[card.key]; %>
+                        <% const hasValue = typeof rawValue === 'number'; %>
+                        <a href="<%= card.href %>" class="block rounded-2xl border border-[#334155] bg-[#0f172a] px-4 py-4 transition hover:border-[#2563eb] hover:bg-[#152238]">
+                            <div class="flex items-center justify-between gap-4">
+                                <div>
+                                    <p class="text-[11px] font-black uppercase tracking-[0.25em] text-[#94a3b8]"><%= card.label %></p>
+                                    <p class="mt-2 text-3xl font-black tracking-tight text-[#e2e8f0]"><%= hasValue ? rawValue : '-' %></p>
+                                </div>
+                                <span class="text-[10px] font-black uppercase tracking-[0.25em] text-[#94a3b8]">Open</span>
+                            </div>
+                        </a>
+                    <% }) %>
+                </div>
             </div>
 
-            <div class="grid gap-4 md:grid-cols-3">
-                <a href="/aircraft" class="group rounded-2xl border border-slate-200 bg-slate-50 p-5 transition hover:border-slate-400 hover:bg-white">
-                    <p class="text-xs font-black uppercase tracking-[0.3em] text-slate-500">Fleet</p>
-                    <h3 class="mt-3 text-xl font-black text-slate-900">Aircraft</h3>
-                    <p class="mt-2 text-sm leading-6 text-slate-600">Open the fleet register, aircraft views, and technical visibility screens.</p>
-                </a>
+            <div class="rounded-2xl border border-[#334155] bg-[#1e293b] p-5 shadow-[0_16px_40px_rgba(0,0,0,0.28)]">
+                <div class="mb-4">
+                    <p class="text-[11px] font-black uppercase tracking-[0.3em] text-[#94a3b8]">System State</p>
+                    <h2 class="mt-1 text-xl font-black tracking-tight text-[#e2e8f0]">Board Status</h2>
+                </div>
 
-                <a href="/workpacks" class="group rounded-2xl border border-slate-200 bg-slate-50 p-5 transition hover:border-slate-400 hover:bg-white">
-                    <p class="text-xs font-black uppercase tracking-[0.3em] text-slate-500">Workpacks</p>
-                    <h3 class="mt-3 text-xl font-black text-slate-900">Operations</h3>
-                    <p class="mt-2 text-sm leading-6 text-slate-600">Review workpack status, execution access, planning, and audit-ready task flow.</p>
-                </a>
-
-                <a href="/library" class="group rounded-2xl border border-slate-200 bg-slate-50 p-5 transition hover:border-slate-400 hover:bg-white">
-                    <p class="text-xs font-black uppercase tracking-[0.3em] text-slate-500">Library</p>
-                    <h3 class="mt-3 text-xl font-black text-slate-900">Reference Data</h3>
-                    <p class="mt-2 text-sm leading-6 text-slate-600">Open manufacturers, models, compliance source material, and serialized component records.</p>
-                </a>
+                <div class="grid gap-3 sm:grid-cols-3">
+                    <div class="rounded-xl border border-[#334155] bg-[#0f172a] px-4 py-3">
+                        <p class="text-[10px] font-black uppercase tracking-[0.25em] text-[#94a3b8]">Access</p>
+                        <p class="mt-2 text-sm font-semibold text-[#e2e8f0]">Authenticated</p>
+                    </div>
+                    <div class="rounded-xl border border-[#334155] bg-[#0f172a] px-4 py-3">
+                        <p class="text-[10px] font-black uppercase tracking-[0.25em] text-[#94a3b8]">Behavior</p>
+                        <p class="mt-2 text-sm font-semibold text-[#e2e8f0]">Read Only</p>
+                    </div>
+                    <div class="rounded-xl border border-[#334155] bg-[#0f172a] px-4 py-3">
+                        <p class="text-[10px] font-black uppercase tracking-[0.25em] text-[#94a3b8]">Counts</p>
+                        <p class="mt-2 text-sm font-semibold text-[#e2e8f0]">Live Records</p>
+                    </div>
+                </div>
             </div>
         </div>
 
-        <div class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-            <div class="mb-5">
-                <p class="text-xs font-black uppercase tracking-[0.3em] text-slate-500">Quick Links</p>
-                <h2 class="mt-2 text-2xl font-black tracking-tight text-slate-900">Supporting Navigation</h2>
-                <p class="mt-2 text-sm text-slate-500">Additional read-only access paths already available in the current system.</p>
+        <div class="space-y-4">
+            <div class="rounded-2xl border border-[#334155] bg-[#1e293b] p-5 shadow-[0_16px_40px_rgba(0,0,0,0.28)]">
+                <div class="mb-4 flex items-center justify-between gap-4">
+                    <div>
+                        <p class="text-[11px] font-black uppercase tracking-[0.3em] text-[#94a3b8]">Quick Actions</p>
+                        <h2 class="mt-1 text-xl font-black tracking-tight text-[#e2e8f0]">Core Destinations</h2>
+                    </div>
+                    <div class="rounded-full border border-[#334155] bg-[#0f172a] px-3 py-1 text-[10px] font-black uppercase tracking-[0.25em] text-[#94a3b8]">
+                        Preserved
+                    </div>
+                </div>
+
+                <div class="grid gap-3 md:grid-cols-3">
+                    <% coreLinks.forEach((link) => { %>
+                        <a href="<%= link.href %>" class="group rounded-2xl border border-[#334155] bg-[#0f172a] p-4 transition hover:border-[#2563eb] hover:bg-[#152238]">
+                            <p class="text-[11px] font-black uppercase tracking-[0.3em] text-[#94a3b8] group-hover:text-[#e2e8f0]"><%= link.eyebrow %></p>
+                            <h3 class="mt-2 text-lg font-black text-[#e2e8f0]"><%= link.title %></h3>
+                            <p class="mt-2 text-sm text-[#94a3b8]"><%= link.subtitle %></p>
+                        </a>
+                    <% }) %>
+                </div>
             </div>
 
-            <div class="space-y-3">
-                <a href="/service-bulletins" class="flex items-center justify-between rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 transition hover:border-slate-400 hover:bg-white">
-                    <div>
-                        <p class="text-sm font-bold text-slate-900">Service Bulletins</p>
-                        <p class="mt-1 text-sm text-slate-500">Open service bulletin management and sync-related visibility.</p>
-                    </div>
-                    <span class="text-xs font-black uppercase tracking-[0.25em] text-slate-500">Open</span>
-                </a>
+            <div class="rounded-2xl border border-[#334155] bg-[#1e293b] p-5 shadow-[0_16px_40px_rgba(0,0,0,0.28)]">
+                <div class="mb-4">
+                    <p class="text-[11px] font-black uppercase tracking-[0.3em] text-[#94a3b8]">System Shortcuts</p>
+                    <h2 class="mt-1 text-xl font-black tracking-tight text-[#e2e8f0]">Supporting Navigation</h2>
+                </div>
 
-                <a href="/customers" class="flex items-center justify-between rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 transition hover:border-slate-400 hover:bg-white">
-                    <div>
-                        <p class="text-sm font-bold text-slate-900">Customers</p>
-                        <p class="mt-1 text-sm text-slate-500">Review customer master records and aircraft relationship management.</p>
-                    </div>
-                    <span class="text-xs font-black uppercase tracking-[0.25em] text-slate-500">Open</span>
-                </a>
-
-                <a href="/workpacks/hangar" class="flex items-center justify-between rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 transition hover:border-slate-400 hover:bg-white">
-                    <div>
-                        <p class="text-sm font-bold text-slate-900">Hangar Floor</p>
-                        <p class="mt-1 text-sm text-slate-500">Go directly to active workpack execution access if your role allows it.</p>
-                    </div>
-                    <span class="text-xs font-black uppercase tracking-[0.25em] text-slate-500">Open</span>
-                </a>
+                <div class="grid gap-3">
+                    <% supportLinks.forEach((link) => { %>
+                        <a href="<%= link.href %>" class="flex items-center justify-between rounded-2xl border border-[#334155] bg-[#0f172a] px-4 py-3 transition hover:border-[#2563eb] hover:bg-[#152238]">
+                            <div class="min-w-0 pr-4">
+                                <p class="text-sm font-bold text-[#e2e8f0]"><%= link.title %></p>
+                                <p class="mt-1 text-sm text-[#94a3b8]"><%= link.subtitle %></p>
+                            </div>
+                            <span class="shrink-0 text-[10px] font-black uppercase tracking-[0.25em] text-[#94a3b8]">Open</span>
+                        </a>
+                    <% }) %>
+                </div>
             </div>
         </div>
     </section>
