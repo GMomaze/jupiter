@@ -89,9 +89,83 @@ declare module 'express-session' {
     };
   }
 
+  interface StandardTaskImportSessionState {
+    token: string;
+    createdAt: number;
+    fileName: string;
+    csvPayload: string;
+    headers: string[];
+    suggestedMapping: Record<
+      | 'title'
+      | 'description'
+      | 'source_type'
+      | 'interval_hours'
+      | 'interval_months'
+      | 'model_applicability'
+      | 'aircraft_applicability'
+      | 'is_active',
+      string
+    >;
+    unknownColumns: string[];
+    selectedMapping?: Record<
+      | 'title'
+      | 'description'
+      | 'source_type'
+      | 'interval_hours'
+      | 'interval_months'
+      | 'model_applicability'
+      | 'aircraft_applicability'
+      | 'is_active',
+      string
+    >;
+    preview?: {
+      totalRows: number;
+      validRowCount: number;
+      invalidRowCount: number;
+      unknownColumns: string[];
+      unmappedOptionalFields: Array<
+        | 'title'
+        | 'description'
+        | 'source_type'
+        | 'interval_hours'
+        | 'interval_months'
+        | 'model_applicability'
+        | 'aircraft_applicability'
+        | 'is_active'
+      >;
+      mapping: Record<
+        | 'title'
+        | 'description'
+        | 'source_type'
+        | 'interval_hours'
+        | 'interval_months'
+        | 'model_applicability'
+        | 'aircraft_applicability'
+        | 'is_active',
+        string
+      >;
+      rows: Array<{
+        rowNumber: number;
+        status: 'VALID' | 'INVALID';
+        values: {
+          title: string;
+          description: string;
+          source_type: string;
+          interval_hours: number | null;
+          interval_months: number | null;
+          model_applicability: string;
+          aircraft_applicability: string;
+          is_active: boolean | null;
+        };
+        errors: string[];
+      }>;
+    };
+  }
+
   interface SessionData {
     adImportState?: AdImportSessionState;
     sbImportState?: SbImportSessionState;
+    standardTaskImportState?: StandardTaskImportSessionState;
     lastActivity?: number;
     customerUser?: CustomerSessionUser;
   }

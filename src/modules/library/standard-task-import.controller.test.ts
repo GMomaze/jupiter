@@ -121,26 +121,36 @@ describe('StandardTaskImportController preview parser', () => {
       locals: {},
       status: vi.fn().mockReturnThis(),
     } as any;
+    const session = {} as any;
+    const mapReq = {
+      csrfToken: () => 'csrf-test-token',
+      session,
+      file: {
+        originalname: 'tasks.csv',
+        buffer: Buffer.from(
+          'task_name,details,kind\nEngine Check,Inspect engine,MANUAL\n'
+        ),
+      },
+    } as any;
 
-    StandardTaskImportController.renderMappingPage(
-      {
-        file: {
-          originalname: 'tasks.csv',
-          buffer: Buffer.from(
-            'task_name,details,kind\nEngine Check,Inspect engine,MANUAL\n'
-          ),
-        },
-      } as any,
-      mapRes
-    );
+    StandardTaskImportController.renderMappingPage(mapReq, mapRes);
 
     expect(mapRes.status).not.toHaveBeenCalled();
     expect(render).toHaveBeenCalledWith(
       'library/tasks/map-columns',
       expect.objectContaining({
         title: 'Map Standard Task Columns',
+        csrfToken: 'csrf-test-token',
         fileName: 'tasks.csv',
+        importToken: session.standardTaskImportState.token,
         headers: ['task_name', 'details', 'kind'],
+      })
+    );
+    expect(session.standardTaskImportState).toEqual(
+      expect.objectContaining({
+        fileName: 'tasks.csv',
+        token: expect.any(String),
+        csvPayload: expect.any(String),
       })
     );
 
@@ -154,11 +164,10 @@ describe('StandardTaskImportController preview parser', () => {
 
     StandardTaskImportController.previewImport(
       {
+        csrfToken: () => 'csrf-test-token',
+        session,
         body: {
-          csv_payload: Buffer.from(
-            'task_name,details,kind\nEngine Check,Inspect engine,MANUAL\n'
-          ).toString('base64'),
-          file_name: 'tasks.csv',
+          import_token: session.standardTaskImportState.token,
           title: 'task_name',
           description: 'details',
           source_type: 'kind',
@@ -172,7 +181,9 @@ describe('StandardTaskImportController preview parser', () => {
       'library/tasks/preview',
       expect.objectContaining({
         title: 'Standard Task Import Preview',
+        csrfToken: 'csrf-test-token',
         fileName: 'tasks.csv',
+        importToken: session.standardTaskImportState.token,
         preview: expect.objectContaining({
           totalRows: 1,
           validRowCount: 1,

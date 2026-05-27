@@ -141,11 +141,7 @@
           class="flex flex-col gap-3 sm:items-end"
         >
           <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-          <input type="hidden" name="csv_payload" value="<%= csvPayload %>">
-          <input type="hidden" name="file_name" value="<%= fileName %>">
-          <% Object.entries(preview.mapping).forEach(([field, header]) => { %>
-            <input type="hidden" name="<%= field %>" value="<%= header %>">
-          <% }) %>
+          <input type="hidden" name="import_token" value="<%= importToken %>">
 
           <button
             type="submit"

@@ -46,6 +46,10 @@ type PreviewResult = {
   rows: PreviewRow[];
 };
 
+type StandardTaskImportSessionState = NonNullable<
+  Request['session']['standardTaskImportState']
+>;
+
 type CommitRowResult = {
   rowNumber: number;
   status: 'INSERTED' | 'SKIPPED - INVALID' | 'SKIPPED - DUPLICATE';
@@ -77,6 +81,30 @@ const OPTIONAL_TARGET_FIELDS = TARGET_FIELDS.filter((field) => !field.required).
 const ALL_TARGET_FIELD_KEYS = TARGET_FIELDS.map((field) => field.key);
 const BOOLEAN_TRUE_VALUES = new Set(['true', '1', 'yes', 'y', 'on']);
 const BOOLEAN_FALSE_VALUES = new Set(['false', '0', 'no', 'n', 'off']);
+const STANDARD_TASK_IMPORT_STATE_MAX_AGE_MS = 30 * 60 * 1000;
+const STANDARD_TASK_BOUNDED_FIELD_LIMITS = [
+  { key: 'title', label: 'title', maxLength: 255 },
+  { key: 'source_type', label: 'source_type', maxLength: 255 },
+] as const;
+
+class StandardTaskImportRowError extends Error {
+  constructor(
+    rowNumber: number,
+    title: string,
+    sourceType: string,
+    fieldLabel: string | null,
+    detail: string,
+    guidance: string
+  ) {
+    const fieldContext = fieldLabel ? ` ${fieldLabel}` : '';
+    super(
+      `Row ${rowNumber} (${title || 'untitled'} / ${
+        sourceType || 'unknown source_type'
+      })${fieldContext} ${detail} ${guidance}`
+    );
+    this.name = 'StandardTaskImportRowError';
+  }
+}
 
 function normalizeHeader(value: unknown) {
   return String(value || '')
@@ -178,10 +206,6 @@ function createEmptyMapping() {
   ) as Record<TargetField, string>;
 }
 
-function decodeCsvPayload(payload: string) {
-  return Buffer.from(payload, 'base64');
-}
-
 function encodeCsvPayload(buffer: Buffer) {
   return buffer.toString('base64');
 }
@@ -213,6 +237,152 @@ function buildGeneratedTaskCardNumber(rowNumber: number) {
   return `STD-IMPORT-${Date.now()}-${rowNumber}-${randomUUID()
     .slice(0, 8)
     .toUpperCase()}`;
+}
+
+function getCsrfToken(req: Request) {
+  return typeof req.csrfToken === 'function' ? req.csrfToken() : null;
+}
+
+function createStandardTaskImportSessionState(
+  fileName: string,
+  buffer: Buffer,
+  detection: CsvHeaderDetection
+): StandardTaskImportSessionState {
+  return {
+    token: randomUUID(),
+    createdAt: Date.now(),
+    fileName: normalizeString(fileName) || 'Uploaded CSV',
+    csvPayload: encodeCsvPayload(buffer),
+    headers: detection.headers,
+    suggestedMapping: detection.suggestedMapping,
+    unknownColumns: detection.unknownColumns,
+  };
+}
+
+function getValidStandardTaskImportSessionState(req: Request) {
+  const state = req.session?.standardTaskImportState;
+
+  if (!state) {
+    return null;
+  }
+
+  if (Date.now() - state.createdAt > STANDARD_TASK_IMPORT_STATE_MAX_AGE_MS) {
+    delete req.session.standardTaskImportState;
+    return null;
+  }
+
+  return state;
+}
+
+function getStandardTaskImportBuffer(state: StandardTaskImportSessionState) {
+  return Buffer.from(state.csvPayload, 'base64');
+}
+
+function buildMaxLengthMessage(fieldLabel: string, maxLength: number) {
+  return `${fieldLabel} exceeds maximum length of ${maxLength} characters.`;
+}
+
+function buildSchemaGuidance(fieldLabel: string) {
+  return `Shorten the ${fieldLabel} value or update the schema if longer Standard Task data is operationally valid.`;
+}
+
+function getBoundedFieldOverflow(values: PreviewRowValues) {
+  for (const field of STANDARD_TASK_BOUNDED_FIELD_LIMITS) {
+    const valueLength = normalizeString(values[field.key]).length;
+    if (valueLength > field.maxLength) {
+      return {
+        fieldLabel: field.label,
+        maxLength: field.maxLength,
+        actualLength: valueLength,
+      };
+    }
+  }
+
+  return null;
+}
+
+function buildRowErrorFromDatabaseError(row: PreviewRow, error: any) {
+  const overflow = getBoundedFieldOverflow(row.values);
+  if (overflow) {
+    return new StandardTaskImportRowError(
+      row.rowNumber,
+      normalizeString(row.values.title),
+      normalizeString(row.values.source_type),
+      overflow.fieldLabel,
+      `exceeds maximum length of ${overflow.maxLength} characters (${overflow.actualLength} provided).`,
+      buildSchemaGuidance(overflow.fieldLabel)
+    );
+  }
+
+  const rawMessage =
+    error?.original?.message || error?.parent?.message || error?.message || 'Database write failed.';
+
+  return new StandardTaskImportRowError(
+    row.rowNumber,
+    normalizeString(row.values.title),
+    normalizeString(row.values.source_type),
+    null,
+    `failed during database commit: ${rawMessage}`,
+    'Review this row for unsupported values and retry the import.'
+  );
+}
+
+function applyBoundedFieldValidation(preview: PreviewResult) {
+  preview.rows.forEach((row) => {
+    const overflow = getBoundedFieldOverflow(row.values);
+    if (!overflow) {
+      return;
+    }
+
+    row.errors.push(
+      `${buildMaxLengthMessage(overflow.fieldLabel, overflow.maxLength)} ${buildSchemaGuidance(
+        overflow.fieldLabel
+      )}`
+    );
+    row.status = 'INVALID';
+  });
+
+  const invalidRowCount = preview.rows.filter((row) => row.status === 'INVALID').length;
+  preview.invalidRowCount = invalidRowCount;
+  preview.validRowCount = preview.rows.length - invalidRowCount;
+
+  return preview;
+}
+
+function renderStandardTaskMappingPage(
+  req: Request,
+  res: Response,
+  state: StandardTaskImportSessionState,
+  mapping: Record<TargetField, string>,
+  mappingErrors: string[] = []
+) {
+  return res.render('library/tasks/map-columns', {
+    title: 'Map Standard Task Columns',
+    csrfToken: getCsrfToken(req),
+    fileName: state.fileName,
+    importToken: state.token,
+    headers: state.headers,
+    mapping,
+    targetFields: TARGET_FIELDS,
+    unknownColumns: state.unknownColumns,
+    mappingErrors,
+  });
+}
+
+function renderStandardTaskPreviewPage(
+  req: Request,
+  res: Response,
+  state: StandardTaskImportSessionState,
+  messages?: { success?: string[]; error?: string[] }
+) {
+  return res.render('library/tasks/preview', {
+    title: 'Standard Task Import Preview',
+    csrfToken: getCsrfToken(req),
+    fileName: state.fileName,
+    importToken: state.token,
+    preview: state.preview,
+    messages,
+  });
 }
 
 async function hasExistingTaskTemplateDuplicate(
@@ -289,26 +459,30 @@ async function commitStandardTaskPreview(preview: PreviewResult) {
         continue;
       }
 
-      await TaskTemplate.create(
-        {
-          task_card_number: buildGeneratedTaskCardNumber(row.rowNumber),
-          scope: 'GLOBAL',
-          sort_order: 0,
-          title: normalizeString(row.values.title),
-          description: normalizeString(row.values.description),
-          source_type: normalizeStoredSourceType(row.values.source_type),
-          interval_hours: row.values.interval_hours,
-          interval_months: row.values.interval_months,
-          model_applicability: normalizeStoredText(
-            row.values.model_applicability
-          ),
-          aircraft_applicability: normalizeStoredText(
-            row.values.aircraft_applicability
-          ),
-          is_active: row.values.is_active ?? true,
-        } as any,
-        { transaction }
-      );
+      try {
+        await TaskTemplate.create(
+          {
+            task_card_number: buildGeneratedTaskCardNumber(row.rowNumber),
+            scope: 'GLOBAL',
+            sort_order: 0,
+            title: normalizeString(row.values.title),
+            description: normalizeString(row.values.description),
+            source_type: normalizeStoredSourceType(row.values.source_type),
+            interval_hours: row.values.interval_hours,
+            interval_months: row.values.interval_months,
+            model_applicability: normalizeStoredText(
+              row.values.model_applicability
+            ),
+            aircraft_applicability: normalizeStoredText(
+              row.values.aircraft_applicability
+            ),
+            is_active: row.values.is_active ?? true,
+          } as any,
+          { transaction }
+        );
+      } catch (error: any) {
+        throw buildRowErrorFromDatabaseError(row, error);
+      }
 
       duplicateKeysInBatch.add(duplicateKey);
       totalInserted += 1;
@@ -497,10 +671,12 @@ export class StandardTaskImportController {
 
   static renderMappingPage(req: Request, res: Response) {
     const file = (req as Request & { file?: Express.Multer.File }).file;
+    const csrfToken = getCsrfToken(req);
 
     if (!file) {
       return res.status(400).render('library/tasks/import', {
         title: 'Standard Task Import Preview',
+        csrfToken,
         messages: {
           ...(res.locals.messages || {}),
           error: ['No CSV file uploaded.'],
@@ -510,20 +686,24 @@ export class StandardTaskImportController {
 
     try {
       const detection = detectStandardTaskCsvHeaders(file.buffer);
+      const importState = createStandardTaskImportSessionState(
+        file.originalname,
+        file.buffer,
+        detection
+      );
 
-      return res.render('library/tasks/map-columns', {
-        title: 'Map Standard Task Columns',
-        fileName: file.originalname,
-        csvPayload: encodeCsvPayload(file.buffer),
-        headers: detection.headers,
-        mapping: detection.suggestedMapping,
-        targetFields: TARGET_FIELDS,
-        unknownColumns: detection.unknownColumns,
-        mappingErrors: [],
-      });
+      req.session.standardTaskImportState = importState;
+
+      return renderStandardTaskMappingPage(
+        req,
+        res,
+        importState,
+        detection.suggestedMapping
+      );
     } catch (error: any) {
       return res.status(400).render('library/tasks/import', {
         title: 'Standard Task Import Preview',
+        csrfToken,
         messages: {
           ...(res.locals.messages || {}),
           error: [error?.message || 'Unable to read CSV headers.'],
@@ -533,9 +713,10 @@ export class StandardTaskImportController {
   }
 
   static previewImport(req: Request, res: Response) {
-    const payload = normalizeString(req.body?.csv_payload);
+    const importToken = normalizeString(req.body?.import_token);
+    const importState = getValidStandardTaskImportSessionState(req);
 
-    if (!payload) {
+    if (!importState || !importToken || importState.token !== importToken) {
       return res.status(400).render('library/tasks/import', {
         title: 'Standard Task Import Preview',
         messages: {
@@ -546,7 +727,7 @@ export class StandardTaskImportController {
     }
 
     try {
-      const buffer = decodeCsvPayload(payload);
+      const buffer = getStandardTaskImportBuffer(importState);
       const detection = detectStandardTaskCsvHeaders(buffer);
       const mapping = createEmptyMapping();
 
@@ -557,26 +738,30 @@ export class StandardTaskImportController {
       const mappingErrors = validateMapping(mapping, detection.headers);
 
       if (mappingErrors.length > 0) {
-        return res.status(400).render('library/tasks/map-columns', {
-          title: 'Map Standard Task Columns',
-          fileName: normalizeString(req.body?.file_name) || 'Uploaded CSV',
-          csvPayload: payload,
-          headers: detection.headers,
+        res.status(400);
+        return renderStandardTaskMappingPage(
+          req,
+          res,
+          importState,
           mapping,
-          targetFields: TARGET_FIELDS,
-          unknownColumns: detection.unknownColumns,
-          mappingErrors,
-        });
+          mappingErrors
+        );
       }
 
-      const preview = previewMappedStandardTaskCsv(buffer, mapping);
-
-      return res.render('library/tasks/preview', {
-        title: 'Standard Task Import Preview',
-        fileName: normalizeString(req.body?.file_name) || 'Uploaded CSV',
+      const preview = applyBoundedFieldValidation(
+        previewMappedStandardTaskCsv(buffer, mapping)
+      );
+      req.session.standardTaskImportState = {
+        ...importState,
+        selectedMapping: mapping,
         preview,
-        csvPayload: payload,
-      });
+      };
+
+      return renderStandardTaskPreviewPage(
+        req,
+        res,
+        req.session.standardTaskImportState
+      );
     } catch (error: any) {
       return res.status(400).render('library/tasks/import', {
         title: 'Standard Task Import Preview',
@@ -589,9 +774,15 @@ export class StandardTaskImportController {
   }
 
   static async commitImport(req: Request, res: Response) {
-    const payload = normalizeString(req.body?.csv_payload);
+    const importToken = normalizeString(req.body?.import_token);
+    const importState = getValidStandardTaskImportSessionState(req);
 
-    if (!payload) {
+    if (
+      !importState ||
+      !importToken ||
+      importState.token !== importToken ||
+      !importState.preview
+    ) {
       return res.status(400).render('library/tasks/import', {
         title: 'Standard Task Import Preview',
         messages: {
@@ -602,22 +793,28 @@ export class StandardTaskImportController {
     }
 
     try {
-      const buffer = decodeCsvPayload(payload);
-      const mapping = createEmptyMapping();
-
-      ALL_TARGET_FIELD_KEYS.forEach((field) => {
-        mapping[field] = normalizeMappingInput(req.body?.[field]);
-      });
-
-      const preview = previewMappedStandardTaskCsv(buffer, mapping);
-      const result = await commitStandardTaskPreview(preview);
+      const result = await commitStandardTaskPreview(importState.preview);
+      delete req.session.standardTaskImportState;
 
       return res.render('library/tasks/result', {
         title: 'Standard Task Import Result',
-        fileName: normalizeString(req.body?.file_name) || 'Uploaded CSV',
+        fileName: importState.fileName,
         result,
       });
     } catch (error: any) {
+      if (req.session?.standardTaskImportState?.preview) {
+        res.status(400);
+        return renderStandardTaskPreviewPage(
+          req,
+          res,
+          req.session.standardTaskImportState,
+          {
+            ...(res.locals.messages || {}),
+            error: [error?.message || 'Unable to commit Standard Task import.'],
+          }
+        );
+      }
+
       return res.status(400).render('library/tasks/import', {
         title: 'Standard Task Import Preview',
         messages: {
