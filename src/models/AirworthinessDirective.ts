@@ -102,7 +102,7 @@ AirworthinessDirective.init(
       allowNull: true,
     },
     model: {
-      type: DataTypes.STRING,
+      type: DataTypes.TEXT,
       allowNull: true,
     },
     product_type: {

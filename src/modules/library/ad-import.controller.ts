@@ -113,7 +113,6 @@ type AdBoundedFieldKey =
   | 'office_of_primary_responsibility'
   | 'docket_number'
   | 'make'
-  | 'model'
   | 'product_type'
   | 'product_subtype';
 
@@ -138,7 +137,6 @@ const AD_BOUNDED_FIELD_LIMITS: Array<{
   },
   { key: 'docket_number', label: 'Docket Number', maxLength: 255 },
   { key: 'make', label: 'Make', maxLength: 255 },
-  { key: 'model', label: 'Model', maxLength: 255 },
   { key: 'product_type', label: 'Product Type', maxLength: 255 },
   { key: 'product_subtype', label: 'Product Subtype', maxLength: 255 },
 ];
