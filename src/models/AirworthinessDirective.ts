@@ -90,7 +90,7 @@ AirworthinessDirective.init(
       allowNull: true,
     },
     citation: {
-      type: DataTypes.STRING,
+      type: DataTypes.TEXT,
       allowNull: true,
     },
     citation_publish_date: {

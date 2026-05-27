@@ -104,11 +104,61 @@ type AdCommitResult = {
 };
 
 type AdImportSessionState = NonNullable<Request['session']['adImportState']>;
+type AdBoundedFieldKey =
+  | 'ad_number'
+  | 'subject_heading'
+  | 'status'
+  | 'cfr_part_reference'
+  | 'service_office'
+  | 'office_of_primary_responsibility'
+  | 'docket_number'
+  | 'make'
+  | 'model'
+  | 'product_type'
+  | 'product_subtype';
 
 const FIELD_BY_NORMALIZED_HEADER = new Map(
   AD_FIELDS.map((field) => [normalizeHeader(field.label), field])
 );
 const AD_IMPORT_STATE_MAX_AGE_MS = 30 * 60 * 1000;
+const AD_BOUNDED_FIELD_LIMITS: Array<{
+  key: AdBoundedFieldKey;
+  label: string;
+  maxLength: number;
+}> = [
+  { key: 'ad_number', label: 'AD Number', maxLength: 255 },
+  { key: 'subject_heading', label: 'Subject Heading', maxLength: 255 },
+  { key: 'status', label: 'Status', maxLength: 255 },
+  { key: 'cfr_part_reference', label: 'CFR Part Reference', maxLength: 255 },
+  { key: 'service_office', label: 'Service/Office', maxLength: 255 },
+  {
+    key: 'office_of_primary_responsibility',
+    label: 'Office of Primary Responsibility',
+    maxLength: 255,
+  },
+  { key: 'docket_number', label: 'Docket Number', maxLength: 255 },
+  { key: 'make', label: 'Make', maxLength: 255 },
+  { key: 'model', label: 'Model', maxLength: 255 },
+  { key: 'product_type', label: 'Product Type', maxLength: 255 },
+  { key: 'product_subtype', label: 'Product Subtype', maxLength: 255 },
+];
+
+class AdImportRowError extends Error {
+  constructor(
+    readonly rowNumber: number,
+    readonly adNumber: string,
+    readonly fieldLabel: string | null,
+    reason: string,
+    readonly recommendedAction: string
+  ) {
+    const adReference = adNumber ? ` — ${adNumber}` : '';
+    const fieldPrefix = fieldLabel ? `${fieldLabel} ` : 'Import row ';
+    super(
+      `Row ${rowNumber}${adReference} — ${fieldPrefix}${reason} ${recommendedAction}`.trim()
+    );
+    this.name = 'AdImportRowError';
+  }
+}
 
 function normalizeHeader(value: unknown) {
   return String(value || '')
@@ -219,6 +269,93 @@ function normalizeOptionalText(value: string) {
   return normalized || null;
 }
 
+function buildMaxLengthMessage(fieldLabel: string, maxLength: number) {
+  return `${fieldLabel} exceeds maximum length of ${maxLength} characters.`;
+}
+
+function buildSchemaGuidance(fieldLabel: string) {
+  return `Shorten the ${fieldLabel.toLowerCase()} value or update the schema if longer AD data is operationally valid.`;
+}
+
+function getBoundedFieldOverflow(values: AdPreviewValues) {
+  for (const field of AD_BOUNDED_FIELD_LIMITS) {
+    const valueLength = normalizeString(values[field.key]).length;
+    if (valueLength > field.maxLength) {
+      return {
+        fieldLabel: field.label,
+        maxLength: field.maxLength,
+        actualLength: valueLength,
+      };
+    }
+  }
+
+  return null;
+}
+
+function getRelationshipOverflow(values: AdPreviewValues) {
+  const relationshipFields: Array<{
+    values: string[];
+    label: string;
+    maxLength: number;
+  }> = [
+    { values: values.affected_ad, label: 'Affected AD', maxLength: 255 },
+    { values: values.superseded_ad, label: 'Superseded AD', maxLength: 255 },
+    { values: values.affected_by, label: 'Affected By', maxLength: 255 },
+    { values: values.superseded_by, label: 'Superseded By', maxLength: 255 },
+  ];
+
+  for (const field of relationshipFields) {
+    const longestValue = field.values
+      .map((value) => normalizeString(value).length)
+      .sort((left, right) => right - left)[0];
+
+    if (Number(longestValue || 0) > field.maxLength) {
+      return {
+        fieldLabel: field.label,
+        maxLength: field.maxLength,
+        actualLength: longestValue,
+      };
+    }
+  }
+
+  return null;
+}
+
+function buildRowErrorFromDatabaseError(row: AdPreviewRow, error: any) {
+  const overflow = getBoundedFieldOverflow(row.values);
+  if (overflow) {
+    return new AdImportRowError(
+      row.rowNumber,
+      normalizeString(row.values.ad_number),
+      overflow.fieldLabel,
+      `exceeds maximum length of ${overflow.maxLength} characters (${overflow.actualLength} provided).`,
+      buildSchemaGuidance(overflow.fieldLabel)
+    );
+  }
+
+  const relationshipOverflow = getRelationshipOverflow(row.values);
+  if (relationshipOverflow) {
+    return new AdImportRowError(
+      row.rowNumber,
+      normalizeString(row.values.ad_number),
+      relationshipOverflow.fieldLabel,
+      `exceeds maximum length of ${relationshipOverflow.maxLength} characters (${relationshipOverflow.actualLength} provided).`,
+      buildSchemaGuidance(relationshipOverflow.fieldLabel)
+    );
+  }
+
+  const rawMessage =
+    error?.original?.message || error?.parent?.message || error?.message || 'Database write failed.';
+
+  return new AdImportRowError(
+    row.rowNumber,
+    normalizeString(row.values.ad_number),
+    null,
+    `failed during database commit: ${rawMessage}`,
+    'Review this row for unsupported values and retry the import.'
+  );
+}
+
 function buildAdDuplicateKey(values: AdPreviewValues) {
   return `${normalizeString(values.ad_number).toUpperCase()}\u001f`;
 }
@@ -310,57 +447,64 @@ async function commitAdPreview(preview: AdPreviewResult) {
         continue;
       }
 
-      const directive = await AirworthinessDirective.create(
-        {
-          ad_number: normalizeString(row.values.ad_number),
-          revision: null,
-          subject_heading: normalizeOptionalText(row.values.subject_heading),
-          subject: normalizeOptionalText(row.values.subject),
-          summary: normalizeOptionalText(row.values.summary),
-          comments: normalizeOptionalText(row.values.comments),
-          status: normalizeOptionalText(row.values.status),
-          cfr_part_reference: normalizeOptionalText(
-            row.values.cfr_part_reference
-          ),
-          effective_date: normalizeOptionalText(row.values.effective_date),
-          authority: null,
-          service_office: normalizeOptionalText(row.values.service_office),
-          primary_responsibility_office: normalizeOptionalText(
-            row.values.office_of_primary_responsibility
-          ),
-          docket_number: normalizeOptionalText(row.values.docket_number),
-          citation: normalizeOptionalText(row.values.citation),
-          citation_publish_date: normalizeOptionalText(
-            row.values.citation_publish_date
-          ),
-          make: normalizeOptionalText(row.values.make),
-          model: normalizeOptionalText(row.values.model),
-          product_type: normalizeOptionalText(row.values.product_type),
-          product_subtype: normalizeOptionalText(row.values.product_subtype),
-          is_recurring: null,
-          interval_hours: null,
-          interval_months: null,
-          is_active: true,
-        } as any,
-        { transaction }
-      );
+      let relationshipRowsInserted = 0;
 
-      const relationshipRows = buildRelationshipRows(directive.id, row.values);
-      if (relationshipRows.length > 0) {
-        await AdRelationship.bulkCreate(relationshipRows as any[], {
-          transaction,
-        });
+      try {
+        const directive = await AirworthinessDirective.create(
+          {
+            ad_number: normalizeString(row.values.ad_number),
+            revision: null,
+            subject_heading: normalizeOptionalText(row.values.subject_heading),
+            subject: normalizeOptionalText(row.values.subject),
+            summary: normalizeOptionalText(row.values.summary),
+            comments: normalizeOptionalText(row.values.comments),
+            status: normalizeOptionalText(row.values.status),
+            cfr_part_reference: normalizeOptionalText(
+              row.values.cfr_part_reference
+            ),
+            effective_date: normalizeOptionalText(row.values.effective_date),
+            authority: null,
+            service_office: normalizeOptionalText(row.values.service_office),
+            primary_responsibility_office: normalizeOptionalText(
+              row.values.office_of_primary_responsibility
+            ),
+            docket_number: normalizeOptionalText(row.values.docket_number),
+            citation: normalizeOptionalText(row.values.citation),
+            citation_publish_date: normalizeOptionalText(
+              row.values.citation_publish_date
+            ),
+            make: normalizeOptionalText(row.values.make),
+            model: normalizeOptionalText(row.values.model),
+            product_type: normalizeOptionalText(row.values.product_type),
+            product_subtype: normalizeOptionalText(row.values.product_subtype),
+            is_recurring: null,
+            interval_hours: null,
+            interval_months: null,
+            is_active: true,
+          } as any,
+          { transaction }
+        );
+
+        const relationshipRows = buildRelationshipRows(directive.id, row.values);
+        if (relationshipRows.length > 0) {
+          await AdRelationship.bulkCreate(relationshipRows as any[], {
+            transaction,
+          });
+        }
+        relationshipRowsInserted = relationshipRows.length;
+      } catch (error: any) {
+        throw buildRowErrorFromDatabaseError(row, error);
       }
 
       duplicateKeysInBatch.add(duplicateKey);
       totalInsertedAds += 1;
-      totalRelationshipRowsInserted += relationshipRows.length;
+      totalRelationshipRowsInserted += relationshipRowsInserted;
       rows.push({
         rowNumber: row.rowNumber,
         status: 'INSERTED',
         reason: 'Inserted into airworthiness_directives.',
         adNumber: row.values.ad_number,
-        relationshipRowsInserted: relationshipRows.length,
+        relationshipRowsInserted,
       });
     }
 
@@ -669,6 +813,16 @@ function previewAdMatrix(
       errors.push('Status is required.');
     }
 
+    const boundedFieldOverflow = getBoundedFieldOverflow(values);
+    if (boundedFieldOverflow) {
+      errors.push(
+        `${buildMaxLengthMessage(
+          boundedFieldOverflow.fieldLabel,
+          boundedFieldOverflow.maxLength
+        )} ${buildSchemaGuidance(boundedFieldOverflow.fieldLabel)}`
+      );
+    }
+
     if (values.ad_number) {
       const duplicateCount = (adNumberCounts.get(values.ad_number) || 0) + 1;
       adNumberCounts.set(values.ad_number, duplicateCount);
@@ -742,6 +896,22 @@ function getValidAdImportSessionState(req: Request) {
   return state;
 }
 
+function renderAdPreviewPage(
+  req: Request,
+  res: Response,
+  state: AdImportSessionState,
+  messages?: { success?: string[]; error?: string[] }
+) {
+  return res.render('library/ads/preview', {
+    title: 'AD Import Preview',
+    csrfToken: getCsrfToken(req),
+    fileName: state.fileName,
+    importToken: state.token,
+    preview: state.preview,
+    messages,
+  });
+}
+
 export class AdImportController {
   static renderImportForm(_req: Request, res: Response) {
     res.render('library/ads/import', {
@@ -774,13 +944,7 @@ export class AdImportController {
 
       req.session.adImportState = importState;
 
-      return res.render('library/ads/preview', {
-        title: 'AD Import Preview',
-        csrfToken,
-        fileName: importState.fileName,
-        importToken: importState.token,
-        preview,
-      });
+      return renderAdPreviewPage(req, res, importState);
     } catch (error: any) {
       return res.status(400).render('library/ads/import', {
         title: 'AD Import Preview',
@@ -817,6 +981,14 @@ export class AdImportController {
         result,
       });
     } catch (error: any) {
+      if (req.session?.adImportState) {
+        res.status(400);
+        return renderAdPreviewPage(req, res, req.session.adImportState, {
+          ...(res.locals.messages || {}),
+          error: [error?.message || 'Unable to commit AD import.'],
+        });
+      }
+
       return res.status(400).render('library/ads/import', {
         title: 'AD Import Preview',
         messages: {
