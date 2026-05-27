@@ -160,12 +160,6 @@ AirworthinessDirective.init(
         fields: ['effective_date'],
       },
       {
-        fields: ['make'],
-      },
-      {
-        fields: ['model'],
-      },
-      {
         fields: ['product_type'],
       },
     ],
