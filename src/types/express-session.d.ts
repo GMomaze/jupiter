@@ -51,8 +51,47 @@ declare module 'express-session' {
     };
   }
 
+  interface SbImportSessionState {
+    token: string;
+    createdAt: number;
+    fileName: string;
+    preview: {
+      adapterUsed: 'PIPER' | 'GENERIC' | 'CESSNA';
+      fileName: string;
+      totalRows: number;
+      validRowCount: number;
+      invalidRowCount: number;
+      unknownColumns: string[];
+      rows: Array<{
+        rowNumber: number;
+        status: 'VALID' | 'INVALID';
+        values: {
+          manufacturer: string;
+          reference: string;
+          title: string;
+          issue_date: string;
+          revision: string;
+          status: string;
+          category: string;
+          applicability_make: string;
+          applicability_model: string;
+          applicability_product_type: string;
+          applicability_notes: string;
+          summary: string;
+          compliance_requirement: string;
+          source_file: string;
+          source_format: string;
+          raw_source_text: string;
+          is_active: boolean | null;
+        };
+        errors: string[];
+      }>;
+    };
+  }
+
   interface SessionData {
     adImportState?: AdImportSessionState;
+    sbImportState?: SbImportSessionState;
     lastActivity?: number;
     customerUser?: CustomerSessionUser;
   }

@@ -1,6 +1,21 @@
 <%- include('../../partials/header') %>
 
 <main class="max-w-7xl mx-auto py-10 px-6 space-y-8">
+  <% if (messages?.success?.length || messages?.error?.length) { %>
+    <section class="space-y-3">
+      <% (messages?.success || []).forEach((message) => { %>
+        <div class="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+          <%= message %>
+        </div>
+      <% }) %>
+      <% (messages?.error || []).forEach((message) => { %>
+        <div class="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
+          <%= message %>
+        </div>
+      <% }) %>
+    </section>
+  <% } %>
+
   <div class="flex items-center justify-between gap-4">
     <div>
       <a href="/library/sbs/import" class="text-sm text-blue-600 hover:underline">Back to SB Import</a>
@@ -133,8 +148,7 @@
         class="flex flex-col gap-3 sm:items-end"
       >
         <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-        <input type="hidden" name="file_name" value="<%= fileName %>">
-        <input type="hidden" name="preview_payload" value="<%= previewPayload %>">
+        <input type="hidden" name="import_token" value="<%= importToken %>">
 
         <button
           type="submit"
