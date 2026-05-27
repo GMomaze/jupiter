@@ -46,7 +46,7 @@ AirworthinessDirective.init(
       allowNull: true,
     },
     subject_heading: {
-      type: DataTypes.STRING,
+      type: DataTypes.TEXT,
       allowNull: true,
     },
     subject: {
@@ -98,7 +98,7 @@ AirworthinessDirective.init(
       allowNull: true,
     },
     make: {
-      type: DataTypes.STRING,
+      type: DataTypes.TEXT,
       allowNull: true,
     },
     model: {

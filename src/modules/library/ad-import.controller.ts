@@ -106,13 +106,11 @@ type AdCommitResult = {
 type AdImportSessionState = NonNullable<Request['session']['adImportState']>;
 type AdBoundedFieldKey =
   | 'ad_number'
-  | 'subject_heading'
   | 'status'
   | 'cfr_part_reference'
   | 'service_office'
   | 'office_of_primary_responsibility'
   | 'docket_number'
-  | 'make'
   | 'product_type'
   | 'product_subtype';
 
@@ -126,7 +124,6 @@ const AD_BOUNDED_FIELD_LIMITS: Array<{
   maxLength: number;
 }> = [
   { key: 'ad_number', label: 'AD Number', maxLength: 255 },
-  { key: 'subject_heading', label: 'Subject Heading', maxLength: 255 },
   { key: 'status', label: 'Status', maxLength: 255 },
   { key: 'cfr_part_reference', label: 'CFR Part Reference', maxLength: 255 },
   { key: 'service_office', label: 'Service/Office', maxLength: 255 },
@@ -136,7 +133,6 @@ const AD_BOUNDED_FIELD_LIMITS: Array<{
     maxLength: 255,
   },
   { key: 'docket_number', label: 'Docket Number', maxLength: 255 },
-  { key: 'make', label: 'Make', maxLength: 255 },
   { key: 'product_type', label: 'Product Type', maxLength: 255 },
   { key: 'product_subtype', label: 'Product Subtype', maxLength: 255 },
 ];
