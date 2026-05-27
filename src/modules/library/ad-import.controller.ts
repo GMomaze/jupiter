@@ -1,4 +1,5 @@
 import { createRequire } from 'module';
+import { randomUUID } from 'crypto';
 import { Request, Response } from 'express';
 import { parse } from 'csv-parse/sync';
 import sequelize from '../../config/database.js';
@@ -102,9 +103,12 @@ type AdCommitResult = {
   rows: AdCommitRowResult[];
 };
 
+type AdImportSessionState = NonNullable<Request['session']['adImportState']>;
+
 const FIELD_BY_NORMALIZED_HEADER = new Map(
   AD_FIELDS.map((field) => [normalizeHeader(field.label), field])
 );
+const AD_IMPORT_STATE_MAX_AGE_MS = 30 * 60 * 1000;
 
 function normalizeHeader(value: unknown) {
   return String(value || '')
@@ -116,14 +120,6 @@ function normalizeHeader(value: unknown) {
 
 function normalizeString(value: unknown) {
   return String(value ?? '').trim();
-}
-
-function encodePreviewPayload(preview: AdPreviewResult) {
-  return Buffer.from(JSON.stringify(preview), 'utf8').toString('base64');
-}
-
-function decodePreviewPayload(payload: string): AdPreviewResult {
-  return JSON.parse(Buffer.from(payload, 'base64').toString('utf8')) as AdPreviewResult;
 }
 
 function decodeXmlEntities(value: string) {
@@ -715,6 +711,37 @@ export async function previewAdImportFile(
   return previewAdMatrix(fileType, matrix);
 }
 
+function getCsrfToken(req: Request) {
+  return typeof req.csrfToken === 'function' ? req.csrfToken() : null;
+}
+
+function createAdImportSessionState(
+  fileName: string,
+  preview: AdPreviewResult
+): AdImportSessionState {
+  return {
+    token: randomUUID(),
+    createdAt: Date.now(),
+    fileName: normalizeString(fileName) || 'Uploaded AD file',
+    preview,
+  };
+}
+
+function getValidAdImportSessionState(req: Request) {
+  const state = req.session?.adImportState;
+
+  if (!state) {
+    return null;
+  }
+
+  if (Date.now() - state.createdAt > AD_IMPORT_STATE_MAX_AGE_MS) {
+    delete req.session.adImportState;
+    return null;
+  }
+
+  return state;
+}
+
 export class AdImportController {
   static renderImportForm(_req: Request, res: Response) {
     res.render('library/ads/import', {
@@ -724,10 +751,12 @@ export class AdImportController {
 
   static async previewImport(req: Request, res: Response) {
     const file = (req as Request & { file?: Express.Multer.File }).file;
+    const csrfToken = getCsrfToken(req);
 
     if (!file) {
       return res.status(400).render('library/ads/import', {
         title: 'AD Import Preview',
+        csrfToken,
         messages: {
           ...(res.locals.messages || {}),
           error: ['No AD file uploaded.'],
@@ -741,16 +770,21 @@ export class AdImportController {
         file.originalname,
         file.mimetype
       );
+      const importState = createAdImportSessionState(file.originalname, preview);
+
+      req.session.adImportState = importState;
 
       return res.render('library/ads/preview', {
         title: 'AD Import Preview',
-        fileName: file.originalname,
+        csrfToken,
+        fileName: importState.fileName,
+        importToken: importState.token,
         preview,
-        previewPayload: encodePreviewPayload(preview),
       });
     } catch (error: any) {
       return res.status(400).render('library/ads/import', {
         title: 'AD Import Preview',
+        csrfToken,
         messages: {
           ...(res.locals.messages || {}),
           error: [error?.message || 'Unable to parse AD import preview.'],
@@ -760,9 +794,10 @@ export class AdImportController {
   }
 
   static async commitImport(req: Request, res: Response) {
-    const payload = normalizeString(req.body?.preview_payload);
+    const importToken = normalizeString(req.body?.import_token);
+    const importState = getValidAdImportSessionState(req);
 
-    if (!payload) {
+    if (!importState || !importToken || importState.token !== importToken) {
       return res.status(400).render('library/ads/import', {
         title: 'AD Import Preview',
         messages: {
@@ -773,12 +808,12 @@ export class AdImportController {
     }
 
     try {
-      const preview = decodePreviewPayload(payload);
-      const result = await commitAdPreview(preview);
+      const result = await commitAdPreview(importState.preview);
+      delete req.session.adImportState;
 
       return res.render('library/ads/result', {
         title: 'AD Import Result',
-        fileName: normalizeString(req.body?.file_name) || 'Uploaded AD file',
+        fileName: importState.fileName,
         result,
       });
     } catch (error: any) {
