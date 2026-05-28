@@ -13,14 +13,13 @@ import {
   ServiceBulletinModel,
   SupplementalInspectionDocument,
   SidModelApplicability,
-  CessnaSid,
-  ModelSid,
   TaskTemplate,
   SerializedComponent,
   AircraftComponentInstallation,
   Aircraft,
+  ComplianceAssignment,
 } from '../../models/index.js';
-import { Op } from 'sequelize';
+import { Op, QueryTypes } from 'sequelize';
 import sequelize from '../../config/database.js';
 import { AirworthinessDirective } from '../../models/AirworthinessDirective.js';
 import { ComplianceItem } from '../../models/ComplianceItem.js';
@@ -258,17 +257,166 @@ export class LibraryService {
   }
 
   static async getModelSids(modelId: string) {
-    return CessnaSid.findAll({
+    return SupplementalInspectionDocument.findAll({
       include: [
         {
-          model: ComponentModel,
-          as: 'ApplicableModels',
-          where: { id: modelId },
-          through: { attributes: ['is_active', 'created_at'] },
-          attributes: ['id', 'model_name'],
+          model: SidModelApplicability,
+          as: 'ModelApplicability',
+          where: { model_id: modelId, is_active: true },
+          attributes: [],
         },
       ],
-      order: [['sid_number', 'ASC'], ['title', 'ASC']],
+      order: [['reference', 'ASC'], ['title', 'ASC']],
+    });
+  }
+
+  static async getModelApplicabilityAssignments(modelId: string) {
+    const [
+      assignedAirworthinessDirectives,
+      assignableAirworthinessDirectives,
+      assignedSupplementalInspectionDocuments,
+      assignableSupplementalInspectionDocuments,
+      assignedStandardTasks,
+      assignableStandardTasks,
+    ] = await Promise.all([
+      this.getAssignedAirworthinessDirectives(modelId),
+      this.getAssignableAirworthinessDirectives(modelId),
+      this.getAssignedSupplementalInspectionDocuments(modelId),
+      this.getAssignableSupplementalInspectionDocuments(modelId),
+      this.getAssignedStandardTasks(modelId),
+      this.getAssignableStandardTasks(modelId),
+    ]);
+
+    return {
+      assignedAirworthinessDirectives,
+      assignableAirworthinessDirectives,
+      assignedSupplementalInspectionDocuments,
+      assignableSupplementalInspectionDocuments,
+      assignedStandardTasks,
+      assignableStandardTasks,
+    };
+  }
+
+  private static async getAssignedAirworthinessDirectives(modelId: string) {
+    return sequelize.query(
+      `
+      SELECT DISTINCT
+        ad.id,
+        ad.ad_number,
+        ad.revision,
+        ad.subject_heading,
+        ad.status,
+        ad.effective_date,
+        ad.make,
+        ad.model
+      FROM compliance_assignments ca
+      JOIN compliance_items ci
+        ON ci.id = ca.compliance_item_id
+      JOIN airworthiness_directives ad
+        ON ad.id = ci.source_id
+      WHERE ca.assignment_type = 'MODEL'
+        AND ca.model_id = :modelId
+        AND ca.is_active = TRUE
+        AND ci.source_type = 'AD'
+      ORDER BY ad.ad_number ASC, ad.revision ASC NULLS LAST
+      `,
+      {
+        replacements: { modelId },
+        type: QueryTypes.SELECT,
+      }
+    );
+  }
+
+  private static async getAssignableAirworthinessDirectives(modelId: string) {
+    return sequelize.query(
+      `
+      SELECT
+        ad.id,
+        ad.ad_number,
+        ad.revision,
+        ad.subject_heading,
+        ad.status,
+        ad.effective_date,
+        ad.make,
+        ad.model
+      FROM airworthiness_directives ad
+      WHERE COALESCE(ad.is_active, TRUE) = TRUE
+        AND NOT EXISTS (
+          SELECT 1
+          FROM compliance_assignments ca
+          JOIN compliance_items ci
+            ON ci.id = ca.compliance_item_id
+          WHERE ca.assignment_type = 'MODEL'
+            AND ca.model_id = :modelId
+            AND ca.is_active = TRUE
+            AND ci.source_type = 'AD'
+            AND ci.source_id = ad.id
+        )
+      ORDER BY ad.ad_number ASC, ad.revision ASC NULLS LAST
+      LIMIT 200
+      `,
+      {
+        replacements: { modelId },
+        type: QueryTypes.SELECT,
+      }
+    );
+  }
+
+  private static async getAssignedSupplementalInspectionDocuments(modelId: string) {
+    return SupplementalInspectionDocument.findAll({
+      include: [
+        {
+          model: SidModelApplicability,
+          as: 'ModelApplicability',
+          where: { model_id: modelId, is_active: true },
+          attributes: [],
+        },
+      ],
+      order: [['reference', 'ASC'], ['title', 'ASC']],
+    });
+  }
+
+  private static async getAssignableSupplementalInspectionDocuments(modelId: string) {
+    const assignedRows = await SidModelApplicability.findAll({
+      where: { model_id: modelId, is_active: true },
+      attributes: ['sid_id'],
+      raw: true,
+    });
+    const assignedIds = assignedRows.map((row: any) => row.sid_id);
+
+    return SupplementalInspectionDocument.findAll({
+      where: {
+        is_active: true,
+        ...(assignedIds.length ? { id: { [Op.notIn]: assignedIds } } : {}),
+      },
+      order: [['reference', 'ASC'], ['title', 'ASC']],
+      limit: 200,
+    });
+  }
+
+  private static async getAssignedStandardTasks(modelId: string) {
+    return TaskTemplate.findAll({
+      where: {
+        scope: 'MODEL',
+        aircraft_model_id: modelId,
+        is_active: true,
+      },
+      order: [['task_card_number', 'ASC'], ['title', 'ASC']],
+    });
+  }
+
+  private static async getAssignableStandardTasks(modelId: string) {
+    return TaskTemplate.findAll({
+      where: {
+        is_active: true,
+        aircraft_id: null,
+        [Op.or]: [
+          { aircraft_model_id: null },
+          { scope: { [Op.ne]: 'MODEL' } },
+        ],
+      },
+      order: [['task_card_number', 'ASC'], ['title', 'ASC']],
+      limit: 200,
     });
   }
 
@@ -1159,6 +1307,146 @@ export class LibraryService {
     return attachedCount;
   }
 
+  private static async ensureAdComplianceItem(directive: AirworthinessDirective) {
+    const existing = await ComplianceItem.findOne({
+      where: {
+        source_type: 'AD',
+        source_id: directive.id,
+      } as any,
+      order: [['created_at', 'ASC']],
+    });
+
+    if (existing) {
+      return existing;
+    }
+
+    return ComplianceItem.create({
+      item_type: 'AD',
+      code: directive.ad_number,
+      title:
+        directive.subject_heading?.trim() ||
+        directive.subject?.trim() ||
+        directive.ad_number,
+      description: directive.summary?.trim() || directive.subject?.trim() || null,
+      authority: directive.authority || null,
+      revision: directive.revision || null,
+      effective_on: directive.effective_date || null,
+      source_table: 'airworthiness_directives',
+      source_type: 'AD',
+      source_id: directive.id,
+      compliance_basis: 'MANDATORY',
+      status: ['ACTIVE', 'SUPERSEDED', 'CANCELLED', 'INACTIVE'].includes(
+        String(directive.status || '').trim().toUpperCase()
+      )
+        ? String(directive.status || '').trim().toUpperCase()
+        : 'ACTIVE',
+    } as any);
+  }
+
+  static async assignAirworthinessDirectiveToModel(modelId: string, directiveId: string) {
+    const [model, directive] = await Promise.all([
+      ComponentModel.findByPk(modelId, { attributes: ['id'] }),
+      AirworthinessDirective.findByPk(directiveId),
+    ]);
+
+    if (!model) {
+      throw new Error('Model not found.');
+    }
+
+    if (!directive) {
+      throw new Error('Airworthiness directive not found.');
+    }
+
+    const complianceItem = await this.ensureAdComplianceItem(directive);
+    const existing = await ComplianceAssignment.findOne({
+      where: {
+        compliance_item_id: complianceItem.id,
+        assignment_type: 'MODEL',
+        model_id: modelId,
+      },
+    });
+
+    if (existing) {
+      if (!existing.is_active) {
+        await existing.update({
+          is_active: true,
+          assignment_source: 'MANUAL',
+          aircraft_id: null,
+        });
+      }
+
+      return existing;
+    }
+
+    return ComplianceAssignment.create({
+      compliance_item_id: complianceItem.id,
+      assignment_type: 'MODEL',
+      model_id: modelId,
+      aircraft_id: null,
+      assignment_source: 'MANUAL',
+      is_active: true,
+    });
+  }
+
+  static async assignSupplementalInspectionDocumentToModel(modelId: string, sidId: string) {
+    const [model, sid] = await Promise.all([
+      ComponentModel.findByPk(modelId, { attributes: ['id'] }),
+      SupplementalInspectionDocument.findByPk(sidId, { attributes: ['id'] }),
+    ]);
+
+    if (!model) {
+      throw new Error('Model not found.');
+    }
+
+    if (!sid) {
+      throw new Error('Supplemental inspection document not found.');
+    }
+
+    const existing = await SidModelApplicability.findOne({
+      where: {
+        sid_id: sidId,
+        model_id: modelId,
+      },
+    });
+
+    if (existing) {
+      if (!existing.is_active) {
+        await existing.update({ is_active: true });
+      }
+
+      return existing;
+    }
+
+    return SidModelApplicability.create({
+      sid_id: sidId,
+      model_id: modelId,
+      is_active: true,
+    });
+  }
+
+  static async assignStandardTaskToModel(modelId: string, taskTemplateId: string) {
+    const [model, taskTemplate] = await Promise.all([
+      ComponentModel.findByPk(modelId, { attributes: ['id'] }),
+      TaskTemplate.findByPk(taskTemplateId),
+    ]);
+
+    if (!model) {
+      throw new Error('Model not found.');
+    }
+
+    if (!taskTemplate) {
+      throw new Error('Standard task not found.');
+    }
+
+    await taskTemplate.update({
+      scope: 'MODEL',
+      aircraft_model_id: modelId,
+      aircraft_id: null,
+    });
+
+    return taskTemplate;
+  }
+
   static async importModelSidsFromCsv(modelId: string, buffer: Buffer) {
     const model = await ComponentModel.findByPk(modelId, {
       attributes: ['id', 'model_name'],
@@ -1183,14 +1471,14 @@ export class LibraryService {
       bom: true,
     }) as Record<string, unknown>[];
 
-    const existingSids = (await CessnaSid.findAll()) as any[];
+    const existingSids = (await SupplementalInspectionDocument.findAll()) as any[];
     const existingModelSids = (await this.getModelSids(modelId)) as any[];
 
     const existingBySidNumber = new Map<string, any>();
     const existingBySummary = new Map<string, any>();
 
     for (const sid of existingSids) {
-      const sidNumberKey = this.normalizeSidNumber(sid.sid_number);
+      const sidNumberKey = this.normalizeSidNumber(sid.reference);
       const summaryKey = this.normalizeSummary(sid.title);
 
       if (sidNumberKey) {
@@ -1254,8 +1542,11 @@ export class LibraryService {
         null;
 
       const payload = {
-        sid_number: sidNumber || summary,
+        manufacturer: 'Cessna',
+        reference: sidNumber || summary,
         title: summary,
+        description: summary,
+        category: null,
         ata_chapter:
           this.pickFirstValue(record, ['ata_chapter', 'ata', 'chapter']) || null,
         section_reference: (
@@ -1283,17 +1574,20 @@ export class LibraryService {
         ),
         inspection_operation:
           this.pickFirstValue(record, ['inspection_operation', 'operation']) || null,
-        source_pdf:
+        source_document:
           this.pickFirstValue(record, ['source_pdf', 'source', 'document']) || null,
+        is_active: true,
       };
 
       if (!sid) {
-        sid = await CessnaSid.create(payload as any);
+        sid = await SupplementalInspectionDocument.create(payload as any);
         created += 1;
       } else {
         await sid.update({
-          sid_number: sid.sid_number || payload.sid_number,
+          manufacturer: sid.manufacturer || payload.manufacturer,
+          reference: sid.reference || payload.reference,
           title: sid.title || payload.title,
+          description: sid.description || payload.description,
           ata_chapter: sid.ata_chapter || payload.ata_chapter,
           section_reference: sid.section_reference || payload.section_reference,
           initial_interval_hours:
@@ -1306,23 +1600,28 @@ export class LibraryService {
             sid.repeat_interval_months ?? payload.repeat_interval_months,
           inspection_operation:
             sid.inspection_operation || payload.inspection_operation,
-          source_pdf: sid.source_pdf || payload.source_pdf,
+          source_document: sid.source_document || payload.source_document,
         });
       }
 
-      const [, linkCreated] = await ModelSid.findOrCreate({
+      const [link, linkCreated] = await SidModelApplicability.findOrCreate({
         where: {
-          model_id: modelId,
           sid_id: sid.id,
+          model_id: modelId,
         },
         defaults: {
-          model_id: modelId,
           sid_id: sid.id,
+          model_id: modelId,
           is_active: true,
         },
       });
+      const reactivated = !linkCreated && !link.is_active;
 
-      if (linkCreated) {
+      if (reactivated) {
+        await link.update({ is_active: true });
+      }
+
+      if (linkCreated || reactivated) {
         attached += 1;
       }
 

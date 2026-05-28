@@ -11,6 +11,8 @@ import { AircraftComponentInstallation } from './AircraftComponentInstallation.j
 import { ServiceBulletin } from './ServiceBulletin.js';
 import { ServiceBulletinModel } from './ServiceBulletinModel.js';
 import { AircraftSbCompliance } from './AircraftSbCompliance.js';
+import { ComplianceItem } from './ComplianceItem.js';
+import { ComplianceAssignment } from './ComplianceAssignment.js';
 import { CessnaSid } from './cessnaSid.model.js';
 import { ModelSid } from './ModelSid.js';
 import { SupplementalInspectionDocument } from './SupplementalInspectionDocument.js';
@@ -114,6 +116,22 @@ Aircraft.hasMany(AircraftSbCompliance, { foreignKey: 'aircraft_id', as: 'SbCompl
 AircraftSbCompliance.belongsTo(Aircraft, { foreignKey: 'aircraft_id', as: 'Aircraft' });
 ServiceBulletin.hasMany(AircraftSbCompliance, { foreignKey: 'service_bulletin_id', as: 'AircraftCompliance' });
 AircraftSbCompliance.belongsTo(ServiceBulletin, { foreignKey: 'service_bulletin_id', as: 'ServiceBulletin' });
+ComplianceItem.hasMany(ComplianceAssignment, {
+  foreignKey: 'compliance_item_id',
+  as: 'Assignments',
+});
+ComplianceAssignment.belongsTo(ComplianceItem, {
+  foreignKey: 'compliance_item_id',
+  as: 'ComplianceItem',
+});
+ComponentModel.hasMany(ComplianceAssignment, {
+  foreignKey: 'model_id',
+  as: 'ComplianceAssignments',
+});
+ComplianceAssignment.belongsTo(ComponentModel, {
+  foreignKey: 'model_id',
+  as: 'ComponentModel',
+});
 TaskTemplate.belongsTo(ComponentModel, { foreignKey: 'aircraft_model_id', as: 'AircraftModel' });
 TaskTemplate.belongsTo(Aircraft, { foreignKey: 'aircraft_id', as: 'Aircraft' });
 

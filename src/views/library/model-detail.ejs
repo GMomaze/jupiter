@@ -5,6 +5,12 @@
   <% const newLifeLimitErrors = typeof lifeLimitErrors !== 'undefined' ? lifeLimitErrors : []; %>
   <% const editLifeLimitErrors = typeof lifeLimitEditErrors !== 'undefined' ? lifeLimitEditErrors : {}; %>
   <% const editLifeLimitFormData = typeof lifeLimitEditFormData !== 'undefined' ? lifeLimitEditFormData : {}; %>
+  <% const applicability = typeof applicabilityAssignments !== 'undefined' ? applicabilityAssignments : {}; %>
+  <% const assignedAds = applicability.assignedAirworthinessDirectives || []; %>
+  <% const assignableAds = applicability.assignableAirworthinessDirectives || []; %>
+  <% const assignedStandardTasks = applicability.assignedStandardTasks || []; %>
+  <% const assignableStandardTasks = applicability.assignableStandardTasks || []; %>
+  <% const assignableSids = applicability.assignableSupplementalInspectionDocuments || []; %>
 
   <% if (messages?.success?.length || messages?.error?.length) { %>
     <section class="space-y-3">
@@ -75,6 +81,76 @@
     </div>
 
     <div class="bg-white border rounded-xl p-6 shadow-sm">
+      <h2 class="text-lg font-bold text-slate-900 mb-4">Airworthiness Directives</h2>
+
+      <% if (!assignableAds || assignableAds.length === 0) { %>
+        <p class="mb-6 text-sm text-slate-500 italic">No additional ADs are available to assign to this model.</p>
+      <% } else { %>
+        <form method="POST" action="/library/model/<%= model.id %>/airworthiness-directives/assign" class="mb-8 space-y-4">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+
+          <div class="max-h-80 overflow-y-auto rounded-lg border">
+            <table class="min-w-full divide-y divide-slate-200">
+              <thead class="bg-slate-50">
+                <tr>
+                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Use</th>
+                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">AD Number</th>
+                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Subject</th>
+                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Status</th>
+                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Effective</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-slate-100 bg-white">
+                <% assignableAds.forEach((directive) => { %>
+                  <tr>
+                    <td class="px-3 py-3 align-top">
+                      <input type="checkbox" name="airworthiness_directive_ids" value="<%= directive.id %>" class="rounded border-slate-300">
+                    </td>
+                    <td class="px-3 py-3 align-top text-sm font-semibold text-slate-900"><%= directive.ad_number || '-' %></td>
+                    <td class="px-3 py-3 align-top text-sm text-slate-700"><%= directive.subject_heading || '-' %></td>
+                    <td class="px-3 py-3 align-top text-xs text-slate-700"><%= directive.status || '-' %></td>
+                    <td class="px-3 py-3 align-top text-xs text-slate-700"><%= directive.effective_date || '-' %></td>
+                  </tr>
+                <% }) %>
+              </tbody>
+            </table>
+          </div>
+
+          <button type="submit" class="rounded bg-slate-800 px-4 py-2 text-sm font-bold text-white hover:bg-black">
+            Assign Selected ADs
+          </button>
+        </form>
+      <% } %>
+
+      <% if (!assignedAds || assignedAds.length === 0) { %>
+        <p class="text-sm text-slate-500 italic">No ADs assigned to this model.</p>
+      <% } else { %>
+        <div class="overflow-x-auto rounded-lg border">
+          <table class="min-w-full divide-y divide-slate-200">
+            <thead class="bg-slate-50">
+              <tr>
+                <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">AD Number</th>
+                <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Subject</th>
+                <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Make</th>
+                <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Model</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100 bg-white">
+              <% assignedAds.forEach((directive) => { %>
+                <tr>
+                  <td class="px-3 py-3 align-top text-sm font-semibold text-slate-900"><%= directive.ad_number || '-' %></td>
+                  <td class="px-3 py-3 align-top text-sm text-slate-700"><%= directive.subject_heading || '-' %></td>
+                  <td class="px-3 py-3 align-top text-xs text-slate-700"><%= directive.make || '-' %></td>
+                  <td class="px-3 py-3 align-top text-xs text-slate-700"><%= directive.model || '-' %></td>
+                </tr>
+              <% }) %>
+            </tbody>
+          </table>
+        </div>
+      <% } %>
+    </div>
+
+    <div class="bg-white border rounded-xl p-6 shadow-sm">
       <h2 class="text-lg font-bold text-slate-900 mb-4">Structural Inspection Directives</h2>
 
       <form
@@ -110,6 +186,43 @@
         </p>
       </form>
 
+      <% if (!assignableSids || assignableSids.length === 0) { %>
+        <p class="mb-6 text-sm text-slate-500 italic">No additional SIDs are available to assign to this model.</p>
+      <% } else { %>
+        <form method="POST" action="/library/model/<%= model.id %>/sids/assign" class="mb-8 space-y-4">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+
+          <div class="max-h-80 overflow-y-auto rounded-lg border">
+            <table class="min-w-full divide-y divide-slate-200">
+              <thead class="bg-slate-50">
+                <tr>
+                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Use</th>
+                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">SID</th>
+                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Title</th>
+                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Category</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-slate-100 bg-white">
+                <% assignableSids.forEach((sid) => { %>
+                  <tr>
+                    <td class="px-3 py-3 align-top">
+                      <input type="checkbox" name="sid_ids" value="<%= sid.id %>" class="rounded border-slate-300">
+                    </td>
+                    <td class="px-3 py-3 align-top text-sm font-semibold text-slate-900"><%= sid.reference || '-' %></td>
+                    <td class="px-3 py-3 align-top text-sm text-slate-700"><%= sid.title || '-' %></td>
+                    <td class="px-3 py-3 align-top text-xs text-slate-700"><%= sid.category || '-' %></td>
+                  </tr>
+                <% }) %>
+              </tbody>
+            </table>
+          </div>
+
+          <button type="submit" class="rounded bg-slate-800 px-4 py-2 text-sm font-bold text-white hover:bg-black">
+            Assign Selected SIDs
+          </button>
+        </form>
+      <% } %>
+
       <% if (!sids || sids.length === 0) { %>
         <p class="mb-8 text-sm text-slate-500 italic">No SIDs loaded for this model yet.</p>
       <% } else { %>
@@ -128,7 +241,7 @@
               <% sids.forEach((sid) => { %>
                 <tr>
                   <td class="px-3 py-3 align-top text-sm font-semibold text-slate-900">
-                    <%= sid.sid_number || '-' %>
+                    <%= sid.reference || sid.sid_number || '-' %>
                   </td>
                   <td class="px-3 py-3 align-top text-sm text-slate-700">
                     <%= sid.title || '-' %>
@@ -219,6 +332,74 @@
             Attach Selected SBs
           </button>
         </form>
+      <% } %>
+
+      <h2 class="text-lg font-bold text-slate-900 mb-4">Standard Tasks</h2>
+
+      <% if (!assignableStandardTasks || assignableStandardTasks.length === 0) { %>
+        <p class="mb-8 text-sm text-slate-500 italic">No additional standard tasks are available to assign to this model.</p>
+      <% } else { %>
+        <form method="POST" action="/library/model/<%= model.id %>/standard-tasks/assign" class="mb-8 space-y-4">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+
+          <div class="max-h-80 overflow-y-auto rounded-lg border">
+            <table class="min-w-full divide-y divide-slate-200">
+              <thead class="bg-slate-50">
+                <tr>
+                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Use</th>
+                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Task Card</th>
+                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Title</th>
+                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Scope</th>
+                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Interval</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-slate-100 bg-white">
+                <% assignableStandardTasks.forEach((task) => { %>
+                  <tr>
+                    <td class="px-3 py-3 align-top">
+                      <input type="checkbox" name="task_template_ids" value="<%= task.id %>" class="rounded border-slate-300">
+                    </td>
+                    <td class="px-3 py-3 align-top text-sm font-semibold text-slate-900"><%= task.task_card_number || '-' %></td>
+                    <td class="px-3 py-3 align-top text-sm text-slate-700"><%= task.title || '-' %></td>
+                    <td class="px-3 py-3 align-top text-xs text-slate-700"><%= task.scope || '-' %></td>
+                    <td class="px-3 py-3 align-top text-xs text-slate-700"><%= task.interval_hours ?? '-' %> hrs / <%= task.interval_months ?? '-' %> months</td>
+                  </tr>
+                <% }) %>
+              </tbody>
+            </table>
+          </div>
+
+          <button type="submit" class="rounded bg-slate-800 px-4 py-2 text-sm font-bold text-white hover:bg-black">
+            Assign Selected Tasks
+          </button>
+        </form>
+      <% } %>
+
+      <% if (!assignedStandardTasks || assignedStandardTasks.length === 0) { %>
+        <p class="mb-8 text-sm text-slate-500 italic">No standard tasks assigned to this model.</p>
+      <% } else { %>
+        <div class="mb-8 overflow-x-auto rounded-lg border">
+          <table class="min-w-full divide-y divide-slate-200">
+            <thead class="bg-slate-50">
+              <tr>
+                <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Task Card</th>
+                <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Title</th>
+                <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Source</th>
+                <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Interval</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100 bg-white">
+              <% assignedStandardTasks.forEach((task) => { %>
+                <tr>
+                  <td class="px-3 py-3 align-top text-sm font-semibold text-slate-900"><%= task.task_card_number || '-' %></td>
+                  <td class="px-3 py-3 align-top text-sm text-slate-700"><%= task.title || '-' %></td>
+                  <td class="px-3 py-3 align-top text-xs text-slate-700"><%= task.source_type || '-' %></td>
+                  <td class="px-3 py-3 align-top text-xs text-slate-700"><%= task.interval_hours ?? '-' %> hrs / <%= task.interval_months ?? '-' %> months</td>
+                </tr>
+              <% }) %>
+            </tbody>
+          </table>
+        </div>
       <% } %>
 
       <h2 class="text-lg font-bold text-slate-900 mb-4">Model Planning Data</h2>

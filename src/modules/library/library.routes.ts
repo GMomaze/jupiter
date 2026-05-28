@@ -522,6 +522,7 @@ router.get('/model/:id', async (req, res, next) => {
     const serviceBulletins = await LibraryService.getModelServiceBulletins(id);
     const attachableServiceBulletins = await LibraryService.getAttachableServiceBulletins(id);
     const sids = await LibraryService.getModelSids(id);
+    const applicabilityAssignments = await LibraryService.getModelApplicabilityAssignments(id);
 
     res.render('library/model-detail', {
       model,
@@ -529,6 +530,7 @@ router.get('/model/:id', async (req, res, next) => {
       serviceBulletins,
       attachableServiceBulletins,
       sids,
+      applicabilityAssignments,
     });
   } catch (error) {
     next(error);
@@ -840,6 +842,66 @@ router.post('/model/:id/service-bulletins/attach', requirePermission('LIBRARY_ED
       : [];
 
     await LibraryService.attachServiceBulletinsToModel(id, serviceBulletinIds);
+
+    res.redirect(`/library/model/${id}`);
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post('/model/:id/airworthiness-directives/assign', requirePermission('LIBRARY_EDIT'), csrfProtection, async (req, res, next) => {
+  try {
+    const id = getParam(req.params.id);
+    const selected = req.body?.airworthiness_directive_ids;
+    const directiveIds = Array.isArray(selected)
+      ? selected
+      : selected
+      ? [selected]
+      : [];
+
+    for (const directiveId of directiveIds) {
+      await LibraryService.assignAirworthinessDirectiveToModel(id, String(directiveId));
+    }
+
+    res.redirect(`/library/model/${id}`);
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post('/model/:id/sids/assign', requirePermission('LIBRARY_EDIT'), csrfProtection, async (req, res, next) => {
+  try {
+    const id = getParam(req.params.id);
+    const selected = req.body?.sid_ids;
+    const sidIds = Array.isArray(selected)
+      ? selected
+      : selected
+      ? [selected]
+      : [];
+
+    for (const sidId of sidIds) {
+      await LibraryService.assignSupplementalInspectionDocumentToModel(id, String(sidId));
+    }
+
+    res.redirect(`/library/model/${id}`);
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post('/model/:id/standard-tasks/assign', requirePermission('LIBRARY_EDIT'), csrfProtection, async (req, res, next) => {
+  try {
+    const id = getParam(req.params.id);
+    const selected = req.body?.task_template_ids;
+    const taskTemplateIds = Array.isArray(selected)
+      ? selected
+      : selected
+      ? [selected]
+      : [];
+
+    for (const taskTemplateId of taskTemplateIds) {
+      await LibraryService.assignStandardTaskToModel(id, String(taskTemplateId));
+    }
 
     res.redirect(`/library/model/${id}`);
   } catch (error) {
