@@ -33,6 +33,13 @@ type ProjectedComplianceRow = {
   description: string | null;
 };
 
+type ServiceBulletinApplicabilityRow = {
+  source_id: string;
+  reference: string;
+  title: string;
+  description: string | null;
+};
+
 type SidApplicabilityRow = {
   source_id: string;
   reference: string;
@@ -150,6 +157,51 @@ export class ApplicabilityEngineService {
       }));
   }
 
+  private static async getServiceBulletinItemsForModel(modelId: string) {
+    const hasServiceBulletinApplicability = await tableExists('service_bulletin_models');
+    const hasServiceBulletins = await tableExists('service_bulletins');
+
+    if (!hasServiceBulletinApplicability || !hasServiceBulletins) {
+      return [] as ApplicabilityItem[];
+    }
+
+    const rows = await sequelize.query<ServiceBulletinApplicabilityRow>(
+      `
+      SELECT
+        sb.id::text AS source_id,
+        COALESCE(NULLIF(sb.sb_number, ''), NULLIF(sb.reference, ''), sb.id::text) AS reference,
+        COALESCE(NULLIF(sb.title, ''), NULLIF(sb.sb_number, ''), NULLIF(sb.reference, ''), sb.id::text) AS title,
+        COALESCE(NULLIF(sb.description, ''), NULLIF(sb.summary, '')) AS description
+      FROM service_bulletin_models sbm
+      JOIN service_bulletins sb
+        ON sb.id = sbm.service_bulletin_id
+      WHERE sbm.model_id = :modelId
+        AND COALESCE(sb.is_active, TRUE) = TRUE
+        AND COALESCE(NULLIF(UPPER(sb.status), ''), 'ACTIVE') = 'ACTIVE'
+      ORDER BY reference ASC
+      `,
+      {
+        replacements: { modelId },
+        type: QueryTypes.SELECT,
+      }
+    );
+
+    return rows
+      .filter((row) => row.source_id && row.reference)
+      .map((row) => ({
+        source_type: 'SB' as const,
+        source_id: row.source_id,
+        reference: normalizeString(row.reference),
+        title: normalizeString(row.title),
+        description: row.description ? normalizeString(row.description) : null,
+        interval_hours: null,
+        interval_months: null,
+        applicability_reason: 'Service Bulletin model applicability matched aircraft model through service_bulletin_models',
+        source_table: 'service_bulletins',
+        is_projected_compliance: false,
+      }));
+  }
+
   private static async getSidItemsForModel(modelId: string) {
     const hasSidApplicability = await tableExists('sid_model_applicability');
     const hasSidMaster = await tableExists('supplemental_inspection_documents');
@@ -212,8 +264,9 @@ export class ApplicabilityEngineService {
       };
     }
 
-    const [projectedComplianceItems, sidItems] = await Promise.all([
+    const [projectedComplianceItems, serviceBulletinItems, sidItems] = await Promise.all([
       this.getProjectedComplianceItemsForModel(aircraft.model_id),
+      this.getServiceBulletinItemsForModel(aircraft.model_id),
       this.getSidItemsForModel(aircraft.model_id),
     ]);
 
@@ -222,6 +275,7 @@ export class ApplicabilityEngineService {
       model_id: aircraft.model_id,
       items: this.mergeDeduplicatedItems([
         ...projectedComplianceItems,
+        ...serviceBulletinItems,
         ...sidItems,
       ]),
     };
