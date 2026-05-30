@@ -6,7 +6,8 @@ import {
   AircraftSbCompliance,
   ServiceBulletin,
   Manufacturer,
-  AssetType
+  AssetType,
+  TaskTemplate
 } from '../../models/index.js';
 import { AuditService } from '../audit/audit.service.js';
 import { Op } from 'sequelize';
@@ -583,6 +584,51 @@ export class AircraftService {
 
         return left.sb_number.localeCompare(right.sb_number);
       });
+  }
+
+  static async getApplicableStandardTasksForAircraft(aircraftId: string) {
+    const aircraft = await Aircraft.findByPk(aircraftId, {
+      attributes: ['id', 'model_id'],
+    });
+
+    if (!aircraft) throw new Error('AIRCRAFT_NOT_FOUND');
+
+    const scopeFilters: Record<string, unknown>[] = [
+      { scope: 'GLOBAL' },
+      { scope: 'MPI' },
+      { scope: 'AIRCRAFT', aircraft_id: aircraft.id },
+    ];
+
+    if (aircraft.model_id) {
+      scopeFilters.push({
+        scope: 'MODEL',
+        aircraft_model_id: aircraft.model_id,
+      });
+    }
+
+    return TaskTemplate.findAll({
+      attributes: [
+        'id',
+        'task_card_number',
+        'title',
+        'scope',
+        'source_type',
+        'interval_hours',
+        'interval_months',
+        'model_applicability',
+        'aircraft_applicability',
+      ],
+      where: {
+        is_active: true,
+        [Op.or]: scopeFilters,
+      },
+      order: [
+        ['scope', 'ASC'],
+        ['sort_order', 'ASC'],
+        ['task_card_number', 'ASC'],
+        ['title', 'ASC'],
+      ],
+    });
   }
 
   static async updateServiceBulletinCompliance(data: {

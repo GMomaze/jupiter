@@ -699,6 +699,8 @@ export class AircraftController {
       await AircraftController.attachServiceBulletinCompliance(aircraft);
       const sbFilters = AircraftController.getServiceBulletinFilters(req);
       const serviceBulletins = await AircraftService.getServiceBulletinsForAircraft(aircraft.id, sbFilters);
+      const applicableStandardTasks =
+        await AircraftService.getApplicableStandardTasksForAircraft(aircraft.id);
       const selectedManufacturerId =
         (aircraft as any).ComponentModel?.manufacturer_id ||
         (aircraft as any).ComponentModel?.Manufacturer?.id;
@@ -743,6 +745,7 @@ export class AircraftController {
         customerOptions,
         currentCustomerLinks,
         historicalCustomerLinks,
+        applicableStandardTasks,
         ...serializedWorkflowContext,
       });
     } catch (err: any) {
@@ -839,6 +842,8 @@ export class AircraftController {
       await AircraftController.attachServiceBulletinCompliance(aircraft);
       const sbFilters = AircraftController.getServiceBulletinFilters(req);
       const serviceBulletins = await AircraftService.getServiceBulletinsForAircraft(aircraft.id, sbFilters);
+      const applicableStandardTasks =
+        await AircraftService.getApplicableStandardTasksForAircraft(aircraft.id);
       const selectedManufacturerId =
         (aircraft as any).ComponentModel?.manufacturer_id ||
         (aircraft as any).ComponentModel?.Manufacturer?.id;
@@ -883,6 +888,7 @@ export class AircraftController {
         customerOptions,
         currentCustomerLinks,
         historicalCustomerLinks,
+        applicableStandardTasks,
         ...serializedWorkflowContext,
       });
     } catch (err: any) {
