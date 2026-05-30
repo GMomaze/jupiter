@@ -244,6 +244,10 @@ async function insertServiceBulletinRow(
     normalizeOptionalText(row.values.source_format) || preview.adapterUsed;
   const rawSourceText = normalizeOptionalText(row.values.raw_source_text);
   const isActive = row.values.is_active ?? true;
+  const piperMetadata =
+    row.values.piper_metadata && typeof row.values.piper_metadata === 'object'
+      ? row.values.piper_metadata
+      : {};
   const sourceRefs = JSON.stringify([
     {
       provider: sourceFormat,
@@ -251,6 +255,7 @@ async function insertServiceBulletinRow(
       metadata: {
         source_file: sourceFile,
         adapter_used: preview.adapterUsed,
+        ...piperMetadata,
       },
     },
   ]);

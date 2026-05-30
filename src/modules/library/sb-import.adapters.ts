@@ -41,6 +41,7 @@ export type SbPreviewValues = {
   source_format: string;
   raw_source_text: string;
   is_active: boolean | null;
+  piper_metadata?: Record<string, unknown>;
 };
 
 export type SbPreviewRow = {
@@ -63,7 +64,9 @@ export type SbPreviewResult = {
 const BOOLEAN_TRUE_VALUES = new Set(['true', '1', 'yes', 'y', 'on']);
 const BOOLEAN_FALSE_VALUES = new Set(['false', '0', 'no', 'n', 'off']);
 
-const GENERIC_FIELD_ALIASES: Record<keyof SbPreviewValues, string[]> = {
+type GenericSbFieldKey = Exclude<keyof SbPreviewValues, 'piper_metadata'>;
+
+const GENERIC_FIELD_ALIASES: Record<GenericSbFieldKey, string[]> = {
   manufacturer: ['manufacturer', 'maker', 'oem'],
   reference: ['reference', 'sb_number', 'sb', 'bulletin', 'bulletin_number', 'ref', 'number'],
   title: ['title', 'subject', 'heading', 'name'],
@@ -89,6 +92,68 @@ const GENERIC_FIELD_ALIASES: Record<keyof SbPreviewValues, string[]> = {
   is_active: ['is_active', 'active', 'enabled'],
 };
 
+const PIPER_FIELD_ALIASES = {
+  publication_type: ['publication_type', 'pub_type', 'type', 'document_type', 'publication'],
+  reference: [
+    'reference',
+    'sb_number',
+    'sl_number',
+    'publication_number',
+    'pub_number',
+    'number',
+    'bulletin',
+    'letter',
+    'ref',
+  ],
+  title: ['title', 'subject', 'heading', 'description', 'publication_title'],
+  issue_date: ['issue_date', 'date', 'issued_on', 'issue', 'publish_date'],
+  revision: ['revision', 'rev'],
+  status: ['status', 'publication_status', 'state', 'supersession_status'],
+  classification: [
+    'classification',
+    'compliance',
+    'compliance_requirement',
+    'compliance_type',
+    'requirement',
+    'category',
+  ],
+  applicability_make: ['applicability_make', 'make'],
+  applicability_model: [
+    'applicability_model',
+    'model',
+    'models',
+    'applicability',
+    'model_applicability',
+  ],
+  applicability_product_type: ['applicability_product_type', 'product_type', 'product'],
+  applicability_notes: ['applicability_notes', 'notes', 'app_notes'],
+  summary: ['summary', 'details', 'remarks'],
+  source_file: ['source_file', 'file', 'document', 'document_url'],
+  source_format: ['source_format', 'format', 'source'],
+  raw_source_text: ['raw_source_text', 'raw', 'raw_text', 'source_text'],
+  is_active: ['is_active', 'active', 'enabled'],
+  superseded_by_reference: [
+    'superseded_by_reference',
+    'superseded_by',
+    'replaced_by',
+    'replacement',
+    'supersession',
+  ],
+  ata_code: ['ata_code', 'ata', 'chapter'],
+  ad_references: ['ad_references', 'ad_reference', 'ad_refs', 'ad'],
+  part_kit_references: [
+    'part_kit_references',
+    'part_kit_reference',
+    'kit_references',
+    'part_references',
+    'kit',
+    'kit_number',
+    'part_number',
+  ],
+  piper_family: ['piper_family', 'family', 'aircraft_family', 'series_family'],
+  piper_series: ['piper_series', 'series', 'aircraft_series'],
+} as const;
+
 function normalizeHeader(value: unknown) {
   return String(value || '')
     .trim()
@@ -99,6 +164,19 @@ function normalizeHeader(value: unknown) {
 
 function normalizeString(value: unknown) {
   return String(value ?? '').trim();
+}
+
+function normalizeCompact(value: unknown) {
+  return normalizeString(value).toUpperCase().replace(/[^A-Z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+}
+
+function findAliasedValue(
+  headers: string[],
+  row: string[],
+  aliases: readonly string[]
+) {
+  const index = headers.findIndex((header) => aliases.includes(header));
+  return index === -1 ? '' : normalizeString(row[index]);
 }
 
 function parseCsvMatrix(buffer: Buffer) {
@@ -193,6 +271,99 @@ function createEmptyValues(fileName: string, adapterUsed: SbAdapterKey): SbPrevi
   };
 }
 
+function splitPiperList(value: unknown) {
+  const normalized = normalizeString(value);
+  if (!normalized) {
+    return [] as string[];
+  }
+
+  return normalized
+    .split(/[;,|]+/)
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+}
+
+function normalizePiperPublicationType(rawType: string, reference: string) {
+  const combined = `${rawType} ${reference}`.toUpperCase();
+
+  if (/\bSL\b/.test(combined) || combined.includes('SERVICE LETTER')) {
+    return 'SL';
+  }
+
+  if (/\bSB\b/.test(combined) || combined.includes('SERVICE BULLETIN')) {
+    return 'SB';
+  }
+
+  return 'SB';
+}
+
+function extractSupersededByReference(...values: string[]) {
+  for (const value of values) {
+    const normalized = normalizeString(value);
+    if (!normalized) {
+      continue;
+    }
+
+    const explicit = normalized.match(/\b(?:superseded|replaced)\s+by\s+(.+)$/i);
+    if (explicit?.[1]) {
+      return explicit[1].replace(/[.;]+$/, '').trim();
+    }
+  }
+
+  return '';
+}
+
+function normalizePiperPublicationStatus(rawStatus: string, supersededByReference: string) {
+  const compact = normalizeCompact(rawStatus);
+
+  if (compact.includes('NOT_USED') || compact.includes('NOTUSE')) {
+    return 'NOT_USED';
+  }
+
+  if (compact.includes('CANCEL')) {
+    return 'CANCELLED';
+  }
+
+  if (compact.includes('OBSOLETE')) {
+    return 'OBSOLETE';
+  }
+
+  if (compact.includes('SUPERSED') || compact.includes('REPLACED') || supersededByReference) {
+    return 'SUPERSEDED';
+  }
+
+  return 'ACTIVE';
+}
+
+function normalizePiperClassification(rawClassification: string) {
+  const compact = normalizeCompact(rawClassification);
+
+  if (compact.includes('EMERGENCY')) return 'EMERGENCY';
+  if (compact.includes('ALERT')) return 'ALERT';
+  if (compact.includes('MANDATORY')) return 'MANDATORY';
+  if (compact.includes('REQUIRED')) return 'REQUIRED';
+  if (compact.includes('OPTIONAL')) return 'OPTIONAL';
+  if (compact.includes('RECOMMENDED')) return 'RECOMMENDED';
+
+  return 'RECOMMENDED';
+}
+
+function mapPiperClassificationToComplianceRequirement(classification: string) {
+  if (classification === 'MANDATORY' || classification === 'REQUIRED') {
+    return 'MANDATORY';
+  }
+
+  if (classification === 'ALERT' || classification === 'EMERGENCY') {
+    return 'MANDATORY';
+  }
+
+  if (classification === 'OPTIONAL') {
+    return 'OPTIONAL';
+  }
+
+  return 'MANUAL';
+}
+
 function buildRawSourceText(headers: string[], row: string[]) {
   return headers
     .map((header, index) => {
@@ -224,9 +395,8 @@ function validateRow(values: SbPreviewValues) {
 function previewPiperCsv(fileName: string, matrix: string[][]): SbPreviewResult {
   const rawHeaders = matrix[0] || [];
   const headers = rawHeaders.map(normalizeHeader);
-  const recognizedHeaders = new Set(['title', 'reference', 'date']);
+  const recognizedHeaders = new Set<string>(Object.values(PIPER_FIELD_ALIASES).flat());
   const unknownColumns = rawHeaders.filter((header) => !recognizedHeaders.has(normalizeHeader(header)));
-  const headerIndex = new Map(headers.map((header, index) => [header, index]));
   const rows: SbPreviewRow[] = [];
 
   matrix.slice(1).forEach((rawRow, index) => {
@@ -236,20 +406,75 @@ function previewPiperCsv(fileName: string, matrix: string[][]): SbPreviewResult 
     }
 
     const values = createEmptyValues(fileName, 'PIPER');
+    const errors: string[] = [];
+    const publicationType = normalizePiperPublicationType(
+      findAliasedValue(headers, denseRow, PIPER_FIELD_ALIASES.publication_type),
+      findAliasedValue(headers, denseRow, PIPER_FIELD_ALIASES.reference)
+    );
+    const rawStatus = findAliasedValue(headers, denseRow, PIPER_FIELD_ALIASES.status);
+    const rawSupersededBy = findAliasedValue(
+      headers,
+      denseRow,
+      PIPER_FIELD_ALIASES.superseded_by_reference
+    );
+    const supersededByReference =
+      normalizeString(rawSupersededBy) ||
+      extractSupersededByReference(rawStatus, buildRawSourceText(rawHeaders, denseRow));
+    const publicationStatus = normalizePiperPublicationStatus(rawStatus, supersededByReference);
+    const classification = normalizePiperClassification(
+      findAliasedValue(headers, denseRow, PIPER_FIELD_ALIASES.classification)
+    );
+
     values.manufacturer = 'Piper';
-    values.reference = normalizeString(denseRow[headerIndex.get('reference') ?? -1]);
-    values.title = normalizeString(denseRow[headerIndex.get('title') ?? -1]);
+    values.reference = findAliasedValue(headers, denseRow, PIPER_FIELD_ALIASES.reference);
+    values.title = findAliasedValue(headers, denseRow, PIPER_FIELD_ALIASES.title);
     values.issue_date = normalizeDate(
-      denseRow[headerIndex.get('date') ?? -1],
-      [],
+      findAliasedValue(headers, denseRow, PIPER_FIELD_ALIASES.issue_date),
+      errors,
       'issue_date'
     );
+    values.revision = findAliasedValue(headers, denseRow, PIPER_FIELD_ALIASES.revision);
+    values.status = publicationStatus;
+    values.category = publicationType;
+    values.applicability_make = findAliasedValue(headers, denseRow, PIPER_FIELD_ALIASES.applicability_make);
+    values.applicability_model = findAliasedValue(headers, denseRow, PIPER_FIELD_ALIASES.applicability_model);
+    values.applicability_product_type = findAliasedValue(
+      headers,
+      denseRow,
+      PIPER_FIELD_ALIASES.applicability_product_type
+    );
+    values.applicability_notes = findAliasedValue(
+      headers,
+      denseRow,
+      PIPER_FIELD_ALIASES.applicability_notes
+    );
+    values.summary = findAliasedValue(headers, denseRow, PIPER_FIELD_ALIASES.summary);
+    values.compliance_requirement =
+      mapPiperClassificationToComplianceRequirement(classification);
+    values.source_file =
+      findAliasedValue(headers, denseRow, PIPER_FIELD_ALIASES.source_file) || fileName;
+    values.source_format = 'PIPER_SB_SL_INDEX';
     values.raw_source_text = buildRawSourceText(rawHeaders, denseRow);
+    values.is_active = publicationStatus === 'ACTIVE';
+    values.piper_metadata = {
+      publication_type: publicationType,
+      publication_status: publicationStatus,
+      classification,
+      superseded_by_reference: supersededByReference || null,
+      ata_code: findAliasedValue(headers, denseRow, PIPER_FIELD_ALIASES.ata_code) || null,
+      ad_references: splitPiperList(
+        findAliasedValue(headers, denseRow, PIPER_FIELD_ALIASES.ad_references)
+      ),
+      part_kit_references: splitPiperList(
+        findAliasedValue(headers, denseRow, PIPER_FIELD_ALIASES.part_kit_references)
+      ),
+      piper_family: findAliasedValue(headers, denseRow, PIPER_FIELD_ALIASES.piper_family) || null,
+      piper_series: findAliasedValue(headers, denseRow, PIPER_FIELD_ALIASES.piper_series) || null,
+      original_status_text: rawStatus || null,
+      source_row: index + 2,
+    };
 
-    const errors = validateRow(values);
-    if (normalizeString(denseRow[headerIndex.get('date') ?? -1]) && !values.issue_date) {
-      errors.push('issue_date must be a valid date if provided.');
-    }
+    errors.push(...validateRow(values));
 
     rows.push({
       rowNumber: index + 2,
@@ -287,7 +512,7 @@ function previewGenericCsv(fileName: string, matrix: string[][]): SbPreviewResul
     const values = createEmptyValues(fileName, 'GENERIC');
     const errors: string[] = [];
 
-    (Object.keys(GENERIC_FIELD_ALIASES) as Array<keyof SbPreviewValues>).forEach((field) => {
+    (Object.keys(GENERIC_FIELD_ALIASES) as GenericSbFieldKey[]).forEach((field) => {
       const aliases = GENERIC_FIELD_ALIASES[field];
       const headerIndex = headers.findIndex((header) => aliases.includes(header));
 

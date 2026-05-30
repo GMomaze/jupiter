@@ -83,6 +83,7 @@ declare module 'express-session' {
           source_format: string;
           raw_source_text: string;
           is_active: boolean | null;
+          piper_metadata?: Record<string, unknown>;
         };
         errors: string[];
       }>;
