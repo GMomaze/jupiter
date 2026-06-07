@@ -741,6 +741,677 @@ Do Not Recreate.
 
 ---
 
+## Auth / RBAC Authority
+
+Status:
+
+PARTIALLY_IMPLEMENTED
+
+Authority:
+
+* Passport session authentication
+* UserService
+* RBAC middleware
+* requirePermission()
+* requireRole()
+* rf_role
+* rf_permission
+* rf_role_permissions
+* user_roles
+
+Exists:
+
+* /auth login/logout routes
+* /auth/staff staff role-management route
+* Staff list view
+* Role toggle workflow
+* Session authentication middleware
+* Permission and role enforcement middleware
+
+Boundaries:
+
+* Auth/RBAC controls access and permissions.
+* Staff role toggling mutates user-role links only.
+* Auth/RBAC does not own aircraft, workpack, compliance, library, customer, or serialized lifecycle data.
+
+Known Gaps:
+
+* Full administrative user-management maturity is not confirmed.
+* Permission coverage is route-dependent and must be verified before extending sensitive workflows.
+
+Do Not Recreate existing auth, session, RBAC, or staff role-toggle behaviour.
+
+---
+
+## Aircraft Operational Authority
+
+Status:
+
+PARTIALLY_IMPLEMENTED
+
+Authority:
+
+* AircraftService
+* AircraftController
+* aircraft routes
+* Aircraft
+* AircraftComponent compatibility layer
+
+Exists:
+
+* Aircraft create/edit/view routes
+* Aircraft registration normalization
+* Aircraft status transitions
+* Aircraft audit logging
+* Aircraft photo/document metadata fields
+* Aircraft customer link routes
+* Aircraft service bulletin visibility
+* Aircraft service bulletin compliance actions
+* Legacy component install compatibility route
+* Serialized component install/remove/baseline-capture routes
+
+Boundaries:
+
+* AircraftService owns aircraft records and aircraft status transitions.
+* aircraft_components remains active for legacy component compatibility.
+* Serialized component lifecycle authority remains with serialized component workflows.
+* Compliance authority remains with compliance_items, aircraft_compliance, and workpack_compliance.
+
+Known Gaps:
+
+* Aircraft lifecycle maturity is partial outside verified create/edit/status workflows.
+* Legacy and serialized component surfaces coexist.
+
+Do Not Recreate existing aircraft routes, aircraft status transitions, install/remove compatibility, or aircraft service bulletin visibility.
+
+---
+
+## Aircraft Time / Cycle Authority
+
+Status:
+
+PARTIALLY_IMPLEMENTED
+
+Authority:
+
+* AircraftService.updateHours()
+* Aircraft.total_time_hours
+* SerializedComponentLifeState for serialized component life values
+* ComponentLifeLimit for serialized component limits
+
+Exists:
+
+* Aircraft total time hours support
+* Aircraft hour update workflow
+* Legacy TBO grounding check against installed aircraft_components
+* Serialized component TSN/TSO/CSN/CSO life-state fields
+* Serialized life-limit hour, cycle, and calendar calculation engine
+* Workpack serialized due visibility
+
+Boundaries:
+
+* Aircraft total hours are aircraft-level values.
+* Serialized component life state is serialized-component-level authority.
+* Aircraft hour updates do not automatically propagate hidden serialized life-state mutations.
+* Workpack due visibility is read-only.
+
+Known Gaps:
+
+* Aircraft total cycles are not confirmed as an operational aircraft-level authority.
+* Hobbs time is not confirmed as a separate operational value.
+* Tach time is not confirmed as a separate operational value.
+* Landings are not confirmed as a separate operational value.
+* Automatic propagation from aircraft hour/cycle updates into installed serialized components is not implemented.
+
+Do Not Recreate aircraft hour update, serialized life-state, or serialized life-limit logic.
+
+---
+
+## Customer And Customer Portal Authority
+
+Status:
+
+PARTIALLY_IMPLEMENTED
+
+Authority:
+
+* CustomersService
+* CustomersController
+* customer routes
+* customer-auth routes
+* customer-portal routes
+* Customer
+* CustomerUser
+* CustomerAircraftLink
+
+Exists:
+
+* Customer CRUD routes
+* Customer-aircraft relationship links
+* Customer login/logout
+* Customer reset-password flow
+* Customer portal landing page
+* Customer aircraft visibility
+* Customer workpack visibility
+* Customer document visibility
+* Customer compliance summary visibility
+
+Boundaries:
+
+* Customer records and customer-aircraft links are customer authority.
+* Customer portal is read-only visibility into aircraft, workpacks, documents, and compliance summaries.
+* Customer portal does not mutate workpack, compliance, aircraft, or serialized component lifecycle state.
+
+Known Gaps:
+
+* Customer portal maturity is partial.
+* Customer permission model and portal access rules must be verified before expanding customer-facing workflows.
+
+Do Not Recreate customer CRUD, customer-auth, customer-aircraft link, or customer portal visibility workflows.
+
+---
+
+## Library Master Data Authority
+
+Status:
+
+PARTIALLY_IMPLEMENTED
+
+Authority:
+
+* LibraryService
+* LibraryController
+* library routes
+* Manufacturer
+* ComponentModel
+* AssetType
+* MaintenanceRequirement
+* TaskTemplate
+* MaintenanceTemplate
+* MaintenanceTemplateItem
+* AirworthinessDirective
+* ServiceBulletin
+* SupplementalInspectionDocument
+
+Exists:
+
+* Manufacturer management
+* Component/aircraft model management
+* Asset type model filtering
+* Maintenance requirement management
+* Compliance item library visibility
+* AD library and import workflows
+* SB library, import, allocation, and model attachment workflows
+* SID library, import, and model assignment workflows
+* Standard task library, import, and model assignment workflows
+* Maintenance template visibility
+* Serialized component library management
+
+Boundaries:
+
+* LibraryService owns master-data CRUD and library-level applicability assignment helpers.
+* Compliance authority remains with compliance services and compliance tables.
+* Serialized lifecycle authority remains with serialized component workflows.
+
+Known Gaps:
+
+* Library maturity varies by domain.
+* Some import/allocation paths are operational but require data-quality verification during real data loading.
+
+Do Not Recreate LibraryService master-data, import, assignment, or serialized component library functions.
+
+---
+
+## Reference Governance Authority
+
+Status:
+
+PARTIALLY_IMPLEMENTED
+
+Authority:
+
+* BaseReferenceService
+* reference routes
+* RF/reference tables
+* RBAC reference tables
+
+Exists:
+
+* /reference/:tableName/options
+* /reference/:tableName/gap-create
+* /reference/:tableName/:id deactivate
+* /reference/:tableName list view
+* CASL ability integration for reference create/deactivate operations
+* System-locked reference handling through BaseReferenceService
+
+Boundaries:
+
+* Reference routes govern generic reference-data access and controlled gap creation.
+* Domain-specific master data remains with its owning service when a domain service exists.
+
+Known Gaps:
+
+* Reference governance is partial and table-dependent.
+* Not all operational state machines are proven to be RF-table-driven.
+
+Do Not Recreate generic reference options, gap-create, deactivate, or BaseReferenceService behaviour.
+
+---
+
+## Service Bulletin Authority
+
+Status:
+
+PARTIALLY_IMPLEMENTED
+
+Authority:
+
+* ServiceBulletinService
+* ServiceBulletinSyncService
+* ServiceBulletin
+* ServiceBulletinModel
+* ServiceBulletinSyncRun
+* SbModelApplicabilityAllocation
+* AircraftSbCompliance
+
+Exists:
+
+* Service bulletin list/create routes
+* Service bulletin sync status route
+* Service bulletin sync route
+* Service bulletin model applicability
+* Service bulletin library import workflow
+* Service bulletin allocation issue review
+* Manual model linking for SB allocation issues
+* Safe shorthand allocation expansion
+* Aircraft service bulletin visibility
+* Aircraft service bulletin compliance actions
+
+Boundaries:
+
+* SB model applicability is managed through ServiceBulletinModel and allocation workflows.
+* Aircraft SB compliance uses AircraftSbCompliance.
+* Workpack compliance authority remains with workpack_compliance.
+* Serialized compliance visibility is read-only and does not complete SB compliance.
+
+Known Gaps:
+
+* SB import/sync provider maturity is partial.
+* SB operational impact must be verified with positive real data before changing compliance/workpack attachment behaviour.
+
+Do Not Recreate service bulletin service, import, allocation, sync, or aircraft SB visibility behaviour.
+
+---
+
+## Airworthiness Directive Authority
+
+Status:
+
+PARTIALLY_IMPLEMENTED
+
+Authority:
+
+* AirworthinessDirective
+* LibraryService AD assignment helpers
+* ComplianceItem
+* ComplianceAssignment
+* ApplicabilityEngineService
+
+Exists:
+
+* AD library list route
+* AD import preview/commit workflow
+* AD model assignment route
+* AD-to-compliance item creation during assignment
+* Model-level compliance assignment support
+* AD visibility through applicability/compliance projection paths
+
+Boundaries:
+
+* AD source records are library/reference data.
+* Compliance authority remains with compliance_items, aircraft_compliance, and workpack_compliance.
+* AD assignment may create or reuse compliance_items and compliance_assignments.
+
+Known Gaps:
+
+* AD operational maturity is partial.
+* Real AD data loading requires positive-row verification and duplicate checks.
+
+Do Not Recreate AD import, AD model assignment, or AD compliance item linkage behaviour.
+
+---
+
+## SID Authority
+
+Status:
+
+PARTIALLY_IMPLEMENTED
+
+Authority:
+
+* SupplementalInspectionDocument
+* SidModelApplicability
+* ModelSid
+* LibraryService SID helpers
+* ApplicabilityEngineService
+
+Exists:
+
+* SID library list route
+* SID detail route
+* SID import workflow for models
+* SID model assignment route
+* SID applicability visibility through ApplicabilityEngineService
+
+Boundaries:
+
+* Library SID management is available.
+* SID applicability is model-based through SID/model linking.
+* SID visibility does not mutate compliance/workpack state by itself.
+
+Known Gaps:
+
+* SID implementation is partial.
+* Cessna-specific operational gating is not fully proven across all aircraft views.
+* Non-Cessna aircraft SID visibility requires hardening before real SID data rollout.
+
+Do Not Recreate SID library, import, assignment, or applicability visibility behaviour.
+
+---
+
+## Standard Task And Maintenance Template Authority
+
+Status:
+
+PARTIALLY_IMPLEMENTED
+
+Authority:
+
+* TaskTemplate
+* MaintenanceTemplate
+* MaintenanceTemplateItem
+* StandardTaskImportController
+* LibraryService standard task helpers
+* WorkpackPlanningService
+* WorkpackGenerationService
+
+Exists:
+
+* Standard task library visibility
+* Standard task CSV import map/preview/commit workflow
+* Standard task model assignment route
+* Task template applicability fields
+* Maintenance template list/detail visibility
+* Workpack planning and generation integration
+
+Boundaries:
+
+* TaskTemplate is the standard task/template authority.
+* WorkpackTask is the workpack execution task authority once generated or attached.
+* Maintenance templates support planning/generation but do not replace workpack execution authority.
+
+Known Gaps:
+
+* Standard task and maintenance template maturity is partial.
+* Positive-row verification is required before operational training data loading.
+
+Do Not Recreate standard task import, task template, maintenance template, or workpack generation integration behaviour.
+
+---
+
+## Applicability Engine Authority
+
+Status:
+
+PARTIALLY_IMPLEMENTED
+
+Authority:
+
+* ApplicabilityEngineService
+* ComplianceService
+* ComplianceProjectionService
+* ComplianceAssignment
+* ServiceBulletinModel
+* SidModelApplicability
+
+Exists:
+
+* Read-only aircraft applicability route
+* Model-level AD compliance assignment visibility
+* Model-level SB applicability visibility
+* Model-level SID applicability visibility
+* Applicability result deduplication by source type and source id
+* Compliance projection support
+
+Boundaries:
+
+* ApplicabilityEngineService produces visibility/projection context.
+* ApplicabilityEngineService does not mutate compliance, workpack, aircraft, or serialized records.
+* Live compliance authority remains ComplianceService and compliance tables.
+* Serialized active model scope exists but is not activated as the default live scope.
+
+Known Gaps:
+
+* ApplicabilityEngineService currently evaluates aircraft model scope, not full active serialized installation scope by default.
+* Maintenance requirements and standard tasks are handled elsewhere, not fully by ApplicabilityEngineService.
+* Manufacturer-specific SID gating requires hardening.
+
+Do Not Recreate ApplicabilityEngineService, ComplianceService scope handling, or ComplianceProjectionService.
+
+---
+
+## Dashboard Authority
+
+Status:
+
+PARTIALLY_IMPLEMENTED
+
+Authority:
+
+* root dashboard route
+* dashboard/index view
+* Aircraft
+* Workpack
+* WorkpackStatus
+* WorkpackSnag
+* SerializedComponent
+* Customer
+
+Exists:
+
+* Root authenticated dashboard
+* Operational count cards
+* Aircraft count
+* Active aircraft count
+* Open workpack count
+* Awaiting certification count
+* Open snag count
+* Serialized component count
+* Active customer count
+* Navigation cards
+
+Boundaries:
+
+* Dashboard counts are calculated read-only from backend models.
+* Dashboard does not mutate operational state.
+* Dashboard is system visibility, not workflow authority.
+
+Known Gaps:
+
+* Dashboard is partial and count-focused.
+* Deeper operational analytics remain separate from current dashboard authority.
+
+Do Not Recreate existing root dashboard route or operational count calculations.
+
+---
+
+## Projection / Fleet Health Reporting Authority
+
+Status:
+
+PARTIALLY_IMPLEMENTED
+
+Authority:
+
+* ProjectionController
+* projection routes
+
+Exists:
+
+* /projection/fleet-health
+* /projection/summary
+* Fleet-health reporting view
+* Projection summary partial
+
+Boundaries:
+
+* Projection is reporting only.
+* Projection does not mutate aircraft, component, workpack, compliance, or serialized lifecycle state.
+
+Known Gaps:
+
+* Projection currently references legacy/stale component reporting objects such as components and vw_component_status.
+* Projection should not be treated as serialized lifecycle authority.
+* Projection requires hardening before real operational reporting reliance.
+
+Do Not Recreate projection routes without first deciding whether to harden or retire the existing projection implementation.
+
+---
+
+## General Audit Authority
+
+Status:
+
+PARTIALLY_IMPLEMENTED
+
+Authority:
+
+* AuditService
+* audit routes
+* AuditLog
+* audit_log
+* WorkpackAuditLog
+* WorkpackSnagAuditLog
+* WorkpackAuditService
+
+Exists:
+
+* /audit system audit log view
+* /audit/export JSON export
+* AuditService.log()
+* Aircraft audit logging
+* Workpack audit logging
+* Workpack snag audit logging
+* Migration dry-run audit logging
+
+Boundaries:
+
+* audit_log is the general audit authority.
+* Workpack-specific audit tables remain workpack audit authority.
+* Audit reporting must not mutate workflow state.
+
+Known Gaps:
+
+* Audit coverage is partial and subsystem-dependent.
+* Export format maturity is limited.
+
+Do Not Recreate AuditService, audit_log, workpack audit log, or workpack snag audit log behaviour.
+
+---
+
+## Inventory Boundary
+
+Status:
+
+PARTIALLY_IMPLEMENTED / RISK BOUNDARY
+
+Authority:
+
+* inventory routes
+* InventoryService
+
+Exists:
+
+* /inventory/remove/:componentId route
+* /inventory/install/:componentId route
+* InventoryService remove/install methods
+
+Boundaries:
+
+* Current serialized lifecycle authority is NOT the inventory module.
+* Serialized component inventory authority remains serialized_components and aircraft_component_installations.
+* InventoryService currently uses legacy component/inventory movement concepts.
+
+Known Gaps:
+
+* InventoryService references components and inventory_movements.
+* No full serialized-aware inventory authority is verified.
+* Inventory requires hardening before real inventory data loading.
+
+Do Not treat /inventory as serialized inventory authority without an approved hardening phase.
+
+---
+
+## Standalone Tasks Module Boundary
+
+Status:
+
+PARTIALLY_IMPLEMENTED / ORPHANED SURFACE
+
+Authority:
+
+* TaskService
+* TaskController
+* task routes
+
+Exists:
+
+* Task creation route file
+* Task sign-off route file
+* TaskService
+
+Boundaries:
+
+* Workpack task execution authority remains TaskExecutionService and WorkpackTask.
+* The standalone task routes are not confirmed as mounted in app.ts.
+
+Known Gaps:
+
+* Standalone task module operational role is unclear.
+* Do not expand this surface without first confirming mount status and intended authority.
+
+Do Not Recreate or extend standalone task workflows until their operational role is verified.
+
+---
+
+## Maintenance Trigger Boundary
+
+Status:
+
+PARTIALLY_IMPLEMENTED
+
+Authority:
+
+* MaintenanceTriggerService
+
+Exists:
+
+* Maintenance trigger service module
+
+Boundaries:
+
+* Workpack planning and generation remain workpack authority.
+* Compliance authority remains compliance services and compliance tables.
+
+Known Gaps:
+
+* Operational route/UI integration is not confirmed.
+* Service role must be verified before extending maintenance automation.
+
+Do Not Recreate maintenance trigger behaviour without confirming existing service intent and integration points.
+
+---
+
 # TRANSITIONAL ARCHITECTURE
 
 ## Legacy / Serialized Coexistence
