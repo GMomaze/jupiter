@@ -163,10 +163,56 @@ declare module 'express-session' {
     };
   }
 
+  interface PiperModelMasterImportSessionState {
+    token: string;
+    createdAt: number;
+    fileName: string;
+    preview: {
+      totalRows: number;
+      counts: Record<
+        | 'NEW'
+        | 'EXISTING_CODE_MATCH'
+        | 'LEGACY_NAME_MATCH'
+        | 'DUPLICATE_CONFLICT'
+        | 'REVIEW_REQUIRED'
+        | 'INVALID',
+        number
+      >;
+      rows: Array<{
+        rowNumber: number;
+        status:
+          | 'NEW'
+          | 'EXISTING_CODE_MATCH'
+          | 'LEGACY_NAME_MATCH'
+          | 'DUPLICATE_CONFLICT'
+          | 'REVIEW_REQUIRED'
+          | 'INVALID';
+        reason: string;
+        values: {
+          manufacturer: string;
+          asset_type: string;
+          manufacturer_code: string;
+          asset_type_code: string;
+          model_code: string;
+          model_name: string;
+          family: string;
+          series: string;
+          notes: string;
+          is_active: boolean;
+        };
+        manufacturer_id: string | null;
+        asset_type_id: string | null;
+        manufacturer_display: string | null;
+        asset_type_display: string | null;
+      }>;
+    };
+  }
+
   interface SessionData {
     adImportState?: AdImportSessionState;
     sbImportState?: SbImportSessionState;
     standardTaskImportState?: StandardTaskImportSessionState;
+    piperModelMasterImportState?: PiperModelMasterImportSessionState;
     lastActivity?: number;
     customerUser?: CustomerSessionUser;
   }
