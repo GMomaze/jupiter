@@ -21,11 +21,19 @@
   </div>
 
   <section class="bg-white border rounded-xl p-6 shadow-sm space-y-5">
-    <div>
-      <h1 class="text-3xl font-bold text-slate-900">Generic Model Import</h1>
-      <p class="mt-2 text-sm text-slate-500">
-        Upload model CSV data and preview component model rows before commit.
-      </p>
+    <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+      <div>
+        <h1 class="text-3xl font-bold text-slate-900">Generic Model Import</h1>
+        <p class="mt-2 text-sm text-slate-500">
+          Upload model CSV data and preview component model rows before commit.
+        </p>
+      </div>
+      <a
+        href="/library/models/import/template"
+        class="inline-flex rounded border border-slate-300 bg-white px-4 py-2 text-sm font-bold text-slate-800 hover:bg-slate-100"
+      >
+        Download CSV Template
+      </a>
     </div>
 
     <form
@@ -53,6 +61,11 @@
       </div>
 
       <div class="rounded border border-slate-200 bg-white p-4 text-xs text-slate-600">
+        <div class="font-bold text-slate-800">CSV only</div>
+        <p class="mt-2">
+          This phase supports CSV files only. XLSX workbooks are not supported by the model import flow yet.
+        </p>
+
         <div class="font-bold text-slate-800">Preferred headers</div>
         <div class="mt-2 font-mono">
           manufacturer,asset_type,model_code,model_name,family,series,notes,is_active
@@ -64,6 +77,13 @@
         <p class="mt-3">
           Manufacturer and asset type can be provided as names or codes. Existing Piper-style CSV files remain supported.
         </p>
+        <ul class="mt-3 list-disc space-y-1 pl-5">
+          <li><span class="font-bold text-slate-800">model_code</span> is the OEM or applicability code used for matching and duplicate prevention.</li>
+          <li><span class="font-bold text-slate-800">model_name</span> is the display or common name shown to users. If blank, commit uses model_code.</li>
+          <li><span class="font-bold text-slate-800">manufacturer_code</span> must match an existing manufacturer code or name.</li>
+          <li><span class="font-bold text-slate-800">asset_type_code</span> must match an existing asset type code or name.</li>
+          <li>Unresolved manufacturer or asset type values appear as REVIEW_REQUIRED in preview and are not committed.</li>
+        </ul>
       </div>
     </form>
   </section>

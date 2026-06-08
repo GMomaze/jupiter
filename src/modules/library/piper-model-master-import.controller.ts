@@ -57,6 +57,12 @@ const IMPORT_HEADERS = [
   'notes',
   'is_active',
 ] as const;
+const MODEL_IMPORT_TEMPLATE_CSV = [
+  'manufacturer_code,asset_type_code,model_code,model_name',
+  'PIPER,AIRFRAME,PA-28-181,Archer II',
+  'CESSNA,AIRFRAME,172M,Skyhawk',
+  'BEECHCRAFT,AIRFRAME,35,Bonanza',
+].join('\n');
 
 function normalizeHeader(value: unknown) {
   return String(value || '')
@@ -542,6 +548,13 @@ export class PiperModelMasterImportController {
     res.render('library/models/import', {
       title: 'Generic Model Import',
     });
+  }
+
+  static downloadTemplate(_req: Request, res: Response) {
+    res
+      .type('text/csv')
+      .attachment('generic-model-import-template.csv')
+      .send(`${MODEL_IMPORT_TEMPLATE_CSV}\n`);
   }
 
   static async previewImport(req: Request, res: Response) {

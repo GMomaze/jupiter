@@ -6,6 +6,7 @@ import { LibraryController } from './library.controller.js';
 import { StandardTaskImportController } from './standard-task-import.controller.js';
 import { AdImportController } from './ad-import.controller.js';
 import { SbImportController } from './sb-import.controller.js';
+import { PiperModelMasterImportController } from './piper-model-master-import.controller.js';
 import { ensureAuthenticated } from '../../middleware/auth.middleware.js';
 import { requirePermission } from '../../middleware/rbac.middleware.js';
 import { manufacturerLogoUpload } from '../../middleware/upload.middleware.js';
@@ -15,6 +16,7 @@ const sidCsvUpload = multer({ storage: multer.memoryStorage() });
 const standardTaskCsvUpload = multer({ storage: multer.memoryStorage() });
 const adImportUpload = multer({ storage: multer.memoryStorage() });
 const sbImportUpload = multer({ storage: multer.memoryStorage() });
+const piperModelMasterImportUpload = multer({ storage: multer.memoryStorage() });
 const csrfProtection = csrf();
 
 function getParam(value: string | string[] | undefined) {
@@ -70,6 +72,18 @@ router.get(
 );
 
 router.get(
+  '/models/import',
+  requirePermission('LIBRARY_EDIT'),
+  PiperModelMasterImportController.renderImportForm
+);
+
+router.get(
+  '/models/import/template',
+  requirePermission('LIBRARY_EDIT'),
+  PiperModelMasterImportController.downloadTemplate
+);
+
+router.get(
   '/ads',
   requirePermission('LIBRARY_EDIT'),
   LibraryController.renderAdList
@@ -79,6 +93,47 @@ router.get(
   '/sbs',
   requirePermission('LIBRARY_EDIT'),
   LibraryController.renderSbList
+);
+
+router.get(
+  '/sbs/import-issues/unallocated-models',
+  requirePermission('LIBRARY_EDIT'),
+  LibraryController.renderSbModelAllocationIssues
+);
+
+router.post(
+  '/sbs/import-issues/recheck-exact-model-codes',
+  requirePermission('LIBRARY_EDIT'),
+  csrfProtection,
+  LibraryController.recheckExactSbModelAllocations
+);
+
+router.post(
+  '/sbs/import-issues/expand-safe-shorthand',
+  requirePermission('LIBRARY_EDIT'),
+  csrfProtection,
+  LibraryController.expandSafeSbShorthandAllocations
+);
+
+router.post(
+  '/sbs/import-issues/allocations/:id/link-models',
+  requirePermission('LIBRARY_EDIT'),
+  csrfProtection,
+  LibraryController.linkSbModelAllocation
+);
+
+router.post(
+  '/sbs/import-issues/allocations/:id/ignore',
+  requirePermission('LIBRARY_EDIT'),
+  csrfProtection,
+  LibraryController.ignoreSbModelAllocation
+);
+
+router.post(
+  '/sbs/import-issues/allocations/:id/create-incomplete-model',
+  requirePermission('LIBRARY_EDIT'),
+  csrfProtection,
+  LibraryController.createIncompleteModelFromSbAllocation
 );
 
 router.get(
@@ -134,6 +189,31 @@ router.get(
 );
 
 router.get(
+  '/serialized-components/reconciliation',
+  requirePermission('LIBRARY_EDIT'),
+  LibraryController.renderSerializedReconciliationReport
+);
+
+router.get(
+  '/serialized-components/migration-dry-run',
+  requirePermission('LIBRARY_EDIT'),
+  LibraryController.renderSerializedMigrationDryRunReport
+);
+
+router.post(
+  '/serialized-components/migration-dry-run/save',
+  requirePermission('LIBRARY_EDIT'),
+  csrfProtection,
+  LibraryController.saveSerializedMigrationDryRunReport
+);
+
+router.get(
+  '/serialized-components/migration-dry-run/batches/:batchId',
+  requirePermission('LIBRARY_EDIT'),
+  LibraryController.renderSavedSerializedMigrationDryRunReport
+);
+
+router.get(
   '/serialized-components/create',
   requirePermission('LIBRARY_EDIT'),
   async (_req, res, next) => {
@@ -180,6 +260,27 @@ router.get(
   }
 );
 
+router.get(
+  '/serialized-components/:id/life',
+  requirePermission('LIBRARY_EDIT'),
+  async (req, res, next) => {
+    try {
+      const dashboard = await LibraryService.getSerializedComponentLifeDashboard(
+        getParam(req.params.id)
+      );
+
+      if (!dashboard) {
+        res.status(404).send('Serialized component not found.');
+        return;
+      }
+
+      res.render('library/serialized-component-life', dashboard);
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
 router.post(
   '/tasks/import/map',
   requirePermission('LIBRARY_EDIT'),
@@ -208,6 +309,20 @@ router.post(
   sbImportUpload.single('sb_file'),
   csrfProtection,
   SbImportController.previewImport
+);
+
+router.post(
+  '/models/import/preview',
+  requirePermission('LIBRARY_EDIT'),
+  piperModelMasterImportUpload.single('model_master_file'),
+  csrfProtection,
+  PiperModelMasterImportController.previewImport
+);
+
+router.post(
+  '/models/import/commit',
+  requirePermission('LIBRARY_EDIT'),
+  PiperModelMasterImportController.commitImport
 );
 
 router.post(
@@ -286,6 +401,98 @@ router.post(
     } catch (error) {
       next(error);
     }
+  }
+);
+
+router.post(
+  '/serialized-components/:id/life-adjustment',
+  requirePermission('LIBRARY_EDIT'),
+  csrfProtection,
+  async (req, res) => {
+    const serializedComponentId = getParam(req.params.id);
+
+    try {
+      await LibraryService.adjustSerializedComponentLifeState(serializedComponentId, {
+        tsn_hours: req.body.tsn_hours,
+        tso_hours: req.body.tso_hours,
+        csn_cycles: req.body.csn_cycles,
+        cso_cycles: req.body.cso_cycles,
+        overhaul_reference_date: req.body.overhaul_reference_date,
+        calendar_reference_date: req.body.calendar_reference_date,
+        reason: req.body.reason,
+        source_reference: req.body.source_reference,
+        occurred_at: req.body.occurred_at,
+        allow_tso_exceeds_tsn: req.body.allow_tso_exceeds_tsn,
+        allow_cso_exceeds_csn: req.body.allow_cso_exceeds_csn,
+        recorded_by: (req.user as any)?.id || null,
+      });
+
+      req.flash('success', 'Serialized component life adjustment recorded.');
+    } catch (error: any) {
+      req.flash('error', error?.message || 'Unable to record life adjustment.');
+    }
+
+    res.redirect(`/library/serialized-components/${serializedComponentId}/edit`);
+  }
+);
+
+router.post(
+  '/serialized-components/:id/overhaul',
+  requirePermission('LIBRARY_EDIT'),
+  csrfProtection,
+  async (req, res) => {
+    const serializedComponentId = getParam(req.params.id);
+
+    try {
+      await LibraryService.recordSerializedComponentOverhaul(serializedComponentId, {
+        overhaul_date: req.body.overhaul_date,
+        overhaul_provider: req.body.overhaul_provider,
+        overhaul_reference: req.body.overhaul_reference,
+        notes: req.body.notes,
+        tsn_hours: req.body.tsn_hours,
+        tso_hours: req.body.tso_hours,
+        csn_cycles: req.body.csn_cycles,
+        cso_cycles: req.body.cso_cycles,
+        overhaul_reference_date: req.body.overhaul_reference_date,
+        calendar_reference_date: req.body.calendar_reference_date,
+        recorded_by: (req.user as any)?.id || null,
+      });
+
+      req.flash('success', 'Serialized component overhaul recorded.');
+    } catch (error: any) {
+      req.flash('error', error?.message || 'Unable to record overhaul.');
+    }
+
+    res.redirect(`/library/serialized-components/${serializedComponentId}/edit`);
+  }
+);
+
+router.post(
+  '/serialized-components/:id/maintenance-events',
+  requirePermission('LIBRARY_EDIT'),
+  csrfProtection,
+  async (req, res) => {
+    const serializedComponentId = getParam(req.params.id);
+
+    try {
+      await LibraryService.recordSerializedComponentGenericMaintenanceEvent(
+        serializedComponentId,
+        {
+          event_type: req.body.event_type,
+          occurred_at: req.body.occurred_at,
+          provider: req.body.provider,
+          reference: req.body.reference,
+          notes: req.body.notes,
+          recorded_by: (req.user as any)?.id || null,
+        }
+      );
+
+      req.flash('success', 'Serialized component maintenance event recorded.');
+    } catch (error: any) {
+      req.flash('error', error?.message || 'Unable to record maintenance event.');
+    }
+
+    res.redirect(`/library/serialized-components/${serializedComponentId}/edit`);
   }
 );
 
