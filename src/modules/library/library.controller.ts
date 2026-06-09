@@ -75,6 +75,108 @@ export class LibraryController {
     });
   }
 
+  static async renderSerializedReconciliationReport(
+    _req: Request,
+    res: Response
+  ): Promise<void> {
+    const report = await LibraryService.getSerializedComponentReconciliationReport();
+
+    res.render('library/serialized-reconciliation', {
+      title: 'Serialized Component Reconciliation',
+      report,
+      buckets: LibraryService.serializedReconciliationBuckets,
+    });
+  }
+
+  static async renderSerializedMigrationDryRunReport(
+    req: Request,
+    res: Response
+  ): Promise<void> {
+    const filters = getMigrationDryRunFilters(req.query);
+
+    const report = await MigrationDryRunService.previewLegacyAircraftComponentMigration({
+      aircraft_id: filters.aircraft_id || null,
+      include_removed: filters.include_removed,
+      include_quarantined: filters.include_quarantined,
+      include_historical: filters.include_historical,
+    });
+
+    const readinessCategories: Record<string, string[]> = {
+      READY: ['AUTO_MIGRATE'],
+      REVIEW: ['MANUAL_REVIEW_REQUIRED'],
+      BLOCKED: ['CONFLICT', 'BLOCKED'],
+      SKIPPED: ['SKIP'],
+    };
+    const categoryOptions = [
+      'AUTO_MIGRATE',
+      'MANUAL_REVIEW_REQUIRED',
+      'CONFLICT',
+      'BLOCKED',
+      'SKIP',
+    ];
+    const rows = Array.isArray(report.rows) ? report.rows : [];
+    const filteredRows = rows.filter((row: any) => {
+      const categoryMatch = filters.category
+        ? row.migration_category === filters.category
+        : true;
+      const readinessMatch = filters.readiness
+        ? (readinessCategories[filters.readiness] || []).includes(row.migration_category)
+        : true;
+
+      return categoryMatch && readinessMatch;
+    });
+
+    res.render('library/serialized-migration-dry-run', {
+      title: 'Serialized Component Migration Dry Run',
+      report,
+      rows: filteredRows,
+      filters,
+      categoryOptions,
+      readinessOptions: Object.keys(readinessCategories),
+      totalRows: rows.length,
+    });
+  }
+
+  static async saveSerializedMigrationDryRunReport(
+    req: Request,
+    res: Response
+  ): Promise<void> {
+    const filters = getMigrationDryRunFilters(req.body);
+    const report = await MigrationDryRunService.previewLegacyAircraftComponentMigration({
+      aircraft_id: filters.aircraft_id || null,
+      include_removed: filters.include_removed,
+      include_quarantined: filters.include_quarantined,
+      include_historical: filters.include_historical,
+    });
+
+    const batch = await MigrationLedgerService.saveLegacyAircraftComponentDryRun({
+      report,
+      filters,
+      actor_id: (req.user as any)?.id || null,
+    });
+
+    req.flash('success', 'Migration dry-run saved for review.');
+    res.redirect(`/library/serialized-components/migration-dry-run/batches/${batch.id}`);
+  }
+
+  static async renderSavedSerializedMigrationDryRunReport(
+    req: Request,
+    res: Response
+  ): Promise<void> {
+    const batch = await MigrationLedgerService.getSavedDryRunBatch(getParam(req.params.batchId));
+
+    if (!batch) {
+      res.status(404).send('Migration dry-run batch not found.');
+      return;
+    }
+
+    res.render('library/serialized-migration-dry-run-saved', {
+      title: 'Saved Migration Dry Run',
+      batch,
+      rows: Array.isArray(batch.Rows) ? batch.Rows : [],
+    });
+  }
+
   static async renderTemplateList(_req: Request, res: Response): Promise<void> {
     const templates = await LibraryService.getMaintenanceTemplates();
 

@@ -25,8 +25,137 @@ import { AirworthinessDirective } from '../../models/AirworthinessDirective.js';
 import { ComplianceItem } from '../../models/ComplianceItem.js';
 import { MaintenanceTemplate } from '../../models/MaintenanceTemplate.js';
 import { MaintenanceTemplateItem } from '../../models/MaintenanceTemplateItem.js';
+import { formatModelDisplay } from '../../utils/model-display.js';
 
 export class LibraryService {
+  static readonly sbModelAllocationStatuses = [
+    'MATCHED',
+    'NEEDS_REVIEW',
+    'LINKED_MANUALLY',
+    'MODEL_CREATED_INCOMPLETE',
+    'BROAD_RULE_MARKED',
+    'IGNORED',
+  ];
+
+  static readonly sbModelAllocationClassifications = [
+    'EXACT_MODEL_CODE',
+    'SHORTHAND_GROUP',
+    'BROAD_APPLICABILITY',
+    'AMBIGUOUS_PHRASE',
+    'UNPARSED_TEXT',
+  ];
+
+  static readonly sbModelAllocationReviewBuckets = [
+    'LINK_EXISTING_OR_CREATE_INCOMPLETE',
+    'PARSER_CANDIDATE_OR_MANUAL_SPLIT',
+    'DIRTY_TEXT_MANUAL_REVIEW',
+    'BROAD_RULE_REVIEW',
+    'BROAD_OR_SERIES_REVIEW',
+    'IGNORE_OR_MANUAL_PARSE',
+  ];
+
+  private static readonly serializedComponentMaintenanceEventGroupDefinitions = [
+    {
+      key: 'life_changes',
+      title: 'Life Changes',
+      eventTypes: ['LIFE_ADJUSTMENT', 'OVERHAUL'],
+    },
+    {
+      key: 'repairs_modifications',
+      title: 'Repairs / Modifications',
+      eventTypes: ['REPAIR', 'MODIFICATION'],
+    },
+    {
+      key: 'inspections_tests',
+      title: 'Inspections / Tests',
+      eventTypes: ['INSPECTION', 'TEST'],
+    },
+    {
+      key: 'release_return_to_service',
+      title: 'Release / Return to Service',
+      eventTypes: ['RETURN_TO_SERVICE'],
+    },
+    {
+      key: 'shop_preservation',
+      title: 'Shop / Preservation',
+      eventTypes: ['SHOP_VISIT', 'PRESERVATION'],
+    },
+    {
+      key: 'imported_unknown_history',
+      title: 'Imported / Unknown History',
+      eventTypes: ['UNKNOWN_HISTORY_IMPORT'],
+    },
+    {
+      key: 'scrap_retirement',
+      title: 'Scrap / Retirement',
+      eventTypes: ['SCRAP'],
+    },
+  ];
+
+  static readonly serializedComponentGenericMaintenanceEventTypes = [
+    'REPAIR',
+    'INSPECTION',
+    'SHOP_VISIT',
+    'TEST',
+    'MODIFICATION',
+    'PRESERVATION',
+    'RETURN_TO_SERVICE',
+    'SCRAP',
+    'UNKNOWN_HISTORY_IMPORT',
+  ];
+
+  private static readonly serializedComponentLifeLimitDueSoonThresholds = {
+    hours: 10,
+    cycles: 10,
+    calendarDays: 30,
+  };
+
+  private static readonly serializedComponentLifeLimitStatusRank: Record<string, number> = {
+    UNKNOWN: 0,
+    COMPLIANT: 1,
+    DUE_SOON: 2,
+    DUE: 3,
+    OVERDUE: 4,
+  };
+
+  static readonly serializedReconciliationBuckets = [
+    'MATCHED',
+    'LEGACY_ONLY',
+    'SERIALIZED_ONLY',
+    'MODEL_MISMATCH',
+    'SERIAL_MISMATCH',
+    'POSITION_MISMATCH',
+    'INSTALLATION_CONFLICT',
+    'LIFE_STATE_MISSING',
+    'UNMAPPED',
+  ];
+
+  private static readonly sbModelAllocationReviewBucketSql = `
+    CASE
+      WHEN a.status <> 'NEEDS_REVIEW' THEN NULL
+      WHEN a.classification = 'EXACT_MODEL_CODE' THEN 'LINK_EXISTING_OR_CREATE_INCOMPLETE'
+      WHEN a.classification = 'BROAD_APPLICABILITY' THEN 'BROAD_RULE_REVIEW'
+      WHEN a.classification = 'UNPARSED_TEXT' THEN 'IGNORE_OR_MANUAL_PARSE'
+      WHEN a.classification = 'SHORTHAND_GROUP'
+        AND (
+          a.raw_models_affected_text ~* '\\y(ALL|SERIES|MANUFACTURED|PISTON|CLASSIC)\\y'
+        )
+        THEN 'BROAD_OR_SERIES_REVIEW'
+      WHEN a.classification = 'SHORTHAND_GROUP'
+        AND (
+          a.raw_models_affected_text ~* '\\y(Inspection|Replacement|Modification|Assembly|Assy|Operation|Instructions|Repair|Placard)\\y'
+          OR a.raw_models_affected_text ~* '\\y\\d{3,}[- ]\\d{2,}[A-Z0-9-]*\\y'
+          OR a.raw_models_affected_text ~ '\\y\\d{1,2}/\\d{1,2}/\\d{2,4}\\y'
+          OR a.raw_models_affected_text ~* '\\y(AD\\s*)?\\d{4}-\\d{2}-\\d{2}\\y'
+          OR a.raw_models_affected_text ~ '\\y\\d{2}-\\d{2}-\\d{2}\\y'
+          OR a.raw_models_affected_text ~* '\\yATA\\y'
+        )
+        THEN 'DIRTY_TEXT_MANUAL_REVIEW'
+      WHEN a.classification = 'SHORTHAND_GROUP' THEN 'PARSER_CANDIDATE_OR_MANUAL_SPLIT'
+      ELSE NULL
+    END
+  `;
+
   private static readonly manufacturerAttributes = [
     'id',
     'name',
