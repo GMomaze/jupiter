@@ -164,6 +164,29 @@
                       <td class="px-4 py-3 text-sm text-slate-700">
                         <div class="font-semibold text-slate-900"><%= item.due_state.replace(/_/g, ' ') %></div>
                         <div class="mt-1 text-slate-600"><%= item.due_explanation %></div>
+                        <% if (item.due_worst_limit) { %>
+                          <div class="mt-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700">
+                            <div class="font-semibold text-slate-900">
+                              Worst: <%= item.due_worst_limit.limit_type || 'Life limit' %>
+                              <% if (item.due_worst_limit.normalized_basis || item.due_worst_limit.basis) { %>
+                                (<%= item.due_worst_limit.normalized_basis || item.due_worst_limit.basis %>)
+                              <% } %>
+                            </div>
+                            <div class="mt-1">
+                              Hours <%= item.due_worst_limit.remaining_hours ?? '-' %> |
+                              Cycles <%= item.due_worst_limit.remaining_cycles ?? '-' %> |
+                              Days <%= item.due_worst_limit.remaining_calendar_days ?? '-' %>
+                            </div>
+                          </div>
+                        <% } %>
+                        <% if (item.due_is_partial || item.due_has_unknown_limits) { %>
+                          <div class="mt-2 text-xs text-amber-700">
+                            <%= item.due_is_partial ? 'Partial calculation.' : 'Unknown limit data present.' %>
+                            <% if ((item.due_missing_reasons || []).length > 0) { %>
+                              <%= item.due_missing_reasons.join(' ') %>
+                            <% } %>
+                          </div>
+                        <% } %>
                       </td>
                       <td class="px-4 py-3 text-sm text-slate-700">
                         <div>Applicable: <span class="font-semibold text-slate-900"><%= item.compliance_counts.applicable %></span></div>

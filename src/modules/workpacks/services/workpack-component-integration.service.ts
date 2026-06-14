@@ -3,10 +3,13 @@ import {
   AircraftComponent,
   AircraftComponentInstallation,
   AssetType,
+  ComponentLifeLimit,
   ComponentModel,
   Manufacturer,
   SerializedComponent,
+  SerializedComponentLifeState,
 } from '../../../models/index.js';
+import { LibraryService } from '../../library/library.service.js';
 
 type SourceType = 'TASK' | 'SNAG';
 type MatchBasis = 'POSITION' | 'SERIAL_NUMBER' | 'UNMATCHED_COMPONENT_REFERENCE';
@@ -44,6 +47,11 @@ export interface WorkpackSerializedComponentContextItem {
   due_state: string;
   due_explanation: string;
   is_due_determinable: boolean;
+  due_worst_limit: any | null;
+  due_evaluated_limits: any[];
+  due_has_unknown_limits: boolean;
+  due_is_partial: boolean;
+  due_missing_reasons: string[];
   compliance_counts: {
     applicable: number;
     not_applicable: number;
@@ -126,7 +134,17 @@ export class WorkpackComponentIntegrationService {
                   model: AssetType,
                   required: false,
                 },
+                {
+                  model: ComponentLifeLimit,
+                  as: 'LifeLimits',
+                  required: false,
+                },
               ],
+            },
+            {
+              model: SerializedComponentLifeState,
+              as: 'LifeState',
+              required: false,
             },
           ],
         },
@@ -190,7 +208,11 @@ export class WorkpackComponentIntegrationService {
       const serializedId = this.normalize(installation?.serialized_component_id);
       const workpackReferences = referencesBySerializedId[serializedId] || [];
       const latestRemoval = latestRemovalBySerializedId.get(serializedId);
-      const dueState = 'UNKNOWN';
+      const dueStatus = LibraryService.evaluateSerializedComponentLifeLimits(
+        componentModel?.LifeLimits || [],
+        serializedComponent?.LifeState || null
+      );
+      const dueState = this.normalize(dueStatus?.state) || 'UNKNOWN';
       const complianceCounts = {
         applicable: 0,
         not_applicable: 0,
@@ -217,9 +239,16 @@ export class WorkpackComponentIntegrationService {
         model_code: this.normalizeOrNull(componentModel?.model_code),
         manufacturer_name: this.normalizeOrNull(componentModel?.Manufacturer?.name),
         due_state: dueState,
-        due_explanation:
-          'No dedicated serialized-component due engine is linked in this workpack execution layer, so due visibility remains advisory and limited to currently derived context.',
-        is_due_determinable: false,
+        due_explanation: this.normalize(dueStatus?.explanation) ||
+          'Serialized-component due visibility could not be derived from current life-limit context.',
+        is_due_determinable: dueState !== 'UNKNOWN',
+        due_worst_limit: dueStatus?.worstLimit || null,
+        due_evaluated_limits: Array.isArray(dueStatus?.evaluatedLimits)
+          ? dueStatus.evaluatedLimits
+          : [],
+        due_has_unknown_limits: Boolean(dueStatus?.has_unknown_limits),
+        due_is_partial: Boolean(dueStatus?.is_partial),
+        due_missing_reasons: Array.isArray(dueStatus?.reasons) ? dueStatus.reasons : [],
         compliance_counts: complianceCounts,
         compliance_explanation:
           'No dedicated component compliance engine is linked in this workpack execution layer, so compliance visibility remains advisory and limited to current derived context.',
