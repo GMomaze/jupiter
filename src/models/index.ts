@@ -19,6 +19,7 @@ export { ComponentLifeLimit } from './ComponentLifeLimit.js';
 export { AircraftComponentInstallation } from './AircraftComponentInstallation.js';
 export { ServiceBulletin } from './ServiceBulletin.js';
 export { ServiceBulletinModel } from './ServiceBulletinModel.js';
+export { SbModelApplicabilityAllocation } from './SbModelApplicabilityAllocation.js';
 export { AircraftSbCompliance } from './AircraftSbCompliance.js';
 export { ServiceBulletinSyncRun } from './ServiceBulletinSyncRun.js';
 export { ComplianceItem } from './ComplianceItem.js';

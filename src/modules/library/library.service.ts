@@ -865,6 +865,1104 @@ export class LibraryService {
     });
   }
 
+  static async getSbModelApplicabilityAllocations(filters: {
+    status?: string;
+    classification?: string;
+    reviewBucket?: string;
+    search?: string;
+    sort?: string;
+    direction?: string;
+  }) {
+    const status = String(filters.status || '').trim().toUpperCase();
+    const classification = String(filters.classification || '').trim().toUpperCase();
+    const reviewBucket = String(filters.reviewBucket || '').trim().toUpperCase();
+    const search = String(filters.search || '').trim();
+    const sort = String(filters.sort || '').trim();
+    const direction =
+      String(filters.direction || '').trim().toLowerCase() === 'asc' ? 'ASC' : 'DESC';
+    const sortColumns: Record<string, string> = {
+      created_at: 'a.created_at',
+      sb_reference: 'sb.reference',
+      classification: 'a.classification',
+      status: 'a.status',
+    };
+    const whereClauses: string[] = [];
+    const replacements: Record<string, unknown> = {};
+
+    if (this.sbModelAllocationStatuses.includes(status)) {
+      whereClauses.push('a.status = :status');
+      replacements.status = status;
+    }
+
+    if (this.sbModelAllocationClassifications.includes(classification)) {
+      whereClauses.push('a.classification = :classification');
+      replacements.classification = classification;
+    }
+
+    if (this.sbModelAllocationReviewBuckets.includes(reviewBucket)) {
+      whereClauses.push(`${this.sbModelAllocationReviewBucketSql} = :reviewBucket`);
+      replacements.reviewBucket = reviewBucket;
+    }
+
+    if (search) {
+      whereClauses.push(`(
+        sb.reference ILIKE :search
+        OR sb.title ILIKE :search
+        OR a.raw_models_affected_text ILIKE :search
+        OR a.parsed_token ILIKE :search
+      )`);
+      replacements.search = `%${search}%`;
+    }
+
+    const orderBy = sortColumns[sort] || sortColumns.created_at;
+    const whereSql = whereClauses.length ? `WHERE ${whereClauses.join(' AND ')}` : '';
+
+    return sequelize.query(
+      `
+      SELECT
+        a.id,
+        a.service_bulletin_id,
+        sb.reference AS sb_reference,
+        sb.title AS sb_title,
+        a.raw_models_affected_text,
+        a.parsed_token,
+        a.normalized_token,
+        a.classification,
+        a.status,
+        ${this.sbModelAllocationReviewBucketSql} AS review_bucket,
+        a.source_adapter,
+        a.source_row,
+        a.ignored_reason,
+        a.created_at,
+        a.reviewed_at,
+        matched.model_name AS matched_model_name,
+        allocated.model_name AS allocated_model_name,
+        created.model_name AS created_model_name
+      FROM sb_model_applicability_allocations a
+      JOIN service_bulletins sb
+        ON sb.id = a.service_bulletin_id
+      LEFT JOIN component_models matched
+        ON matched.id = a.matched_model_id
+      LEFT JOIN component_models allocated
+        ON allocated.id = a.allocated_model_id
+      LEFT JOIN component_models created
+        ON created.id = a.created_model_id
+      ${whereSql}
+      ORDER BY ${orderBy} ${direction}, sb.reference ASC, a.parsed_token ASC
+      LIMIT 500
+      `,
+      {
+        replacements,
+        type: QueryTypes.SELECT,
+      }
+    );
+  }
+
+  static async getSbModelAllocationReviewBucketCounts() {
+    return sequelize.query(
+      `
+      SELECT
+        bucket.review_bucket,
+        COUNT(*)::int AS count
+      FROM (
+        SELECT ${this.sbModelAllocationReviewBucketSql} AS review_bucket
+        FROM sb_model_applicability_allocations a
+      ) bucket
+      WHERE bucket.review_bucket IS NOT NULL
+      GROUP BY bucket.review_bucket
+      ORDER BY bucket.review_bucket ASC
+      `,
+      {
+        type: QueryTypes.SELECT,
+      }
+    );
+  }
+
+  static async getSbModelAllocationLinkOptions() {
+    const models = await ComponentModel.findAll({
+      attributes: ['id', 'model_name', 'model_code', 'is_active'],
+      include: [
+        {
+          model: Manufacturer,
+          attributes: ['id', 'name', 'code'],
+          required: false,
+        },
+        {
+          model: AssetType,
+          attributes: ['id', 'code', 'label'],
+          required: false,
+        },
+      ],
+      order: [[Manufacturer, 'name', 'ASC'], ['model_name', 'ASC']],
+      limit: 1000,
+    });
+
+    return models.map((model: any) => ({
+      ...model.get({ plain: true }),
+      display_name: formatModelDisplay(model),
+    }));
+  }
+
+  static async linkSbModelAllocationToModels(
+    allocationId: string,
+    modelIds: string[],
+    reviewedBy: string | null
+  ) {
+    const uniqueModelIds = Array.from(
+      new Set((modelIds || []).map((id) => String(id || '').trim()).filter(Boolean))
+    );
+
+    if (!allocationId || uniqueModelIds.length === 0) {
+      throw new Error('Select at least one model to link.');
+    }
+
+    return sequelize.transaction(async (transaction) => {
+      const allocations = await sequelize.query<any>(
+        `
+        SELECT
+          a.id,
+          a.service_bulletin_id,
+          a.raw_models_affected_text,
+          a.metadata
+        FROM sb_model_applicability_allocations a
+        WHERE a.id = :allocationId
+        FOR UPDATE
+        `,
+        {
+          replacements: { allocationId },
+          transaction,
+          type: QueryTypes.SELECT,
+        }
+      );
+      const allocation = allocations[0];
+
+      if (!allocation) {
+        throw new Error('SB model applicability allocation was not found.');
+      }
+
+      const selectedModels = await ComponentModel.findAll({
+        attributes: ['id', 'model_name', 'model_code'],
+        where: { id: { [Op.in]: uniqueModelIds } },
+        transaction,
+      });
+      const selectedModelIds = selectedModels.map((model: any) => String(model.id));
+
+      if (selectedModelIds.length !== uniqueModelIds.length) {
+        throw new Error('One or more selected component models no longer exist.');
+      }
+
+      for (const modelId of selectedModelIds) {
+        await sequelize.query(
+          `
+          INSERT INTO service_bulletin_models (
+            service_bulletin_id,
+            model_id
+          ) VALUES (
+            :serviceBulletinId,
+            :modelId
+          )
+          ON CONFLICT (service_bulletin_id, model_id) DO NOTHING
+          `,
+          {
+            replacements: {
+              serviceBulletinId: allocation.service_bulletin_id,
+              modelId,
+            },
+            transaction,
+          }
+        );
+      }
+
+      const existingMetadata =
+        allocation.metadata && typeof allocation.metadata === 'object'
+          ? allocation.metadata
+          : {};
+      const linkedModels = selectedModels.map((model: any) => ({
+        id: model.id,
+        model_name: model.model_name,
+        model_code: model.model_code || null,
+      }));
+
+      await sequelize.query(
+        `
+        UPDATE sb_model_applicability_allocations
+        SET
+          status = 'LINKED_MANUALLY',
+          allocated_model_id = :allocatedModelId,
+          reviewed_by = :reviewedBy,
+          reviewed_at = CURRENT_TIMESTAMP,
+          metadata = CAST(:metadata AS jsonb),
+          updated_at = CURRENT_TIMESTAMP
+        WHERE id = :allocationId
+        `,
+        {
+          replacements: {
+            allocationId,
+            allocatedModelId: selectedModelIds.length === 1 ? selectedModelIds[0] : null,
+            reviewedBy,
+            metadata: JSON.stringify({
+              ...existingMetadata,
+              manual_linked_models: linkedModels,
+              manual_linked_model_ids: selectedModelIds,
+            }),
+          },
+          transaction,
+        }
+      );
+
+      return {
+        linkedCount: selectedModelIds.length,
+        rawModelsAffectedText: allocation.raw_models_affected_text,
+      };
+    });
+  }
+
+  static async recheckExactSbModelAllocations(reviewedBy: string | null) {
+    return sequelize.transaction(async (transaction) => {
+      const allocations = await sequelize.query<any>(
+        `
+        SELECT
+          a.id,
+          a.service_bulletin_id,
+          a.raw_models_affected_text,
+          a.parsed_token,
+          a.normalized_token,
+          a.metadata
+        FROM sb_model_applicability_allocations a
+        WHERE a.status = 'NEEDS_REVIEW'
+          AND a.classification = 'EXACT_MODEL_CODE'
+          AND BTRIM(COALESCE(a.parsed_token, '')) <> ''
+        ORDER BY a.created_at ASC NULLS LAST, a.id ASC
+        FOR UPDATE
+        `,
+        {
+          transaction,
+          type: QueryTypes.SELECT,
+        }
+      );
+
+      let scanned = 0;
+      let matched = 0;
+      let linked = 0;
+      let noMatch = 0;
+      let multipleMatches = 0;
+      const samples: Array<{
+        allocation_id: string;
+        service_bulletin_id: string;
+        parsed_token: string;
+        model_code: string;
+        model_name: string;
+      }> = [];
+
+      for (const allocation of allocations) {
+        scanned += 1;
+        const normalizedToken = String(allocation.parsed_token || '')
+          .trim()
+          .replace(/\s+/g, ' ')
+          .toUpperCase();
+
+        if (!normalizedToken) {
+          noMatch += 1;
+          continue;
+        }
+
+        const modelMatches = await sequelize.query<any>(
+          `
+          SELECT id::text AS id, model_code, model_name
+          FROM component_models
+          WHERE UPPER(BTRIM(model_code)) = :normalizedToken
+          ORDER BY created_at ASC NULLS LAST, model_name ASC
+          `,
+          {
+            replacements: { normalizedToken },
+            transaction,
+            type: QueryTypes.SELECT,
+          }
+        );
+
+        if (modelMatches.length === 0) {
+          noMatch += 1;
+          continue;
+        }
+
+        if (modelMatches.length > 1) {
+          multipleMatches += 1;
+          continue;
+        }
+
+        const model = modelMatches[0];
+        const insertResult = await sequelize.query<any>(
+          `
+          INSERT INTO service_bulletin_models (
+            service_bulletin_id,
+            model_id
+          ) VALUES (
+            :serviceBulletinId,
+            :modelId
+          )
+          ON CONFLICT (service_bulletin_id, model_id) DO NOTHING
+          RETURNING id
+          `,
+          {
+            replacements: {
+              serviceBulletinId: allocation.service_bulletin_id,
+              modelId: model.id,
+            },
+            transaction,
+            type: QueryTypes.SELECT,
+          }
+        );
+
+        if (insertResult.length > 0) {
+          linked += 1;
+        }
+
+        const existingMetadata =
+          allocation.metadata && typeof allocation.metadata === 'object'
+            ? allocation.metadata
+            : {};
+
+        await sequelize.query(
+          `
+          UPDATE sb_model_applicability_allocations
+          SET
+            status = 'MATCHED',
+            matched_model_id = :modelId,
+            reviewed_by = :reviewedBy,
+            reviewed_at = CURRENT_TIMESTAMP,
+            metadata = CAST(:metadata AS jsonb),
+            updated_at = CURRENT_TIMESTAMP
+          WHERE id = :allocationId
+          `,
+          {
+            replacements: {
+              allocationId: allocation.id,
+              modelId: model.id,
+              reviewedBy,
+              metadata: JSON.stringify({
+                ...existingMetadata,
+                exact_model_code_recheck: {
+                  matched_model_id: model.id,
+                  matched_model_code: model.model_code,
+                  matched_model_name: model.model_name,
+                  normalized_token: normalizedToken,
+                  matched_at: new Date().toISOString(),
+                },
+              }),
+            },
+            transaction,
+          }
+        );
+
+        matched += 1;
+
+        if (samples.length < 10) {
+          samples.push({
+            allocation_id: allocation.id,
+            service_bulletin_id: allocation.service_bulletin_id,
+            parsed_token: allocation.parsed_token,
+            model_code: model.model_code,
+            model_name: model.model_name,
+          });
+        }
+      }
+
+      return {
+        scanned,
+        matched,
+        linked,
+        noMatch,
+        multipleMatches,
+        samples,
+      };
+    });
+  }
+
+  private static normalizeSbModelCodeToken(value: unknown) {
+    return String(value || '')
+      .trim()
+      .replace(/\s+/g, ' ')
+      .toUpperCase();
+  }
+
+  private static isUnsafeSbShorthandText(value: string) {
+    return (
+      /\b(?:ALL|SERIES|CLASSIC|PISTON|MANUFACTURED|ANY)\b/i.test(value) ||
+      /\b(?:INSPECTION|REPLACEMENT|ASSEMBLY|MODIFICATION|REPAIR|PLACARD|DATED|AMENDED|INSTRUCTIONS|OPERATION|BRAZIL|COLT)\b/i.test(value) ||
+      /\*\*/.test(value) ||
+      /\d{1,2}\/\d{1,2}\/\d{2,4}/.test(value) ||
+      /\b\d{2}-\d{2}-\d{2}\b/.test(value) ||
+      /\b\d{3}-\d{3}\b/.test(value) ||
+      /(?:\uFFFD|\u00EF\u00BF\u00BD)/.test(value)
+    );
+  }
+
+  private static expandCommaFamilyShorthand(text: string) {
+    const normalizedText = this.normalizeSbModelCodeToken(text).replace(/\s*,\s*/g, ',');
+    const parts = normalizedText.split(',').map((part) => part.trim()).filter(Boolean);
+
+    if (parts.length < 2) {
+      return [];
+    }
+
+    const firstPart = parts[0] || '';
+    const firstMatch = firstPart.match(/^PA-([0-9]+)([A-Z]?)$/);
+
+    if (!firstMatch) {
+      return [];
+    }
+
+    const family = firstMatch[1];
+    const tokens = [firstPart];
+
+    for (const part of parts.slice(1)) {
+      if (/^[0-9]+[A-Z]?$/.test(part)) {
+        tokens.push(`PA-${part}`);
+        continue;
+      }
+
+      if (/^[A-Z]+$/.test(part)) {
+        tokens.push(`PA-${family}${part}`);
+        continue;
+      }
+
+      return [];
+    }
+
+    return tokens;
+  }
+
+  private static expandHyphenSuffixShorthand(text: string) {
+    const normalizedText = this.normalizeSbModelCodeToken(text).replace(/\s+/g, '');
+    const parts = normalizedText.split('/').map((part) => part.trim()).filter(Boolean);
+
+    if (parts.length < 2) {
+      return [];
+    }
+
+    const firstPart = parts[0] || '';
+    const firstMatch = firstPart.match(/^(PA-[A-Z0-9]+-)([0-9A-Z]+)$/);
+
+    if (!firstMatch) {
+      return [];
+    }
+
+    const base = firstMatch[1];
+    const tokens = [firstPart];
+
+    for (const part of parts.slice(1)) {
+      const suffixMatch = part.match(/^-([0-9A-Z]+)$/);
+      if (!suffixMatch) {
+        return [];
+      }
+
+      tokens.push(`${base}${suffixMatch[1]}`);
+    }
+
+    return tokens;
+  }
+
+  private static expandSameFamilySlashShorthand(text: string) {
+    const normalizedText = this.normalizeSbModelCodeToken(text).replace(/\s+/g, '');
+    const parts = normalizedText.split('/').map((part) => part.trim()).filter(Boolean);
+
+    if (parts.length < 2) {
+      return [];
+    }
+
+    const firstPart = parts[0] || '';
+    const firstMatch = firstPart.match(/^(PA-[A-Z0-9]+-)([0-9A-Z]+)$/);
+
+    if (!firstMatch) {
+      return [];
+    }
+
+    const base = firstMatch[1];
+    const tokens = [firstPart];
+
+    for (const part of parts.slice(1)) {
+      if (!/^[0-9A-Z]+$/.test(part)) {
+        return [];
+      }
+
+      tokens.push(`${base}${part}`);
+    }
+
+    return tokens;
+  }
+
+  private static expandPiperMixedFamilySlashShorthand(text: string) {
+    const normalizedText = this.normalizeSbModelCodeToken(text).replace(/\s+/g, '');
+    const parts = normalizedText.split('/').map((part) => part.trim()).filter(Boolean);
+
+    if (parts.length < 2) {
+      return [];
+    }
+
+    const firstPart = parts[0] || '';
+    const firstMatch = firstPart.match(/^PA-([0-9]+)-[0-9A-Z]+$/);
+
+    if (!firstMatch) {
+      return [];
+    }
+
+    const family = firstMatch[1];
+    const tokens = [firstPart];
+
+    for (const part of parts.slice(1)) {
+      if (new RegExp(`^${family}-[0-9A-Z]+$`).test(part)) {
+        tokens.push(`PA-${part}`);
+        continue;
+      }
+
+      if (new RegExp(`^[A-Z]${family}-[0-9A-Z]+$`).test(part)) {
+        tokens.push(`PA-${part}`);
+        continue;
+      }
+
+      return [];
+    }
+
+    return tokens;
+  }
+
+  private static expandSlashSeparatedKnownCodes(text: string, knownCodes: Set<string>) {
+    const normalizedText = this.normalizeSbModelCodeToken(text).replace(/\s*\/\s*/g, '/');
+    const parts = normalizedText.split('/').map((part) => part.trim()).filter(Boolean);
+
+    if (parts.length < 2 || parts.some((part) => !knownCodes.has(part))) {
+      return [];
+    }
+
+    return parts;
+  }
+
+  private static expandSpaceSeparatedKnownCodes(text: string, knownCodes: Set<string>) {
+    const tokens = this.normalizeSbModelCodeToken(text).split(/\s+/).filter(Boolean);
+
+    if (tokens.length < 2 || tokens.some((token) => !knownCodes.has(token))) {
+      return [];
+    }
+
+    return tokens;
+  }
+
+  private static expandSafeSbShorthand(value: unknown, knownCodes: Set<string>) {
+    const text = this.normalizeSbModelCodeToken(value);
+
+    if (!text || this.isUnsafeSbShorthandText(text)) {
+      return {
+        expandedTokens: [] as string[],
+        rejectedReason: !text ? 'EMPTY_TEXT' : 'UNSAFE_TEXT',
+      };
+    }
+
+    const candidates = [
+      this.expandCommaFamilyShorthand(text),
+      this.expandHyphenSuffixShorthand(text),
+      this.expandSameFamilySlashShorthand(text),
+      this.expandPiperMixedFamilySlashShorthand(text),
+      this.expandSlashSeparatedKnownCodes(text, knownCodes),
+      this.expandSpaceSeparatedKnownCodes(text, knownCodes),
+    ];
+
+    const expandedTokens = Array.from(
+      new Set(candidates.flat().map((token) => this.normalizeSbModelCodeToken(token)))
+    ).filter(Boolean);
+
+    if (expandedTokens.length === 0) {
+      return {
+        expandedTokens,
+        rejectedReason: 'NO_SAFE_EXPANSION',
+      };
+    }
+
+    return {
+      expandedTokens,
+      rejectedReason: null,
+    };
+  }
+
+  static async expandSafeSbShorthandAllocations(reviewedBy: string | null) {
+    return sequelize.transaction(async (transaction) => {
+      const [allocations, modelRows] = await Promise.all([
+        sequelize.query<any>(
+          `
+          SELECT
+            a.id,
+            a.service_bulletin_id,
+            a.raw_models_affected_text,
+            a.parsed_token,
+            a.normalized_token,
+            a.metadata,
+            a.shorthand_expansions
+          FROM sb_model_applicability_allocations a
+          WHERE a.status = 'NEEDS_REVIEW'
+            AND a.classification = 'SHORTHAND_GROUP'
+            AND BTRIM(COALESCE(a.parsed_token, '')) <> ''
+          ORDER BY a.created_at ASC NULLS LAST, a.id ASC
+          FOR UPDATE
+          `,
+          {
+            transaction,
+            type: QueryTypes.SELECT,
+          }
+        ),
+        sequelize.query<any>(
+          `
+          SELECT id::text AS id, model_code, model_name
+          FROM component_models
+          WHERE model_code IS NOT NULL
+            AND BTRIM(model_code) <> ''
+          ORDER BY model_code ASC, model_name ASC
+          `,
+          {
+            transaction,
+            type: QueryTypes.SELECT,
+          }
+        ),
+      ]);
+
+      const modelsByCode = new Map<string, any[]>();
+      modelRows.forEach((model) => {
+        const code = this.normalizeSbModelCodeToken(model.model_code);
+        if (!code) return;
+        const models = modelsByCode.get(code) || [];
+        models.push(model);
+        modelsByCode.set(code, models);
+      });
+      const knownCodes = new Set(modelsByCode.keys());
+      const samples: Array<{
+        allocation_id: string;
+        service_bulletin_id: string;
+        parsed_token: string;
+        expanded_tokens: string[];
+        matched_tokens: string[];
+        unresolved_tokens: string[];
+      }> = [];
+      const unsafeExamples: Array<{
+        allocation_id: string;
+        parsed_token: string;
+        reason: string;
+      }> = [];
+      let scanned = 0;
+      let expanded = 0;
+      let matchedAllocations = 0;
+      let linked = 0;
+      let partial = 0;
+      let skippedUnsafe = 0;
+      let skippedNoExpansion = 0;
+      let skippedMultipleMatches = 0;
+
+      for (const allocation of allocations) {
+        scanned += 1;
+        const expansion = this.expandSafeSbShorthand(allocation.parsed_token, knownCodes);
+
+        if (expansion.expandedTokens.length === 0) {
+          if (expansion.rejectedReason === 'UNSAFE_TEXT') {
+            skippedUnsafe += 1;
+          } else {
+            skippedNoExpansion += 1;
+          }
+
+          if (unsafeExamples.length < 10) {
+            unsafeExamples.push({
+              allocation_id: allocation.id,
+              parsed_token: allocation.parsed_token,
+              reason: expansion.rejectedReason || 'NO_SAFE_EXPANSION',
+            });
+          }
+          continue;
+        }
+
+        expanded += 1;
+        const matchedModels = [];
+        const unresolvedTokens: string[] = [];
+
+        for (const token of expansion.expandedTokens) {
+          const modelMatches = modelsByCode.get(token) || [];
+
+          if (modelMatches.length === 1) {
+            matchedModels.push({
+              token,
+              model: modelMatches[0],
+            });
+          } else {
+            unresolvedTokens.push(token);
+            if (modelMatches.length > 1) {
+              skippedMultipleMatches += 1;
+            }
+          }
+        }
+
+        for (const match of matchedModels) {
+          const insertResult = await sequelize.query<any>(
+            `
+            INSERT INTO service_bulletin_models (
+              service_bulletin_id,
+              model_id
+            ) VALUES (
+              :serviceBulletinId,
+              :modelId
+            )
+            ON CONFLICT (service_bulletin_id, model_id) DO NOTHING
+            RETURNING id
+            `,
+            {
+              replacements: {
+                serviceBulletinId: allocation.service_bulletin_id,
+                modelId: match.model.id,
+              },
+              transaction,
+              type: QueryTypes.SELECT,
+            }
+          );
+
+          if (insertResult.length > 0) {
+            linked += 1;
+          }
+        }
+
+        const existingMetadata =
+          allocation.metadata && typeof allocation.metadata === 'object'
+            ? allocation.metadata
+            : {};
+        const shorthandExpansion = {
+          parsed_token: allocation.parsed_token,
+          expanded_tokens: expansion.expandedTokens,
+          matched_tokens: matchedModels.map((match) => match.token),
+          unresolved_tokens: unresolvedTokens,
+          matched_models: matchedModels.map((match) => ({
+            id: match.model.id,
+            model_code: match.model.model_code,
+            model_name: match.model.model_name,
+            token: match.token,
+          })),
+          expanded_at: new Date().toISOString(),
+        };
+        const allMatched = matchedModels.length > 0 && unresolvedTokens.length === 0;
+
+        await sequelize.query(
+          `
+          UPDATE sb_model_applicability_allocations
+          SET
+            status = :status,
+            matched_model_id = :matchedModelId,
+            reviewed_by = :reviewedBy,
+            reviewed_at = CASE WHEN :allMatched THEN CURRENT_TIMESTAMP ELSE reviewed_at END,
+            shorthand_expansions = CAST(:shorthandExpansions AS jsonb),
+            metadata = CAST(:metadata AS jsonb),
+            updated_at = CURRENT_TIMESTAMP
+          WHERE id = :allocationId
+          `,
+          {
+            replacements: {
+              allocationId: allocation.id,
+              status: allMatched ? 'MATCHED' : 'NEEDS_REVIEW',
+              matchedModelId: matchedModels.length === 1 ? matchedModels[0]?.model.id || null : null,
+              reviewedBy,
+              allMatched,
+              shorthandExpansions: JSON.stringify([shorthandExpansion]),
+              metadata: JSON.stringify({
+                ...existingMetadata,
+                safe_shorthand_expansion: shorthandExpansion,
+              }),
+            },
+            transaction,
+          }
+        );
+
+        if (allMatched) {
+          matchedAllocations += 1;
+        } else {
+          partial += 1;
+        }
+
+        if (samples.length < 10) {
+          samples.push({
+            allocation_id: allocation.id,
+            service_bulletin_id: allocation.service_bulletin_id,
+            parsed_token: allocation.parsed_token,
+            expanded_tokens: expansion.expandedTokens,
+            matched_tokens: matchedModels.map((match) => match.token),
+            unresolved_tokens: unresolvedTokens,
+          });
+        }
+      }
+
+      return {
+        scanned,
+        expanded,
+        matchedAllocations,
+        linked,
+        partial,
+        skippedUnsafe,
+        skippedNoExpansion,
+        skippedMultipleMatches,
+        samples,
+        unsafeExamples,
+      };
+    });
+  }
+
+  static async ignoreSbModelAllocation(
+    allocationId: string,
+    ignoredReason: string,
+    reviewedBy: string | null
+  ) {
+    const reason = String(ignoredReason || '').trim();
+
+    if (!allocationId) {
+      throw new Error('SB model applicability allocation was not found.');
+    }
+
+    if (!reason) {
+      throw new Error('Ignore reason is required.');
+    }
+
+    const [updatedCount] = await sequelize.query(
+      `
+      UPDATE sb_model_applicability_allocations
+      SET
+        status = 'IGNORED',
+        ignored_reason = :reason,
+        reviewed_by = :reviewedBy,
+        reviewed_at = CURRENT_TIMESTAMP,
+        updated_at = CURRENT_TIMESTAMP
+      WHERE id = :allocationId
+      RETURNING id
+      `,
+      {
+        replacements: {
+          allocationId,
+          reason,
+          reviewedBy,
+        },
+        type: QueryTypes.UPDATE,
+      }
+    );
+
+    if (Number(updatedCount || 0) === 0) {
+      throw new Error('SB model applicability allocation was not found.');
+    }
+  }
+
+  private static async findSbAllocationDefaultAssetType(transaction: any) {
+    const assetType = await AssetType.findOne({
+      where: { code: 'AIRFRAME' },
+      transaction,
+    });
+
+    if (!assetType) {
+      throw new Error('AIRFRAME asset type is required before creating incomplete aircraft models.');
+    }
+
+    return assetType;
+  }
+
+  private static async findSbAllocationManufacturer(
+    manufacturerName: string,
+    transaction: any
+  ) {
+    const normalizedManufacturer = String(manufacturerName || '').trim() || 'Piper';
+    const manufacturer = await Manufacturer.findOne({
+      where: {
+        [Op.or]: [
+          { name: { [Op.iLike]: normalizedManufacturer } },
+          { code: normalizedManufacturer.toUpperCase() },
+        ],
+      },
+      transaction,
+    });
+
+    if (!manufacturer) {
+      throw new Error(
+        `Manufacturer ${normalizedManufacturer} must exist before creating incomplete models.`
+      );
+    }
+
+    return manufacturer;
+  }
+
+  static async createIncompleteModelFromSbAllocation(
+    allocationId: string,
+    proposedModelCode: string,
+    proposedModelName: string,
+    reviewedBy: string | null
+  ) {
+    const modelCode = String(proposedModelCode || '').trim().replace(/\s+/g, ' ');
+    const modelName = String(proposedModelName || '').trim().replace(/\s+/g, ' ');
+
+    if (!allocationId) {
+      throw new Error('SB model applicability allocation was not found.');
+    }
+
+    if (!modelCode) {
+      throw new Error('Model code is required.');
+    }
+
+    const displayName = modelName || modelCode;
+
+    return sequelize.transaction(async (transaction) => {
+      const allocations = await sequelize.query<any>(
+        `
+        SELECT
+          a.id,
+          a.service_bulletin_id,
+          a.raw_models_affected_text,
+          a.parsed_token,
+          a.normalized_token,
+          a.classification,
+          a.metadata,
+          sb.reference,
+          sb.title,
+          sb.manufacturer
+        FROM sb_model_applicability_allocations a
+        JOIN service_bulletins sb
+          ON sb.id = a.service_bulletin_id
+        WHERE a.id = :allocationId
+        FOR UPDATE
+        `,
+        {
+          replacements: { allocationId },
+          transaction,
+          type: QueryTypes.SELECT,
+        }
+      );
+      const allocation = allocations[0];
+
+      if (!allocation) {
+        throw new Error('SB model applicability allocation was not found.');
+      }
+
+      const [manufacturer, assetType] = await Promise.all([
+        this.findSbAllocationManufacturer(allocation.manufacturer, transaction),
+        this.findSbAllocationDefaultAssetType(transaction),
+      ]);
+
+      const existingModels = await sequelize.query<any>(
+        `
+        SELECT id::text AS id, model_name, model_code, maintenance_notes
+        FROM component_models
+        WHERE manufacturer_id = :manufacturerId
+          AND asset_type_id = :assetTypeId
+          AND (
+            UPPER(BTRIM(model_code)) = UPPER(BTRIM(:modelCode))
+            OR UPPER(BTRIM(model_name)) = UPPER(BTRIM(:modelCode))
+          )
+        ORDER BY created_at ASC NULLS LAST
+        LIMIT 1
+        `,
+        {
+          replacements: {
+            manufacturerId: manufacturer.id,
+            assetTypeId: assetType.id,
+            modelCode,
+          },
+          transaction,
+          type: QueryTypes.SELECT,
+        }
+      );
+
+      let modelId = existingModels[0]?.id || null;
+      let created = false;
+
+      if (!modelId) {
+        const note = [
+          'Incomplete model created from SB model applicability allocation.',
+          `SB: ${allocation.reference}`,
+          `Raw Models Affected: ${allocation.raw_models_affected_text}`,
+          `Parsed token: ${allocation.parsed_token || '-'}`,
+          `Model code: ${modelCode}`,
+          `Display name: ${displayName}`,
+          `Created: ${new Date().toISOString()}`,
+        ].join('\n');
+        const createdModel = await ComponentModel.create(
+          {
+            manufacturer_id: manufacturer.id,
+            asset_type_id: assetType.id,
+            model_name: displayName,
+            model_code: modelCode,
+            maintenance_notes: note,
+            is_life_limited: false,
+            is_active: true,
+          },
+          { transaction }
+        );
+
+        modelId = createdModel.id;
+        created = true;
+      }
+
+      await sequelize.query(
+        `
+        INSERT INTO service_bulletin_models (
+          service_bulletin_id,
+          model_id
+        ) VALUES (
+          :serviceBulletinId,
+          :modelId
+        )
+        ON CONFLICT (service_bulletin_id, model_id) DO NOTHING
+        `,
+        {
+          replacements: {
+            serviceBulletinId: allocation.service_bulletin_id,
+            modelId,
+          },
+          transaction,
+        }
+      );
+
+      const existingMetadata =
+        allocation.metadata && typeof allocation.metadata === 'object'
+          ? allocation.metadata
+          : {};
+
+      await sequelize.query(
+        `
+        UPDATE sb_model_applicability_allocations
+        SET
+          status = 'MODEL_CREATED_INCOMPLETE',
+          created_model_id = :modelId,
+          reviewed_by = :reviewedBy,
+          reviewed_at = CURRENT_TIMESTAMP,
+          metadata = CAST(:metadata AS jsonb),
+          updated_at = CURRENT_TIMESTAMP
+        WHERE id = :allocationId
+        `,
+        {
+          replacements: {
+            allocationId,
+            modelId,
+            reviewedBy,
+            metadata: JSON.stringify({
+              ...existingMetadata,
+              incomplete_model_action: {
+                model_id: modelId,
+                model_code: modelCode,
+                model_name: displayName,
+                manufacturer_id: manufacturer.id,
+                manufacturer_name: manufacturer.name,
+                asset_type_id: assetType.id,
+                asset_type_code: assetType.code,
+                created_new_model: created,
+              },
+            }),
+          },
+          transaction,
+        }
+      );
+
+      return {
+        modelId,
+        modelName: displayName,
+        modelCode,
+        created,
+      };
+    });
+  }
+
   static async getSerializedComponentById(id: string) {
     return SerializedComponent.findByPk(id, {
       attributes: [

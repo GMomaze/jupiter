@@ -1,0 +1,387 @@
+<%- include('../../partials/header') %>
+
+<%
+  const selectedStatus = filters.status || '';
+  const selectedClassification = filters.classification || '';
+  const selectedReviewBucket = filters.reviewBucket || '';
+  const selectedSort = filters.sort || 'created_at';
+  const selectedDirection = filters.direction || 'desc';
+  const searchValue = filters.search || '';
+  const currentPath = `/library/sbs/import-issues/unallocated-models?status=${encodeURIComponent(selectedStatus)}&classification=${encodeURIComponent(selectedClassification)}&review_bucket=${encodeURIComponent(selectedReviewBucket)}&search=${encodeURIComponent(searchValue)}&sort=${encodeURIComponent(selectedSort)}&direction=${encodeURIComponent(selectedDirection)}`;
+  const bucketLabel = (bucket) => String(bucket || '').replace(/_/g, ' ');
+  const bucketCountsByName = (reviewBucketCounts || []).reduce((acc, item) => {
+    acc[item.review_bucket] = Number(item.count || 0);
+    return acc;
+  }, {});
+  const totalNeedsReviewBuckets = Object.values(bucketCountsByName).reduce((sum, count) => sum + Number(count || 0), 0);
+  const bucketLink = (bucket) => `/library/sbs/import-issues/unallocated-models?status=${encodeURIComponent(selectedStatus)}&classification=${encodeURIComponent(selectedClassification)}&review_bucket=${encodeURIComponent(bucket)}&search=${encodeURIComponent(searchValue)}&sort=${encodeURIComponent(selectedSort)}&direction=${encodeURIComponent(selectedDirection)}`;
+%>
+
+<main class="max-w-7xl mx-auto py-10 px-6 space-y-8">
+  <div class="flex items-center justify-between gap-4">
+    <div>
+      <a href="/library" class="text-sm text-blue-600 hover:underline">Back to Library</a>
+      <h1 class="mt-3 text-3xl font-bold text-slate-900">SB Import Issues</h1>
+      <p class="mt-2 text-sm text-slate-500">
+        Read-only allocation list for imported Service Bulletin model applicability evidence.
+      </p>
+    </div>
+
+    <a
+      href="/library/sbs"
+      class="rounded bg-slate-800 px-4 py-2 text-sm font-bold text-white hover:bg-black"
+    >
+      View SBs
+    </a>
+  </div>
+
+  <section class="rounded-xl border bg-white p-6 shadow-sm">
+    <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+      <div>
+        <h2 class="text-lg font-bold text-slate-900">Unallocated Models</h2>
+        <p class="mt-1 text-sm text-slate-500">
+          Raw <code>Models Affected</code> text is retained as the review authority. Parsed tokens are helper data only.
+        </p>
+      </div>
+      <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
+        <form method="POST" action="/library/sbs/import-issues/recheck-exact-model-codes?_csrf=<%= encodeURIComponent(csrfToken) %>">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+          <input type="hidden" name="return_to" value="<%= currentPath %>">
+          <button type="submit" class="rounded bg-emerald-700 px-4 py-2 text-xs font-bold uppercase tracking-wider text-white hover:bg-emerald-800">
+            Recheck exact model codes
+          </button>
+        </form>
+        <form method="POST" action="/library/sbs/import-issues/expand-safe-shorthand?_csrf=<%= encodeURIComponent(csrfToken) %>">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+          <input type="hidden" name="return_to" value="<%= currentPath %>">
+          <button type="submit" class="rounded bg-blue-700 px-4 py-2 text-xs font-bold uppercase tracking-wider text-white hover:bg-blue-800">
+            Expand safe shorthand
+          </button>
+        </form>
+        <div class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-xs font-bold uppercase tracking-widest text-amber-700">
+          <%= allocations.length %> Allocation Records
+        </div>
+      </div>
+    </div>
+
+    <div class="mt-6 rounded-lg border border-slate-200 bg-slate-50 p-4">
+      <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h3 class="text-sm font-bold text-slate-900">Review Buckets</h3>
+          <p class="mt-1 text-xs text-slate-500">
+            <%= totalNeedsReviewBuckets %> NEEDS_REVIEW records grouped for manual allocation review.
+          </p>
+        </div>
+        <% if (selectedReviewBucket) { %>
+          <a
+            href="<%= bucketLink('') %>"
+            class="text-xs font-bold uppercase tracking-wider text-blue-700 hover:underline"
+          >
+            Clear bucket filter
+          </a>
+        <% } %>
+      </div>
+      <div class="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+        <% reviewBucketOptions.forEach((bucket) => { %>
+          <a
+            href="<%= bucketLink(bucket) %>"
+            class="rounded-lg border px-4 py-3 text-left transition <%= selectedReviewBucket === bucket ? 'border-blue-500 bg-blue-50 text-blue-900' : 'border-slate-200 bg-white text-slate-800 hover:border-slate-300 hover:bg-slate-100' %>"
+          >
+            <span class="block text-[10px] font-bold uppercase tracking-widest"><%= bucketLabel(bucket) %></span>
+            <span class="mt-2 block text-2xl font-bold"><%= bucketCountsByName[bucket] || 0 %></span>
+          </a>
+        <% }) %>
+      </div>
+      <% if (selectedReviewBucket) { %>
+        <p class="mt-3 text-xs font-semibold uppercase tracking-wider text-blue-700">
+          Showing bucket: <%= bucketLabel(selectedReviewBucket) %>
+        </p>
+      <% } %>
+    </div>
+
+    <form method="GET" action="/library/sbs/import-issues/unallocated-models" class="mt-6 grid gap-4 rounded-lg border border-slate-200 bg-slate-50 p-4 md:grid-cols-6">
+      <label class="block">
+        <span class="text-xs font-bold uppercase tracking-widest text-slate-500">Status</span>
+        <select name="status" class="mt-1 w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800">
+          <option value="">All statuses</option>
+          <% statusOptions.forEach((status) => { %>
+            <option value="<%= status %>" <%= selectedStatus === status ? 'selected' : '' %>><%= status %></option>
+          <% }) %>
+        </select>
+      </label>
+
+      <label class="block">
+        <span class="text-xs font-bold uppercase tracking-widest text-slate-500">Classification</span>
+        <select name="classification" class="mt-1 w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800">
+          <option value="">All classifications</option>
+          <% classificationOptions.forEach((classification) => { %>
+            <option value="<%= classification %>" <%= selectedClassification === classification ? 'selected' : '' %>><%= classification %></option>
+          <% }) %>
+        </select>
+      </label>
+
+      <label class="block">
+        <span class="text-xs font-bold uppercase tracking-widest text-slate-500">Review Bucket</span>
+        <select name="review_bucket" class="mt-1 w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800">
+          <option value="">All buckets</option>
+          <% reviewBucketOptions.forEach((bucket) => { %>
+            <option value="<%= bucket %>" <%= selectedReviewBucket === bucket ? 'selected' : '' %>><%= bucketLabel(bucket) %></option>
+          <% }) %>
+        </select>
+      </label>
+
+      <label class="block">
+        <span class="text-xs font-bold uppercase tracking-widest text-slate-500">Search</span>
+        <input
+          type="search"
+          name="search"
+          value="<%= searchValue %>"
+          class="mt-1 w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800"
+          placeholder="Reference, title, raw text, token"
+        >
+      </label>
+
+      <label class="block">
+        <span class="text-xs font-bold uppercase tracking-widest text-slate-500">Sort</span>
+        <select name="sort" class="mt-1 w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800">
+          <% sortOptions.forEach((option) => { %>
+            <option value="<%= option.value %>" <%= selectedSort === option.value ? 'selected' : '' %>><%= option.label %></option>
+          <% }) %>
+        </select>
+      </label>
+
+      <div class="flex items-end gap-2">
+        <label class="block flex-1">
+          <span class="text-xs font-bold uppercase tracking-widest text-slate-500">Direction</span>
+          <select name="direction" class="mt-1 w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800">
+            <option value="desc" <%= selectedDirection !== 'asc' ? 'selected' : '' %>>Newest first</option>
+            <option value="asc" <%= selectedDirection === 'asc' ? 'selected' : '' %>>Oldest first</option>
+          </select>
+        </label>
+        <button type="submit" class="rounded bg-slate-800 px-4 py-2 text-sm font-bold text-white hover:bg-black">
+          Apply
+        </button>
+      </div>
+    </form>
+
+    <% if (!allocations.length) { %>
+      <div class="mt-6 rounded-xl border border-slate-200 bg-slate-50 px-6 py-10 text-center">
+        <p class="text-sm font-semibold text-slate-700">No allocation records match the current filters.</p>
+        <p class="mt-2 text-sm text-slate-500">
+          Piper SB imports with matched or unresolved model applicability will appear here after commit.
+        </p>
+      </div>
+    <% } else { %>
+      <div class="mt-6 overflow-x-auto rounded-lg border">
+        <table class="min-w-full divide-y divide-slate-200">
+          <thead class="bg-slate-50">
+            <tr>
+              <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">SB Reference</th>
+              <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Subject / Title</th>
+              <th class="min-w-80 px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Raw Models Affected Text</th>
+              <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Parsed Token</th>
+              <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Classification</th>
+              <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Review Bucket</th>
+              <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Status</th>
+              <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Matched Model</th>
+              <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Allocated Model</th>
+              <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Created Model</th>
+              <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Source Adapter</th>
+              <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Source Row</th>
+              <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Created</th>
+              <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Reviewed</th>
+              <th class="min-w-64 px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Ignored Reason</th>
+              <th class="min-w-80 px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Create Incomplete Model</th>
+              <th class="min-w-96 px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Link Existing Model(s)</th>
+              <th class="min-w-72 px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Ignore</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-100 bg-white">
+            <% allocations.forEach((allocation) => { %>
+              <tr>
+                <td class="px-3 py-3 align-top text-sm font-semibold text-slate-900">
+                  <%= allocation.sb_reference || '-' %>
+                </td>
+                <td class="px-3 py-3 align-top text-sm text-slate-700">
+                  <%= allocation.sb_title || '-' %>
+                </td>
+                <td class="px-3 py-3 align-top text-sm font-semibold text-slate-900">
+                  <%= allocation.raw_models_affected_text || '-' %>
+                </td>
+                <td class="px-3 py-3 align-top text-xs text-slate-700">
+                  <%= allocation.parsed_token || '-' %>
+                </td>
+                <td class="px-3 py-3 align-top">
+                  <span class="inline-flex rounded-full bg-slate-100 px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-700">
+                    <%= allocation.classification || '-' %>
+                  </span>
+                </td>
+                <td class="px-3 py-3 align-top">
+                  <% if (allocation.review_bucket) { %>
+                    <span class="inline-flex rounded-full bg-blue-50 px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-blue-700">
+                      <%= bucketLabel(allocation.review_bucket) %>
+                    </span>
+                  <% } else { %>
+                    <span class="text-xs text-slate-400">-</span>
+                  <% } %>
+                </td>
+                <td class="px-3 py-3 align-top">
+                  <% if (allocation.status === 'NEEDS_REVIEW') { %>
+                    <span class="inline-flex rounded-full bg-amber-100 px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-amber-800">
+                      NEEDS_REVIEW
+                    </span>
+                  <% } else if (allocation.status === 'MATCHED') { %>
+                    <span class="inline-flex rounded-full bg-emerald-100 px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-emerald-800">
+                      MATCHED
+                    </span>
+                  <% } else { %>
+                    <span class="inline-flex rounded-full bg-slate-200 px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-700">
+                      <%= allocation.status || '-' %>
+                    </span>
+                  <% } %>
+                </td>
+                <td class="px-3 py-3 align-top text-xs text-slate-700">
+                  <%= allocation.matched_model_name || '-' %>
+                </td>
+                <td class="px-3 py-3 align-top text-xs text-slate-700">
+                  <%= allocation.allocated_model_name || '-' %>
+                </td>
+                <td class="px-3 py-3 align-top text-xs text-slate-700">
+                  <%= allocation.created_model_name || '-' %>
+                </td>
+                <td class="px-3 py-3 align-top text-xs text-slate-700">
+                  <%= allocation.source_adapter || '-' %>
+                </td>
+                <td class="px-3 py-3 align-top text-xs text-slate-700">
+                  <%= allocation.source_row || '-' %>
+                </td>
+                <td class="px-3 py-3 align-top text-xs text-slate-700">
+                  <%= allocation.created_at ? new Date(allocation.created_at).toLocaleString() : '-' %>
+                </td>
+                <td class="px-3 py-3 align-top text-xs text-slate-700">
+                  <%= allocation.reviewed_at ? new Date(allocation.reviewed_at).toLocaleString() : '-' %>
+                </td>
+                <td class="px-3 py-3 align-top text-xs text-slate-700">
+                  <%= allocation.ignored_reason || '-' %>
+                </td>
+                <td class="px-3 py-3 align-top">
+                  <form
+                    method="POST"
+                    action="/library/sbs/import-issues/allocations/<%= allocation.id %>/create-incomplete-model?_csrf=<%= encodeURIComponent(csrfToken) %>"
+                    class="space-y-3 rounded-lg border border-slate-200 bg-slate-50 p-3"
+                  >
+                    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                    <input type="hidden" name="return_to" value="<%= currentPath %>">
+                    <div>
+                      <p class="text-[10px] font-bold uppercase tracking-widest text-slate-500">Source Wording</p>
+                      <p class="mt-1 text-xs font-semibold text-slate-800"><%= allocation.raw_models_affected_text || '-' %></p>
+                    </div>
+                    <div class="grid gap-2">
+                      <div>
+                        <p class="text-[10px] font-bold uppercase tracking-widest text-slate-500">Parsed Token</p>
+                        <p class="mt-1 text-xs text-slate-700"><%= allocation.parsed_token || '-' %></p>
+                      </div>
+                      <div>
+                        <p class="text-[10px] font-bold uppercase tracking-widest text-slate-500">Normalized Token</p>
+                        <p class="mt-1 text-xs text-slate-700"><%= allocation.normalized_token || '-' %></p>
+                      </div>
+                    </div>
+                    <label class="block">
+                      <span class="text-[10px] font-bold uppercase tracking-widest text-slate-500">Applicability / OEM Model Code</span>
+                      <input
+                        type="text"
+                        name="model_code"
+                        required
+                        value="<%= allocation.parsed_token || allocation.normalized_token || '' %>"
+                        class="mt-1 w-full rounded border border-slate-300 bg-white px-3 py-2 text-xs text-slate-800"
+                      >
+                    </label>
+                    <label class="block">
+                      <span class="text-[10px] font-bold uppercase tracking-widest text-slate-500">Display / Common Name</span>
+                      <input
+                        type="text"
+                        name="model_name"
+                        value=""
+                        placeholder="Optional; defaults to model code"
+                        class="mt-1 w-full rounded border border-slate-300 bg-white px-3 py-2 text-xs text-slate-800"
+                      >
+                    </label>
+                    <button type="submit" class="rounded bg-amber-600 px-3 py-2 text-xs font-bold uppercase tracking-wider text-white hover:bg-amber-700">
+                      Create incomplete model
+                    </button>
+                  </form>
+                </td>
+                <td class="px-3 py-3 align-top">
+                  <form
+                    method="POST"
+                    action="/library/sbs/import-issues/allocations/<%= allocation.id %>/link-models?_csrf=<%= encodeURIComponent(csrfToken) %>"
+                    class="space-y-3 rounded-lg border border-slate-200 bg-slate-50 p-3"
+                  >
+                    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                    <input type="hidden" name="return_to" value="<%= currentPath %>">
+                    <div>
+                      <p class="text-[10px] font-bold uppercase tracking-widest text-slate-500">Source Wording</p>
+                      <p class="mt-1 text-xs font-semibold text-slate-800"><%= allocation.raw_models_affected_text || '-' %></p>
+                    </div>
+                    <div class="max-h-44 space-y-1 overflow-y-auto rounded border border-slate-200 bg-white p-2">
+                      <% componentModels.forEach((model) => { %>
+                        <label class="flex items-start gap-2 rounded px-2 py-1 text-xs text-slate-700 hover:bg-slate-50">
+                          <input
+                            type="checkbox"
+                            name="model_ids"
+                            value="<%= model.id %>"
+                            class="mt-0.5"
+                          >
+                          <span>
+                            <span class="font-semibold text-slate-900"><%= model.display_name %></span>
+                            <% if (model.Manufacturer) { %>
+                              <span class="text-slate-500"> - <%= model.Manufacturer.name %></span>
+                            <% } %>
+                            <span class="block text-[10px] text-slate-500">
+                              Code: <%= model.model_code || '-' %> | Name: <%= model.model_name || '-' %>
+                            </span>
+                          </span>
+                        </label>
+                      <% }) %>
+                    </div>
+                    <button type="submit" class="rounded bg-slate-800 px-3 py-2 text-xs font-bold uppercase tracking-wider text-white hover:bg-black">
+                      Link existing model(s)
+                    </button>
+                  </form>
+                </td>
+                <td class="px-3 py-3 align-top">
+                  <form
+                    method="POST"
+                    action="/library/sbs/import-issues/allocations/<%= allocation.id %>/ignore?_csrf=<%= encodeURIComponent(csrfToken) %>"
+                    class="space-y-3 rounded-lg border border-slate-200 bg-slate-50 p-3"
+                  >
+                    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                    <input type="hidden" name="return_to" value="<%= currentPath %>">
+                    <div>
+                      <p class="text-[10px] font-bold uppercase tracking-widest text-slate-500">Source Wording</p>
+                      <p class="mt-1 text-xs font-semibold text-slate-800"><%= allocation.raw_models_affected_text || '-' %></p>
+                    </div>
+                    <label class="block">
+                      <span class="text-[10px] font-bold uppercase tracking-widest text-slate-500">Reason</span>
+                      <textarea
+                        name="ignored_reason"
+                        required
+                        rows="3"
+                        class="mt-1 w-full rounded border border-slate-300 bg-white px-3 py-2 text-xs text-slate-800"
+                      ></textarea>
+                    </label>
+                    <button type="submit" class="rounded border border-slate-300 bg-white px-3 py-2 text-xs font-bold uppercase tracking-wider text-slate-800 hover:bg-slate-100">
+                      Ignore
+                    </button>
+                  </form>
+                </td>
+              </tr>
+            <% }) %>
+          </tbody>
+        </table>
+      </div>
+    <% } %>
+  </section>
+</main>
+
+<%- include('../../partials/footer') %>

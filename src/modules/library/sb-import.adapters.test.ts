@@ -91,6 +91,25 @@ describe('SB import adapters', () => {
     ]);
   });
 
+  it('recognizes Piper Models Affected as applicability model text', () => {
+    const preview = previewSbImportFile(
+      csvBuffer(
+        [
+          'publication_type,reference,title,issue_date,status,classification,Models Affected',
+          'SB,SB 3001,Model applicability row,2024-02-01,Active,Mandatory,PA-28-235',
+        ].join('\n')
+      ),
+      'piper-models-affected.csv',
+      'PIPER'
+    );
+
+    expect(preview.unknownColumns).not.toContain('Models Affected');
+    expect(preview.rows[0]?.values.applicability_model).toBe('PA-28-235');
+    expect(preview.rows[0]?.values.raw_source_text).toContain(
+      'Models Affected: PA-28-235'
+    );
+  });
+
   it('preserves generic and Cessna adapter behavior', () => {
     const genericPreview = previewSbImportFile(
       csvBuffer('manufacturer,reference,title,date\nGeneric,GEN-1,Generic row,2024-01-01'),

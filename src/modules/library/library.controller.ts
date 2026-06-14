@@ -43,6 +43,143 @@ export class LibraryController {
     });
   }
 
+  static async renderSbModelAllocationIssues(req: Request, res: Response): Promise<void> {
+    const filters = {
+      status: String(req.query.status || ''),
+      classification: String(req.query.classification || ''),
+      reviewBucket: String(req.query.review_bucket || ''),
+      search: String(req.query.search || ''),
+      sort: String(req.query.sort || 'created_at'),
+      direction: String(req.query.direction || 'desc'),
+    };
+    const [allocations, componentModels, reviewBucketCounts] = await Promise.all([
+      LibraryService.getSbModelApplicabilityAllocations(filters),
+      LibraryService.getSbModelAllocationLinkOptions(),
+      LibraryService.getSbModelAllocationReviewBucketCounts(),
+    ]);
+
+    res.render('library/sbs/allocation-issues', {
+      title: 'SB Import Issues - Unallocated Models',
+      allocations,
+      componentModels,
+      reviewBucketCounts,
+      filters,
+      statusOptions: LibraryService.sbModelAllocationStatuses,
+      classificationOptions: LibraryService.sbModelAllocationClassifications,
+      reviewBucketOptions: LibraryService.sbModelAllocationReviewBuckets,
+      sortOptions: [
+        { value: 'created_at', label: 'Created Date' },
+        { value: 'sb_reference', label: 'SB Reference' },
+        { value: 'classification', label: 'Classification' },
+        { value: 'status', label: 'Status' },
+      ],
+    });
+  }
+
+  static async linkSbModelAllocation(req: Request, res: Response): Promise<void> {
+    const allocationId = getParam(req.params.id);
+    const selected = req.body?.model_ids;
+    const modelIds = Array.isArray(selected) ? selected : selected ? [selected] : [];
+    const returnTo = String(req.body?.return_to || '/library/sbs/import-issues/unallocated-models');
+
+    try {
+      const result = await LibraryService.linkSbModelAllocationToModels(
+        allocationId,
+        modelIds.map((id) => String(id)),
+        (req.user as any)?.id || null
+      );
+
+      req.flash(
+        'success',
+        `Linked ${result.linkedCount} model(s) while preserving raw Models Affected text.`
+      );
+      res.redirect(returnTo.startsWith('/library/sbs/import-issues') ? returnTo : '/library/sbs/import-issues/unallocated-models');
+    } catch (error: any) {
+      req.flash('error', error?.message || 'Unable to link allocation to model.');
+      res.redirect(returnTo.startsWith('/library/sbs/import-issues') ? returnTo : '/library/sbs/import-issues/unallocated-models');
+    }
+  }
+
+  static async recheckExactSbModelAllocations(req: Request, res: Response): Promise<void> {
+    const returnTo = String(req.body?.return_to || '/library/sbs/import-issues/unallocated-models');
+
+    try {
+      const result = await LibraryService.recheckExactSbModelAllocations(
+        (req.user as any)?.id || null
+      );
+
+      req.flash(
+        'success',
+        `Exact model-code recheck complete: ${result.matched} allocation(s) matched, ${result.linked} new model link(s) created, ${result.noMatch} left unmatched, ${result.multipleMatches} left for duplicate review.`
+      );
+      res.redirect(returnTo.startsWith('/library/sbs/import-issues') ? returnTo : '/library/sbs/import-issues/unallocated-models');
+    } catch (error: any) {
+      req.flash('error', error?.message || 'Unable to run exact model-code recheck.');
+      res.redirect(returnTo.startsWith('/library/sbs/import-issues') ? returnTo : '/library/sbs/import-issues/unallocated-models');
+    }
+  }
+
+  static async expandSafeSbShorthandAllocations(req: Request, res: Response): Promise<void> {
+    const returnTo = String(req.body?.return_to || '/library/sbs/import-issues/unallocated-models');
+
+    try {
+      const result = await LibraryService.expandSafeSbShorthandAllocations(
+        (req.user as any)?.id || null
+      );
+
+      req.flash(
+        'success',
+        `Safe shorthand expansion complete: ${result.expanded} allocation(s) expanded, ${result.matchedAllocations} fully matched, ${result.linked} new model link(s) created, ${result.partial} left partially unresolved, ${result.skippedUnsafe} unsafe row(s) skipped.`
+      );
+      res.redirect(returnTo.startsWith('/library/sbs/import-issues') ? returnTo : '/library/sbs/import-issues/unallocated-models');
+    } catch (error: any) {
+      req.flash('error', error?.message || 'Unable to run safe shorthand expansion.');
+      res.redirect(returnTo.startsWith('/library/sbs/import-issues') ? returnTo : '/library/sbs/import-issues/unallocated-models');
+    }
+  }
+
+  static async ignoreSbModelAllocation(req: Request, res: Response): Promise<void> {
+    const allocationId = getParam(req.params.id);
+    const returnTo = String(req.body?.return_to || '/library/sbs/import-issues/unallocated-models');
+
+    try {
+      await LibraryService.ignoreSbModelAllocation(
+        allocationId,
+        String(req.body?.ignored_reason || ''),
+        (req.user as any)?.id || null
+      );
+
+      req.flash('success', 'Allocation issue ignored with review reason recorded.');
+      res.redirect(returnTo.startsWith('/library/sbs/import-issues') ? returnTo : '/library/sbs/import-issues/unallocated-models');
+    } catch (error: any) {
+      req.flash('error', error?.message || 'Unable to ignore allocation issue.');
+      res.redirect(returnTo.startsWith('/library/sbs/import-issues') ? returnTo : '/library/sbs/import-issues/unallocated-models');
+    }
+  }
+
+  static async createIncompleteModelFromSbAllocation(req: Request, res: Response): Promise<void> {
+    const allocationId = getParam(req.params.id);
+    const returnTo = String(req.body?.return_to || '/library/sbs/import-issues/unallocated-models');
+
+    try {
+      const result = await LibraryService.createIncompleteModelFromSbAllocation(
+        allocationId,
+        String(req.body?.model_code || ''),
+        String(req.body?.model_name || ''),
+        (req.user as any)?.id || null
+      );
+
+      req.flash(
+        'success',
+        `${result.created ? 'Created' : 'Reused'} incomplete model ${result.modelName} and linked it to the SB.`
+      );
+      res.redirect(returnTo.startsWith('/library/sbs/import-issues') ? returnTo : '/library/sbs/import-issues/unallocated-models');
+    } catch (error: any) {
+      req.flash('error', error?.message || 'Unable to create incomplete model.');
+      res.redirect(returnTo.startsWith('/library/sbs/import-issues') ? returnTo : '/library/sbs/import-issues/unallocated-models');
+    }
+  }
+
   static async renderSidList(_req: Request, res: Response): Promise<void> {
     const sids = await LibraryService.getSupplementalInspectionDocuments();
 

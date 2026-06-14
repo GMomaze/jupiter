@@ -10,6 +10,7 @@ import { ComponentLifeLimit } from './ComponentLifeLimit.js';
 import { AircraftComponentInstallation } from './AircraftComponentInstallation.js';
 import { ServiceBulletin } from './ServiceBulletin.js';
 import { ServiceBulletinModel } from './ServiceBulletinModel.js';
+import { SbModelApplicabilityAllocation } from './SbModelApplicabilityAllocation.js';
 import { AircraftSbCompliance } from './AircraftSbCompliance.js';
 import { ComplianceItem } from './ComplianceItem.js';
 import { ComplianceAssignment } from './ComplianceAssignment.js';
@@ -78,6 +79,22 @@ ComponentModel.belongsToMany(ServiceBulletin, {
   foreignKey: 'model_id',
   otherKey: 'service_bulletin_id',
   as: 'ApplicableServiceBulletins',
+});
+ServiceBulletin.hasMany(SbModelApplicabilityAllocation, {
+  foreignKey: 'service_bulletin_id',
+  as: 'ModelApplicabilityAllocations',
+});
+SbModelApplicabilityAllocation.belongsTo(ServiceBulletin, {
+  foreignKey: 'service_bulletin_id',
+  as: 'ServiceBulletin',
+});
+ComponentModel.hasMany(SbModelApplicabilityAllocation, {
+  foreignKey: 'matched_model_id',
+  as: 'MatchedSbApplicabilityAllocations',
+});
+SbModelApplicabilityAllocation.belongsTo(ComponentModel, {
+  foreignKey: 'matched_model_id',
+  as: 'MatchedModel',
 });
 ServiceBulletin.hasMany(TaskCard, { foreignKey: 'service_bulletin_id', as: 'TaskCards' });
 TaskCard.belongsTo(ServiceBulletin, { foreignKey: 'service_bulletin_id', as: 'ServiceBulletin' });

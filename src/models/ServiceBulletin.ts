@@ -96,7 +96,7 @@ ServiceBulletin.init(
     },
     category: DataTypes.STRING,
     applicability_make: DataTypes.STRING,
-    applicability_model: DataTypes.STRING,
+    applicability_model: DataTypes.TEXT,
     applicability_product_type: DataTypes.STRING,
     applicability_notes: DataTypes.TEXT,
     description: {
