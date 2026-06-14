@@ -259,7 +259,36 @@ Phase 6 — Productisation prep
 
 ---
 
-# 12. FINAL OBJECTIVE
+# 12. COMPLETED + LOCKED WORKSTREAMS
+
+## Piper SB Applicability Workstream
+
+- Piper Model Master Import Foundation — COMPLETE + LOCKED
+- Real Piper SB Import — COMPLETE + LOCKED
+- SB Applicability Linking — COMPLETE + LOCKED
+- SB Allocation Framework — COMPLETE + LOCKED
+- Safe Shorthand Expansion — COMPLETE + LOCKED
+- SB Applicability Cleanup — COMPLETE + LOCKED
+
+Locked Rules:
+
+- model_code is authoritative applicability identity
+- model_name is display/common name
+- UI displays model_code — model_name
+- SB matching order:
+  1. model_code
+  2. model_name fallback
+  3. allocation workflow
+- raw_models_affected_text is authority
+- allocation records are audit evidence
+- broad applicability is not auto-linked
+- series applicability is not auto-linked
+- shorthand expansion must remain conservative
+- service_bulletin_models links must remain idempotent
+
+---
+
+# 13. FINAL OBJECTIVE
 
 System is complete when:
 

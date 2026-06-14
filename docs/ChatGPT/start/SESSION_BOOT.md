@@ -119,6 +119,59 @@ Before starting a phase:
 
 4. Do not continue migration, retirement, or architectural transition work unless an approved phase exists.
 
+# ROADMAP MAINTENANCE (MANDATORY)
+
+CURRENT_SYSTEM_ROADMAP.md is the authoritative implementation map for Jupiter.
+
+Whenever a phase reaches:
+
+* PASS
+* PHASE COMPLETE + LOCKED
+
+the implementation must be reviewed against CURRENT_SYSTEM_ROADMAP.md.
+
+If the phase introduces:
+
+* new capabilities
+* new authority boundaries
+* new lifecycle rules
+* new services
+* new modules
+* new reports
+* new workflows
+* new operational constraints
+
+then CURRENT_SYSTEM_ROADMAP.md must be updated before the phase is considered fully complete.
+
+Verification must confirm:
+
+* capability exists in implementation
+* capability is documented in CURRENT_SYSTEM_ROADMAP.md
+* status is correctly marked:
+
+  * COMPLETE + LOCKED
+  * PARTIALLY_IMPLEMENTED
+  * DEFINE_ONLY
+  * FUTURE
+
+A phase is not fully complete until:
+
+1. Implementation passes.
+2. Verification passes.
+3. CURRENT_SYSTEM_ROADMAP.md is updated if required.
+4. Roadmap verification passes.
+5. Roadmap changes are committed.
+
+Lifecycle:
+
+DEFINE
+→ IMPLEMENT
+→ VERIFY
+→ ROADMAP UPDATE
+→ ROADMAP VERIFY
+→ COMMIT
+→ PHASE COMPLETE + LOCKED
+
 # EXECUTION RULES
 
 Rules:
