@@ -32,7 +32,7 @@
   </div>
 
   <section class="bg-white border rounded-xl p-6 shadow-sm">
-    <h1 class="text-3xl font-bold text-slate-900"><%= model?.model_name %></h1>
+    <h1 class="text-3xl font-bold text-slate-900"><%= formatModelDisplay(model || {}) %></h1>
     <p class="mt-2 text-sm text-slate-500">
       Manufacturer: <%= model?.Manufacturer?.name || '-' %>
       |
@@ -40,7 +40,7 @@
     </p>
     <div class="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
       <div class="rounded-lg bg-slate-50 p-3">
-        <div class="text-[10px] font-bold uppercase tracking-widest text-slate-500">Model Code</div>
+        <div class="text-[10px] font-bold uppercase tracking-widest text-slate-500">Applicability / OEM Model Code</div>
         <div class="mt-1 text-sm font-semibold text-slate-900"><%= model?.model_code || '-' %></div>
       </div>
       <div class="rounded-lg bg-slate-50 p-3">
@@ -317,7 +317,7 @@
                       <%= sb.compliance_type || 'MANUAL' %>
                     </td>
                     <td class="px-3 py-3 align-top text-sm text-slate-500">
-                      <%= (sb.ApplicableModels || []).map((entry) => entry.model_name).join(', ') || '-' %>
+                      <%= (sb.ApplicableModels || []).map((entry) => formatModelDisplay(entry)).join(', ') || '-' %>
                     </td>
                   </tr>
                 <% }) %>
@@ -411,7 +411,7 @@
           type="text"
           name="model_name"
           value="<%= model.model_name || '' %>"
-          placeholder="Model Name"
+          placeholder="Display / Common Name"
           required
           class="w-full border rounded px-3 py-2 text-sm"
         >
@@ -419,7 +419,7 @@
           type="text"
           name="model_code"
           value="<%= model.model_code || '' %>"
-          placeholder="Model Code"
+          placeholder="Applicability / OEM Model Code"
           class="w-full border rounded px-3 py-2 text-sm"
         >
         <div class="grid grid-cols-2 gap-3">

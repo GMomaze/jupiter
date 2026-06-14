@@ -40,6 +40,7 @@ import projectionRoutes from './modules/projection/projection.routes.js';
 import serviceBulletinRoutes from './modules/service-bulletins/service-bulletin.routes.js';
 import serviceBulletinSyncRoutes from './modules/service-bulletins/service-bulletin-sync.routes.js';
 import { sessionTimeout } from './middleware/sessionTimeout.js';
+import { formatModelDisplay } from './utils/model-display.js';
 
 console.log('IP_WHITELIST_ENABLED:', process.env.IP_WHITELIST_ENABLED);
 
@@ -357,6 +358,7 @@ app.use((req, res, next) => {
   res.locals.user = req.user || null;
   res.locals.customerUser = req.session?.customerUser || null;
   res.locals.remoteTestMode = remoteTestMode;
+  res.locals.formatModelDisplay = formatModelDisplay;
   res.locals.csrfToken =
     process.env.NODE_ENV === 'test'
       ? 'test-token'

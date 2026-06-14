@@ -224,12 +224,12 @@
         </div>
 
         <div>
-          <label class="mb-1 block text-xs font-bold uppercase tracking-widest text-slate-500">Model Name</label>
-          <input type="text" name="model_name" required class="w-full rounded border px-3 py-2 text-sm">
+          <label class="mb-1 block text-xs font-bold uppercase tracking-widest text-slate-500">Display / Common Name</label>
+          <input type="text" name="model_name" required class="w-full rounded border px-3 py-2 text-sm" placeholder="Archer II">
         </div>
 
         <div>
-          <label class="mb-1 block text-xs font-bold uppercase tracking-widest text-slate-500">Model Code</label>
+          <label class="mb-1 block text-xs font-bold uppercase tracking-widest text-slate-500">Applicability / OEM Model Code</label>
           <input type="text" name="model_code" class="w-full rounded border px-3 py-2 text-sm" placeholder="PA-28-181">
         </div>
 
@@ -294,7 +294,7 @@
         </span>
       </div>
 
-      <% const sortedModels = (manufacturer.ComponentModels || []).slice().sort((left, right) => left.model_name.localeCompare(right.model_name)); %>
+      <% const sortedModels = (manufacturer.ComponentModels || []).slice().sort((left, right) => formatModelDisplay(left).localeCompare(formatModelDisplay(right))); %>
       <% if (sortedModels.length === 0) { %>
         <div class="rounded-lg border border-dashed px-6 py-10 text-center text-sm text-slate-500">
           No models loaded for this manufacturer yet.
@@ -305,12 +305,11 @@
             <article class="rounded-xl border p-4">
               <div class="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                 <div>
-                  <h3 class="text-base font-bold text-slate-900"><%= model.model_name %></h3>
+                  <h3 class="text-base font-bold text-slate-900"><%= formatModelDisplay(model) %></h3>
                   <p class="mt-1 text-xs font-bold uppercase tracking-widest text-slate-500">
                     <%= model.AssetType?.code || 'Asset Type Not Set' %>
-                    <% if (model.model_code) { %>
-                      | Code: <%= model.model_code %>
-                    <% } %>
+                    | Code: <%= model.model_code || '-' %>
+                    | Name: <%= model.model_name || '-' %>
                   </p>
                 </div>
 
