@@ -1,0 +1,7 @@
+<option value="">Select a manufacturer</option>
+<% if (manufacturers.length === 0) { %>
+  <option value="" disabled>No manufacturers found for this asset type</option>
+<% } %>
+<% manufacturers.forEach((manufacturer) => { %>
+  <option value="<%= manufacturer.id %>"><%= manufacturer.name %></option>
+<% }) %>

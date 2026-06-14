@@ -1,0 +1,9 @@
+<option value="">Select a model</option>
+<% if (models.length === 0) { %>
+  <option value="" disabled>No models found for this manufacturer and asset type</option>
+<% } %>
+<% models.forEach((model) => { %>
+  <option value="<%= model.id %>">
+    <%= formatModelDisplay(model) %>
+  </option>
+<% }) %>

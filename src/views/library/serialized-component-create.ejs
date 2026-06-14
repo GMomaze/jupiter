@@ -21,24 +21,81 @@
     <form method="POST" action="/library/serialized-components?_csrf=<%= encodeURIComponent(csrfToken) %>" class="grid gap-4 md:grid-cols-2">
       <input type="hidden" name="_csrf" value="<%= csrfToken %>">
 
+      <div>
+        <label class="mb-1 block text-xs font-bold uppercase tracking-widest text-slate-500">
+          Asset Type
+        </label>
+        <select
+          id="serialized-asset-type-select"
+          required
+          class="w-full rounded border px-3 py-2 text-sm"
+          onchange="
+            const manufacturerSelect = document.getElementById('serialized-manufacturer-select');
+            const modelSelect = document.getElementById('serialized-model-select');
+
+            if (modelSelect) {
+              modelSelect.innerHTML = '<option value=\'\'>Select a manufacturer first</option>';
+            }
+
+            if (this.value && typeof htmx !== 'undefined') {
+              htmx.ajax(
+                'GET',
+                '/library/serialized-components/create/asset-types/' + this.value + '/manufacturer-options',
+                '#serialized-manufacturer-select'
+              );
+            } else if (manufacturerSelect) {
+              manufacturerSelect.innerHTML = '<option value=\'\'>Select an asset type first</option>';
+            }
+          "
+        >
+          <option value="">Select an asset type</option>
+          <% assetTypes.forEach((assetType) => { %>
+            <option value="<%= assetType.id %>">
+              <%= assetType.code %><%= assetType.label ? ` - ${assetType.label}` : '' %>
+            </option>
+          <% }) %>
+        </select>
+      </div>
+
+      <div>
+        <label class="mb-1 block text-xs font-bold uppercase tracking-widest text-slate-500">
+          Manufacturer
+        </label>
+        <select
+          id="serialized-manufacturer-select"
+          required
+          class="w-full rounded border px-3 py-2 text-sm"
+          onchange="
+            const assetTypeSelect = document.getElementById('serialized-asset-type-select');
+            const assetTypeId = assetTypeSelect ? assetTypeSelect.value : '';
+            const modelSelect = document.getElementById('serialized-model-select');
+
+            if (assetTypeId && this.value && typeof htmx !== 'undefined') {
+              htmx.ajax(
+                'GET',
+                '/library/serialized-components/create/asset-types/' + assetTypeId + '/manufacturers/' + this.value + '/model-options',
+                '#serialized-model-select'
+              );
+            } else if (modelSelect) {
+              modelSelect.innerHTML = '<option value=\'\'>Select a manufacturer first</option>';
+            }
+          "
+        >
+          <option value="">Select an asset type first</option>
+        </select>
+      </div>
+
       <div class="md:col-span-2">
         <label class="mb-1 block text-xs font-bold uppercase tracking-widest text-slate-500">
           Component Model
         </label>
-        <select name="component_model_id" required class="w-full rounded border px-3 py-2 text-sm">
-          <option value="">Select a model</option>
-          <% manufacturers.forEach((manufacturer) => { %>
-            <% const models = manufacturer.ComponentModels || []; %>
-            <% if (models.length > 0) { %>
-              <optgroup label="<%= manufacturer.name %>">
-                <% models.forEach((model) => { %>
-                  <option value="<%= model.id %>">
-                    <%= model.model_name %><%= model.model_code ? ` (${model.model_code})` : '' %>
-                  </option>
-                <% }) %>
-              </optgroup>
-            <% } %>
-          <% }) %>
+        <select
+          id="serialized-model-select"
+          name="component_model_id"
+          required
+          class="w-full rounded border px-3 py-2 text-sm"
+        >
+          <option value="">Select a manufacturer first</option>
         </select>
       </div>
 

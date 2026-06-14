@@ -218,10 +218,53 @@ router.get(
   requirePermission('LIBRARY_EDIT'),
   async (_req, res, next) => {
     try {
-      const manufacturers = await LibraryService.getManufacturersWithModels();
+      const [assetTypes, manufacturers] = await Promise.all([
+        LibraryService.getAssetTypes(),
+        LibraryService.getManufacturersWithModels(),
+      ]);
 
       res.render('library/serialized-component-create', {
+        assetTypes,
         manufacturers,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+router.get(
+  '/serialized-components/create/asset-types/:assetTypeId/manufacturer-options',
+  requirePermission('LIBRARY_EDIT'),
+  async (req, res, next) => {
+    try {
+      const assetTypeId = getParam(req.params.assetTypeId);
+      const manufacturers = assetTypeId
+        ? await LibraryService.getManufacturersByAssetType(assetTypeId)
+        : [];
+
+      res.render('library/partials/serialized-component-manufacturer-options', {
+        manufacturers,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+router.get(
+  '/serialized-components/create/asset-types/:assetTypeId/manufacturers/:manufacturerId/model-options',
+  requirePermission('LIBRARY_EDIT'),
+  async (req, res, next) => {
+    try {
+      const assetTypeId = getParam(req.params.assetTypeId);
+      const manufacturerId = getParam(req.params.manufacturerId);
+      const models = assetTypeId && manufacturerId
+        ? await LibraryService.getModelsByManufacturerAndAssetType(manufacturerId, assetTypeId)
+        : [];
+
+      res.render('library/partials/serialized-component-model-options', {
+        models,
       });
     } catch (error) {
       next(error);
