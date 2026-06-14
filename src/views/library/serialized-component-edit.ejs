@@ -6,6 +6,8 @@
   <% const isInstalled = Boolean(activeInstallation); %>
   <% const safeStatuses = safeEditableStatuses || []; %>
   <% const canEditStatus = !isInstalled && safeStatuses.includes(serializedComponent.status); %>
+  <% const lifeState = serializedComponent.LifeState || null; %>
+  <% const maintenanceEvents = serializedComponent.MaintenanceEvents || []; %>
 
   <div class="mb-8 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
     <div>
@@ -19,9 +21,21 @@
 
     <div class="flex gap-4 text-sm font-semibold">
       <a href="/library/serialized-components" class="text-blue-600 hover:underline">Back to Serialized Components</a>
+      <a href="/library/serialized-components/<%= serializedComponent.id %>/life" class="text-blue-600 hover:underline">Life Dashboard</a>
       <a href="/library" class="text-blue-600 hover:underline">Back to Library</a>
     </div>
   </div>
+
+  <% if (messages?.success?.length || messages?.error?.length) { %>
+    <div class="mb-6 space-y-3">
+      <% (messages?.success || []).forEach((message) => { %>
+        <div class="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-800"><%= message %></div>
+      <% }) %>
+      <% (messages?.error || []).forEach((message) => { %>
+        <div class="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-800"><%= message %></div>
+      <% }) %>
+    </div>
+  <% } %>
 
   <% if (isInstalled) { %>
     <section class="mb-6 rounded-xl border border-amber-200 bg-amber-50 p-5">
@@ -187,6 +201,273 @@
         </a>
       </div>
     </form>
+  </section>
+
+  <section class="mt-8 rounded-xl border bg-white p-6 shadow-sm">
+    <div class="mb-6">
+      <h2 class="text-lg font-bold text-slate-900">Serialized Life State</h2>
+      <p class="mt-1 text-sm text-slate-500">
+        LIFE_ADJUSTMENT records update current life values only. They do not install, remove, overhaul, create due calculations, or change aircraft/workpack/compliance state.
+      </p>
+    </div>
+
+    <div class="grid gap-4 rounded-lg border border-slate-200 bg-slate-50 p-4 md:grid-cols-3">
+      <div>
+        <p class="text-xs font-bold uppercase tracking-widest text-slate-500">TSN Hours</p>
+        <p class="mt-1 text-sm font-semibold text-slate-900"><%= lifeState?.tsn_hours ?? '-' %></p>
+      </div>
+      <div>
+        <p class="text-xs font-bold uppercase tracking-widest text-slate-500">TSO Hours</p>
+        <p class="mt-1 text-sm font-semibold text-slate-900"><%= lifeState?.tso_hours ?? '-' %></p>
+      </div>
+      <div>
+        <p class="text-xs font-bold uppercase tracking-widest text-slate-500">CSN Cycles</p>
+        <p class="mt-1 text-sm font-semibold text-slate-900"><%= lifeState?.csn_cycles ?? '-' %></p>
+      </div>
+      <div>
+        <p class="text-xs font-bold uppercase tracking-widest text-slate-500">CSO Cycles</p>
+        <p class="mt-1 text-sm font-semibold text-slate-900"><%= lifeState?.cso_cycles ?? '-' %></p>
+      </div>
+      <div>
+        <p class="text-xs font-bold uppercase tracking-widest text-slate-500">Overhaul Reference</p>
+        <p class="mt-1 text-sm font-semibold text-slate-900"><%= lifeState?.overhaul_reference_date ?? '-' %></p>
+      </div>
+      <div>
+        <p class="text-xs font-bold uppercase tracking-widest text-slate-500">Calendar Reference</p>
+        <p class="mt-1 text-sm font-semibold text-slate-900"><%= lifeState?.calendar_reference_date ?? '-' %></p>
+      </div>
+    </div>
+
+    <form
+      method="POST"
+      action="/library/serialized-components/<%= serializedComponent.id %>/life-adjustment?_csrf=<%= encodeURIComponent(csrfToken) %>"
+      class="mt-6 grid gap-4 md:grid-cols-2"
+    >
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+
+      <div>
+        <label class="mb-1 block text-xs font-bold uppercase tracking-widest text-slate-500">Occurred At</label>
+        <input type="datetime-local" name="occurred_at" class="w-full rounded border px-3 py-2 text-sm">
+      </div>
+
+      <div>
+        <label class="mb-1 block text-xs font-bold uppercase tracking-widest text-slate-500">Source Reference</label>
+        <input type="text" name="source_reference" placeholder="Logbook, shop report, invoice, worksheet" class="w-full rounded border px-3 py-2 text-sm">
+      </div>
+
+      <div>
+        <label class="mb-1 block text-xs font-bold uppercase tracking-widest text-slate-500">TSN Hours</label>
+        <input type="number" step="0.01" min="0" name="tsn_hours" value="<%= lifeState?.tsn_hours ?? '' %>" class="w-full rounded border px-3 py-2 text-sm">
+      </div>
+
+      <div>
+        <label class="mb-1 block text-xs font-bold uppercase tracking-widest text-slate-500">TSO Hours</label>
+        <input type="number" step="0.01" min="0" name="tso_hours" value="<%= lifeState?.tso_hours ?? '' %>" class="w-full rounded border px-3 py-2 text-sm">
+      </div>
+
+      <div>
+        <label class="mb-1 block text-xs font-bold uppercase tracking-widest text-slate-500">CSN Cycles</label>
+        <input type="number" step="1" min="0" name="csn_cycles" value="<%= lifeState?.csn_cycles ?? '' %>" class="w-full rounded border px-3 py-2 text-sm">
+      </div>
+
+      <div>
+        <label class="mb-1 block text-xs font-bold uppercase tracking-widest text-slate-500">CSO Cycles</label>
+        <input type="number" step="1" min="0" name="cso_cycles" value="<%= lifeState?.cso_cycles ?? '' %>" class="w-full rounded border px-3 py-2 text-sm">
+      </div>
+
+      <div>
+        <label class="mb-1 block text-xs font-bold uppercase tracking-widest text-slate-500">Overhaul Reference Date</label>
+        <input type="date" name="overhaul_reference_date" value="<%= lifeState?.overhaul_reference_date ?? '' %>" class="w-full rounded border px-3 py-2 text-sm">
+      </div>
+
+      <div>
+        <label class="mb-1 block text-xs font-bold uppercase tracking-widest text-slate-500">Calendar Reference Date</label>
+        <input type="date" name="calendar_reference_date" value="<%= lifeState?.calendar_reference_date ?? '' %>" class="w-full rounded border px-3 py-2 text-sm">
+      </div>
+
+      <div class="md:col-span-2 grid gap-3 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+        <label class="flex items-start gap-2">
+          <input type="checkbox" name="allow_tso_exceeds_tsn" class="mt-1">
+          <span>Confirm documented reason if TSO is greater than TSN.</span>
+        </label>
+        <label class="flex items-start gap-2">
+          <input type="checkbox" name="allow_cso_exceeds_csn" class="mt-1">
+          <span>Confirm documented reason if CSO is greater than CSN.</span>
+        </label>
+      </div>
+
+      <div class="md:col-span-2">
+        <label class="mb-1 block text-xs font-bold uppercase tracking-widest text-slate-500">Required Reason</label>
+        <textarea name="reason" rows="4" required class="w-full rounded border px-3 py-2 text-sm" placeholder="Explain the document, baseline, correction, or reconciliation basis for this life adjustment."></textarea>
+      </div>
+
+      <div class="md:col-span-2">
+        <button type="submit" class="rounded bg-blue-700 px-4 py-2 text-sm font-bold text-white hover:bg-blue-800">
+          Record Life Adjustment
+        </button>
+      </div>
+    </form>
+  </section>
+
+  <section class="mt-8 rounded-xl border bg-white p-6 shadow-sm">
+    <div class="mb-6">
+      <h2 class="text-lg font-bold text-slate-900">Record Overhaul</h2>
+      <p class="mt-1 text-sm text-slate-500">
+        OVERHAUL records documented overhaul evidence and selected post-overhaul life values only. It does not install, remove, calculate due status, or change aircraft/workpack/compliance state.
+      </p>
+    </div>
+
+    <form
+      method="POST"
+      action="/library/serialized-components/<%= serializedComponent.id %>/overhaul?_csrf=<%= encodeURIComponent(csrfToken) %>"
+      class="grid gap-4 md:grid-cols-2"
+    >
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+
+      <div>
+        <label class="mb-1 block text-xs font-bold uppercase tracking-widest text-slate-500">Overhaul Date</label>
+        <input type="date" name="overhaul_date" required class="w-full rounded border px-3 py-2 text-sm">
+      </div>
+
+      <div>
+        <label class="mb-1 block text-xs font-bold uppercase tracking-widest text-slate-500">Overhaul Provider</label>
+        <input type="text" name="overhaul_provider" required placeholder="Approved shop, AMO, engineer, or provider" class="w-full rounded border px-3 py-2 text-sm">
+      </div>
+
+      <div class="md:col-span-2">
+        <label class="mb-1 block text-xs font-bold uppercase tracking-widest text-slate-500">Reference / Work Order / Release Number</label>
+        <input type="text" name="overhaul_reference" required placeholder="Work order, release certificate, shop report, or logbook reference" class="w-full rounded border px-3 py-2 text-sm">
+      </div>
+
+      <div>
+        <label class="mb-1 block text-xs font-bold uppercase tracking-widest text-slate-500">TSN Hours</label>
+        <input type="number" step="0.01" min="0" name="tsn_hours" value="<%= lifeState?.tsn_hours ?? '' %>" class="w-full rounded border px-3 py-2 text-sm">
+      </div>
+
+      <div>
+        <label class="mb-1 block text-xs font-bold uppercase tracking-widest text-slate-500">TSO Hours</label>
+        <input type="number" step="0.01" min="0" name="tso_hours" class="w-full rounded border px-3 py-2 text-sm">
+      </div>
+
+      <div>
+        <label class="mb-1 block text-xs font-bold uppercase tracking-widest text-slate-500">CSN Cycles</label>
+        <input type="number" step="1" min="0" name="csn_cycles" value="<%= lifeState?.csn_cycles ?? '' %>" class="w-full rounded border px-3 py-2 text-sm">
+      </div>
+
+      <div>
+        <label class="mb-1 block text-xs font-bold uppercase tracking-widest text-slate-500">CSO Cycles</label>
+        <input type="number" step="1" min="0" name="cso_cycles" class="w-full rounded border px-3 py-2 text-sm">
+      </div>
+
+      <div>
+        <label class="mb-1 block text-xs font-bold uppercase tracking-widest text-slate-500">Overhaul Reference Date</label>
+        <input type="date" name="overhaul_reference_date" class="w-full rounded border px-3 py-2 text-sm">
+        <p class="mt-1 text-xs text-slate-500">Defaults to overhaul date if left blank.</p>
+      </div>
+
+      <div>
+        <label class="mb-1 block text-xs font-bold uppercase tracking-widest text-slate-500">Calendar Reference Date</label>
+        <input type="date" name="calendar_reference_date" class="w-full rounded border px-3 py-2 text-sm">
+      </div>
+
+      <div class="md:col-span-2">
+        <label class="mb-1 block text-xs font-bold uppercase tracking-widest text-slate-500">Required Notes</label>
+        <textarea name="notes" rows="4" required class="w-full rounded border px-3 py-2 text-sm" placeholder="Describe the overhaul evidence, release basis, reset basis, and any post-overhaul life values entered."></textarea>
+      </div>
+
+      <div class="md:col-span-2">
+        <button type="submit" class="rounded bg-emerald-700 px-4 py-2 text-sm font-bold text-white hover:bg-emerald-800">
+          Record Overhaul
+        </button>
+      </div>
+    </form>
+  </section>
+
+  <section class="mt-8 rounded-xl border bg-white p-6 shadow-sm">
+    <div class="mb-6">
+      <h2 class="text-lg font-bold text-slate-900">Record Maintenance Event</h2>
+      <p class="mt-1 text-sm text-slate-500">
+        Generic maintenance events record non-life-changing evidence only. They do not update TSN, TSO, CSN, CSO, install/remove state, aircraft/workpack/compliance state, or component status.
+      </p>
+    </div>
+
+    <form
+      method="POST"
+      action="/library/serialized-components/<%= serializedComponent.id %>/maintenance-events?_csrf=<%= encodeURIComponent(csrfToken) %>"
+      class="grid gap-4 md:grid-cols-2"
+    >
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+
+      <div>
+        <label class="mb-1 block text-xs font-bold uppercase tracking-widest text-slate-500">Event Type</label>
+        <select name="event_type" required class="w-full rounded border px-3 py-2 text-sm">
+          <option value="">Select event type</option>
+          <option value="REPAIR">REPAIR</option>
+          <option value="INSPECTION">INSPECTION</option>
+          <option value="SHOP_VISIT">SHOP_VISIT</option>
+          <option value="TEST">TEST</option>
+          <option value="MODIFICATION">MODIFICATION</option>
+          <option value="PRESERVATION">PRESERVATION</option>
+          <option value="RETURN_TO_SERVICE">RETURN_TO_SERVICE</option>
+          <option value="SCRAP">SCRAP</option>
+          <option value="UNKNOWN_HISTORY_IMPORT">UNKNOWN_HISTORY_IMPORT</option>
+        </select>
+      </div>
+
+      <div>
+        <label class="mb-1 block text-xs font-bold uppercase tracking-widest text-slate-500">Occurred Date</label>
+        <input type="date" name="occurred_at" required class="w-full rounded border px-3 py-2 text-sm">
+      </div>
+
+      <div>
+        <label class="mb-1 block text-xs font-bold uppercase tracking-widest text-slate-500">Provider / Source</label>
+        <input type="text" name="provider" required placeholder="Shop, AMO, engineer, owner record, imported source" class="w-full rounded border px-3 py-2 text-sm">
+      </div>
+
+      <div>
+        <label class="mb-1 block text-xs font-bold uppercase tracking-widest text-slate-500">Reference / Work Order / Release</label>
+        <input type="text" name="reference" required placeholder="Work order, release, shop report, logbook, import reference" class="w-full rounded border px-3 py-2 text-sm">
+      </div>
+
+      <div class="md:col-span-2">
+        <label class="mb-1 block text-xs font-bold uppercase tracking-widest text-slate-500">Required Notes</label>
+        <textarea name="notes" rows="4" required class="w-full rounded border px-3 py-2 text-sm" placeholder="Record the evidence, finding, result, or source text for this non-life-changing event."></textarea>
+      </div>
+
+      <div class="md:col-span-2">
+        <button type="submit" class="rounded bg-slate-800 px-4 py-2 text-sm font-bold text-white hover:bg-black">
+          Record Maintenance Event
+        </button>
+      </div>
+    </form>
+  </section>
+
+  <section class="mt-8 rounded-xl border bg-white p-6 shadow-sm">
+    <h2 class="text-lg font-bold text-slate-900">Recent Maintenance Events</h2>
+    <% if (maintenanceEvents.length === 0) { %>
+      <p class="mt-3 text-sm text-slate-500">No serialized component maintenance events recorded yet.</p>
+    <% } else { %>
+      <div class="mt-4 overflow-x-auto">
+        <table class="min-w-full divide-y divide-slate-200">
+          <thead class="bg-slate-50">
+            <tr>
+              <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Type</th>
+              <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Occurred</th>
+              <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Notes</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-100 bg-white">
+            <% maintenanceEvents.forEach((event) => { %>
+              <tr>
+                <td class="px-3 py-2 text-sm font-semibold text-slate-900"><%= event.event_type %></td>
+                <td class="px-3 py-2 text-sm text-slate-700"><%= event.occurred_at || '-' %></td>
+                <td class="px-3 py-2 whitespace-pre-wrap text-sm text-slate-700"><%= event.notes || '-' %></td>
+              </tr>
+            <% }) %>
+          </tbody>
+        </table>
+      </div>
+    <% } %>
   </section>
 </main>
 

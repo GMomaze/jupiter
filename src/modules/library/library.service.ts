@@ -15,9 +15,13 @@ import {
   SidModelApplicability,
   TaskTemplate,
   SerializedComponent,
+  SerializedComponentLifeState,
+  SerializedComponentMaintenanceEvent,
+  ComponentLifeLimit,
   AircraftComponentInstallation,
   Aircraft,
   ComplianceAssignment,
+  User,
 } from '../../models/index.js';
 import { Op, QueryTypes } from 'sequelize';
 import sequelize from '../../config/database.js';
@@ -2010,7 +2014,881 @@ export class LibraryService {
             },
           ],
         },
+        {
+          model: SerializedComponentLifeState,
+          as: 'LifeState',
+          required: false,
+        },
+        {
+          model: SerializedComponentMaintenanceEvent,
+          as: 'MaintenanceEvents',
+          required: false,
+          limit: 10,
+          order: [['occurred_at', 'DESC']],
+        },
       ],
+    });
+  }
+
+  static async getSerializedComponentLifeDashboard(id: string) {
+    const serializedComponentId = String(id || '').trim();
+
+    if (!serializedComponentId) {
+      return null;
+    }
+
+    const serializedComponent = await SerializedComponent.findByPk(serializedComponentId, {
+      attributes: [
+        'id',
+        'component_model_id',
+        'serial_number',
+        'part_number',
+        'status',
+        'condition',
+        'notes',
+        'created_at',
+        'updated_at',
+      ],
+      include: [
+        {
+          model: ComponentModel,
+          as: 'ComponentModel',
+          attributes: ['id', 'model_name', 'model_code'],
+          required: false,
+          include: [
+            {
+              model: Manufacturer,
+              attributes: ['id', 'name', 'code'],
+              required: false,
+            },
+            {
+              model: AssetType,
+              attributes: ['id', 'code', 'label'],
+              required: false,
+            },
+            {
+              model: ComponentLifeLimit,
+              as: 'LifeLimits',
+              required: false,
+            },
+          ],
+        },
+      ],
+    });
+
+    if (!serializedComponent) {
+      return null;
+    }
+
+    const [installations, lifeState, lifeAdjustmentEvents, maintenanceEvents] = await Promise.all([
+      AircraftComponentInstallation.findAll({
+        where: { serialized_component_id: serializedComponentId },
+        include: [
+          {
+            model: Aircraft,
+            as: 'Aircraft',
+            attributes: ['id', 'registration', 'serial_number', 'status'],
+            required: false,
+          },
+        ],
+        order: [
+          ['installed_at', 'DESC'],
+          ['created_at', 'DESC'],
+        ],
+      }),
+      SerializedComponentLifeState.findOne({
+        where: { serialized_component_id: serializedComponentId },
+      }),
+      SerializedComponentMaintenanceEvent.findAll({
+        where: {
+          serialized_component_id: serializedComponentId,
+          event_type: 'LIFE_ADJUSTMENT',
+        },
+        include: [
+          {
+            model: User,
+            as: 'Recorder',
+            attributes: ['id', 'full_name', 'email'],
+            required: false,
+          },
+        ],
+        order: [
+          ['occurred_at', 'DESC'],
+          ['created_at', 'DESC'],
+        ],
+      }),
+      SerializedComponentMaintenanceEvent.findAll({
+        where: { serialized_component_id: serializedComponentId },
+        include: [
+          {
+            model: User,
+            as: 'Recorder',
+            attributes: ['id', 'full_name', 'email'],
+            required: false,
+          },
+        ],
+        order: [
+          ['occurred_at', 'DESC'],
+          ['created_at', 'DESC'],
+        ],
+      }),
+    ]);
+
+    const currentInstallation =
+      installations.find((installation: any) => !installation.removed_at) || null;
+    const componentModel = (serializedComponent as any).ComponentModel || null;
+    const maintenanceEventGroups =
+      this.groupSerializedComponentMaintenanceEvents(maintenanceEvents);
+    const lifeLimits = componentModel?.LifeLimits || [];
+    const dueStatus = this.evaluateSerializedComponentLifeLimits(lifeLimits, lifeState);
+    const applicableServiceBulletins = componentModel?.id
+      ? await ServiceBulletin.findAll({
+          where: {
+            is_active: true,
+            status: 'ACTIVE',
+          },
+          include: [
+            {
+              model: ComponentModel,
+              as: 'ApplicableModels',
+              where: { id: componentModel.id },
+              through: { attributes: [] },
+              attributes: ['id', 'model_code', 'model_name'],
+              required: true,
+            },
+          ],
+          order: [
+            ['sb_number', 'ASC'],
+            ['title', 'ASC'],
+          ],
+        })
+      : [];
+
+    return {
+      serializedComponent,
+      componentModel,
+      currentInstallation,
+      installationHistory: installations,
+      lifeState,
+      lifeAdjustmentEvents,
+      maintenanceEvents,
+      maintenanceEventGroups,
+      lifeLimits,
+      dueStatus,
+      complianceVisibility: {
+        currentAircraft: currentInstallation?.Aircraft || null,
+        dueStatus,
+        applicableServiceBulletins,
+        maintenanceEvents,
+        maintenanceEventCount: maintenanceEvents.length,
+        explanation:
+          'Read-only derived visibility only. This panel does not create or complete compliance records.',
+      },
+    };
+  }
+
+  private static parseOptionalDecimal(value: unknown, label: string) {
+    const normalized = String(value ?? '').trim();
+
+    if (!normalized) {
+      return null;
+    }
+
+    const parsed = Number(normalized);
+
+    if (!Number.isFinite(parsed) || parsed < 0) {
+      throw new Error(`${label} must be a non-negative number.`);
+    }
+
+    return parsed;
+  }
+
+  private static parseOptionalInteger(value: unknown, label: string) {
+    const normalized = String(value ?? '').trim();
+
+    if (!normalized) {
+      return null;
+    }
+
+    const parsed = Number(normalized);
+
+    if (!Number.isInteger(parsed) || parsed < 0) {
+      throw new Error(`${label} must be a non-negative whole number.`);
+    }
+
+    return parsed;
+  }
+
+  private static parseOptionalDate(value: unknown, label: string) {
+    const normalized = String(value ?? '').trim();
+
+    if (!normalized) {
+      return null;
+    }
+
+    if (Number.isNaN(new Date(normalized).getTime())) {
+      throw new Error(`${label} must be a valid date.`);
+    }
+
+    return normalized;
+  }
+
+  private static lifeStateSnapshot(lifeState: any) {
+    return {
+      tsn_hours: lifeState?.tsn_hours ?? null,
+      tso_hours: lifeState?.tso_hours ?? null,
+      csn_cycles: lifeState?.csn_cycles ?? null,
+      cso_cycles: lifeState?.cso_cycles ?? null,
+      overhaul_reference_date: lifeState?.overhaul_reference_date ?? null,
+      calendar_reference_date: lifeState?.calendar_reference_date ?? null,
+    };
+  }
+
+  private static normalizeSerializedComponentLifeLimitBasis(limit: any) {
+    const basis = String(limit?.basis || '').trim().toUpperCase().replace(/[\s-]+/g, '_');
+    const searchable = [
+      basis,
+      String(limit?.limit_type || '').trim().toUpperCase().replace(/[\s-]+/g, '_'),
+      String(limit?.description || '').trim().toUpperCase().replace(/[\s-]+/g, '_'),
+    ].filter(Boolean).join(' ');
+
+    if (/\b(ON_CONDITION|CONDITION|OC|INSPECT_CONDITION)\b/.test(searchable)) {
+      return 'ON_CONDITION';
+    }
+
+    if (/\b(CALENDAR|MONTHS|DATE|EXPIRY|ELAPSED|TIME_LIMIT_DATE)\b/.test(searchable)) {
+      return 'CALENDAR';
+    }
+
+    if (/\b(SINCE_OVERHAUL|TSO|CSO|TBO|SMOH|SOH|OVERHAUL|TIME_SINCE_OVERHAUL|CYCLES_SINCE_OVERHAUL)\b/.test(searchable)) {
+      return 'SINCE_OVERHAUL';
+    }
+
+    if (/\b(SINCE_NEW|TSN|CSN|TOTAL|TOTAL_TIME|TOTAL_CYCLES|LIFE_LIMIT)\b/.test(searchable)) {
+      return 'SINCE_NEW';
+    }
+
+    return 'UNKNOWN';
+  }
+
+  private static numericLifeValue(value: unknown) {
+    if (value === null || value === undefined || value === '') {
+      return null;
+    }
+
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+
+  private static wholeLifeValue(value: unknown) {
+    const parsed = this.numericLifeValue(value);
+    return parsed === null ? null : Math.trunc(parsed);
+  }
+
+  private static startOfUtcDay(value: Date) {
+    return Date.UTC(value.getUTCFullYear(), value.getUTCMonth(), value.getUTCDate());
+  }
+
+  private static addMonthsToDate(dateValue: string, months: number) {
+    const date = new Date(`${dateValue}T00:00:00.000Z`);
+
+    if (Number.isNaN(date.getTime())) {
+      return null;
+    }
+
+    date.setUTCMonth(date.getUTCMonth() + months);
+    return date.toISOString().slice(0, 10);
+  }
+
+  private static remainingDaysUntil(dateValue: string, today: Date) {
+    const dueDate = new Date(`${dateValue}T00:00:00.000Z`);
+
+    if (Number.isNaN(dueDate.getTime())) {
+      return null;
+    }
+
+    return Math.ceil((this.startOfUtcDay(dueDate) - this.startOfUtcDay(today)) / 86400000);
+  }
+
+  private static statusForRemaining(value: number, threshold: number) {
+    if (value < 0) return 'OVERDUE';
+    if (value === 0) return 'DUE';
+    if (value <= threshold) return 'DUE_SOON';
+    return 'COMPLIANT';
+  }
+
+  private static worstLifeLimitStatus(statuses: string[]) {
+    return statuses.reduce((worst, status) => {
+      const statusRank = this.serializedComponentLifeLimitStatusRank[status] ?? 0;
+      const worstRank = this.serializedComponentLifeLimitStatusRank[worst] ?? 0;
+      return statusRank > worstRank ? status : worst;
+    }, 'UNKNOWN');
+  }
+
+  static evaluateSerializedComponentLifeLimits(
+    lifeLimits: any[],
+    lifeState: any,
+    todayInput: Date | string = new Date()
+  ) {
+    const today = todayInput instanceof Date ? todayInput : new Date(`${todayInput}T00:00:00.000Z`);
+    const activeLimits = (lifeLimits || []).filter((limit) => limit?.is_active !== false);
+    const evaluatedLimits: any[] = [];
+    const aggregateReasons: string[] = [];
+
+    if (activeLimits.length === 0) {
+      return {
+        state: 'UNKNOWN',
+        explanation: 'No active life limits defined.',
+        worstLimit: null,
+        has_unknown_limits: true,
+        is_partial: false,
+        reasons: ['No active life limits defined.'],
+        thresholds: this.serializedComponentLifeLimitDueSoonThresholds,
+        evaluatedLimits,
+      };
+    }
+
+    if (!lifeState) {
+      return {
+        state: 'UNKNOWN',
+        explanation: 'No serialized component life state recorded.',
+        worstLimit: null,
+        has_unknown_limits: true,
+        is_partial: false,
+        reasons: ['No serialized component life state recorded.'],
+        thresholds: this.serializedComponentLifeLimitDueSoonThresholds,
+        evaluatedLimits: activeLimits.map((limit) => ({
+          id: limit.id,
+          limit_type: limit.limit_type,
+          basis: limit.basis,
+          normalized_basis: this.normalizeSerializedComponentLifeLimitBasis(limit),
+          status: 'UNKNOWN',
+          remaining_hours: null,
+          remaining_cycles: null,
+          remaining_calendar_days: null,
+          due_date: null,
+          missing_reasons: ['No serialized component life state recorded.'],
+          description: limit.description || null,
+        })),
+      };
+    }
+
+    for (const limit of activeLimits) {
+      const normalizedBasis = this.normalizeSerializedComponentLifeLimitBasis(limit);
+      const limitHours = this.numericLifeValue(limit.limit_hours);
+      const limitCycles = this.wholeLifeValue(limit.limit_cycles);
+      const limitMonths = this.wholeLifeValue(limit.limit_months);
+      const missingReasons: string[] = [];
+      const dimensionStatuses: string[] = [];
+      const evaluated: any = {
+        id: limit.id,
+        limit_type: limit.limit_type,
+        basis: limit.basis,
+        normalized_basis: normalizedBasis,
+        status: 'UNKNOWN',
+        remaining_hours: null,
+        remaining_cycles: null,
+        remaining_calendar_days: null,
+        due_date: null,
+        current_hours: null,
+        current_cycles: null,
+        reference_date: null,
+        missing_reasons: missingReasons,
+        description: limit.description || null,
+      };
+
+      if (normalizedBasis === 'ON_CONDITION') {
+        missingReasons.push('On-condition item; remaining life is not calculated.');
+        evaluatedLimits.push(evaluated);
+        continue;
+      }
+
+      if (normalizedBasis === 'UNKNOWN') {
+        missingReasons.push('Life-limit basis could not be mapped to a controlled basis.');
+        evaluatedLimits.push(evaluated);
+        continue;
+      }
+
+      if (limitHours !== null) {
+        const currentHours =
+          normalizedBasis === 'SINCE_NEW'
+            ? this.numericLifeValue(lifeState.tsn_hours)
+            : normalizedBasis === 'SINCE_OVERHAUL'
+              ? this.numericLifeValue(lifeState.tso_hours)
+              : null;
+
+        evaluated.current_hours = currentHours;
+
+        if (currentHours === null) {
+          missingReasons.push(`Missing current hours for ${normalizedBasis}.`);
+        } else {
+          evaluated.remaining_hours = Number((limitHours - currentHours).toFixed(2));
+          dimensionStatuses.push(
+            this.statusForRemaining(
+              evaluated.remaining_hours,
+              this.serializedComponentLifeLimitDueSoonThresholds.hours
+            )
+          );
+        }
+      }
+
+      if (limitCycles !== null) {
+        const currentCycles =
+          normalizedBasis === 'SINCE_NEW'
+            ? this.wholeLifeValue(lifeState.csn_cycles)
+            : normalizedBasis === 'SINCE_OVERHAUL'
+              ? this.wholeLifeValue(lifeState.cso_cycles)
+              : null;
+
+        evaluated.current_cycles = currentCycles;
+
+        if (currentCycles === null) {
+          missingReasons.push(`Missing current cycles for ${normalizedBasis}.`);
+        } else {
+          evaluated.remaining_cycles = limitCycles - currentCycles;
+          dimensionStatuses.push(
+            this.statusForRemaining(
+              evaluated.remaining_cycles,
+              this.serializedComponentLifeLimitDueSoonThresholds.cycles
+            )
+          );
+        }
+      }
+
+      if (limitMonths !== null) {
+        const limitTypeText = `${String(limit.limit_type || '')} ${String(limit.basis || '')}`.toUpperCase();
+        const referenceDate =
+          normalizedBasis === 'SINCE_OVERHAUL' || /\b(TBO|OVERHAUL|TSO|CSO)\b/.test(limitTypeText)
+            ? lifeState.overhaul_reference_date
+            : lifeState.calendar_reference_date || lifeState.overhaul_reference_date;
+
+        evaluated.reference_date = referenceDate || null;
+
+        if (!referenceDate) {
+          missingReasons.push('Missing calendar reference date for calendar calculation.');
+        } else {
+          evaluated.due_date = this.addMonthsToDate(referenceDate, limitMonths);
+          evaluated.remaining_calendar_days = evaluated.due_date
+            ? this.remainingDaysUntil(evaluated.due_date, today)
+            : null;
+
+          if (evaluated.remaining_calendar_days === null) {
+            missingReasons.push('Calendar due date could not be calculated.');
+          } else {
+            dimensionStatuses.push(
+              this.statusForRemaining(
+                evaluated.remaining_calendar_days,
+                this.serializedComponentLifeLimitDueSoonThresholds.calendarDays
+              )
+            );
+          }
+        }
+      }
+
+      if (limitHours === null && limitCycles === null && limitMonths === null) {
+        missingReasons.push('No limit hours, cycles, or months defined.');
+      }
+
+      evaluated.status = dimensionStatuses.length
+        ? this.worstLifeLimitStatus(dimensionStatuses)
+        : 'UNKNOWN';
+      evaluatedLimits.push(evaluated);
+    }
+
+    const statuses = evaluatedLimits.map((limit) => limit.status);
+    const computableStatuses = statuses.filter((status) => status !== 'UNKNOWN');
+    const hasUnknownLimits = statuses.includes('UNKNOWN');
+    const aggregateStatus = computableStatuses.length
+      ? this.worstLifeLimitStatus(computableStatuses)
+      : 'UNKNOWN';
+    const worstLimit =
+      evaluatedLimits
+        .filter((limit) => limit.status !== 'UNKNOWN')
+        .sort((a, b) => {
+          const rankDelta =
+            (this.serializedComponentLifeLimitStatusRank[b.status] || 0) -
+            (this.serializedComponentLifeLimitStatusRank[a.status] || 0);
+
+          if (rankDelta !== 0) return rankDelta;
+
+          const aRemaining = [
+            a.remaining_hours,
+            a.remaining_cycles,
+            a.remaining_calendar_days,
+          ].filter((value) => typeof value === 'number') as number[];
+          const bRemaining = [
+            b.remaining_hours,
+            b.remaining_cycles,
+            b.remaining_calendar_days,
+          ].filter((value) => typeof value === 'number') as number[];
+
+          return Math.min(...aRemaining, Number.POSITIVE_INFINITY) -
+            Math.min(...bRemaining, Number.POSITIVE_INFINITY);
+        })[0] || null;
+
+    if (hasUnknownLimits) {
+      aggregateReasons.push('One or more life limits could not be calculated.');
+    }
+
+    if (!computableStatuses.length) {
+      aggregateReasons.push('No active life limits could be calculated from current life state.');
+    }
+
+    return {
+      state: aggregateStatus,
+      explanation:
+        aggregateReasons.join(' ') ||
+        (worstLimit
+          ? `Worst limit: ${worstLimit.limit_type || 'Life limit'} is ${aggregateStatus}.`
+          : `Life limits evaluated as ${aggregateStatus}.`),
+      worstLimit,
+      has_unknown_limits: hasUnknownLimits,
+      is_partial: hasUnknownLimits && computableStatuses.length > 0,
+      reasons: aggregateReasons,
+      thresholds: this.serializedComponentLifeLimitDueSoonThresholds,
+      evaluatedLimits,
+    };
+  }
+
+  private static groupSerializedComponentMaintenanceEvents(events: any[]) {
+    const groups = this.serializedComponentMaintenanceEventGroupDefinitions.map((definition) => ({
+      ...definition,
+      events: [] as any[],
+    }));
+    const groupByEventType = new Map<string, (typeof groups)[number]>();
+    const unknownGroup = groups.find((group) => group.key === 'imported_unknown_history')!;
+
+    groups.forEach((group) => {
+      group.eventTypes.forEach((eventType) => {
+        groupByEventType.set(eventType, group);
+      });
+    });
+
+    (events || []).forEach((event) => {
+      const normalizedEventType = String(event?.event_type || '').trim().toUpperCase();
+      const group = groupByEventType.get(normalizedEventType) || unknownGroup;
+
+      group.events.push(event);
+    });
+
+    return groups;
+  }
+
+  static async adjustSerializedComponentLifeState(
+    id: string,
+    data: {
+      tsn_hours?: unknown;
+      tso_hours?: unknown;
+      csn_cycles?: unknown;
+      cso_cycles?: unknown;
+      overhaul_reference_date?: unknown;
+      calendar_reference_date?: unknown;
+      reason?: unknown;
+      source_reference?: unknown;
+      occurred_at?: unknown;
+      allow_tso_exceeds_tsn?: unknown;
+      allow_cso_exceeds_csn?: unknown;
+      recorded_by?: string | null;
+    }
+  ) {
+    const serializedComponentId = String(id || '').trim();
+    const reason = String(data.reason || '').trim();
+    const sourceReference = String(data.source_reference || '').trim();
+    const occurredAt = this.parseOptionalDate(data.occurred_at, 'Occurred at') || new Date().toISOString();
+
+    if (!serializedComponentId) {
+      throw new Error('SERIALIZED_COMPONENT_NOT_FOUND');
+    }
+
+    if (!reason) {
+      throw new Error('Life adjustment reason is required.');
+    }
+
+    const nextValues = {
+      tsn_hours: this.parseOptionalDecimal(data.tsn_hours, 'TSN hours'),
+      tso_hours: this.parseOptionalDecimal(data.tso_hours, 'TSO hours'),
+      csn_cycles: this.parseOptionalInteger(data.csn_cycles, 'CSN cycles'),
+      cso_cycles: this.parseOptionalInteger(data.cso_cycles, 'CSO cycles'),
+      overhaul_reference_date: this.parseOptionalDate(
+        data.overhaul_reference_date,
+        'Overhaul reference date'
+      ),
+      calendar_reference_date: this.parseOptionalDate(
+        data.calendar_reference_date,
+        'Calendar reference date'
+      ),
+    };
+
+    const hasAnyValue = Object.values(nextValues).some((value) => value !== null);
+
+    if (!hasAnyValue) {
+      throw new Error('At least one life value or reference date is required.');
+    }
+
+    if (
+      nextValues.tsn_hours !== null &&
+      nextValues.tso_hours !== null &&
+      nextValues.tso_hours > nextValues.tsn_hours &&
+      data.allow_tso_exceeds_tsn !== 'on'
+    ) {
+      throw new Error('TSO greater than TSN requires explicit documented reason confirmation.');
+    }
+
+    if (
+      nextValues.csn_cycles !== null &&
+      nextValues.cso_cycles !== null &&
+      nextValues.cso_cycles > nextValues.csn_cycles &&
+      data.allow_cso_exceeds_csn !== 'on'
+    ) {
+      throw new Error('CSO greater than CSN requires explicit documented reason confirmation.');
+    }
+
+    return sequelize.transaction(async (transaction) => {
+      const serializedComponent = await SerializedComponent.findByPk(serializedComponentId, {
+        attributes: ['id', 'serial_number'],
+        transaction,
+        lock: transaction.LOCK.UPDATE,
+      });
+
+      if (!serializedComponent) {
+        throw new Error('SERIALIZED_COMPONENT_NOT_FOUND');
+      }
+
+      const existingLifeState = await SerializedComponentLifeState.findOne({
+        where: { serialized_component_id: serializedComponentId },
+        transaction,
+        lock: transaction.LOCK.UPDATE,
+      });
+
+      const before = this.lifeStateSnapshot(existingLifeState);
+
+      const updateValues = {
+        serialized_component_id: serializedComponentId,
+        ...nextValues,
+        notes: reason,
+      };
+
+      let lifeState;
+
+      if (existingLifeState) {
+        lifeState = await existingLifeState.update(updateValues, { transaction });
+      } else {
+        lifeState = await SerializedComponentLifeState.create(updateValues, { transaction });
+      }
+
+      const after = this.lifeStateSnapshot(lifeState);
+      const eventNotes = [
+        'LIFE_ADJUSTMENT',
+        `Reason: ${reason}`,
+        sourceReference ? `Source Reference: ${sourceReference}` : null,
+        `Before: ${JSON.stringify(before)}`,
+        `After: ${JSON.stringify(after)}`,
+      ].filter(Boolean).join('\n');
+
+      await SerializedComponentMaintenanceEvent.create(
+        {
+          serialized_component_id: serializedComponentId,
+          event_type: 'LIFE_ADJUSTMENT',
+          occurred_at: occurredAt,
+          recorded_by: data.recorded_by || null,
+          notes: eventNotes,
+        },
+        { transaction }
+      );
+
+      return lifeState;
+    });
+  }
+
+  static async recordSerializedComponentOverhaul(
+    id: string,
+    data: {
+      overhaul_date?: unknown;
+      overhaul_provider?: unknown;
+      overhaul_reference?: unknown;
+      notes?: unknown;
+      tsn_hours?: unknown;
+      tso_hours?: unknown;
+      csn_cycles?: unknown;
+      cso_cycles?: unknown;
+      overhaul_reference_date?: unknown;
+      calendar_reference_date?: unknown;
+      recorded_by?: string | null;
+    }
+  ) {
+    const serializedComponentId = String(id || '').trim();
+    const overhaulDate = this.parseOptionalDate(data.overhaul_date, 'Overhaul date');
+    const overhaulProvider = String(data.overhaul_provider || '').trim();
+    const overhaulReference = String(data.overhaul_reference || '').trim();
+    const notes = String(data.notes || '').trim();
+
+    if (!serializedComponentId) {
+      throw new Error('SERIALIZED_COMPONENT_NOT_FOUND');
+    }
+
+    if (!overhaulDate) {
+      throw new Error('Overhaul date is required.');
+    }
+
+    if (!overhaulProvider) {
+      throw new Error('Overhaul provider is required.');
+    }
+
+    if (!overhaulReference) {
+      throw new Error('Overhaul reference, work order, or release number is required.');
+    }
+
+    if (!notes) {
+      throw new Error('Overhaul notes are required.');
+    }
+
+    const parsedValues = {
+      tsn_hours: this.parseOptionalDecimal(data.tsn_hours, 'TSN hours'),
+      tso_hours: this.parseOptionalDecimal(data.tso_hours, 'TSO hours'),
+      csn_cycles: this.parseOptionalInteger(data.csn_cycles, 'CSN cycles'),
+      cso_cycles: this.parseOptionalInteger(data.cso_cycles, 'CSO cycles'),
+      overhaul_reference_date:
+        this.parseOptionalDate(data.overhaul_reference_date, 'Overhaul reference date') ||
+        overhaulDate,
+      calendar_reference_date: this.parseOptionalDate(
+        data.calendar_reference_date,
+        'Calendar reference date'
+      ),
+    };
+
+    return sequelize.transaction(async (transaction) => {
+      const serializedComponent = await SerializedComponent.findByPk(serializedComponentId, {
+        attributes: ['id', 'serial_number'],
+        transaction,
+        lock: transaction.LOCK.UPDATE,
+      });
+
+      if (!serializedComponent) {
+        throw new Error('SERIALIZED_COMPONENT_NOT_FOUND');
+      }
+
+      const existingLifeState = await SerializedComponentLifeState.findOne({
+        where: { serialized_component_id: serializedComponentId },
+        transaction,
+        lock: transaction.LOCK.UPDATE,
+      });
+
+      const before = this.lifeStateSnapshot(existingLifeState);
+      const updateValues: Record<string, any> = {
+        serialized_component_id: serializedComponentId,
+        notes: `OVERHAUL: ${notes}`,
+      };
+
+      Object.entries(parsedValues).forEach(([key, value]) => {
+        if (value !== null) {
+          updateValues[key] = value;
+        }
+      });
+
+      let lifeState;
+
+      if (existingLifeState) {
+        lifeState = await existingLifeState.update(updateValues, { transaction });
+      } else {
+        lifeState = await SerializedComponentLifeState.create(updateValues, { transaction });
+      }
+
+      const after = this.lifeStateSnapshot(lifeState);
+      const eventNotes = [
+        'OVERHAUL',
+        `Provider: ${overhaulProvider}`,
+        `Reference: ${overhaulReference}`,
+        `Notes: ${notes}`,
+        `Before: ${JSON.stringify(before)}`,
+        `After: ${JSON.stringify(after)}`,
+      ].join('\n');
+
+      await SerializedComponentMaintenanceEvent.create(
+        {
+          serialized_component_id: serializedComponentId,
+          event_type: 'OVERHAUL',
+          occurred_at: overhaulDate,
+          recorded_by: data.recorded_by || null,
+          notes: eventNotes,
+        },
+        { transaction }
+      );
+
+      return lifeState;
+    });
+  }
+
+  static async recordSerializedComponentGenericMaintenanceEvent(
+    id: string,
+    data: {
+      event_type?: unknown;
+      occurred_at?: unknown;
+      provider?: unknown;
+      reference?: unknown;
+      notes?: unknown;
+      recorded_by?: string | null;
+    }
+  ) {
+    const serializedComponentId = String(id || '').trim();
+    const eventType = String(data.event_type || '').trim().toUpperCase();
+    const occurredAt = this.parseOptionalDate(data.occurred_at, 'Occurred date');
+    const provider = String(data.provider || '').trim();
+    const reference = String(data.reference || '').trim();
+    const notes = String(data.notes || '').trim();
+
+    if (!serializedComponentId) {
+      throw new Error('SERIALIZED_COMPONENT_NOT_FOUND');
+    }
+
+    if (!this.serializedComponentGenericMaintenanceEventTypes.includes(eventType)) {
+      throw new Error('Invalid serialized component maintenance event type.');
+    }
+
+    if (!occurredAt) {
+      throw new Error('Occurred date is required.');
+    }
+
+    if (!provider) {
+      throw new Error('Provider or source is required.');
+    }
+
+    if (!reference) {
+      throw new Error('Reference, work order, release, or logbook reference is required.');
+    }
+
+    if (!notes) {
+      throw new Error('Maintenance event notes are required.');
+    }
+
+    return sequelize.transaction(async (transaction) => {
+      const serializedComponent = await SerializedComponent.findByPk(serializedComponentId, {
+        attributes: ['id', 'serial_number'],
+        transaction,
+        lock: transaction.LOCK.UPDATE,
+      });
+
+      if (!serializedComponent) {
+        throw new Error('SERIALIZED_COMPONENT_NOT_FOUND');
+      }
+
+      const eventNotes = [
+        eventType,
+        `Provider / Source: ${provider}`,
+        `Reference: ${reference}`,
+        `Notes: ${notes}`,
+        'Life State: Not changed by generic maintenance event.',
+      ].join('\n');
+
+      return SerializedComponentMaintenanceEvent.create(
+        {
+          serialized_component_id: serializedComponentId,
+          event_type: eventType,
+          occurred_at: occurredAt,
+          recorded_by: data.recorded_by || null,
+          notes: eventNotes,
+        },
+        { transaction }
+      );
     });
   }
 
