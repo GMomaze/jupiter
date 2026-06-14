@@ -1,256 +1,646 @@
 <%- include('../partials/header') %>
 
-<main class="max-w-7xl mx-auto bg-[#0f172a] py-10 px-4 sm:px-6 lg:px-8">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link
+  href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+  rel="stylesheet"
+>
+
+<style>
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+
+  .jd {
+    min-height: 100vh;
+    padding: 28px;
+    background: #0f1117;
+    color: #fff;
+    font-family: 'Inter', system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+
+  .jd-inner {
+    max-width: 1280px;
+    margin: 0 auto;
+  }
+
+  .jd-hero {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 14px;
+    padding: 20px 24px;
+    border: 1px solid #1e2530;
+    border-radius: 12px;
+    background: #13181f;
+  }
+
+  .jd-brand {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+
+  .jd-logo {
+    display: flex;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: center;
+    width: 38px;
+    height: 38px;
+    border-radius: 9px;
+    background: #2563eb;
+    color: #fff;
+    font-size: 18px;
+    font-weight: 700;
+    letter-spacing: -1px;
+  }
+
+  .jd-hero h1 {
+    color: #f1f5f9;
+    font-size: 19px;
+    font-weight: 600;
+    letter-spacing: -0.3px;
+  }
+
+  .jd-hero-sub {
+    margin-top: 2px;
+    color: #94a3b8;
+    font-size: 11px;
+  }
+
+  .jd-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .chip,
+  .chip-green {
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-size: 10px;
+    letter-spacing: 0.04em;
+  }
+
+  .chip {
+    border: 1px solid #1e2d45;
+    background: #0f1e33;
+    color: #60a5fa;
+  }
+
+  .chip-green {
+    border: 1px solid #14422a;
+    background: #0a1f12;
+    color: #4ade80;
+  }
+
+  .live {
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    margin-right: 5px;
+    border-radius: 50%;
+    background: #4ade80;
+    animation: livepulse 2s infinite;
+  }
+
+  @keyframes livepulse {
+    0%,
+    100% {
+      opacity: 1;
+    }
+
+    50% {
+      opacity: 0.35;
+    }
+  }
+
+  .warn-banner {
+    margin-bottom: 14px;
+    padding: 10px 14px;
+    border: 1px solid #3d2800;
+    border-radius: 8px;
+    background: #1c1208;
+    color: #fbbf24;
+    font-size: 12px;
+  }
+
+  .sec-eyebrow {
+    margin-bottom: 6px;
+    color: #64748b;
+    font-size: 10px;
+    letter-spacing: 0.13em;
+    text-transform: uppercase;
+  }
+
+  .sec-title {
+    margin-bottom: 14px;
+    color: #f1f5f9;
+    font-size: 14px;
+    font-weight: 600;
+  }
+
+  .metrics {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+    gap: 8px;
+    margin-bottom: 14px;
+  }
+
+  .mc {
+    padding: 13px 12px;
+    border: 1px solid #1e2530;
+    border-radius: 10px;
+    background: #13181f;
+    transition: border-color 0.2s;
+  }
+
+  .mc:hover {
+    border-color: #2563eb;
+  }
+
+  .mc-cat {
+    margin-bottom: 8px;
+    color: #64748b;
+    font-size: 9px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+
+  .mc-val,
+  .mc-val-warn {
+    font-size: 28px;
+    font-weight: 700;
+    line-height: 1;
+    letter-spacing: -1.5px;
+  }
+
+  .mc-val {
+    color: #f1f5f9;
+  }
+
+  .mc-val-warn {
+    color: #fbbf24;
+  }
+
+  .mc-lbl {
+    margin-top: 5px;
+    color: #94a3b8;
+    font-size: 10px;
+    line-height: 1.4;
+  }
+
+  .mc-missing {
+    float: right;
+    padding: 1px 6px;
+    border: 1px solid #1e2530;
+    border-radius: 4px;
+    color: #64748b;
+    font-size: 9px;
+  }
+
+  .lower {
+    display: grid;
+    grid-template-columns: 220px 1fr;
+    align-items: start;
+    gap: 10px;
+  }
+
+  @media (max-width: 900px) {
+    .lower {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  .panel {
+    padding: 16px;
+    border: 1px solid #1e2530;
+    border-radius: 12px;
+    background: #13181f;
+  }
+
+  .qrow {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 6px;
+    padding: 10px 12px;
+    border: 1px solid #1e2530;
+    border-radius: 8px;
+    text-decoration: none;
+    transition: border-color 0.15s, background 0.15s;
+  }
+
+  .qrow:hover {
+    border-color: #2563eb;
+    background: #0f1e33;
+  }
+
+  .qrow:last-child {
+    margin-bottom: 0;
+  }
+
+  .qrow-lbl {
+    margin-bottom: 3px;
+    color: #94a3b8;
+    font-size: 11px;
+  }
+
+  .qrow-val {
+    color: #f1f5f9;
+    font-size: 20px;
+    font-weight: 700;
+    line-height: 1;
+    letter-spacing: -0.5px;
+  }
+
+  .badge {
+    flex-shrink: 0;
+    padding: 3px 8px;
+    border-radius: 20px;
+    font-size: 9px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+  }
+
+  .badge-warn {
+    border: 1px solid #3d2800;
+    background: #1c1208;
+    color: #fbbf24;
+  }
+
+  .badge-info {
+    border: 1px solid #1e3a6e;
+    background: #0d1f3a;
+    color: #93c5fd;
+  }
+
+  .sc3 {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 6px;
+  }
+
+  .sc {
+    padding: 9px 10px;
+    border-radius: 7px;
+    background: #0c1118;
+  }
+
+  .sc-k {
+    margin-bottom: 3px;
+    color: #64748b;
+    font-size: 9px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+
+  .sc-v {
+    color: #cbd5e1;
+    font-size: 11px;
+    font-weight: 600;
+  }
+
+  .cc3 {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    margin-bottom: 10px;
+  }
+
+  .cc {
+    display: block;
+    padding: 15px 13px;
+    border: 1px solid #1e2530;
+    border-radius: 10px;
+    background: #0c1118;
+    text-decoration: none;
+    transition: border-color 0.15s, background 0.15s;
+  }
+
+  .cc:hover {
+    border-color: #2563eb;
+    background: #0f1e33;
+  }
+
+  .cc-icon {
+    display: block;
+    margin-bottom: 10px;
+    color: #3b82f6;
+    font-size: 20px;
+    transition: color 0.15s;
+  }
+
+  .cc:hover .cc-icon {
+    color: #93c5fd;
+  }
+
+  .cc-ey {
+    margin-bottom: 4px;
+    color: #64748b;
+    font-size: 9px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+
+  .cc-t {
+    margin-bottom: 3px;
+    color: #f1f5f9;
+    font-size: 13px;
+    font-weight: 600;
+  }
+
+  .cc-s {
+    color: #94a3b8;
+    font-size: 10px;
+    line-height: 1.5;
+  }
+
+  .divider {
+    height: 1px;
+    margin: 12px 0;
+    background: #1e2530;
+  }
+
+  .sl {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 6px;
+    padding: 10px 12px;
+    border: 1px solid #1e2530;
+    border-radius: 8px;
+    text-decoration: none;
+    transition: border-color 0.15s, background 0.15s;
+  }
+
+  .sl:hover {
+    border-color: #2563eb;
+    background: #0f1e33;
+  }
+
+  .sl:last-child {
+    margin-bottom: 0;
+  }
+
+  .sl-left {
+    display: flex;
+    align-items: center;
+    min-width: 0;
+    gap: 10px;
+  }
+
+  .sl-icon {
+    flex-shrink: 0;
+    color: #64748b;
+    font-size: 16px;
+    transition: color 0.15s;
+  }
+
+  .sl:hover .sl-icon {
+    color: #60a5fa;
+  }
+
+  .sl-t {
+    color: #f1f5f9;
+    font-size: 12px;
+    font-weight: 600;
+  }
+
+  .sl-s {
+    margin-top: 1px;
+    color: #94a3b8;
+    font-size: 10px;
+  }
+
+  .arr {
+    flex-shrink: 0;
+    color: #334155;
+    font-size: 14px;
+    transition: color 0.15s;
+  }
+
+  .sl:hover .arr,
+  .qrow:hover .arr {
+    color: #60a5fa;
+  }
+</style>
+
+<main class="jd">
+  <div class="jd-inner">
     <% const safeMetrics = typeof metrics !== 'undefined' ? metrics : {}; %>
+
     <% const summaryCards = [
-      {
-        key: 'totalAircraft',
-        label: 'Total Aircraft',
-        helper: 'Fleet',
-      },
-      {
-        key: 'activeAircraft',
-        label: 'Active Aircraft',
-        helper: 'Operational',
-      },
-      {
-        key: 'openWorkpacks',
-        label: 'Open Workpacks',
-        helper: 'Control',
-      },
+      { key: 'totalAircraft', label: 'Total aircraft', helper: 'Fleet' },
+      { key: 'activeAircraft', label: 'Active aircraft', helper: 'Active' },
+      { key: 'openWorkpacks', label: 'Open workpacks', helper: 'Control' },
       {
         key: 'awaitingCertification',
-        label: 'Awaiting Certification',
-        helper: 'Engineer Queue',
+        label: 'Awaiting cert.',
+        helper: 'Eng. queue',
+        warn: true,
       },
-      {
-        key: 'openSnags',
-        label: 'Open Snags',
-        helper: 'Defects',
-      },
-      {
-        key: 'serializedComponents',
-        label: 'Serialized Components',
-        helper: 'Component Library',
-      },
-      {
-        key: 'activeCustomers',
-        label: 'Active Customers',
-        helper: 'Accounts',
-      },
+      { key: 'openSnags', label: 'Open snags', helper: 'Defects', warn: true },
+      { key: 'serializedComponents', label: 'Components', helper: 'Stock' },
+      { key: 'activeCustomers', label: 'Active customers', helper: 'Accounts' },
     ]; %>
+
     <% const attentionCards = [
       {
         key: 'openSnags',
-        label: 'Open Snags',
+        label: 'Open snags',
         href: '/workpacks',
+        badge: 'Defects',
+        badgeClass: 'badge-warn',
       },
       {
         key: 'awaitingCertification',
-        label: 'Awaiting Certification',
+        label: 'Awaiting certification',
         href: '/workpacks',
+        badge: 'Queue',
+        badgeClass: 'badge-warn',
       },
       {
         key: 'openWorkpacks',
-        label: 'Open Workpacks',
+        label: 'Open workpacks',
         href: '/workpacks/hangar',
+        badge: 'Control',
+        badgeClass: 'badge-info',
       },
     ]; %>
+
     <% const coreLinks = [
       {
         href: '/aircraft',
+        icon: 'ti-plane',
         eyebrow: 'Fleet',
         title: 'Aircraft',
-        subtitle: 'Aircraft register and technical views',
+        subtitle: 'Register and technical views',
       },
       {
         href: '/workpacks',
+        icon: 'ti-tool',
         eyebrow: 'Workpacks',
         title: 'Operations',
-        subtitle: 'Planner, execution, and audit paths',
+        subtitle: 'Planner, execution, audit',
       },
       {
         href: '/library',
+        icon: 'ti-books',
         eyebrow: 'Library',
-        title: 'Reference Data',
-        subtitle: 'Manufacturers, models, and serialized stock',
+        title: 'Reference data',
+        subtitle: 'Manufacturers and stock',
       },
     ]; %>
+
     <% const supportLinks = [
       {
         href: '/service-bulletins',
-        title: 'Service Bulletins',
+        icon: 'ti-file-text',
+        title: 'Service bulletins',
         subtitle: 'Bulletin management and sync visibility',
       },
       {
         href: '/customers',
+        icon: 'ti-users',
         title: 'Customers',
         subtitle: 'Customer master records and links',
       },
       {
         href: '/workpacks/hangar',
-        title: 'Hangar Floor',
+        icon: 'ti-building-warehouse',
+        title: 'Hangar floor',
         subtitle: 'Active execution access by role',
       },
     ]; %>
 
-    <section class="overflow-hidden rounded-2xl border border-[#334155] bg-[#1e3a8a] shadow-[0_20px_50px_rgba(0,0,0,0.35)]">
-        <div class="grid gap-4 px-5 py-5 lg:grid-cols-[1.25fr_0.75fr] lg:px-6">
-            <div class="min-w-0">
-                <p class="text-[11px] font-black uppercase tracking-[0.35em] text-[#94a3b8]">
-                    Operational Control
-                </p>
-                <h1 class="mt-2 text-3xl font-black tracking-tight text-[#e2e8f0]">
-                    Jupiter Dashboard
-                </h1>
-            </div>
-
-            <div class="grid gap-2 sm:grid-cols-3">
-                <div class="rounded-xl border border-[#334155] bg-[#0f172a] px-4 py-3">
-                    <p class="text-[10px] font-black uppercase tracking-[0.25em] text-[#94a3b8]">Status</p>
-                    <p class="mt-2 text-sm font-semibold text-[#e2e8f0]">Read Only</p>
-                </div>
-                <div class="rounded-xl border border-[#334155] bg-[#0f172a] px-4 py-3">
-                    <p class="text-[10px] font-black uppercase tracking-[0.25em] text-[#94a3b8]">Scope</p>
-                    <p class="mt-2 text-sm font-semibold text-[#e2e8f0]">Fleet + Workpacks</p>
-                </div>
-                <div class="rounded-xl border border-[#334155] bg-[#0f172a] px-4 py-3">
-                    <p class="text-[10px] font-black uppercase tracking-[0.25em] text-[#94a3b8]">Mode</p>
-                    <p class="mt-2 text-sm font-semibold text-[#e2e8f0]">Navigation</p>
-                </div>
-            </div>
+    <div class="jd-hero">
+      <div class="jd-brand">
+        <div class="jd-logo">J</div>
+        <div>
+          <h1>Jupiter</h1>
+          <p class="jd-hero-sub">Aviation Maintenance Management</p>
         </div>
-    </section>
+      </div>
+
+      <div class="jd-chips">
+        <span class="chip-green"><span class="live"></span>Live</span>
+        <span class="chip">Read only</span>
+        <span class="chip">Fleet + Workpacks</span>
+      </div>
+    </div>
 
     <% if (typeof metricsWarning === 'string' && metricsWarning) { %>
-        <div class="mt-4 rounded-2xl border border-[#334155] bg-[#1f2937] px-4 py-3 text-sm text-[#e2e8f0] shadow-sm">
-            <%= metricsWarning %>
-        </div>
+      <div class="warn-banner">⚠ <%= metricsWarning %></div>
     <% } %>
 
-    <section class="mt-6">
-        <div class="mb-3">
-            <p class="text-[11px] font-black uppercase tracking-[0.3em] text-[#94a3b8]">Operational Summary</p>
-            <h2 class="mt-1 text-xl font-black tracking-tight text-[#e2e8f0]">Live Counts</h2>
+    <p class="sec-eyebrow">Fleet overview</p>
+
+    <div class="metrics">
+      <% summaryCards.forEach((card) => { %>
+        <% const rawValue = safeMetrics[card.key]; %>
+        <% const hasValue = typeof rawValue === 'number'; %>
+
+        <div class="mc">
+          <% if (!hasValue) { %>
+            <span class="mc-missing">Missing</span>
+          <% } %>
+
+          <p class="mc-cat"><%= card.helper %></p>
+          <p class="<%= card.warn ? 'mc-val-warn' : 'mc-val' %>">
+            <%= hasValue ? rawValue : '—' %>
+          </p>
+          <p class="mc-lbl"><%= card.label %></p>
+        </div>
+      <% }) %>
+    </div>
+
+    <div class="lower">
+      <div style="display: flex; flex-direction: column; gap: 10px;">
+        <div class="panel">
+          <p class="sec-eyebrow">Needs action</p>
+          <p class="sec-title">Open items</p>
+
+          <% attentionCards.forEach((card) => { %>
+            <% const rawValue = safeMetrics[card.key]; %>
+            <% const hasValue = typeof rawValue === 'number'; %>
+
+            <a href="<%= card.href %>" class="qrow">
+              <div>
+                <p class="qrow-lbl"><%= card.label %></p>
+                <p class="qrow-val"><%= hasValue ? rawValue : '—' %></p>
+              </div>
+
+              <span class="badge <%= card.badgeClass %>"><%= card.badge %></span>
+            </a>
+          <% }) %>
         </div>
 
-        <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            <% summaryCards.forEach((card) => { %>
-                <% const rawValue = safeMetrics[card.key]; %>
-                <% const hasValue = typeof rawValue === 'number'; %>
-                <article class="rounded-2xl border border-[#334155] bg-[#1e293b] p-4 shadow-[0_12px_30px_rgba(0,0,0,0.25)]">
-                    <div class="flex items-start justify-between gap-3">
-                        <p class="text-[11px] font-black uppercase tracking-[0.3em] text-[#94a3b8]">
-                            <%= card.helper %>
-                        </p>
-                        <% if (!hasValue) { %>
-                            <span class="rounded-full border border-[#334155] bg-[#0f172a] px-2 py-1 text-[10px] font-black uppercase tracking-[0.2em] text-[#94a3b8] shadow-sm">
-                                Missing
-                            </span>
-                        <% } %>
-                    </div>
-                    <p class="mt-3 text-xs font-bold uppercase tracking-[0.25em] text-[#94a3b8]">
-                        <%= card.label %>
-                    </p>
-                    <p class="mt-2 text-4xl font-black tracking-tight text-[#e2e8f0]">
-                        <%= hasValue ? rawValue : '-' %>
-                    </p>
-                </article>
-            <% }) %>
+        <div class="panel">
+          <p class="sec-eyebrow">System state</p>
+          <p class="sec-title">Board status</p>
+
+          <div class="sc3">
+            <div class="sc">
+              <p class="sc-k">Access</p>
+              <p class="sc-v">Auth'd</p>
+            </div>
+
+            <div class="sc">
+              <p class="sc-k">Mode</p>
+              <p class="sc-v">Read only</p>
+            </div>
+
+            <div class="sc">
+              <p class="sc-k">Data</p>
+              <p class="sc-v">Live</p>
+            </div>
+          </div>
         </div>
-    </section>
+      </div>
 
-    <section class="mt-6 grid gap-4 xl:grid-cols-[0.78fr_1.22fr]">
-        <div class="space-y-4">
-            <div class="rounded-2xl border border-[#334155] bg-[#1e293b] p-5 shadow-[0_16px_40px_rgba(0,0,0,0.28)]">
-                <div class="mb-4">
-                    <p class="text-[11px] font-black uppercase tracking-[0.3em] text-[#94a3b8]">Requires Attention</p>
-                    <h2 class="mt-1 text-xl font-black tracking-tight text-[#e2e8f0]">Operational Queue</h2>
-                </div>
+      <div class="panel">
+        <p class="sec-eyebrow">Navigate to</p>
+        <p class="sec-title">Core modules</p>
 
-                <div class="space-y-3">
-                    <% attentionCards.forEach((card) => { %>
-                        <% const rawValue = safeMetrics[card.key]; %>
-                        <% const hasValue = typeof rawValue === 'number'; %>
-                        <a href="<%= card.href %>" class="block rounded-2xl border border-[#334155] bg-[#0f172a] px-4 py-4 transition hover:border-[#2563eb] hover:bg-[#152238]">
-                            <div class="flex items-center justify-between gap-4">
-                                <div>
-                                    <p class="text-[11px] font-black uppercase tracking-[0.25em] text-[#94a3b8]"><%= card.label %></p>
-                                    <p class="mt-2 text-3xl font-black tracking-tight text-[#e2e8f0]"><%= hasValue ? rawValue : '-' %></p>
-                                </div>
-                                <span class="text-[10px] font-black uppercase tracking-[0.25em] text-[#94a3b8]">Open</span>
-                            </div>
-                        </a>
-                    <% }) %>
-                </div>
-            </div>
-
-            <div class="rounded-2xl border border-[#334155] bg-[#1e293b] p-5 shadow-[0_16px_40px_rgba(0,0,0,0.28)]">
-                <div class="mb-4">
-                    <p class="text-[11px] font-black uppercase tracking-[0.3em] text-[#94a3b8]">System State</p>
-                    <h2 class="mt-1 text-xl font-black tracking-tight text-[#e2e8f0]">Board Status</h2>
-                </div>
-
-                <div class="grid gap-3 sm:grid-cols-3">
-                    <div class="rounded-xl border border-[#334155] bg-[#0f172a] px-4 py-3">
-                        <p class="text-[10px] font-black uppercase tracking-[0.25em] text-[#94a3b8]">Access</p>
-                        <p class="mt-2 text-sm font-semibold text-[#e2e8f0]">Authenticated</p>
-                    </div>
-                    <div class="rounded-xl border border-[#334155] bg-[#0f172a] px-4 py-3">
-                        <p class="text-[10px] font-black uppercase tracking-[0.25em] text-[#94a3b8]">Behavior</p>
-                        <p class="mt-2 text-sm font-semibold text-[#e2e8f0]">Read Only</p>
-                    </div>
-                    <div class="rounded-xl border border-[#334155] bg-[#0f172a] px-4 py-3">
-                        <p class="text-[10px] font-black uppercase tracking-[0.25em] text-[#94a3b8]">Counts</p>
-                        <p class="mt-2 text-sm font-semibold text-[#e2e8f0]">Live Records</p>
-                    </div>
-                </div>
-            </div>
+        <div class="cc3">
+          <% coreLinks.forEach((link) => { %>
+            <a href="<%= link.href %>" class="cc">
+              <i class="ti <%= link.icon %> cc-icon" aria-hidden="true"></i>
+              <p class="cc-ey"><%= link.eyebrow %></p>
+              <p class="cc-t"><%= link.title %></p>
+              <p class="cc-s"><%= link.subtitle %></p>
+            </a>
+          <% }) %>
         </div>
 
-        <div class="space-y-4">
-            <div class="rounded-2xl border border-[#334155] bg-[#1e293b] p-5 shadow-[0_16px_40px_rgba(0,0,0,0.28)]">
-                <div class="mb-4 flex items-center justify-between gap-4">
-                    <div>
-                        <p class="text-[11px] font-black uppercase tracking-[0.3em] text-[#94a3b8]">Quick Actions</p>
-                        <h2 class="mt-1 text-xl font-black tracking-tight text-[#e2e8f0]">Core Destinations</h2>
-                    </div>
-                    <div class="rounded-full border border-[#334155] bg-[#0f172a] px-3 py-1 text-[10px] font-black uppercase tracking-[0.25em] text-[#94a3b8]">
-                        Preserved
-                    </div>
-                </div>
+        <div class="divider"></div>
 
-                <div class="grid gap-3 md:grid-cols-3">
-                    <% coreLinks.forEach((link) => { %>
-                        <a href="<%= link.href %>" class="group rounded-2xl border border-[#334155] bg-[#0f172a] p-4 transition hover:border-[#2563eb] hover:bg-[#152238]">
-                            <p class="text-[11px] font-black uppercase tracking-[0.3em] text-[#94a3b8] group-hover:text-[#e2e8f0]"><%= link.eyebrow %></p>
-                            <h3 class="mt-2 text-lg font-black text-[#e2e8f0]"><%= link.title %></h3>
-                            <p class="mt-2 text-sm text-[#94a3b8]"><%= link.subtitle %></p>
-                        </a>
-                    <% }) %>
-                </div>
+        <% supportLinks.forEach((link) => { %>
+          <a href="<%= link.href %>" class="sl">
+            <div class="sl-left">
+              <i class="ti <%= link.icon %> sl-icon" aria-hidden="true"></i>
+              <div>
+                <p class="sl-t"><%= link.title %></p>
+                <p class="sl-s"><%= link.subtitle %></p>
+              </div>
             </div>
 
-            <div class="rounded-2xl border border-[#334155] bg-[#1e293b] p-5 shadow-[0_16px_40px_rgba(0,0,0,0.28)]">
-                <div class="mb-4">
-                    <p class="text-[11px] font-black uppercase tracking-[0.3em] text-[#94a3b8]">System Shortcuts</p>
-                    <h2 class="mt-1 text-xl font-black tracking-tight text-[#e2e8f0]">Supporting Navigation</h2>
-                </div>
-
-                <div class="grid gap-3">
-                    <% supportLinks.forEach((link) => { %>
-                        <a href="<%= link.href %>" class="flex items-center justify-between rounded-2xl border border-[#334155] bg-[#0f172a] px-4 py-3 transition hover:border-[#2563eb] hover:bg-[#152238]">
-                            <div class="min-w-0 pr-4">
-                                <p class="text-sm font-bold text-[#e2e8f0]"><%= link.title %></p>
-                                <p class="mt-1 text-sm text-[#94a3b8]"><%= link.subtitle %></p>
-                            </div>
-                            <span class="shrink-0 text-[10px] font-black uppercase tracking-[0.25em] text-[#94a3b8]">Open</span>
-                        </a>
-                    <% }) %>
-                </div>
-            </div>
-        </div>
-    </section>
+            <i class="ti ti-arrow-right arr" aria-hidden="true"></i>
+          </a>
+        <% }) %>
+      </div>
+    </div>
+  </div>
 </main>
 
 <%- include('../partials/footer') %>
