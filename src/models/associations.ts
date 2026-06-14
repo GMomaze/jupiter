@@ -24,6 +24,9 @@ import { PlanningSession } from './PlanningSession.js';
 import { Customer } from './Customer.js';
 import { CustomerAircraftLink } from './CustomerAircraftLink.js';
 import { CustomerUser } from './CustomerUser.js';
+import { MigrationBatch } from './MigrationBatch.js';
+import { MigrationBatchRow } from './MigrationBatchRow.js';
+import { MigrationCreatedTarget } from './MigrationCreatedTarget.js';
 
 import { Aircraft } from './core/Aircraft.js';
 import { AircraftComponent } from './core/AircraftComponent.js';
@@ -258,6 +261,35 @@ WorkpackSnagAuditLog.belongsTo(User, { foreignKey: 'user_id', as: 'Actor' });
 
 AuditLog.belongsTo(User, { foreignKey: 'actor_id', as: 'actor' });
 User.hasMany(AuditLog, { foreignKey: 'actor_id' });
+
+MigrationBatch.hasMany(MigrationBatchRow, {
+  foreignKey: 'batch_id',
+  as: 'Rows',
+});
+MigrationBatchRow.belongsTo(MigrationBatch, {
+  foreignKey: 'batch_id',
+  as: 'Batch',
+});
+MigrationBatch.hasMany(MigrationCreatedTarget, {
+  foreignKey: 'batch_id',
+  as: 'CreatedTargets',
+});
+MigrationCreatedTarget.belongsTo(MigrationBatch, {
+  foreignKey: 'batch_id',
+  as: 'Batch',
+});
+MigrationBatchRow.hasMany(MigrationCreatedTarget, {
+  foreignKey: 'batch_row_id',
+  as: 'CreatedTargets',
+});
+MigrationCreatedTarget.belongsTo(MigrationBatchRow, {
+  foreignKey: 'batch_row_id',
+  as: 'BatchRow',
+});
+MigrationBatch.belongsTo(User, { foreignKey: 'created_by', as: 'Creator' });
+MigrationBatch.belongsTo(User, { foreignKey: 'approved_by', as: 'Approver' });
+MigrationBatch.belongsTo(User, { foreignKey: 'executed_by', as: 'Executor' });
+MigrationBatch.belongsTo(User, { foreignKey: 'rolled_back_by', as: 'RollbackActor' });
 
 ComponentModel.hasMany(MaintenanceRequirement, { foreignKey: 'model_id' });
 MaintenanceRequirement.belongsTo(ComponentModel, { foreignKey: 'model_id' });

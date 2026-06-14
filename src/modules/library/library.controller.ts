@@ -1,8 +1,21 @@
 import { Request, Response } from 'express';
 import { LibraryService } from './library.service.js';
+import { MigrationDryRunService } from '../migration/migration-dry-run.service.js';
+import { MigrationLedgerService } from '../migration/migration-ledger.service.js';
 
 function getParam(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] || '' : value || '';
+}
+
+function getMigrationDryRunFilters(source: Record<string, any>) {
+  return {
+    aircraft_id: String(source.aircraft_id || '').trim(),
+    category: String(source.category || '').trim(),
+    readiness: String(source.readiness || '').trim(),
+    include_removed: source.include_removed === 'on',
+    include_quarantined: source.include_quarantined === 'on',
+    include_historical: source.include_historical === 'on',
+  };
 }
 
 export class LibraryController {

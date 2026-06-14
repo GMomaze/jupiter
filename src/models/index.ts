@@ -34,6 +34,9 @@ export { PlanningSession } from './PlanningSession.js';
 export { Customer } from './Customer.js';
 export { CustomerAircraftLink } from './CustomerAircraftLink.js';
 export { CustomerUser } from './CustomerUser.js';
+export { MigrationBatch } from './MigrationBatch.js';
+export { MigrationBatchRow } from './MigrationBatchRow.js';
+export { MigrationCreatedTarget } from './MigrationCreatedTarget.js';
 
 export { Aircraft } from './core/Aircraft.js';
 export { AircraftCategory } from './core/AircraftCategory.js';
