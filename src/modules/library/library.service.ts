@@ -869,6 +869,480 @@ export class LibraryService {
     });
   }
 
+  static async getSerializedComponentReconciliationReport() {
+    const [legacyRows, serializedRows, totalSerializedComponentsResult] = await Promise.all([
+      sequelize.query(
+        `
+          SELECT
+            ac.id AS legacy_component_id,
+            ac.aircraft_id,
+            aircraft.registration AS aircraft_registration,
+            ac.model_id AS legacy_model_id,
+            ac.serial_number AS legacy_serial_number,
+            ac.position_code AS legacy_position,
+            ac.current_status AS legacy_status,
+            ac.removed_at AS legacy_removed_at,
+            cm.model_code AS legacy_model_code,
+            cm.model_name AS legacy_model_name,
+            cm.asset_type_id AS legacy_asset_type_id,
+            at.code AS legacy_asset_type_code
+          FROM aircraft_components ac
+          LEFT JOIN aircraft
+            ON aircraft.id = ac.aircraft_id
+          LEFT JOIN component_models cm
+            ON cm.id = ac.model_id
+          LEFT JOIN rf_asset_type at
+            ON at.id = cm.asset_type_id
+          ORDER BY aircraft.registration ASC NULLS LAST, ac.position_code ASC NULLS LAST, ac.serial_number ASC NULLS LAST
+        `,
+        { type: QueryTypes.SELECT }
+      ),
+      sequelize.query(
+        `
+          SELECT
+            aci.id AS serialized_installation_id,
+            aci.aircraft_id,
+            aircraft.registration AS aircraft_registration,
+            aci.position AS serialized_position,
+            aci.removed_at AS serialized_removed_at,
+            sc.id AS serialized_component_id,
+            sc.component_model_id AS serialized_model_id,
+            sc.serial_number AS serialized_serial_number,
+            sc.status AS serialized_status,
+            cm.model_code AS serialized_model_code,
+            cm.model_name AS serialized_model_name,
+            cm.asset_type_id AS serialized_asset_type_id,
+            at.code AS serialized_asset_type_code,
+            sls.id AS life_state_id
+          FROM aircraft_component_installations aci
+          JOIN serialized_components sc
+            ON sc.id = aci.serialized_component_id
+          LEFT JOIN aircraft
+            ON aircraft.id = aci.aircraft_id
+          LEFT JOIN component_models cm
+            ON cm.id = sc.component_model_id
+          LEFT JOIN rf_asset_type at
+            ON at.id = cm.asset_type_id
+          LEFT JOIN serialized_component_life_states sls
+            ON sls.serialized_component_id = sc.id
+          ORDER BY aircraft.registration ASC NULLS LAST, aci.position ASC NULLS LAST, sc.serial_number ASC NULLS LAST
+        `,
+        { type: QueryTypes.SELECT }
+      ),
+      sequelize.query(
+        'SELECT COUNT(*)::int AS total_serialized_components FROM serialized_components',
+        { type: QueryTypes.SELECT }
+      ),
+    ]);
+
+    const activeLegacyRows = (legacyRows as any[]).filter((row) =>
+      this.isActiveLegacyReconciliationRow(row)
+    );
+    const activeSerializedRows = (serializedRows as any[]).filter((row) =>
+      !row.serialized_removed_at
+    );
+    const serializedByAircraft = activeSerializedRows.reduce((lookup, row) => {
+      const key = this.normalizeReconciliationValue(row.aircraft_id);
+      lookup[key] = lookup[key] || [];
+      lookup[key].push(row);
+      return lookup;
+    }, {} as Record<string, any[]>);
+    const usedSerializedInstallationIds = new Set<string>();
+    const bucketCounts = this.buildEmptySerializedReconciliationBucketCounts();
+    const detailRows: any[] = [];
+
+    const legacyPositionCounts = this.countSerializedReconciliationKeys(
+      activeLegacyRows.map((row) =>
+        this.buildSerializedReconciliationKey(
+          row.aircraft_id,
+          row.legacy_position,
+          row.legacy_asset_type_id
+        )
+      )
+    );
+    const serializedPositionCounts = this.countSerializedReconciliationKeys(
+      activeSerializedRows.map((row) =>
+        this.buildSerializedReconciliationKey(
+          row.aircraft_id,
+          row.serialized_position,
+          row.serialized_asset_type_id
+        )
+      )
+    );
+    const legacySerialCounts = this.countSerializedReconciliationKeys(
+      activeLegacyRows.map((row) =>
+        this.buildSerializedReconciliationKey(row.aircraft_id, row.legacy_serial_number)
+      )
+    );
+    const serializedSerialCounts = this.countSerializedReconciliationKeys(
+      activeSerializedRows.map((row) =>
+        this.buildSerializedReconciliationKey(row.aircraft_id, row.serialized_serial_number)
+      )
+    );
+
+    for (const legacyRow of activeLegacyRows) {
+      const aircraftKey = this.normalizeReconciliationValue(legacyRow.aircraft_id);
+      const candidates = serializedByAircraft[aircraftKey] || [];
+      const match = this.findSerializedReconciliationMatch(
+        legacyRow,
+        candidates,
+        usedSerializedInstallationIds
+      );
+      const serializedRow = match?.row || null;
+
+      if (serializedRow?.serialized_installation_id) {
+        usedSerializedInstallationIds.add(String(serializedRow.serialized_installation_id));
+      }
+
+      const detailRow = this.buildSerializedReconciliationDetailRow(
+        legacyRow,
+        serializedRow,
+        match?.basis || 'UNMAPPED',
+        match?.confidence || 'NONE',
+        legacyPositionCounts,
+        serializedPositionCounts,
+        legacySerialCounts,
+        serializedSerialCounts
+      );
+
+      bucketCounts[detailRow.bucket] = (bucketCounts[detailRow.bucket] || 0) + 1;
+      detailRows.push(detailRow);
+    }
+
+    for (const serializedRow of activeSerializedRows) {
+      const serializedInstallationId = this.normalizeReconciliationValue(
+        serializedRow.serialized_installation_id
+      );
+
+      if (usedSerializedInstallationIds.has(serializedInstallationId)) {
+        continue;
+      }
+
+      const detailRow = this.buildSerializedReconciliationDetailRow(
+        null,
+        serializedRow,
+        'SERIALIZED_ONLY',
+        'NONE',
+        legacyPositionCounts,
+        serializedPositionCounts,
+        legacySerialCounts,
+        serializedSerialCounts
+      );
+
+      bucketCounts[detailRow.bucket] = (bucketCounts[detailRow.bucket] || 0) + 1;
+      detailRows.push(detailRow);
+    }
+
+    const matchedCount = detailRows.filter((row) =>
+      Boolean(row.legacy_component_id && row.serialized_component_id)
+    ).length;
+    const migrationReadyCount = detailRows.filter((row) => row.bucket === 'MATCHED').length;
+    const readinessPercentage =
+      detailRows.length > 0
+        ? Number(((migrationReadyCount / detailRows.length) * 100).toFixed(1))
+        : 100;
+    const totalSerializedComponents =
+      Number((totalSerializedComponentsResult as any[])?.[0]?.total_serialized_components || 0);
+
+    return {
+      generated_at: new Date().toISOString(),
+      summary: {
+        total_legacy_rows: (legacyRows as any[]).length,
+        active_legacy_rows: activeLegacyRows.length,
+        total_serialized_components: totalSerializedComponents,
+        active_serialized_installations: activeSerializedRows.length,
+        matched_count: matchedCount,
+        migration_ready_count: migrationReadyCount,
+        readiness_percentage: readinessPercentage,
+      },
+      bucket_counts: bucketCounts,
+      details: detailRows,
+      detailed_exceptions: detailRows.filter((row) => row.bucket !== 'MATCHED'),
+      explanation:
+        'Read-only reconciliation only. No mappings are persisted and no lifecycle, compliance, workpack, or SB records are changed.',
+    };
+  }
+
+  private static isActiveLegacyReconciliationRow(row: any) {
+    const status = this.normalizeReconciliationValue(row?.legacy_status).toUpperCase();
+
+    if (row?.legacy_removed_at) {
+      return false;
+    }
+
+    return status === 'INSTALLED' || status === 'QUARANTINED';
+  }
+
+  private static findSerializedReconciliationMatch(
+    legacyRow: any,
+    candidates: any[],
+    usedSerializedInstallationIds: Set<string>
+  ) {
+    const available = candidates.filter((candidate) => {
+      const id = this.normalizeReconciliationValue(candidate.serialized_installation_id);
+      return !id || !usedSerializedInstallationIds.has(id);
+    });
+    const searchRows = available.length > 0 ? available : candidates;
+    const serial = this.normalizeReconciliationValue(legacyRow.legacy_serial_number);
+    const modelId = this.normalizeReconciliationValue(legacyRow.legacy_model_id);
+    const position = this.normalizeReconciliationValue(legacyRow.legacy_position);
+    const assetTypeId = this.normalizeReconciliationValue(legacyRow.legacy_asset_type_id);
+    const bySerial = (row: any) =>
+      serial &&
+      this.normalizeReconciliationValue(row.serialized_serial_number) === serial;
+    const byModel = (row: any) =>
+      modelId &&
+      this.normalizeReconciliationValue(row.serialized_model_id) === modelId;
+    const byPosition = (row: any) =>
+      position &&
+      this.normalizeReconciliationValue(row.serialized_position) === position;
+    const byAssetType = (row: any) =>
+      assetTypeId &&
+      this.normalizeReconciliationValue(row.serialized_asset_type_id) === assetTypeId;
+    const matchDefinitions = [
+      {
+        basis: 'AIRCRAFT_SERIAL_MODEL',
+        confidence: 'HIGH',
+        predicate: (row: any) => bySerial(row) && byModel(row),
+      },
+      {
+        basis: 'AIRCRAFT_SERIAL',
+        confidence: 'MEDIUM',
+        predicate: (row: any) => bySerial(row),
+      },
+      {
+        basis: 'AIRCRAFT_POSITION_ASSET_MODEL',
+        confidence: 'MEDIUM',
+        predicate: (row: any) => byPosition(row) && byAssetType(row) && byModel(row),
+      },
+      {
+        basis: 'AIRCRAFT_POSITION_ASSET',
+        confidence: 'LOW',
+        predicate: (row: any) => byPosition(row) && byAssetType(row),
+      },
+    ];
+
+    for (const definition of matchDefinitions) {
+      const row = searchRows.find(definition.predicate);
+
+      if (row) {
+        return {
+          ...definition,
+          row,
+        };
+      }
+    }
+
+    return null;
+  }
+
+  private static buildSerializedReconciliationDetailRow(
+    legacyRow: any | null,
+    serializedRow: any | null,
+    matchBasis: string,
+    confidence: string,
+    legacyPositionCounts: Record<string, number>,
+    serializedPositionCounts: Record<string, number>,
+    legacySerialCounts: Record<string, number>,
+    serializedSerialCounts: Record<string, number>
+  ) {
+    const conflictFlags = this.getSerializedReconciliationConflictFlags(
+      legacyRow,
+      serializedRow,
+      legacyPositionCounts,
+      serializedPositionCounts,
+      legacySerialCounts,
+      serializedSerialCounts
+    );
+    const bucket = this.getSerializedReconciliationBucket(
+      legacyRow,
+      serializedRow,
+      conflictFlags,
+      matchBasis
+    );
+
+    return {
+      aircraft_registration:
+        this.normalizeReconciliationValue(
+          legacyRow?.aircraft_registration || serializedRow?.aircraft_registration
+        ) || 'Unassigned',
+      legacy_component_id: legacyRow?.legacy_component_id || null,
+      serialized_component_id: serializedRow?.serialized_component_id || null,
+      serialized_installation_id: serializedRow?.serialized_installation_id || null,
+      legacy_model_id: legacyRow?.legacy_model_id || null,
+      serialized_model_id: serializedRow?.serialized_model_id || null,
+      legacy_model_display: this.formatSerializedReconciliationModel(
+        legacyRow?.legacy_model_code,
+        legacyRow?.legacy_model_name
+      ),
+      serialized_model_display: this.formatSerializedReconciliationModel(
+        serializedRow?.serialized_model_code,
+        serializedRow?.serialized_model_name
+      ),
+      legacy_asset_type_code: legacyRow?.legacy_asset_type_code || null,
+      serialized_asset_type_code: serializedRow?.serialized_asset_type_code || null,
+      legacy_serial_number: legacyRow?.legacy_serial_number || null,
+      serialized_serial_number: serializedRow?.serialized_serial_number || null,
+      legacy_position: legacyRow?.legacy_position || null,
+      serialized_position: serializedRow?.serialized_position || null,
+      bucket,
+      confidence,
+      match_basis: matchBasis,
+      conflict_flags: conflictFlags,
+    };
+  }
+
+  private static getSerializedReconciliationConflictFlags(
+    legacyRow: any | null,
+    serializedRow: any | null,
+    legacyPositionCounts: Record<string, number>,
+    serializedPositionCounts: Record<string, number>,
+    legacySerialCounts: Record<string, number>,
+    serializedSerialCounts: Record<string, number>
+  ) {
+    const flags: string[] = [];
+    const legacyModel = this.normalizeReconciliationValue(legacyRow?.legacy_model_id);
+    const serializedModel = this.normalizeReconciliationValue(serializedRow?.serialized_model_id);
+    const legacySerial = this.normalizeReconciliationValue(legacyRow?.legacy_serial_number);
+    const serializedSerial = this.normalizeReconciliationValue(serializedRow?.serialized_serial_number);
+    const legacyPosition = this.normalizeReconciliationValue(legacyRow?.legacy_position);
+    const serializedPosition = this.normalizeReconciliationValue(serializedRow?.serialized_position);
+    const legacyPositionKey = this.buildSerializedReconciliationKey(
+      legacyRow?.aircraft_id,
+      legacyRow?.legacy_position,
+      legacyRow?.legacy_asset_type_id
+    );
+    const serializedPositionKey = this.buildSerializedReconciliationKey(
+      serializedRow?.aircraft_id,
+      serializedRow?.serialized_position,
+      serializedRow?.serialized_asset_type_id
+    );
+    const legacySerialKey = this.buildSerializedReconciliationKey(
+      legacyRow?.aircraft_id,
+      legacyRow?.legacy_serial_number
+    );
+    const serializedSerialKey = this.buildSerializedReconciliationKey(
+      serializedRow?.aircraft_id,
+      serializedRow?.serialized_serial_number
+    );
+
+    if (legacyRow && serializedRow && legacyModel && serializedModel && legacyModel !== serializedModel) {
+      flags.push('MODEL_MISMATCH');
+    }
+
+    if (legacyRow && serializedRow && legacySerial && serializedSerial && legacySerial !== serializedSerial) {
+      flags.push('SERIAL_MISMATCH');
+    }
+
+    if (legacyRow && serializedRow && legacyPosition && serializedPosition && legacyPosition !== serializedPosition) {
+      flags.push('POSITION_MISMATCH');
+    }
+
+    if (legacyPositionKey && (legacyPositionCounts[legacyPositionKey] || 0) > 1) {
+      flags.push('LEGACY_POSITION_CONFLICT');
+    }
+
+    if (serializedPositionKey && (serializedPositionCounts[serializedPositionKey] || 0) > 1) {
+      flags.push('SERIALIZED_POSITION_CONFLICT');
+    }
+
+    if (legacySerialKey && (legacySerialCounts[legacySerialKey] || 0) > 1) {
+      flags.push('LEGACY_SERIAL_DUPLICATE');
+    }
+
+    if (serializedSerialKey && (serializedSerialCounts[serializedSerialKey] || 0) > 1) {
+      flags.push('SERIALIZED_SERIAL_DUPLICATE');
+    }
+
+    if (serializedRow && !serializedRow.life_state_id) {
+      flags.push('LIFE_STATE_MISSING');
+    }
+
+    return flags;
+  }
+
+  private static getSerializedReconciliationBucket(
+    legacyRow: any | null,
+    serializedRow: any | null,
+    conflictFlags: string[],
+    matchBasis: string
+  ) {
+    if (conflictFlags.some((flag) => flag.includes('CONFLICT') || flag.includes('DUPLICATE'))) {
+      return 'INSTALLATION_CONFLICT';
+    }
+
+    if (!legacyRow && serializedRow) {
+      return 'SERIALIZED_ONLY';
+    }
+
+    if (legacyRow && !serializedRow) {
+      const hasMappingSignals = Boolean(
+        this.normalizeReconciliationValue(legacyRow.legacy_serial_number) ||
+          this.normalizeReconciliationValue(legacyRow.legacy_position) ||
+          this.normalizeReconciliationValue(legacyRow.legacy_model_id)
+      );
+
+      return hasMappingSignals ? 'LEGACY_ONLY' : 'UNMAPPED';
+    }
+
+    if (conflictFlags.includes('MODEL_MISMATCH')) {
+      return 'MODEL_MISMATCH';
+    }
+
+    if (conflictFlags.includes('SERIAL_MISMATCH')) {
+      return 'SERIAL_MISMATCH';
+    }
+
+    if (conflictFlags.includes('POSITION_MISMATCH')) {
+      return 'POSITION_MISMATCH';
+    }
+
+    if (conflictFlags.includes('LIFE_STATE_MISSING')) {
+      return 'LIFE_STATE_MISSING';
+    }
+
+    return 'MATCHED';
+  }
+
+  private static buildEmptySerializedReconciliationBucketCounts() {
+    return this.serializedReconciliationBuckets.reduce((counts, bucket) => {
+      counts[bucket] = 0;
+      return counts;
+    }, {} as Record<string, number>);
+  }
+
+  private static countSerializedReconciliationKeys(keys: string[]) {
+    return keys.reduce((counts, key) => {
+      if (!key) {
+        return counts;
+      }
+
+      counts[key] = (counts[key] || 0) + 1;
+      return counts;
+    }, {} as Record<string, number>);
+  }
+
+  private static buildSerializedReconciliationKey(...parts: unknown[]) {
+    const normalized = parts.map((part) => this.normalizeReconciliationValue(part));
+
+    if (normalized.some((part) => !part)) {
+      return '';
+    }
+
+    return normalized.join('|');
+  }
+
+  private static normalizeReconciliationValue(value: unknown) {
+    return String(value ?? '').trim().replace(/\s+/g, ' ').toUpperCase();
+  }
+
+  private static formatSerializedReconciliationModel(modelCode: unknown, modelName: unknown) {
+    return formatModelDisplay({
+      model_code: modelCode ? String(modelCode) : null,
+      model_name: modelName ? String(modelName) : null,
+    });
+  }
+
   static async getSbModelApplicabilityAllocations(filters: {
     status?: string;
     classification?: string;
