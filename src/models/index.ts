@@ -37,6 +37,7 @@ export { CustomerUser } from './CustomerUser.js';
 export { MigrationBatch } from './MigrationBatch.js';
 export { MigrationBatchRow } from './MigrationBatchRow.js';
 export { MigrationCreatedTarget } from './MigrationCreatedTarget.js';
+export { UtilisationEvent } from './UtilisationEvent.js';
 
 export { Aircraft } from './core/Aircraft.js';
 export { AircraftCategory } from './core/AircraftCategory.js';

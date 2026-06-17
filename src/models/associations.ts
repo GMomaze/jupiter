@@ -27,6 +27,7 @@ import { CustomerUser } from './CustomerUser.js';
 import { MigrationBatch } from './MigrationBatch.js';
 import { MigrationBatchRow } from './MigrationBatchRow.js';
 import { MigrationCreatedTarget } from './MigrationCreatedTarget.js';
+import { UtilisationEvent } from './UtilisationEvent.js';
 
 import { Aircraft } from './core/Aircraft.js';
 import { AircraftComponent } from './core/AircraftComponent.js';
@@ -132,6 +133,18 @@ SidModelApplicability.belongsTo(ComponentModel, {
 
 Aircraft.belongsTo(ComponentModel, { foreignKey: 'model_id' });
 ComponentModel.hasMany(Aircraft, { foreignKey: 'model_id' });
+Aircraft.hasMany(UtilisationEvent, {
+  foreignKey: 'aircraft_id',
+  as: 'UtilisationEvents',
+});
+UtilisationEvent.belongsTo(Aircraft, {
+  foreignKey: 'aircraft_id',
+  as: 'Aircraft',
+});
+UtilisationEvent.belongsTo(UtilisationEvent, {
+  foreignKey: 'correction_of_event_id',
+  as: 'CorrectedEvent',
+});
 Aircraft.hasMany(AircraftSbCompliance, { foreignKey: 'aircraft_id', as: 'SbCompliance' });
 AircraftSbCompliance.belongsTo(Aircraft, { foreignKey: 'aircraft_id', as: 'Aircraft' });
 ServiceBulletin.hasMany(AircraftSbCompliance, { foreignKey: 'service_bulletin_id', as: 'AircraftCompliance' });

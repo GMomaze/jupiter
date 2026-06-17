@@ -21,6 +21,7 @@ const pool = new Pool({
  */
 export async function clearDatabase() {
   await pool.query('DELETE FROM service_bulletin_models');
+  await pool.query('DELETE FROM utilisation_events');
   await pool.query('DELETE FROM audit_log');
   await pool.query('DELETE FROM task_cards');
   await pool.query('DELETE FROM workpacks');

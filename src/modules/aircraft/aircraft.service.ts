@@ -10,6 +10,7 @@ import {
   TaskTemplate
 } from '../../models/index.js';
 import { AuditService } from '../audit/audit.service.js';
+import { UtilisationService } from '../utilisation/utilisation.service.js';
 import { Op } from 'sequelize';
 
 type AircraftStatus =
@@ -23,6 +24,7 @@ export class AircraftService {
     'id',
     'status',
     'total_time_hours',
+    'total_time_cycles',
     'version',
   ];
   private static readonly editableAircraftAttributes = [
@@ -33,6 +35,7 @@ export class AircraftService {
     'category_id',
     'status',
     'total_time_hours',
+    'total_time_cycles',
     'loaded_into_system_at',
     'manufacture_date',
     'tcds_number',
@@ -123,6 +126,28 @@ export class AircraftService {
     return hours;
   }
 
+  private static normalizeCycles(value: number | string | null | undefined) {
+    const cycles = Number(value ?? 0);
+
+    if (!Number.isInteger(cycles) || cycles < 0) {
+      throw new Error('INVALID_TOTAL_TIME_CYCLES');
+    }
+
+    return cycles;
+  }
+
+  private static utilizationFieldChanged(
+    currentValue: number | string | null | undefined,
+    submittedValue: number | string | null | undefined,
+    normalizer: (value: number | string | null | undefined) => number
+  ) {
+    if (submittedValue === undefined) {
+      return false;
+    }
+
+    return normalizer(currentValue) !== normalizer(submittedValue);
+  }
+
   /* ============================================================
      CREATE
   ============================================================ */
@@ -133,6 +158,7 @@ export class AircraftService {
     model_id: string;
     category_id: string;
     total_time_hours?: number;
+    total_time_cycles?: number;
     loaded_into_system_at?: string | null;
     manufacture_date?: string | null;
     tcds_number?: string | null;
@@ -151,7 +177,8 @@ export class AircraftService {
         model_id: data.model_id,
         category_id: data.category_id,
         status: 'REGISTERED',
-        total_time_hours: this.normalizeHours(data.total_time_hours ?? 0),
+        total_time_hours: 0,
+        total_time_cycles: 0,
         loaded_into_system_at: data.loaded_into_system_at || null,
         manufacture_date: data.manufacture_date || null,
         tcds_number: data.tcds_number?.trim() || null,
@@ -168,6 +195,29 @@ export class AircraftService {
         reason: 'Aircraft Registration',
         new_values: { status: 'REGISTERED' }
       }, transaction);
+
+      const initialHours = this.normalizeHours(data.total_time_hours ?? 0);
+      const initialCycles = this.normalizeCycles(data.total_time_cycles ?? 0);
+
+      if (initialHours > 0 || initialCycles > 0) {
+        await UtilisationService.recordUtilisation({
+          aircraftId: aircraft.id,
+          newTotalTimeHours: initialHours,
+          newTotalTimeCycles: initialCycles,
+          sourceType: 'INITIAL_BASELINE',
+          sourceReference: 'Aircraft registration',
+          effectiveDate:
+            data.loaded_into_system_at ||
+            data.manufacture_date ||
+            new Date().toISOString().slice(0, 10),
+          reason: 'Initial aircraft utilisation baseline',
+          createdBy: null,
+          metadata: {
+            source: 'AircraftService.create',
+          },
+          transaction,
+        });
+      }
 
       return aircraft;
     });
@@ -303,65 +353,21 @@ export class AircraftService {
   ============================================================ */
 
   static async updateHours(id: string, newTotalHours: number) {
-
-    return sequelize.transaction(async (transaction) => {
-
-      const aircraft = await Aircraft.findByPk(id, {
-        attributes: this.mutableAircraftAttributes,
-        transaction,
-        lock: transaction.LOCK.UPDATE
-      });
-
-      if (!aircraft) throw new Error('AIRCRAFT_NOT_FOUND');
-
-      aircraft.total_time_hours = newTotalHours;
-      await aircraft.save({ transaction });
-
-      const installed = await AircraftComponent.findAll({
-        where: { aircraft_id: id },
-        include: [{
-          model: ComponentModel,
-          attributes: ['id', 'default_tbo_hours'],
-        }],
-        transaction
-      });
-
-      for (const record of installed) {
-
-        const model = (record as any).ComponentModel;
-        if (!model?.default_tbo_hours) continue;
-
-        const hoursSinceInstall =
-          newTotalHours - Number(record.install_af_hours || 0);
-
-        const componentTotalTime =
-          Number(record.tsn_at_install || 0) + hoursSinceInstall;
-
-        if (componentTotalTime >= model.default_tbo_hours) {
-
-          if (aircraft.status === 'ACTIVE') {
-
-            const oldStatus = aircraft.status;
-            aircraft.status = 'GROUNDED';
-            await aircraft.save({ transaction });
-
-            await AuditService.log({
-              table_name: 'aircraft',
-              row_id: id,
-              action: 'STATUS_CHANGE',
-              actor_id: null,
-              reason: 'TBO_EXCEEDED',
-              old_values: { status: oldStatus },
-              new_values: { status: 'GROUNDED' }
-            }, transaction);
-          }
-
-          break;
-        }
-      }
-
-      return aircraft;
+    const result = await UtilisationService.recordUtilisation({
+      aircraftId: id,
+      newTotalTimeHours: newTotalHours,
+      sourceType: 'MANUAL_ENTRY',
+      sourceReference: 'AircraftService.updateHours compatibility wrapper',
+      effectiveDate: new Date().toISOString().slice(0, 10),
+      reason: 'Aircraft hours update',
+      createdBy: null,
+      metadata: {
+        source: 'AircraftService.updateHours',
+        compatibility_wrapper: true,
+      },
     });
+
+    return result.aircraft;
   }
 
   static async updateDetails(id: string, data: {
@@ -370,6 +376,7 @@ export class AircraftService {
     model_id: string;
     category_id: string;
     total_time_hours?: number | string;
+    total_time_cycles?: number | string;
     loaded_into_system_at?: string | null;
     manufacture_date?: string | null;
     tcds_number?: string | null;
@@ -402,6 +409,7 @@ export class AircraftService {
         model_id: aircraft.model_id,
         category_id: aircraft.category_id,
         total_time_hours: aircraft.total_time_hours,
+        total_time_cycles: aircraft.total_time_cycles,
         loaded_into_system_at: aircraft.loaded_into_system_at,
         manufacture_date: aircraft.manufacture_date,
         tcds_number: aircraft.tcds_number,
@@ -410,11 +418,25 @@ export class AircraftService {
         version: aircraft.version,
       };
 
+      if (
+        this.utilizationFieldChanged(
+          aircraft.total_time_hours,
+          data.total_time_hours,
+          (value) => this.normalizeHours(value)
+        ) ||
+        this.utilizationFieldChanged(
+          aircraft.total_time_cycles,
+          data.total_time_cycles,
+          (value) => this.normalizeCycles(value)
+        )
+      ) {
+        throw new Error('UTILISATION_CHANGE_REQUIRES_UTILISATION_SERVICE');
+      }
+
       aircraft.registration = this.normalizeRegistration(data.registration);
       aircraft.serial_number = data.serial_number.trim();
       aircraft.model_id = data.model_id;
       aircraft.category_id = data.category_id;
-      aircraft.total_time_hours = this.normalizeHours(data.total_time_hours ?? 0);
       aircraft.loaded_into_system_at = data.loaded_into_system_at || null;
       aircraft.manufacture_date = data.manufacture_date || null;
       aircraft.tcds_number = data.tcds_number?.trim() || null;
@@ -439,6 +461,7 @@ export class AircraftService {
           model_id: aircraft.model_id,
           category_id: aircraft.category_id,
           total_time_hours: aircraft.total_time_hours,
+          total_time_cycles: aircraft.total_time_cycles,
           loaded_into_system_at: aircraft.loaded_into_system_at,
           manufacture_date: aircraft.manufacture_date,
           tcds_number: aircraft.tcds_number,

@@ -18,6 +18,7 @@ export async function resetAndSeedDatabase(): Promise<void> {
      */
     await client.query(`
       TRUNCATE TABLE
+        utilisation_events,
         workpack_tasks,
         task_cards,
         aircraft_components,
