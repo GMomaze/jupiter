@@ -1,0 +1,1 @@
+﻿jupiter_db,jupiter_app,127.0.0.1/32,5432

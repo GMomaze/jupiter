@@ -1,0 +1,552 @@
+;
+; Archive created at 2026-06-07 17:28:13
+;     dbname: jupiter_db
+;     TOC Entries: 543
+;     Compression: gzip
+;     Dump Version: 1.16-0
+;     Format: CUSTOM
+;     Integer: 4 bytes
+;     Offset: 8 bytes
+;     Dumped from database version: 17.4
+;     Dumped by pg_dump version: 17.4
+;
+;
+; Selected TOC Entries:
+;
+5; 2615 382154 SCHEMA - public postgres
+6209; 0 0 COMMENT - SCHEMA public postgres
+6210; 0 0 ACL - SCHEMA public postgres
+491; 1255 382335 FUNCTION public fn_audit_trigger() jupiter_app
+417; 1259 382156 TABLE public SequelizeMeta jupiter_app
+460; 1259 383127 TABLE public ad_relationships jupiter_app
+430; 1259 382336 TABLE public aircraft jupiter_app
+457; 1259 383036 TABLE public aircraft_compliance jupiter_app
+473; 1259 383530 TABLE public aircraft_component_installations jupiter_app
+436; 1259 382465 TABLE public aircraft_components jupiter_app
+445; 1259 382663 TABLE public aircraft_sb_compliance jupiter_app
+454; 1259 382957 TABLE public aircraft_sid_status jupiter_app
+459; 1259 383109 TABLE public airworthiness_directives jupiter_app
+441; 1259 382560 TABLE public audit_log jupiter_app
+452; 1259 382921 TABLE public cessna_sids jupiter_app
+475; 1259 383617 TABLE public compliance_assignments jupiter_app
+456; 1259 383015 TABLE public compliance_items jupiter_app
+471; 1259 383499 TABLE public component_life_limits jupiter_app
+435; 1259 382439 TABLE public component_models jupiter_app
+468; 1259 383415 TABLE public customer_aircraft_links jupiter_app
+469; 1259 383463 TABLE public customer_users jupiter_app
+467; 1259 383398 TABLE public customers jupiter_app
+438; 1259 382502 TABLE public maintenance_requirements jupiter_app
+464; 1259 383244 TABLE public maintenance_template_items jupiter_app
+463; 1259 383212 TABLE public maintenance_templates jupiter_app
+429; 1259 382322 TABLE public manufacturers jupiter_app
+478; 1259 383919 TABLE public migration_batch_rows jupiter_app
+477; 1259 383884 TABLE public migration_batches jupiter_app
+479; 1259 383941 TABLE public migration_created_targets jupiter_app
+453; 1259 382935 TABLE public model_sids jupiter_app
+466; 1259 383315 TABLE public planning_sessions jupiter_app
+423; 1259 382231 TABLE public rf_aircraft_category jupiter_app
+425; 1259 382259 TABLE public rf_asset_type jupiter_app
+424; 1259 382245 TABLE public rf_component_categories jupiter_app
+421; 1259 382203 TABLE public rf_component_condition jupiter_app
+426; 1259 382276 TABLE public rf_permission jupiter_app
+418; 1259 382161 TABLE public rf_role jupiter_app
+440; 1259 382525 TABLE public rf_role_permissions jupiter_app
+422; 1259 382217 TABLE public rf_signoff_role jupiter_app
+419; 1259 382175 TABLE public rf_task_state jupiter_app
+420; 1259 382189 TABLE public rf_workpack_status jupiter_app
+465; 1259 383278 TABLE public rf_workpack_type jupiter_app
+476; 1259 383699 TABLE public sb_model_applicability_allocations jupiter_app
+472; 1259 383515 TABLE public serialized_component_life_states jupiter_app
+474; 1259 383561 TABLE public serialized_component_maintenance_events jupiter_app
+470; 1259 383483 TABLE public serialized_components jupiter_app
+444; 1259 382643 TABLE public service_bulletin_models jupiter_app
+443; 1259 382626 TABLE public service_bulletins jupiter_app
+439; 1259 382516 TABLE public sessions jupiter_app
+462; 1259 383179 TABLE public sid_model_applicability jupiter_app
+461; 1259 383162 TABLE public supplemental_inspection_documents jupiter_app
+431; 1259 382359 TABLE public task_cards jupiter_app
+442; 1259 382594 TABLE public task_templates jupiter_app
+428; 1259 382304 TABLE public user_roles jupiter_app
+427; 1259 382290 TABLE public users jupiter_app
+437; 1259 382497 VIEW public vw_component_status jupiter_app
+450; 1259 382817 TABLE public workpack_audit_log jupiter_app
+458; 1259 383069 TABLE public workpack_compliance jupiter_app
+446; 1259 382698 TABLE public workpack_executions jupiter_app
+447; 1259 382746 TABLE public workpack_measurements jupiter_app
+434; 1259 382426 TABLE public workpack_requirements jupiter_app
+448; 1259 382768 TABLE public workpack_signatures jupiter_app
+455; 1259 382981 TABLE public workpack_snag_audit_log jupiter_app
+451; 1259 382855 TABLE public workpack_snags jupiter_app
+449; 1259 382796 TABLE public workpack_sources jupiter_app
+433; 1259 382411 TABLE public workpack_tasks jupiter_app
+432; 1259 382390 TABLE public workpacks jupiter_app
+6139; 0 382156 TABLE DATA public SequelizeMeta jupiter_app
+6181; 0 383127 TABLE DATA public ad_relationships jupiter_app
+6152; 0 382336 TABLE DATA public aircraft jupiter_app
+6178; 0 383036 TABLE DATA public aircraft_compliance jupiter_app
+6194; 0 383530 TABLE DATA public aircraft_component_installations jupiter_app
+6158; 0 382465 TABLE DATA public aircraft_components jupiter_app
+6166; 0 382663 TABLE DATA public aircraft_sb_compliance jupiter_app
+6175; 0 382957 TABLE DATA public aircraft_sid_status jupiter_app
+6180; 0 383109 TABLE DATA public airworthiness_directives jupiter_app
+6162; 0 382560 TABLE DATA public audit_log jupiter_app
+6173; 0 382921 TABLE DATA public cessna_sids jupiter_app
+6196; 0 383617 TABLE DATA public compliance_assignments jupiter_app
+6177; 0 383015 TABLE DATA public compliance_items jupiter_app
+6192; 0 383499 TABLE DATA public component_life_limits jupiter_app
+6157; 0 382439 TABLE DATA public component_models jupiter_app
+6189; 0 383415 TABLE DATA public customer_aircraft_links jupiter_app
+6190; 0 383463 TABLE DATA public customer_users jupiter_app
+6188; 0 383398 TABLE DATA public customers jupiter_app
+6159; 0 382502 TABLE DATA public maintenance_requirements jupiter_app
+6185; 0 383244 TABLE DATA public maintenance_template_items jupiter_app
+6184; 0 383212 TABLE DATA public maintenance_templates jupiter_app
+6151; 0 382322 TABLE DATA public manufacturers jupiter_app
+6199; 0 383919 TABLE DATA public migration_batch_rows jupiter_app
+6198; 0 383884 TABLE DATA public migration_batches jupiter_app
+6200; 0 383941 TABLE DATA public migration_created_targets jupiter_app
+6174; 0 382935 TABLE DATA public model_sids jupiter_app
+6187; 0 383315 TABLE DATA public planning_sessions jupiter_app
+6145; 0 382231 TABLE DATA public rf_aircraft_category jupiter_app
+6147; 0 382259 TABLE DATA public rf_asset_type jupiter_app
+6146; 0 382245 TABLE DATA public rf_component_categories jupiter_app
+6143; 0 382203 TABLE DATA public rf_component_condition jupiter_app
+6148; 0 382276 TABLE DATA public rf_permission jupiter_app
+6140; 0 382161 TABLE DATA public rf_role jupiter_app
+6161; 0 382525 TABLE DATA public rf_role_permissions jupiter_app
+6144; 0 382217 TABLE DATA public rf_signoff_role jupiter_app
+6141; 0 382175 TABLE DATA public rf_task_state jupiter_app
+6142; 0 382189 TABLE DATA public rf_workpack_status jupiter_app
+6186; 0 383278 TABLE DATA public rf_workpack_type jupiter_app
+6197; 0 383699 TABLE DATA public sb_model_applicability_allocations jupiter_app
+6193; 0 383515 TABLE DATA public serialized_component_life_states jupiter_app
+6195; 0 383561 TABLE DATA public serialized_component_maintenance_events jupiter_app
+6191; 0 383483 TABLE DATA public serialized_components jupiter_app
+6165; 0 382643 TABLE DATA public service_bulletin_models jupiter_app
+6164; 0 382626 TABLE DATA public service_bulletins jupiter_app
+6160; 0 382516 TABLE DATA public sessions jupiter_app
+6183; 0 383179 TABLE DATA public sid_model_applicability jupiter_app
+6182; 0 383162 TABLE DATA public supplemental_inspection_documents jupiter_app
+6153; 0 382359 TABLE DATA public task_cards jupiter_app
+6163; 0 382594 TABLE DATA public task_templates jupiter_app
+6150; 0 382304 TABLE DATA public user_roles jupiter_app
+6149; 0 382290 TABLE DATA public users jupiter_app
+6171; 0 382817 TABLE DATA public workpack_audit_log jupiter_app
+6179; 0 383069 TABLE DATA public workpack_compliance jupiter_app
+6167; 0 382698 TABLE DATA public workpack_executions jupiter_app
+6168; 0 382746 TABLE DATA public workpack_measurements jupiter_app
+6156; 0 382426 TABLE DATA public workpack_requirements jupiter_app
+6169; 0 382768 TABLE DATA public workpack_signatures jupiter_app
+6176; 0 382981 TABLE DATA public workpack_snag_audit_log jupiter_app
+6172; 0 382855 TABLE DATA public workpack_snags jupiter_app
+6170; 0 382796 TABLE DATA public workpack_sources jupiter_app
+6155; 0 382411 TABLE DATA public workpack_tasks jupiter_app
+6154; 0 382390 TABLE DATA public workpacks jupiter_app
+5483; 2606 382160 CONSTRAINT public SequelizeMeta SequelizeMeta_pkey jupiter_app
+5746; 2606 383134 CONSTRAINT public ad_relationships ad_relationships_pkey jupiter_app
+5723; 2606 383063 CONSTRAINT public aircraft_compliance aircraft_compliance_aircraft_item_unique jupiter_app
+5727; 2606 383046 CONSTRAINT public aircraft_compliance aircraft_compliance_pkey jupiter_app
+5836; 2606 383540 CONSTRAINT public aircraft_component_installations aircraft_component_installations_pkey jupiter_app
+5574; 2606 382479 CONSTRAINT public aircraft_components aircraft_components_pkey jupiter_app
+5547; 2606 382348 CONSTRAINT public aircraft aircraft_pkey jupiter_app
+5549; 2606 382350 CONSTRAINT public aircraft aircraft_registration_key jupiter_app
+5618; 2606 382673 CONSTRAINT public aircraft_sb_compliance aircraft_sb_compliance_pkey jupiter_app
+5622; 2606 382685 CONSTRAINT public aircraft_sb_compliance aircraft_sb_unique jupiter_app
+5551; 2606 382352 CONSTRAINT public aircraft aircraft_serial_number_key jupiter_app
+5693; 2606 382965 CONSTRAINT public aircraft_sid_status aircraft_sid_status_pkey jupiter_app
+5697; 2606 382977 CONSTRAINT public aircraft_sid_status aircraft_sid_unique jupiter_app
+5741; 2606 383119 CONSTRAINT public airworthiness_directives airworthiness_directives_pkey jupiter_app
+5589; 2606 382568 CONSTRAINT public audit_log audit_log_pkey jupiter_app
+5680; 2606 382930 CONSTRAINT public cessna_sids cessna_sids_pkey jupiter_app
+5853; 2606 383628 CONSTRAINT public compliance_assignments compliance_assignments_pkey jupiter_app
+5710; 2606 383028 CONSTRAINT public compliance_items compliance_items_item_type_code_unique jupiter_app
+5713; 2606 383026 CONSTRAINT public compliance_items compliance_items_pkey jupiter_app
+5719; 2606 383158 CONSTRAINT public compliance_items compliance_items_source_type_source_id_unique jupiter_app
+5829; 2606 383509 CONSTRAINT public component_life_limits component_life_limits_pkey jupiter_app
+5572; 2606 382449 CONSTRAINT public component_models component_models_pkey jupiter_app
+5813; 2606 383425 CONSTRAINT public customer_aircraft_links customer_aircraft_links_pkey jupiter_app
+5819; 2606 383473 CONSTRAINT public customer_users customer_users_pkey jupiter_app
+5800; 2606 383408 CONSTRAINT public customers customers_pkey jupiter_app
+5578; 2606 382509 CONSTRAINT public maintenance_requirements maintenance_requirements_pkey jupiter_app
+5776; 2606 383254 CONSTRAINT public maintenance_template_items maintenance_template_items_pkey jupiter_app
+5780; 2606 383269 CONSTRAINT public maintenance_template_items maintenance_template_items_template_id_sequence_no_unique jupiter_app
+5782; 2606 383271 CONSTRAINT public maintenance_template_items maintenance_template_items_template_item_unique jupiter_app
+5767; 2606 383237 CONSTRAINT public maintenance_templates maintenance_templates_model_id_name_unique jupiter_app
+5769; 2606 383222 CONSTRAINT public maintenance_templates maintenance_templates_pkey jupiter_app
+5540; 2606 382334 CONSTRAINT public manufacturers manufacturers_code_key jupiter_app
+5543; 2606 382332 CONSTRAINT public manufacturers manufacturers_pkey jupiter_app
+5868; 2606 383935 CONSTRAINT public migration_batch_rows migration_batch_rows_pkey jupiter_app
+5864; 2606 383898 CONSTRAINT public migration_batches migration_batches_pkey jupiter_app
+5874; 2606 383953 CONSTRAINT public migration_created_targets migration_created_targets_pkey jupiter_app
+5687; 2606 382942 CONSTRAINT public model_sids model_sids_pkey jupiter_app
+5690; 2606 382954 CONSTRAINT public model_sids model_sids_unique jupiter_app
+5792; 2606 383327 CONSTRAINT public planning_sessions planning_sessions_pkey jupiter_app
+5511; 2606 382243 CONSTRAINT public rf_aircraft_category rf_aircraft_category_code_key jupiter_app
+5513; 2606 382241 CONSTRAINT public rf_aircraft_category rf_aircraft_category_pkey jupiter_app
+5521; 2606 382274 CONSTRAINT public rf_asset_type rf_asset_type_code_key jupiter_app
+5523; 2606 382272 CONSTRAINT public rf_asset_type rf_asset_type_pkey jupiter_app
+5516; 2606 382257 CONSTRAINT public rf_component_categories rf_component_categories_code_key jupiter_app
+5518; 2606 382255 CONSTRAINT public rf_component_categories rf_component_categories_pkey jupiter_app
+5501; 2606 382215 CONSTRAINT public rf_component_condition rf_component_condition_code_key jupiter_app
+5503; 2606 382213 CONSTRAINT public rf_component_condition rf_component_condition_pkey jupiter_app
+5526; 2606 382288 CONSTRAINT public rf_permission rf_permission_code_key jupiter_app
+5528; 2606 382286 CONSTRAINT public rf_permission rf_permission_pkey jupiter_app
+5486; 2606 382173 CONSTRAINT public rf_role rf_role_code_key jupiter_app
+5583; 2606 382531 CONSTRAINT public rf_role_permissions rf_role_permissions_pkey jupiter_app
+5585; 2606 382533 CONSTRAINT public rf_role_permissions rf_role_permissions_unique jupiter_app
+5488; 2606 382171 CONSTRAINT public rf_role rf_role_pkey jupiter_app
+5506; 2606 382229 CONSTRAINT public rf_signoff_role rf_signoff_role_code_key jupiter_app
+5508; 2606 382227 CONSTRAINT public rf_signoff_role rf_signoff_role_pkey jupiter_app
+5491; 2606 382187 CONSTRAINT public rf_task_state rf_task_state_code_key jupiter_app
+5493; 2606 382185 CONSTRAINT public rf_task_state rf_task_state_pkey jupiter_app
+5496; 2606 382201 CONSTRAINT public rf_workpack_status rf_workpack_status_code_key jupiter_app
+5498; 2606 382199 CONSTRAINT public rf_workpack_status rf_workpack_status_pkey jupiter_app
+5785; 2606 383290 CONSTRAINT public rf_workpack_type rf_workpack_type_code_key jupiter_app
+5787; 2606 383288 CONSTRAINT public rf_workpack_type rf_workpack_type_pkey jupiter_app
+5858; 2606 383713 CONSTRAINT public sb_model_applicability_allocations sb_model_applicability_allocations_pkey jupiter_app
+5831; 2606 383524 CONSTRAINT public serialized_component_life_states serialized_component_life_states_pkey jupiter_app
+5842; 2606 383570 CONSTRAINT public serialized_component_maintenance_events serialized_component_maintenance_events_pkey jupiter_app
+5823; 2606 383493 CONSTRAINT public serialized_components serialized_components_pkey jupiter_app
+5615; 2606 382648 CONSTRAINT public service_bulletin_models service_bulletin_models_pkey jupiter_app
+5603; 2606 383148 CONSTRAINT public service_bulletins service_bulletins_manufacturer_reference_revision_unique jupiter_app
+5605; 2606 382639 CONSTRAINT public service_bulletins service_bulletins_pkey jupiter_app
+5581; 2606 382522 CONSTRAINT public sessions sessions_pkey jupiter_app
+5757; 2606 383187 CONSTRAINT public sid_model_applicability sid_model_applicability_pkey jupiter_app
+5760; 2606 383209 CONSTRAINT public sid_model_applicability sid_model_applicability_sid_id_model_id_unique jupiter_app
+5751; 2606 383174 CONSTRAINT public supplemental_inspection_documents supplemental_inspection_documents_manufacturer_reference_unique jupiter_app
+5753; 2606 383172 CONSTRAINT public supplemental_inspection_documents supplemental_inspection_documents_pkey jupiter_app
+5556; 2606 382370 CONSTRAINT public task_cards task_cards_pkey jupiter_app
+5596; 2606 382610 CONSTRAINT public task_templates task_templates_pkey jupiter_app
+5684; 2606 382932 CONSTRAINT public cessna_sids unique_sid_number jupiter_app
+5535; 2606 382309 CONSTRAINT public user_roles user_roles_pkey jupiter_app
+5537; 2606 382321 CONSTRAINT public user_roles user_roles_user_id_role_id_unique jupiter_app
+5530; 2606 382302 CONSTRAINT public users users_email_key jupiter_app
+5533; 2606 382300 CONSTRAINT public users users_pkey jupiter_app
+5661; 2606 382849 CONSTRAINT public workpack_audit_log workpack_audit_log_execution_sequence_unique jupiter_app
+5663; 2606 382851 CONSTRAINT public workpack_audit_log workpack_audit_log_hash_unique jupiter_app
+5665; 2606 382827 CONSTRAINT public workpack_audit_log workpack_audit_log_pkey jupiter_app
+5731; 2606 383080 CONSTRAINT public workpack_compliance workpack_compliance_pkey jupiter_app
+5736; 2606 383097 CONSTRAINT public workpack_compliance workpack_compliance_workpack_item_unique jupiter_app
+5627; 2606 382710 CONSTRAINT public workpack_executions workpack_executions_pkey jupiter_app
+5633; 2606 382737 CONSTRAINT public workpack_executions workpack_executions_workpack_task_attempt_unique jupiter_app
+5635; 2606 382762 CONSTRAINT public workpack_measurements workpack_measurements_execution_id_field_key_unique jupiter_app
+5638; 2606 382764 CONSTRAINT public workpack_measurements workpack_measurements_execution_id_position_unique jupiter_app
+5641; 2606 382755 CONSTRAINT public workpack_measurements workpack_measurements_pkey jupiter_app
+5568; 2606 382438 CONSTRAINT public workpack_requirements workpack_requirements_pkey jupiter_app
+5645; 2606 382789 CONSTRAINT public workpack_signatures workpack_signatures_execution_id_role_signature_type_user_id_un jupiter_app
+5647; 2606 382777 CONSTRAINT public workpack_signatures workpack_signatures_pkey jupiter_app
+5700; 2606 383010 CONSTRAINT public workpack_snag_audit_log workpack_snag_audit_log_hash_unique jupiter_app
+5702; 2606 382991 CONSTRAINT public workpack_snag_audit_log workpack_snag_audit_log_pkey jupiter_app
+5706; 2606 383008 CONSTRAINT public workpack_snag_audit_log workpack_snag_audit_log_snag_sequence_unique jupiter_app
+5671; 2606 382868 CONSTRAINT public workpack_snags workpack_snags_pkey jupiter_app
+5678; 2606 382920 CONSTRAINT public workpack_snags workpack_snags_workpack_id_snag_no_unique jupiter_app
+5653; 2606 382812 CONSTRAINT public workpack_sources workpack_sources_execution_id_source_type_reference_unique jupiter_app
+5655; 2606 382805 CONSTRAINT public workpack_sources workpack_sources_pkey jupiter_app
+5566; 2606 382425 CONSTRAINT public workpack_tasks workpack_tasks_pkey jupiter_app
+5561; 2606 382398 CONSTRAINT public workpacks workpacks_pkey jupiter_app
+5564; 2606 382400 CONSTRAINT public workpacks workpacks_work_order_number_key jupiter_app
+5744; 1259 383140 INDEX public ad_relationships_ad_id_index jupiter_app
+5721; 1259 383065 INDEX public aircraft_compliance_aircraft_id_index jupiter_app
+5724; 1259 383066 INDEX public aircraft_compliance_compliance_item_id_index jupiter_app
+5725; 1259 383068 INDEX public aircraft_compliance_complied_workpack_id_index jupiter_app
+5728; 1259 383067 INDEX public aircraft_compliance_status_index jupiter_app
+5833; 1259 383587 INDEX public aircraft_component_installations_aircraft_id_index jupiter_app
+5834; 1259 383589 INDEX public aircraft_component_installations_aircraft_removed_at_index jupiter_app
+5837; 1259 383588 INDEX public aircraft_component_installations_serialized_component_id_index jupiter_app
+5838; 1259 383590 INDEX public aircraft_component_installations_serialized_installed_at_index jupiter_app
+5544; 1259 382697 INDEX public aircraft_is_active_idx jupiter_app
+5545; 1259 382695 INDEX public aircraft_model_id_idx jupiter_app
+5616; 1259 382686 INDEX public aircraft_sb_compliance_aircraft_id jupiter_app
+5619; 1259 382687 INDEX public aircraft_sb_compliance_service_bulletin_id jupiter_app
+5620; 1259 382688 INDEX public aircraft_sb_compliance_status jupiter_app
+5691; 1259 382978 INDEX public aircraft_sid_status_aircraft_id jupiter_app
+5694; 1259 382979 INDEX public aircraft_sid_status_sid_id jupiter_app
+5695; 1259 382980 INDEX public aircraft_sid_status_status jupiter_app
+5552; 1259 382696 INDEX public aircraft_status_idx jupiter_app
+5737; 1259 383121 INDEX public airworthiness_directives_ad_number_index jupiter_app
+5738; 1259 383120 INDEX public airworthiness_directives_ad_number_revision_unique jupiter_app
+5739; 1259 383123 INDEX public airworthiness_directives_effective_date_index jupiter_app
+5742; 1259 383126 INDEX public airworthiness_directives_product_type_index jupiter_app
+5743; 1259 383122 INDEX public airworthiness_directives_status_index jupiter_app
+5586; 1259 382576 INDEX public audit_log_actor_id_idx jupiter_app
+5587; 1259 382577 INDEX public audit_log_created_at_idx jupiter_app
+5590; 1259 382575 INDEX public audit_log_row_id_idx jupiter_app
+5591; 1259 382574 INDEX public audit_log_table_name_idx jupiter_app
+5681; 1259 382934 INDEX public cessna_sids_section_idx jupiter_app
+5682; 1259 382933 INDEX public cessna_sids_sid_number_idx jupiter_app
+5844; 1259 383648 INDEX public compliance_assignments_active_aircraft_unique jupiter_app
+5845; 1259 383647 INDEX public compliance_assignments_active_model_unique jupiter_app
+5846; 1259 383652 INDEX public compliance_assignments_aircraft_id_index jupiter_app
+5847; 1259 383653 INDEX public compliance_assignments_assignment_source_index jupiter_app
+5848; 1259 383650 INDEX public compliance_assignments_assignment_type_index jupiter_app
+5849; 1259 383649 INDEX public compliance_assignments_compliance_item_id_index jupiter_app
+5850; 1259 383654 INDEX public compliance_assignments_is_active_index jupiter_app
+5851; 1259 383651 INDEX public compliance_assignments_model_id_index jupiter_app
+5708; 1259 383033 INDEX public compliance_items_code_index jupiter_app
+5711; 1259 383032 INDEX public compliance_items_item_type_index jupiter_app
+5714; 1259 383160 INDEX public compliance_items_source_id_index jupiter_app
+5715; 1259 383155 INDEX public compliance_items_source_lookup_index jupiter_app
+5716; 1259 383159 INDEX public compliance_items_source_type_index jupiter_app
+5717; 1259 383161 INDEX public compliance_items_source_type_source_id_index jupiter_app
+5720; 1259 383034 INDEX public compliance_items_status_index jupiter_app
+5826; 1259 383584 INDEX public component_life_limits_component_model_id_index jupiter_app
+5827; 1259 383585 INDEX public component_life_limits_is_active_index jupiter_app
+5569; 1259 382689 INDEX public component_models_manufacturer_id_idx jupiter_app
+5570; 1259 382690 INDEX public component_models_model_name_idx jupiter_app
+5802; 1259 383451 INDEX public customer_aircraft_links_aircraft_current_index jupiter_app
+5803; 1259 383461 INDEX public customer_aircraft_links_aircraft_customer_role_index jupiter_app
+5804; 1259 383450 INDEX public customer_aircraft_links_aircraft_id_index jupiter_app
+5805; 1259 383459 INDEX public customer_aircraft_links_aircraft_role_current_index jupiter_app
+5806; 1259 383452 INDEX public customer_aircraft_links_customer_current_index jupiter_app
+5807; 1259 383449 INDEX public customer_aircraft_links_customer_id_index jupiter_app
+5808; 1259 383460 INDEX public customer_aircraft_links_customer_role_current_index jupiter_app
+5809; 1259 383454 INDEX public customer_aircraft_links_end_date_index jupiter_app
+5810; 1259 383458 INDEX public customer_aircraft_links_is_current_index jupiter_app
+5811; 1259 383462 INDEX public customer_aircraft_links_one_current_per_role jupiter_app
+5814; 1259 383457 INDEX public customer_aircraft_links_relationship_type_index jupiter_app
+5815; 1259 383453 INDEX public customer_aircraft_links_start_date_index jupiter_app
+5816; 1259 383481 INDEX public customer_users_customer_id_index jupiter_app
+5817; 1259 383480 INDEX public customer_users_email_unique jupiter_app
+5820; 1259 383482 INDEX public customer_users_status_index jupiter_app
+5797; 1259 383414 INDEX public customers_account_reference_unique jupiter_app
+5798; 1259 383413 INDEX public customers_name_index jupiter_app
+5801; 1259 383412 INDEX public customers_status_index jupiter_app
+5575; 1259 382490 INDEX public idx_unique_active_component jupiter_app
+5576; 1259 382515 INDEX public maintenance_requirements_model_id_idx jupiter_app
+5771; 1259 383276 INDEX public maintenance_template_items_is_required_index jupiter_app
+5772; 1259 383274 INDEX public maintenance_template_items_item_id_index jupiter_app
+5773; 1259 383277 INDEX public maintenance_template_items_item_lookup_index jupiter_app
+5774; 1259 383273 INDEX public maintenance_template_items_item_type_index jupiter_app
+5777; 1259 383275 INDEX public maintenance_template_items_sequence_no_index jupiter_app
+5778; 1259 383272 INDEX public maintenance_template_items_template_id_index jupiter_app
+5761; 1259 383241 INDEX public maintenance_templates_interval_hours_index jupiter_app
+5762; 1259 383242 INDEX public maintenance_templates_interval_months_index jupiter_app
+5763; 1259 383240 INDEX public maintenance_templates_is_active_index jupiter_app
+5764; 1259 383243 INDEX public maintenance_templates_model_active_index jupiter_app
+5765; 1259 383238 INDEX public maintenance_templates_model_id_index jupiter_app
+5770; 1259 383239 INDEX public maintenance_templates_template_type_index jupiter_app
+5538; 1259 382692 INDEX public manufacturers_code_idx jupiter_app
+5541; 1259 382691 INDEX public manufacturers_name_idx jupiter_app
+5866; 1259 383968 INDEX public migration_batch_rows_batch_id_idx jupiter_app
+5869; 1259 383970 INDEX public migration_batch_rows_source_unique jupiter_app
+5870; 1259 383969 INDEX public migration_batch_rows_status_idx jupiter_app
+5862; 1259 383966 INDEX public migration_batches_migration_type_idx jupiter_app
+5865; 1259 383967 INDEX public migration_batches_status_idx jupiter_app
+5871; 1259 383971 INDEX public migration_created_targets_batch_id_idx jupiter_app
+5872; 1259 383972 INDEX public migration_created_targets_batch_row_id_idx jupiter_app
+5875; 1259 383973 INDEX public migration_created_targets_target_unique jupiter_app
+5685; 1259 382955 INDEX public model_sids_model_id jupiter_app
+5688; 1259 382956 INDEX public model_sids_sid_id jupiter_app
+5788; 1259 383371 INDEX public planning_sessions_aircraft_id_index jupiter_app
+5789; 1259 383396 INDEX public planning_sessions_created_by_index jupiter_app
+5790; 1259 383397 INDEX public planning_sessions_finalized_by_index jupiter_app
+5793; 1259 383377 INDEX public planning_sessions_status_index jupiter_app
+5794; 1259 383372 INDEX public planning_sessions_template_id_index jupiter_app
+5795; 1259 383370 INDEX public planning_sessions_user_id_index jupiter_app
+5796; 1259 383378 INDEX public planning_sessions_user_status_index jupiter_app
+5509; 1259 382244 INDEX public rf_aircraft_category_code_idx jupiter_app
+5519; 1259 382275 INDEX public rf_asset_type_code_idx jupiter_app
+5514; 1259 382258 INDEX public rf_component_categories_code_idx jupiter_app
+5499; 1259 382216 INDEX public rf_component_condition_code_idx jupiter_app
+5524; 1259 382289 INDEX public rf_permission_code_idx jupiter_app
+5484; 1259 382174 INDEX public rf_role_code_idx jupiter_app
+5504; 1259 382230 INDEX public rf_signoff_role_code_idx jupiter_app
+5489; 1259 382188 INDEX public rf_task_state_code_idx jupiter_app
+5494; 1259 382202 INDEX public rf_workpack_status_code_idx jupiter_app
+5783; 1259 383291 INDEX public rf_workpack_type_code_idx jupiter_app
+5854; 1259 383746 INDEX public sb_model_applicability_allocations_allocated_model_idx jupiter_app
+5855; 1259 383744 INDEX public sb_model_applicability_allocations_classification_idx jupiter_app
+5856; 1259 383745 INDEX public sb_model_applicability_allocations_matched_model_idx jupiter_app
+5859; 1259 383742 INDEX public sb_model_applicability_allocations_sb_idx jupiter_app
+5860; 1259 383741 INDEX public sb_model_applicability_allocations_source_unique jupiter_app
+5861; 1259 383743 INDEX public sb_model_applicability_allocations_status_idx jupiter_app
+5611; 1259 382660 INDEX public sb_models_model_idx jupiter_app
+5612; 1259 382659 INDEX public sb_models_sb_idx jupiter_app
+5613; 1259 382661 INDEX public sb_models_unique jupiter_app
+5832; 1259 383586 INDEX public serialized_component_life_states_serialized_component_id_unique jupiter_app
+5839; 1259 383591 INDEX public serialized_component_maintenance_events_component_id_index jupiter_app
+5840; 1259 383593 INDEX public serialized_component_maintenance_events_occurred_at_index jupiter_app
+5843; 1259 383592 INDEX public serialized_component_maintenance_events_recorded_by_index jupiter_app
+5821; 1259 383581 INDEX public serialized_components_component_model_id_index jupiter_app
+5824; 1259 383583 INDEX public serialized_components_serial_number_index jupiter_app
+5825; 1259 383582 INDEX public serialized_components_status_index jupiter_app
+5599; 1259 383153 INDEX public service_bulletins_applicability_make_idx jupiter_app
+5600; 1259 383151 INDEX public service_bulletins_issue_date_idx jupiter_app
+5601; 1259 383149 INDEX public service_bulletins_manufacturer_idx jupiter_app
+5606; 1259 383150 INDEX public service_bulletins_reference_idx jupiter_app
+5607; 1259 382640 INDEX public service_bulletins_sb_number_unique jupiter_app
+5608; 1259 382641 INDEX public service_bulletins_source_primary_idx jupiter_app
+5609; 1259 382642 INDEX public service_bulletins_status_idx jupiter_app
+5610; 1259 383152 INDEX public service_bulletins_status_phase5_idx jupiter_app
+5579; 1259 382523 INDEX public sessions_expire_idx jupiter_app
+5755; 1259 383211 INDEX public sid_model_applicability_model_id_index jupiter_app
+5758; 1259 383210 INDEX public sid_model_applicability_sid_id_index jupiter_app
+5747; 1259 383177 INDEX public supplemental_inspection_documents_category_index jupiter_app
+5748; 1259 383178 INDEX public supplemental_inspection_documents_is_active_index jupiter_app
+5749; 1259 383175 INDEX public supplemental_inspection_documents_manufacturer_index jupiter_app
+5754; 1259 383176 INDEX public supplemental_inspection_documents_reference_index jupiter_app
+5553; 1259 382387 INDEX public task_cards_aircraft_id jupiter_app
+5554; 1259 383108 INDEX public task_cards_compliance_item_id_idx jupiter_app
+5557; 1259 382662 INDEX public task_cards_service_bulletin_id_idx jupiter_app
+5558; 1259 382388 INDEX public task_cards_status jupiter_app
+5559; 1259 382386 INDEX public task_cards_task_card_number jupiter_app
+5592; 1259 382624 INDEX public task_templates_aircraft_idx jupiter_app
+5593; 1259 382623 INDEX public task_templates_model_idx jupiter_app
+5594; 1259 382621 INDEX public task_templates_number_idx jupiter_app
+5597; 1259 382622 INDEX public task_templates_scope_idx jupiter_app
+5598; 1259 382625 INDEX public task_templates_sort_order_idx jupiter_app
+5531; 1259 382303 INDEX public users_is_active_index jupiter_app
+5658; 1259 382852 INDEX public workpack_audit_log_action_index jupiter_app
+5659; 1259 382853 INDEX public workpack_audit_log_execution_id_index jupiter_app
+5666; 1259 382854 INDEX public workpack_audit_log_sequence_index jupiter_app
+5729; 1259 383100 INDEX public workpack_compliance_compliance_item_id_index jupiter_app
+5732; 1259 383102 INDEX public workpack_compliance_status_index jupiter_app
+5733; 1259 383101 INDEX public workpack_compliance_task_id_index jupiter_app
+5734; 1259 383099 INDEX public workpack_compliance_workpack_id_index jupiter_app
+5623; 1259 382744 INDEX public workpack_executions_certified_by_idx jupiter_app
+5624; 1259 382743 INDEX public workpack_executions_completed_by_idx jupiter_app
+5625; 1259 382745 INDEX public workpack_executions_created_at_idx jupiter_app
+5628; 1259 382742 INDEX public workpack_executions_started_by_idx jupiter_app
+5629; 1259 382741 INDEX public workpack_executions_status_idx jupiter_app
+5630; 1259 382740 INDEX public workpack_executions_task_id_idx jupiter_app
+5631; 1259 382739 INDEX public workpack_executions_workpack_id_idx jupiter_app
+5636; 1259 382765 INDEX public workpack_measurements_execution_id_index jupiter_app
+5639; 1259 382766 INDEX public workpack_measurements_field_key_index jupiter_app
+5642; 1259 382767 INDEX public workpack_measurements_position_index jupiter_app
+5643; 1259 382792 INDEX public workpack_signatures_execution_id_index jupiter_app
+5648; 1259 382793 INDEX public workpack_signatures_role_index jupiter_app
+5649; 1259 382794 INDEX public workpack_signatures_signature_type_index jupiter_app
+5650; 1259 382795 INDEX public workpack_signatures_user_id_index jupiter_app
+5698; 1259 383011 INDEX public workpack_snag_audit_log_action_index jupiter_app
+5703; 1259 383014 INDEX public workpack_snag_audit_log_sequence_index jupiter_app
+5704; 1259 383012 INDEX public workpack_snag_audit_log_snag_id_index jupiter_app
+5707; 1259 383013 INDEX public workpack_snag_audit_log_workpack_id_index jupiter_app
+5667; 1259 383313 INDEX public workpack_snags_aircraft_id_index jupiter_app
+5668; 1259 382912 INDEX public workpack_snags_completed_by_index jupiter_app
+5669; 1259 383314 INDEX public workpack_snags_component_id_index jupiter_app
+5672; 1259 382913 INDEX public workpack_snags_reported_by_index jupiter_app
+5673; 1259 382914 INDEX public workpack_snags_started_by_index jupiter_app
+5674; 1259 382915 INDEX public workpack_snags_status_index jupiter_app
+5675; 1259 382918 INDEX public workpack_snags_status_workpack_idx jupiter_app
+5676; 1259 382916 INDEX public workpack_snags_workpack_id_index jupiter_app
+5651; 1259 382814 INDEX public workpack_sources_execution_id_index jupiter_app
+5656; 1259 382815 INDEX public workpack_sources_reference_index jupiter_app
+5657; 1259 382816 INDEX public workpack_sources_source_type_index jupiter_app
+5562; 1259 383385 INDEX public workpacks_planning_session_id_index jupiter_app
+5990; 2620 382358 TRIGGER public aircraft tr_audit_aircraft jupiter_app
+5989; 2620 382524 TRIGGER public rf_permission tr_audit_rf_permission jupiter_app
+5992; 2620 382544 TRIGGER public rf_role_permissions tr_audit_rf_role_permissions jupiter_app
+5991; 2620 382389 TRIGGER public task_cards tr_audit_tasks jupiter_app
+5947; 2606 383135 FK CONSTRAINT public ad_relationships ad_relationships_ad_id_fkey jupiter_app
+5878; 2606 382353 FK CONSTRAINT public aircraft aircraft_category_id_fkey jupiter_app
+5941; 2606 383047 FK CONSTRAINT public aircraft_compliance aircraft_compliance_aircraft_id_fkey jupiter_app
+5942; 2606 383052 FK CONSTRAINT public aircraft_compliance aircraft_compliance_compliance_item_id_fkey jupiter_app
+5943; 2606 383057 FK CONSTRAINT public aircraft_compliance aircraft_compliance_complied_workpack_id_fkey jupiter_app
+5968; 2606 383541 FK CONSTRAINT public aircraft_component_installations aircraft_component_installations_aircraft_id_fkey jupiter_app
+5969; 2606 383551 FK CONSTRAINT public aircraft_component_installations aircraft_component_installations_installed_by_fkey jupiter_app
+5970; 2606 383556 FK CONSTRAINT public aircraft_component_installations aircraft_component_installations_removed_by_fkey jupiter_app
+5971; 2606 383546 FK CONSTRAINT public aircraft_component_installations aircraft_component_installations_serialized_component_id_fkey jupiter_app
+5897; 2606 382480 FK CONSTRAINT public aircraft_components aircraft_components_aircraft_id_fkey jupiter_app
+5898; 2606 382485 FK CONSTRAINT public aircraft_components aircraft_components_model_id_fkey jupiter_app
+5879; 2606 382492 FK CONSTRAINT public aircraft aircraft_model_id_fk jupiter_app
+5907; 2606 382674 FK CONSTRAINT public aircraft_sb_compliance aircraft_sb_compliance_aircraft_id_fkey jupiter_app
+5908; 2606 382679 FK CONSTRAINT public aircraft_sb_compliance aircraft_sb_compliance_service_bulletin_id_fkey jupiter_app
+5936; 2606 382966 FK CONSTRAINT public aircraft_sid_status aircraft_sid_status_aircraft_id_fkey jupiter_app
+5937; 2606 382971 FK CONSTRAINT public aircraft_sid_status aircraft_sid_status_sid_id_fkey jupiter_app
+5902; 2606 382569 FK CONSTRAINT public audit_log audit_log_actor_id_fkey jupiter_app
+5974; 2606 383639 FK CONSTRAINT public compliance_assignments compliance_assignments_aircraft_id_fkey jupiter_app
+5975; 2606 383629 FK CONSTRAINT public compliance_assignments compliance_assignments_compliance_item_id_fkey jupiter_app
+5976; 2606 383634 FK CONSTRAINT public compliance_assignments compliance_assignments_model_id_fkey jupiter_app
+5966; 2606 383510 FK CONSTRAINT public component_life_limits component_life_limits_component_model_id_fkey jupiter_app
+5893; 2606 382545 FK CONSTRAINT public component_models component_models_asset_type_fk jupiter_app
+5894; 2606 382460 FK CONSTRAINT public component_models component_models_asset_type_id_fkey jupiter_app
+5895; 2606 382455 FK CONSTRAINT public component_models component_models_category_id_fkey jupiter_app
+5896; 2606 382550 FK CONSTRAINT public component_models component_models_manufacturer_fk jupiter_app
+5960; 2606 383431 FK CONSTRAINT public customer_aircraft_links customer_aircraft_links_aircraft_id_fkey jupiter_app
+5961; 2606 383441 FK CONSTRAINT public customer_aircraft_links customer_aircraft_links_aircraft_id_fkey1 jupiter_app
+5962; 2606 383426 FK CONSTRAINT public customer_aircraft_links customer_aircraft_links_customer_id_fkey jupiter_app
+5963; 2606 383436 FK CONSTRAINT public customer_aircraft_links customer_aircraft_links_customer_id_fkey1 jupiter_app
+5964; 2606 383474 FK CONSTRAINT public customer_users customer_users_customer_id_fkey jupiter_app
+5899; 2606 382555 FK CONSTRAINT public maintenance_requirements maintenance_requirements_model_id_fk jupiter_app
+5953; 2606 383260 FK CONSTRAINT public maintenance_template_items maintenance_template_items_template_id_fkey jupiter_app
+5952; 2606 383228 FK CONSTRAINT public maintenance_templates maintenance_templates_model_id_fkey jupiter_app
+5986; 2606 383936 FK CONSTRAINT public migration_batch_rows migration_batch_rows_batch_id_fkey jupiter_app
+5982; 2606 383904 FK CONSTRAINT public migration_batches migration_batches_approved_by_fkey jupiter_app
+5983; 2606 383899 FK CONSTRAINT public migration_batches migration_batches_created_by_fkey jupiter_app
+5984; 2606 383909 FK CONSTRAINT public migration_batches migration_batches_executed_by_fkey jupiter_app
+5985; 2606 383914 FK CONSTRAINT public migration_batches migration_batches_rolled_back_by_fkey jupiter_app
+5987; 2606 383954 FK CONSTRAINT public migration_created_targets migration_created_targets_batch_id_fkey jupiter_app
+5988; 2606 383959 FK CONSTRAINT public migration_created_targets migration_created_targets_batch_row_id_fkey jupiter_app
+5934; 2606 382943 FK CONSTRAINT public model_sids model_sids_model_id_fkey jupiter_app
+5935; 2606 382948 FK CONSTRAINT public model_sids model_sids_sid_id_fkey jupiter_app
+5954; 2606 383353 FK CONSTRAINT public planning_sessions planning_sessions_aircraft_id_fkey jupiter_app
+5955; 2606 383386 FK CONSTRAINT public planning_sessions planning_sessions_created_by_fkey jupiter_app
+5956; 2606 383391 FK CONSTRAINT public planning_sessions planning_sessions_finalized_by_fkey jupiter_app
+5957; 2606 383343 FK CONSTRAINT public planning_sessions planning_sessions_generated_workpack_id_fkey jupiter_app
+5958; 2606 383358 FK CONSTRAINT public planning_sessions planning_sessions_template_id_fkey jupiter_app
+5959; 2606 383348 FK CONSTRAINT public planning_sessions planning_sessions_user_id_fkey jupiter_app
+5900; 2606 382539 FK CONSTRAINT public rf_role_permissions rf_role_permissions_permission_fk jupiter_app
+5901; 2606 382534 FK CONSTRAINT public rf_role_permissions rf_role_permissions_role_fk jupiter_app
+5977; 2606 383724 FK CONSTRAINT public sb_model_applicability_allocations sb_model_applicability_allocations_allocated_model_id_fkey jupiter_app
+5978; 2606 383729 FK CONSTRAINT public sb_model_applicability_allocations sb_model_applicability_allocations_created_model_id_fkey jupiter_app
+5979; 2606 383719 FK CONSTRAINT public sb_model_applicability_allocations sb_model_applicability_allocations_matched_model_id_fkey jupiter_app
+5980; 2606 383734 FK CONSTRAINT public sb_model_applicability_allocations sb_model_applicability_allocations_reviewed_by_fkey jupiter_app
+5981; 2606 383714 FK CONSTRAINT public sb_model_applicability_allocations sb_model_applicability_allocations_service_bulletin_id_fkey jupiter_app
+5905; 2606 382654 FK CONSTRAINT public service_bulletin_models sb_models_model_fk jupiter_app
+5906; 2606 382649 FK CONSTRAINT public service_bulletin_models sb_models_sb_fk jupiter_app
+5967; 2606 383525 FK CONSTRAINT public serialized_component_life_states serialized_component_life_states_serialized_component_id_fkey jupiter_app
+5972; 2606 383571 FK CONSTRAINT public serialized_component_maintenance_events serialized_component_maintenance_e_serialized_component_id_fkey jupiter_app
+5973; 2606 383576 FK CONSTRAINT public serialized_component_maintenance_events serialized_component_maintenance_events_recorded_by_fkey jupiter_app
+5965; 2606 383494 FK CONSTRAINT public serialized_components serialized_components_component_model_id_fkey jupiter_app
+5948; 2606 383193 FK CONSTRAINT public sid_model_applicability sid_model_applicability_model_id_fkey jupiter_app
+5949; 2606 383203 FK CONSTRAINT public sid_model_applicability sid_model_applicability_model_id_fkey1 jupiter_app
+5950; 2606 383188 FK CONSTRAINT public sid_model_applicability sid_model_applicability_sid_id_fkey jupiter_app
+5951; 2606 383198 FK CONSTRAINT public sid_model_applicability sid_model_applicability_sid_id_fkey1 jupiter_app
+5880; 2606 382371 FK CONSTRAINT public task_cards task_cards_aircraft_id_fkey jupiter_app
+5881; 2606 382376 FK CONSTRAINT public task_cards task_cards_assigned_to_fkey jupiter_app
+5882; 2606 383103 FK CONSTRAINT public task_cards task_cards_compliance_item_id_fkey jupiter_app
+5883; 2606 382381 FK CONSTRAINT public task_cards task_cards_signed_by_fkey jupiter_app
+5903; 2606 382616 FK CONSTRAINT public task_templates task_templates_aircraft_id_fkey jupiter_app
+5904; 2606 382611 FK CONSTRAINT public task_templates task_templates_aircraft_model_id_fkey jupiter_app
+5876; 2606 382315 FK CONSTRAINT public user_roles user_roles_role_id_fkey jupiter_app
+5877; 2606 382310 FK CONSTRAINT public user_roles user_roles_user_id_fkey jupiter_app
+5918; 2606 382828 FK CONSTRAINT public workpack_audit_log workpack_audit_log_execution_id_fkey jupiter_app
+5919; 2606 382838 FK CONSTRAINT public workpack_audit_log workpack_audit_log_task_id_fkey jupiter_app
+5920; 2606 382843 FK CONSTRAINT public workpack_audit_log workpack_audit_log_user_id_fkey jupiter_app
+5921; 2606 382833 FK CONSTRAINT public workpack_audit_log workpack_audit_log_workpack_id_fkey jupiter_app
+5944; 2606 383086 FK CONSTRAINT public workpack_compliance workpack_compliance_compliance_item_id_fkey jupiter_app
+5945; 2606 383091 FK CONSTRAINT public workpack_compliance workpack_compliance_task_id_fkey jupiter_app
+5946; 2606 383081 FK CONSTRAINT public workpack_compliance workpack_compliance_workpack_id_fkey jupiter_app
+5909; 2606 382731 FK CONSTRAINT public workpack_executions workpack_executions_certified_by_fkey jupiter_app
+5910; 2606 382726 FK CONSTRAINT public workpack_executions workpack_executions_completed_by_fkey jupiter_app
+5911; 2606 382721 FK CONSTRAINT public workpack_executions workpack_executions_started_by_fkey jupiter_app
+5912; 2606 382716 FK CONSTRAINT public workpack_executions workpack_executions_task_id_fkey jupiter_app
+5913; 2606 382711 FK CONSTRAINT public workpack_executions workpack_executions_workpack_id_fkey jupiter_app
+5914; 2606 382756 FK CONSTRAINT public workpack_measurements workpack_measurements_execution_id_fkey jupiter_app
+5892; 2606 382432 FK CONSTRAINT public workpack_requirements workpack_requirements_workpack_id_fkey jupiter_app
+5915; 2606 382778 FK CONSTRAINT public workpack_signatures workpack_signatures_execution_id_fkey jupiter_app
+5916; 2606 382783 FK CONSTRAINT public workpack_signatures workpack_signatures_user_id_fkey jupiter_app
+5938; 2606 382992 FK CONSTRAINT public workpack_snag_audit_log workpack_snag_audit_log_snag_id_fkey jupiter_app
+5939; 2606 383002 FK CONSTRAINT public workpack_snag_audit_log workpack_snag_audit_log_user_id_fkey jupiter_app
+5940; 2606 382997 FK CONSTRAINT public workpack_snag_audit_log workpack_snag_audit_log_workpack_id_fkey jupiter_app
+5922; 2606 383292 FK CONSTRAINT public workpack_snags workpack_snags_aircraft_id_fkey jupiter_app
+5923; 2606 383302 FK CONSTRAINT public workpack_snags workpack_snags_aircraft_id_fkey1 jupiter_app
+5924; 2606 382889 FK CONSTRAINT public workpack_snags workpack_snags_assigned_to_fkey jupiter_app
+5925; 2606 382899 FK CONSTRAINT public workpack_snags workpack_snags_closed_by_fkey jupiter_app
+5926; 2606 382884 FK CONSTRAINT public workpack_snags workpack_snags_completed_by_fkey jupiter_app
+5927; 2606 383297 FK CONSTRAINT public workpack_snags workpack_snags_component_id_fkey jupiter_app
+5928; 2606 382904 FK CONSTRAINT public workpack_snags workpack_snags_created_by_fkey jupiter_app
+5929; 2606 382874 FK CONSTRAINT public workpack_snags workpack_snags_reported_by_fkey jupiter_app
+5930; 2606 382894 FK CONSTRAINT public workpack_snags workpack_snags_resolved_by_fkey jupiter_app
+5931; 2606 382879 FK CONSTRAINT public workpack_snags workpack_snags_started_by_fkey jupiter_app
+5932; 2606 382869 FK CONSTRAINT public workpack_snags workpack_snags_workpack_id_fkey jupiter_app
+5933; 2606 383307 FK CONSTRAINT public workpack_snags workpack_snags_workpack_id_fkey1 jupiter_app
+5917; 2606 382806 FK CONSTRAINT public workpack_sources workpack_sources_execution_id_fkey jupiter_app
+5890; 2606 382419 FK CONSTRAINT public workpack_tasks workpack_tasks_task_id_fkey jupiter_app
+5891; 2606 382414 FK CONSTRAINT public workpack_tasks workpack_tasks_workpack_id_fkey jupiter_app
+5884; 2606 382406 FK CONSTRAINT public workpacks workpacks_aircraft_id_fkey jupiter_app
+5885; 2606 382579 FK CONSTRAINT public workpacks workpacks_certified_by_fkey jupiter_app
+5886; 2606 383380 FK CONSTRAINT public workpacks workpacks_planning_session_id_fkey jupiter_app
+5887; 2606 382584 FK CONSTRAINT public workpacks workpacks_qa_reviewed_by_fkey jupiter_app
+5888; 2606 382589 FK CONSTRAINT public workpacks workpacks_released_by_fkey jupiter_app
+5889; 2606 382401 FK CONSTRAINT public workpacks workpacks_status_id_fkey jupiter_app

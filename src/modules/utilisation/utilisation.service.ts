@@ -92,6 +92,10 @@ export class UtilisationService {
     const deltaCycles = input.newTotalTimeCycles - previousCycles;
     const isCorrection = deltaHours < 0 || deltaCycles < 0;
 
+    if (deltaHours === 0 && deltaCycles === 0) {
+      throw new Error('UTILISATION_EVENT_REQUIRES_CHANGE');
+    }
+
     if (isCorrection) {
       this.validateCorrection(input);
     }

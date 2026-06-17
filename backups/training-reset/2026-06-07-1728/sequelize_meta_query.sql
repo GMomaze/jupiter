@@ -1,0 +1,1 @@
+COPY (SELECT * FROM public."SequelizeMeta" ORDER BY name) TO STDOUT WITH CSV HEADER;

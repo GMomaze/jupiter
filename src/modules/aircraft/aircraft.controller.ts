@@ -6,6 +6,7 @@ import {
   ApplicabilityEngineService,
   ApplicabilityItem,
 } from '../compliance/applicability-engine.service.js';
+import { UtilisationService } from '../utilisation/utilisation.service.js';
 
 import {
   Aircraft,
@@ -981,6 +982,32 @@ export class AircraftController {
 
       res.status(400).send(err.message);
     }
+  }
+
+  static async updateUtilisation(req: Request, res: Response) {
+    const aircraftId = AircraftController.getParam(req.params.id);
+
+    try {
+      await UtilisationService.recordUtilisation({
+        aircraftId,
+        newTotalTimeHours: req.body.total_time_hours,
+        newTotalTimeCycles: req.body.total_time_cycles,
+        sourceType: req.body.source_type,
+        sourceReference: req.body.source_reference,
+        effectiveDate: req.body.effective_date,
+        reason: req.body.reason,
+        createdBy: (req.user as any)?.id || null,
+        metadata: {
+          source: 'AircraftController.updateUtilisation',
+        },
+      });
+
+      req.flash('success', 'Aircraft utilisation updated successfully.');
+    } catch (err: any) {
+      req.flash('error', err?.message || 'Unable to update aircraft utilisation.');
+    }
+
+    res.redirect(`/aircraft/view/${aircraftId}`);
   }
 
   static async transition(req: Request, res: Response) {

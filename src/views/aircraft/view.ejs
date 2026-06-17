@@ -154,6 +154,10 @@
                     <p class="mt-1 text-[#e2e8f0]"><%= aircraft.total_time_hours %></p>
                 </div>
                 <div>
+                    <p class="text-xs font-bold uppercase tracking-widest text-[#94a3b8]">Current Cycles</p>
+                    <p class="mt-1 text-[#e2e8f0]"><%= aircraft.total_time_cycles %></p>
+                </div>
+                <div>
                     <p class="text-xs font-bold uppercase tracking-widest text-[#94a3b8]">Loaded Into System</p>
                     <p class="mt-1 text-[#e2e8f0]"><%= aircraft.loaded_into_system_at || '-' %></p>
                 </div>
@@ -185,6 +189,135 @@
 
             <% if (canEditAircraft) { %>
                 <form
+                    id="aircraft-utilisation-form"
+                    action="/aircraft/<%= aircraft.id %>/utilisation"
+                    method="POST"
+                    class="mt-6 space-y-5 border-t border-[#334155] pt-6"
+                    data-current-hours="<%= aircraft.total_time_hours %>"
+                    data-current-cycles="<%= aircraft.total_time_cycles %>"
+                >
+                    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+
+                    <div class="flex flex-wrap items-start justify-between gap-4">
+                        <div>
+                            <h3 class="text-sm font-bold uppercase tracking-widest text-[#e2e8f0]">Update Utilisation</h3>
+                            <p class="mt-1 text-sm text-[#94a3b8]">
+                                Current totals: <%= aircraft.total_time_hours %> hours / <%= aircraft.total_time_cycles %> cycles.
+                            </p>
+                        </div>
+                        <span
+                            id="utilisation-correction-warning"
+                            class="hidden rounded border border-amber-400 bg-amber-100 px-3 py-2 text-xs font-bold uppercase tracking-widest text-amber-900"
+                        >
+                            Correction decrease
+                        </span>
+                    </div>
+
+                    <div class="grid gap-4 md:grid-cols-2">
+                        <div>
+                            <label class="mb-1 block text-xs font-bold uppercase tracking-widest text-slate-600">
+                                New Hours
+                            </label>
+                            <input
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                name="total_time_hours"
+                                id="utilisation-total-hours"
+                                required
+                                value="<%= aircraft.total_time_hours %>"
+                                class="w-full rounded border border-slate-300 px-3 py-2 text-sm"
+                            >
+                        </div>
+
+                        <div>
+                            <label class="mb-1 block text-xs font-bold uppercase tracking-widest text-slate-600">
+                                New Cycles
+                            </label>
+                            <input
+                                type="number"
+                                step="1"
+                                min="0"
+                                name="total_time_cycles"
+                                id="utilisation-total-cycles"
+                                required
+                                value="<%= aircraft.total_time_cycles %>"
+                                class="w-full rounded border border-slate-300 px-3 py-2 text-sm"
+                            >
+                        </div>
+                    </div>
+
+                    <div class="grid gap-4 md:grid-cols-2">
+                        <div>
+                            <label class="mb-1 block text-xs font-bold uppercase tracking-widest text-slate-600">
+                                Effective Date
+                            </label>
+                            <input
+                                type="date"
+                                name="effective_date"
+                                required
+                                value="<%= new Date().toISOString().slice(0, 10) %>"
+                                class="w-full rounded border border-slate-300 px-3 py-2 text-sm"
+                            >
+                        </div>
+
+                        <div>
+                            <label class="mb-1 block text-xs font-bold uppercase tracking-widest text-slate-600">
+                                Source Type
+                            </label>
+                            <select
+                                name="source_type"
+                                required
+                                class="w-full rounded border border-slate-300 px-3 py-2 text-sm"
+                            >
+                                <option value="MANUAL_ENTRY">Manual Entry</option>
+                                <option value="JOURNEY_LOG">Journey Log</option>
+                                <option value="TECH_LOG">Tech Log</option>
+                                <option value="FLIGHT_FOLIO">Flight Folio</option>
+                                <option value="CORRECTION">Correction</option>
+                                <option value="IMPORT">Import</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="mb-1 block text-xs font-bold uppercase tracking-widest text-slate-600">
+                            Source Reference
+                        </label>
+                        <input
+                            type="text"
+                            name="source_reference"
+                            id="utilisation-source-reference"
+                            class="w-full rounded border border-slate-300 px-3 py-2 text-sm"
+                        >
+                    </div>
+
+                    <div>
+                        <label class="mb-1 block text-xs font-bold uppercase tracking-widest text-slate-600">
+                            Reason
+                        </label>
+                        <textarea
+                            name="reason"
+                            id="utilisation-reason"
+                            required
+                            rows="3"
+                            class="w-full rounded border border-slate-300 px-3 py-2 text-sm"
+                        ></textarea>
+                    </div>
+
+                    <div class="flex justify-end">
+                        <button
+                            type="submit"
+                            class="rounded border border-[#334155] bg-[#2563eb] px-4 py-2 text-xs font-bold uppercase tracking-widest text-white hover:bg-blue-700"
+                        >
+                            Record Utilisation
+                        </button>
+                    </div>
+                </form>
+            <% } %>
+
+            <% if (canEditAircraft) { %>
+                <form
                     id="aircraft-edit-form"
                     action="/aircraft/<%= aircraft.id %>?_csrf=<%= encodeURIComponent(csrfToken) %>"
                     method="POST"
@@ -208,33 +341,17 @@
                         >
                     </div>
 
-                    <div class="grid gap-4 md:grid-cols-2">
-                        <div>
-                            <label class="mb-1 block text-xs font-bold uppercase tracking-widest text-slate-600">
-                                Serial Number
-                            </label>
-                            <input
-                                type="text"
-                                name="serial_number"
-                                required
-                                value="<%= aircraft.serial_number %>"
-                                class="w-full rounded border border-slate-300 px-3 py-2 text-sm"
-                            >
-                        </div>
-
-                        <div>
-                            <label class="mb-1 block text-xs font-bold uppercase tracking-widest text-slate-600">
-                                Current Hours
-                            </label>
-                            <input
-                                type="number"
-                                step="0.01"
-                                min="0"
-                                name="total_time_hours"
-                                value="<%= aircraft.total_time_hours %>"
-                                class="w-full rounded border border-slate-300 px-3 py-2 text-sm"
-                            >
-                        </div>
+                    <div>
+                        <label class="mb-1 block text-xs font-bold uppercase tracking-widest text-slate-600">
+                            Serial Number
+                        </label>
+                        <input
+                            type="text"
+                            name="serial_number"
+                            required
+                            value="<%= aircraft.serial_number %>"
+                            class="w-full rounded border border-slate-300 px-3 py-2 text-sm"
+                        >
                     </div>
 
                     <div class="grid gap-4 md:grid-cols-2">
@@ -1607,6 +1724,11 @@
     const editToggleButton = document.getElementById('toggle-aircraft-edit');
     const cancelEditButton = document.getElementById('cancel-aircraft-edit');
     const editForm = document.getElementById('aircraft-edit-form');
+    const utilisationForm = document.getElementById('aircraft-utilisation-form');
+    const utilisationHoursInput = document.getElementById('utilisation-total-hours');
+    const utilisationCyclesInput = document.getElementById('utilisation-total-cycles');
+    const utilisationSourceReferenceInput = document.getElementById('utilisation-source-reference');
+    const utilisationCorrectionWarning = document.getElementById('utilisation-correction-warning');
     const tabs = Array.from(document.querySelectorAll('.aircraft-tab'));
     const panels = Array.from(document.querySelectorAll('.aircraft-tab-panel'));
     const installedComponentsSubtabs = Array.from(document.querySelectorAll('.installed-components-subtab'));
@@ -1681,6 +1803,28 @@
     cancelEditButton?.addEventListener('click', () => {
       setEditFormVisible(false);
     });
+
+    function updateUtilisationCorrectionState() {
+      if (!utilisationForm || !utilisationHoursInput || !utilisationCyclesInput) {
+        return;
+      }
+
+      const currentHours = Number(utilisationForm.dataset.currentHours || 0);
+      const currentCycles = Number(utilisationForm.dataset.currentCycles || 0);
+      const newHours = Number(utilisationHoursInput.value || 0);
+      const newCycles = Number(utilisationCyclesInput.value || 0);
+      const isCorrection = newHours < currentHours || newCycles < currentCycles;
+
+      utilisationCorrectionWarning?.classList.toggle('hidden', !isCorrection);
+
+      if (utilisationSourceReferenceInput) {
+        utilisationSourceReferenceInput.required = isCorrection;
+      }
+    }
+
+    utilisationHoursInput?.addEventListener('input', updateUtilisationCorrectionState);
+    utilisationCyclesInput?.addEventListener('input', updateUtilisationCorrectionState);
+    updateUtilisationCorrectionState();
 
     function setActiveSerializedInstallation(installationId) {
       serializedInstallationPanels.forEach((panel) => {

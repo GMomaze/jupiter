@@ -1,0 +1,8 @@
+          checked_at           |  pid  | usename  |     application_name      | state | wait_event_type |          query           
+-------------------------------+-------+----------+---------------------------+-------+-----------------+--------------------------
+ 2026-06-07 17:28:13.169105+02 | 18988 | postgres | pgAdmin 4 - DB:jupiter_db |       |                 | <insufficient privilege>
+ 2026-06-07 17:28:13.169105+02 | 22956 | postgres | pgAdmin 4 - CONN:8713012  |       |                 | <insufficient privilege>
+ 2026-06-07 17:28:13.169105+02 | 27096 | postgres | PostgreSQL JDBC Driver    |       |                 | <insufficient privilege>
+ 2026-06-07 17:28:13.169105+02 | 32488 | postgres | pgAdmin 4 - CONN:2899666  |       |                 | <insufficient privilege>
+(4 rows)
+

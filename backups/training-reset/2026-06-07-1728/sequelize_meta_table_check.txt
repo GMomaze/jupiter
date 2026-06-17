@@ -1,0 +1,5 @@
+ table_schema |  table_name   
+--------------+---------------
+ public       | SequelizeMeta
+(1 row)
+

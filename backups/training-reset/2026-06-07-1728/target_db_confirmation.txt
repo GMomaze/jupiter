@@ -1,0 +1,5 @@
+target_database=jupiter_db
+host=127.0.0.1
+port=5432
+user=jupiter_app
+confirmed_at=2026-06-07T17:28:12.7727719+02:00

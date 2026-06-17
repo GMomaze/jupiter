@@ -1,0 +1,53 @@
+﻿## main...origin/main
+ M docs/ChatGPT/start/SESSION_BOOT.md
+ M docs/ChatGPT/ver2/MASTER_EXECUTION_PLAN.md
+ M src/app.ts
+ M src/models/ServiceBulletin.ts
+ M src/models/associations.ts
+ M src/models/index.ts
+ M src/modules/compliance/compliance.service.ts
+ M src/modules/library/library.controller.ts
+ M src/modules/library/library.routes.ts
+ M src/modules/library/library.service.ts
+ M src/modules/library/sb-import.adapters.test.ts
+ M src/modules/library/sb-import.adapters.ts
+ M src/modules/library/sb-import.controller.ts
+ M src/modules/workpacks/services/workpack-component-integration.service.ts
+ M src/types/express-session.d.ts
+ M src/views/dashboard/index.ejs
+ M src/views/library/index.ejs
+ M src/views/library/manufacturer-detail.ejs
+ M src/views/library/model-detail.ejs
+ M src/views/library/partials/model_edit_form.ejs
+ M src/views/library/partials/model_form.ejs
+ M src/views/library/partials/model_list.ejs
+ M src/views/library/sbs/index.ejs
+ M src/views/library/serialized-component-edit.ejs
+ M src/views/library/serialized-components.ejs
+ M src/views/workpacks/execution.ejs
+ M src/views/workpacks/tasks.ejs
+?? backups/training-reset/
+?? docs/ChatGPT/start/CODEX_EXECUTION_RULES.md
+?? docs/ChatGPT/start/MASTER_EXECUTION_PLAN.md
+?? "docs/ChatGPT/start/new dev session.md"
+?? docs/ChatGPT/start/new_session.md
+?? migrations/560_create_sb_model_applicability_allocations.ts
+?? migrations/561_widen_sb_applicability_model_to_text.ts
+?? migrations/562_create_migration_ledger.ts
+?? reports/
+?? scripts/sb-shorthand-cleanup-dry-run.ts
+?? src/models/MigrationBatch.ts
+?? src/models/MigrationBatchRow.ts
+?? src/models/MigrationCreatedTarget.ts
+?? src/models/SbModelApplicabilityAllocation.ts
+?? src/modules/library/piper-model-master-import.controller.ts
+?? src/modules/migration/
+?? src/utils/
+?? src/views/dashboard/indexchatgptxx.ejs
+?? src/views/dashboard/indexclaude.ejs
+?? src/views/library/models/
+?? src/views/library/sbs/allocation-issues.ejs
+?? src/views/library/serialized-component-life.ejs
+?? src/views/library/serialized-migration-dry-run-saved.ejs
+?? src/views/library/serialized-migration-dry-run.ejs
+?? src/views/library/serialized-reconciliation.ejs

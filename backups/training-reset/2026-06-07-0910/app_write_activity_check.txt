@@ -1,0 +1,10 @@
+﻿Timestamp: 2026-06-07T09:12:34
+Port 3000 listeners:
+
+Node/npm/tsx processes still present:
+ProcessName    Id StartTime          
+-----------    -- ---------          
+node         6060 2026/05/28 11:10:51
+node         8896 2026/06/06 23:42:34
+node        23748 2026/05/28 11:10:51
+node        44580 2026/06/06 23:42:35
