@@ -1020,7 +1020,7 @@ export class AircraftController {
     const aircraftId = AircraftController.getParam(req.params.id);
 
     try {
-      await UtilisationService.recordUtilisation({
+      const result = await UtilisationService.recordUtilisation({
         aircraftId,
         newTotalTimeHours: req.body.total_time_hours,
         newTotalTimeCycles: req.body.total_time_cycles,
@@ -1034,7 +1034,18 @@ export class AircraftController {
         },
       });
 
-      req.flash('success', 'Aircraft utilisation updated successfully.');
+      req.flash('utilisationSummary', JSON.stringify({
+        event_id: result.event.id,
+        previous_total_time_hours: result.event.previous_total_time_hours,
+        new_total_time_hours: result.event.new_total_time_hours,
+        delta_hours: result.event.delta_hours,
+        previous_total_time_cycles: result.event.previous_total_time_cycles,
+        new_total_time_cycles: result.event.new_total_time_cycles,
+        delta_cycles: result.event.delta_cycles,
+        source_type: result.event.source_type,
+        source_reference: result.event.source_reference,
+        reason: result.event.reason,
+      }));
     } catch (err: any) {
       req.flash('error', err?.message || 'Unable to update aircraft utilisation.');
     }

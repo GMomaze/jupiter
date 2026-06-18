@@ -10,6 +10,17 @@
     <% const safeSerializedOperationalSummary = typeof serializedOperationalSummary !== 'undefined' ? serializedOperationalSummary : {}; %>
     <% const safeSerializedPositionContext = typeof serializedPositionContext !== 'undefined' ? serializedPositionContext : { occupied_positions: [], recent_positions: [] }; %>
     <% const safeApplicableStandardTasks = typeof applicableStandardTasks !== 'undefined' ? applicableStandardTasks : []; %>
+    <%
+        let utilisationSummary = null;
+        const utilisationSummaryMessages = messages?.utilisationSummary || [];
+        if (utilisationSummaryMessages.length) {
+            try {
+                utilisationSummary = JSON.parse(utilisationSummaryMessages[0]);
+            } catch (_err) {
+                utilisationSummary = null;
+            }
+        }
+    %>
 
     <div class="mb-6">
         <a href="/aircraft" class="text-sm font-semibold text-[#94a3b8] hover:text-[#e2e8f0]">
@@ -27,6 +38,44 @@
         <div class="mb-6 rounded-xl border border-[#334155] bg-[#1e293b] px-4 py-3 text-sm text-[#e2e8f0]">
             <%= messages.success[0] %>
         </div>
+    <% } %>
+
+    <% if (utilisationSummary) { %>
+        <section class="mb-6 rounded-xl border border-emerald-500 bg-emerald-950/40 p-4 text-[#e2e8f0]">
+            <div class="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                    <p class="text-[11px] font-black uppercase tracking-[0.3em] text-emerald-200">Step 4: Summary</p>
+                    <h2 class="mt-1 text-lg font-black">Utilisation Event Recorded</h2>
+                    <p class="mt-1 text-sm text-emerald-100">
+                        Event reference: <span class="font-mono"><%= utilisationSummary.event_id %></span>
+                    </p>
+                </div>
+                <span class="rounded border border-emerald-300 px-3 py-1 text-[11px] font-bold uppercase tracking-widest text-emerald-100">
+                    Saved
+                </span>
+            </div>
+            <div class="mt-4 grid gap-3 md:grid-cols-3">
+                <div class="rounded border border-emerald-700 bg-[#0f172a] p-3">
+                    <p class="text-[11px] font-bold uppercase tracking-widest text-emerald-200">Hours</p>
+                    <p class="mt-1 text-sm"><%= utilisationSummary.previous_total_time_hours %> to <%= utilisationSummary.new_total_time_hours %></p>
+                    <p class="mt-1 text-xs text-emerald-100">Delta: <%= utilisationSummary.delta_hours %></p>
+                </div>
+                <div class="rounded border border-emerald-700 bg-[#0f172a] p-3">
+                    <p class="text-[11px] font-bold uppercase tracking-widest text-emerald-200">Cycles</p>
+                    <p class="mt-1 text-sm"><%= utilisationSummary.previous_total_time_cycles %> to <%= utilisationSummary.new_total_time_cycles %></p>
+                    <p class="mt-1 text-xs text-emerald-100">Delta: <%= utilisationSummary.delta_cycles %></p>
+                </div>
+                <div class="rounded border border-emerald-700 bg-[#0f172a] p-3">
+                    <p class="text-[11px] font-bold uppercase tracking-widest text-emerald-200">Source</p>
+                    <p class="mt-1 text-sm"><%= utilisationSummary.source_type %></p>
+                    <p class="mt-1 text-xs text-emerald-100"><%= utilisationSummary.source_reference || 'No source reference supplied' %></p>
+                </div>
+            </div>
+            <div class="mt-3 rounded border border-emerald-700 bg-[#0f172a] p-3">
+                <p class="text-[11px] font-bold uppercase tracking-widest text-emerald-200">Reason</p>
+                <p class="mt-1 text-sm text-emerald-50"><%= utilisationSummary.reason %></p>
+            </div>
+        </section>
     <% } %>
 
     <div class="mb-8">
@@ -198,6 +247,13 @@
                 >
                     <input type="hidden" name="_csrf" value="<%= csrfToken %>">
 
+                    <div class="grid gap-3 rounded border border-[#334155] bg-[#0f172a] p-3 text-xs font-bold uppercase tracking-widest text-[#94a3b8] md:grid-cols-4">
+                        <div class="rounded border border-[#334155] bg-[#1e293b] px-3 py-2 text-[#e2e8f0]">Step 1: Enter utilisation</div>
+                        <div class="rounded border border-[#334155] px-3 py-2">Step 2: Preview impact</div>
+                        <div class="rounded border border-[#334155] px-3 py-2">Step 3: Confirm update</div>
+                        <div class="rounded border border-[#334155] px-3 py-2">Step 4: Summary</div>
+                    </div>
+
                     <div class="flex flex-wrap items-start justify-between gap-4">
                         <div>
                             <h3 class="text-sm font-bold uppercase tracking-widest text-[#e2e8f0]">Update Utilisation</h3>
@@ -211,6 +267,16 @@
                         >
                             Correction decrease
                         </span>
+                    </div>
+
+                    <div
+                        id="utilisation-correction-detail"
+                        class="hidden rounded border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950"
+                    >
+                        <p class="font-bold uppercase tracking-widest">Correction entry</p>
+                        <p id="utilisation-correction-detail-text" class="mt-1">
+                            Hours or cycles are decreasing. Source reference is required and downstream values may reduce or become UNKNOWN.
+                        </p>
                     </div>
 
                     <div class="grid gap-4 md:grid-cols-2">
@@ -276,6 +342,7 @@
                                 <option value="JOURNEY_LOG">Journey Log</option>
                                 <option value="TECH_LOG">Tech Log</option>
                                 <option value="FLIGHT_FOLIO">Flight Folio</option>
+                                <option value="INITIAL_BASELINE">Initial Baseline</option>
                                 <option value="CORRECTION">Correction</option>
                                 <option value="IMPORT">Import</option>
                             </select>
@@ -311,6 +378,12 @@
                         id="utilisation-preview-panel"
                         class="hidden rounded border border-slate-300 bg-white p-4 text-slate-900"
                     >
+                        <div class="mb-4 grid gap-3 text-xs font-bold uppercase tracking-widest text-slate-500 md:grid-cols-4">
+                            <div class="rounded border border-slate-300 bg-slate-900 px-3 py-2 text-white">Step 1: Entered</div>
+                            <div class="rounded border border-blue-300 bg-blue-50 px-3 py-2 text-blue-800">Step 2: Preview impact</div>
+                            <div class="rounded border border-slate-300 px-3 py-2">Step 3: Confirm update</div>
+                            <div class="rounded border border-slate-300 px-3 py-2">Step 4: Summary</div>
+                        </div>
                         <div class="flex flex-wrap items-start justify-between gap-3">
                             <div>
                                 <h4 class="text-sm font-bold uppercase tracking-widest text-slate-700">Preview</h4>
@@ -320,6 +393,24 @@
                                 id="utilisation-preview-classification"
                                 class="rounded border border-slate-300 px-3 py-1 text-[11px] font-bold uppercase tracking-widest text-slate-700"
                             ></span>
+                        </div>
+                        <div class="mt-4 grid gap-3 md:grid-cols-4">
+                            <div class="rounded border border-slate-200 bg-slate-50 p-3">
+                                <p class="text-[11px] font-bold uppercase tracking-widest text-slate-500">Hour Delta</p>
+                                <p id="utilisation-preview-hour-delta" class="mt-1 text-lg font-black text-slate-900">-</p>
+                            </div>
+                            <div class="rounded border border-slate-200 bg-slate-50 p-3">
+                                <p class="text-[11px] font-bold uppercase tracking-widest text-slate-500">Cycle Delta</p>
+                                <p id="utilisation-preview-cycle-delta" class="mt-1 text-lg font-black text-slate-900">-</p>
+                            </div>
+                            <div class="rounded border border-slate-200 bg-slate-50 p-3">
+                                <p class="text-[11px] font-bold uppercase tracking-widest text-slate-500">Components</p>
+                                <p id="utilisation-preview-component-count" class="mt-1 text-lg font-black text-slate-900">-</p>
+                            </div>
+                            <div class="rounded border border-slate-200 bg-slate-50 p-3">
+                                <p class="text-[11px] font-bold uppercase tracking-widest text-slate-500">UNKNOWN</p>
+                                <p id="utilisation-preview-unknown-count" class="mt-1 text-lg font-black text-slate-900">-</p>
+                            </div>
                         </div>
                         <div id="utilisation-preview-warnings" class="mt-3 space-y-2"></div>
                         <div class="mt-4 overflow-x-auto">
@@ -1792,11 +1883,17 @@
     const utilisationCyclesInput = document.getElementById('utilisation-total-cycles');
     const utilisationSourceReferenceInput = document.getElementById('utilisation-source-reference');
     const utilisationCorrectionWarning = document.getElementById('utilisation-correction-warning');
+    const utilisationCorrectionDetail = document.getElementById('utilisation-correction-detail');
+    const utilisationCorrectionDetailText = document.getElementById('utilisation-correction-detail-text');
     const utilisationPreviewButton = document.getElementById('utilisation-preview-button');
     const utilisationConfirmButton = document.getElementById('utilisation-confirm-button');
     const utilisationPreviewPanel = document.getElementById('utilisation-preview-panel');
     const utilisationPreviewSummary = document.getElementById('utilisation-preview-summary');
     const utilisationPreviewClassification = document.getElementById('utilisation-preview-classification');
+    const utilisationPreviewHourDelta = document.getElementById('utilisation-preview-hour-delta');
+    const utilisationPreviewCycleDelta = document.getElementById('utilisation-preview-cycle-delta');
+    const utilisationPreviewComponentCount = document.getElementById('utilisation-preview-component-count');
+    const utilisationPreviewUnknownCount = document.getElementById('utilisation-preview-unknown-count');
     const utilisationPreviewWarnings = document.getElementById('utilisation-preview-warnings');
     const utilisationPreviewComponents = document.getElementById('utilisation-preview-components');
     const utilisationPreviewDue = document.getElementById('utilisation-preview-due');
@@ -1859,6 +1956,12 @@
       return value === null || value === undefined ? '-' : escapeHtml(value);
     }
 
+    function formatSignedValue(value, suffix) {
+      const numberValue = Number(value || 0);
+      const prefix = numberValue > 0 ? '+' : '';
+      return `${prefix}${numberValue}${suffix}`;
+    }
+
     function formatLifeValues(life) {
       const values = life?.values || {};
       return [
@@ -1877,6 +1980,10 @@
       }
 
       utilisationPreviewPanel?.classList.add('hidden');
+      utilisationPreviewHourDelta && (utilisationPreviewHourDelta.textContent = '-');
+      utilisationPreviewCycleDelta && (utilisationPreviewCycleDelta.textContent = '-');
+      utilisationPreviewComponentCount && (utilisationPreviewComponentCount.textContent = '-');
+      utilisationPreviewUnknownCount && (utilisationPreviewUnknownCount.textContent = '-');
     }
 
     function renderPreviewWarnings(warnings) {
@@ -1892,7 +1999,8 @@
       utilisationPreviewWarnings.innerHTML = warnings
         .map((warning) => `
           <div class="rounded border border-amber-300 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-900">
-            ${escapeHtml(warning.message || warning)}
+            <div>${escapeHtml(warning.message || warning)}</div>
+            ${warning.downstream_warning ? `<div class="mt-1 text-xs font-medium">${escapeHtml(warning.downstream_warning)}</div>` : ''}
           </div>
         `)
         .join('');
@@ -1922,12 +2030,16 @@
           const warnings = (component.warnings || [])
             .map((warning) => `<div class="mt-1 text-xs font-semibold text-amber-700">${escapeHtml(warning.message)}</div>`)
             .join('');
+          const unknownNotice = component.projected_life?.status === 'UNKNOWN'
+            ? '<div class="mt-1 text-xs font-bold uppercase tracking-widest text-amber-700">Projected life UNKNOWN</div>'
+            : '';
 
           return `
             <tr>
               <td class="px-3 py-3 align-top">
                 <div class="font-semibold text-slate-900">${escapeHtml(title)}</div>
                 <div class="mt-1 text-xs text-slate-500">${escapeHtml(subtitle || '-')}</div>
+                ${unknownNotice}
                 ${warnings}
               </td>
               <td class="px-3 py-3 align-top text-slate-700">${escapeHtml(component.tracking_basis || '-')}</td>
@@ -1950,10 +2062,33 @@
           `(delta ${preview.aircraft.delta_hours}h / ${preview.aircraft.delta_cycles}cyc).`;
       }
 
+      if (utilisationPreviewHourDelta) {
+        utilisationPreviewHourDelta.textContent = formatSignedValue(preview.aircraft.delta_hours, 'h');
+        utilisationPreviewHourDelta.classList.toggle('text-amber-700', Number(preview.aircraft.delta_hours) < 0);
+      }
+
+      if (utilisationPreviewCycleDelta) {
+        utilisationPreviewCycleDelta.textContent = formatSignedValue(preview.aircraft.delta_cycles, ' cyc');
+        utilisationPreviewCycleDelta.classList.toggle('text-amber-700', Number(preview.aircraft.delta_cycles) < 0);
+      }
+
+      if (utilisationPreviewComponentCount) {
+        utilisationPreviewComponentCount.textContent = String(preview.summary?.active_serialized_component_count ?? (preview.affected_components || []).length);
+      }
+
+      if (utilisationPreviewUnknownCount) {
+        utilisationPreviewUnknownCount.textContent = String(preview.summary?.unknown_component_count ?? 0);
+        utilisationPreviewUnknownCount.classList.toggle('text-amber-700', Number(preview.summary?.unknown_component_count || 0) > 0);
+      }
+
       if (utilisationPreviewClassification) {
         utilisationPreviewClassification.textContent = preview.entry.classification;
         utilisationPreviewClassification.classList.toggle('border-amber-400', preview.entry.classification === 'CORRECTION');
         utilisationPreviewClassification.classList.toggle('text-amber-800', preview.entry.classification === 'CORRECTION');
+        utilisationPreviewClassification.classList.toggle('bg-amber-50', preview.entry.classification === 'CORRECTION');
+        utilisationPreviewClassification.classList.toggle('bg-emerald-50', preview.entry.classification !== 'CORRECTION');
+        utilisationPreviewClassification.classList.toggle('border-emerald-300', preview.entry.classification !== 'CORRECTION');
+        utilisationPreviewClassification.classList.toggle('text-emerald-800', preview.entry.classification !== 'CORRECTION');
       }
 
       renderPreviewWarnings([
@@ -1964,7 +2099,7 @@
 
       if (utilisationPreviewDue) {
         utilisationPreviewDue.textContent =
-          `${(preview.affected_due_items || []).length} due/compliance categories marked NOT_CALCULATED_IN_PHASE_5.`;
+          `${(preview.affected_due_items || []).length} due/compliance categories returned by backend preview. Projection remains placeholder where marked NOT_CALCULATED_IN_PHASE_5.`;
       }
 
       utilisationPreviewReady = (preview.validation_warnings || []).length === 0;
@@ -2053,12 +2188,27 @@
       const currentCycles = Number(utilisationForm.dataset.currentCycles || 0);
       const newHours = Number(utilisationHoursInput.value || 0);
       const newCycles = Number(utilisationCyclesInput.value || 0);
-      const isCorrection = newHours < currentHours || newCycles < currentCycles;
+      const hoursDecrease = newHours < currentHours;
+      const cyclesDecrease = newCycles < currentCycles;
+      const isCorrection = hoursDecrease || cyclesDecrease;
 
       utilisationCorrectionWarning?.classList.toggle('hidden', !isCorrection);
+      utilisationCorrectionDetail?.classList.toggle('hidden', !isCorrection);
+
+      if (utilisationCorrectionDetailText && isCorrection) {
+        const dimensions = [
+          hoursDecrease ? 'hours decrease' : null,
+          cyclesDecrease ? 'cycles decrease' : null,
+        ].filter(Boolean).join(' and ');
+        utilisationCorrectionDetailText.textContent =
+          `Correction detected: ${dimensions}. Source reference is required, and downstream component life or due values may reduce or become UNKNOWN.`;
+      }
 
       if (utilisationSourceReferenceInput) {
         utilisationSourceReferenceInput.required = isCorrection;
+        utilisationSourceReferenceInput.placeholder = isCorrection
+          ? 'Required for correction'
+          : '';
       }
     }
 
