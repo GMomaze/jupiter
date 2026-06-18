@@ -7,6 +7,7 @@ import {
   ApplicabilityItem,
 } from '../compliance/applicability-engine.service.js';
 import { UtilisationService } from '../utilisation/utilisation.service.js';
+import { UtilisationPropagationPreviewService } from '../utilisation/utilisation-propagation-preview.service.js';
 
 import {
   Aircraft,
@@ -1039,6 +1040,29 @@ export class AircraftController {
     }
 
     res.redirect(`/aircraft/view/${aircraftId}`);
+  }
+
+  static async previewUtilisation(req: Request, res: Response) {
+    const aircraftId = AircraftController.getParam(req.params.id);
+
+    try {
+      const preview = await UtilisationPropagationPreviewService.preview({
+        aircraftId,
+        proposedTotalTimeHours: req.body.total_time_hours,
+        proposedTotalTimeCycles: req.body.total_time_cycles,
+        sourceType: req.body.source_type,
+        sourceReference: req.body.source_reference,
+        effectiveDate: req.body.effective_date,
+        reason: req.body.reason,
+      });
+
+      res.json(preview);
+    } catch (err: any) {
+      const status = err?.message === 'AIRCRAFT_NOT_FOUND' ? 404 : 400;
+      res.status(status).json({
+        error: err?.message || 'Unable to preview aircraft utilisation.',
+      });
+    }
   }
 
   static async transition(req: Request, res: Response) {

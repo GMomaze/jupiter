@@ -29,6 +29,7 @@ router.get('/view/:id', AircraftController.showView);
 router.get('/:id/applicability', AircraftController.showApplicability);
 router.get('/:id/service-bulletins', AircraftController.getServiceBulletins);
 router.post('/', aircraftPhotoUpload.single('aircraft_photo'), csrfProtection, AircraftController.create);
+router.post('/:id/utilisation/preview', requireAuth, requireRole('ADMIN'), csrfProtection, AircraftController.previewUtilisation);
 router.post('/:id/utilisation', requireAuth, requireRole('ADMIN'), csrfProtection, AircraftController.updateUtilisation);
 router.post('/:id', requireAuth, requireRole('ADMIN'), aircraftPhotoUpload.single('aircraft_photo'), csrfProtection, AircraftController.update);
 router.patch('/:id', requireAuth, requireRole('ADMIN'), aircraftPhotoUpload.single('aircraft_photo'), csrfProtection, AircraftController.update);

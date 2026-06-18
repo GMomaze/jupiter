@@ -255,6 +255,7 @@
                             <input
                                 type="date"
                                 name="effective_date"
+                                id="utilisation-effective-date"
                                 required
                                 value="<%= new Date().toISOString().slice(0, 10) %>"
                                 class="w-full rounded border border-slate-300 px-3 py-2 text-sm"
@@ -267,6 +268,7 @@
                             </label>
                             <select
                                 name="source_type"
+                                id="utilisation-source-type"
                                 required
                                 class="w-full rounded border border-slate-300 px-3 py-2 text-sm"
                             >
@@ -305,9 +307,50 @@
                         ></textarea>
                     </div>
 
-                    <div class="flex justify-end">
+                    <div
+                        id="utilisation-preview-panel"
+                        class="hidden rounded border border-slate-300 bg-white p-4 text-slate-900"
+                    >
+                        <div class="flex flex-wrap items-start justify-between gap-3">
+                            <div>
+                                <h4 class="text-sm font-bold uppercase tracking-widest text-slate-700">Preview</h4>
+                                <p id="utilisation-preview-summary" class="mt-1 text-sm text-slate-600"></p>
+                            </div>
+                            <span
+                                id="utilisation-preview-classification"
+                                class="rounded border border-slate-300 px-3 py-1 text-[11px] font-bold uppercase tracking-widest text-slate-700"
+                            ></span>
+                        </div>
+                        <div id="utilisation-preview-warnings" class="mt-3 space-y-2"></div>
+                        <div class="mt-4 overflow-x-auto">
+                            <table class="min-w-full divide-y divide-slate-200 text-sm">
+                                <thead class="bg-slate-50 text-left text-xs font-bold uppercase tracking-widest text-slate-500">
+                                    <tr>
+                                        <th class="px-3 py-2">Component</th>
+                                        <th class="px-3 py-2">Basis</th>
+                                        <th class="px-3 py-2">Current</th>
+                                        <th class="px-3 py-2">Projected</th>
+                                        <th class="px-3 py-2">Impact</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="utilisation-preview-components" class="divide-y divide-slate-100"></tbody>
+                            </table>
+                        </div>
+                        <div id="utilisation-preview-due" class="mt-4 text-xs font-semibold uppercase tracking-widest text-slate-500"></div>
+                    </div>
+
+                    <div class="flex flex-wrap justify-end gap-3">
+                        <button
+                            type="button"
+                            id="utilisation-preview-button"
+                            class="rounded border border-slate-300 bg-white px-4 py-2 text-xs font-bold uppercase tracking-widest text-slate-700 hover:bg-slate-100"
+                        >
+                            Preview
+                        </button>
                         <button
                             type="submit"
+                            id="utilisation-confirm-button"
+                            disabled
                             class="rounded border border-[#334155] bg-[#2563eb] px-4 py-2 text-xs font-bold uppercase tracking-widest text-white hover:bg-blue-700"
                         >
                             Record Utilisation
@@ -1749,6 +1792,14 @@
     const utilisationCyclesInput = document.getElementById('utilisation-total-cycles');
     const utilisationSourceReferenceInput = document.getElementById('utilisation-source-reference');
     const utilisationCorrectionWarning = document.getElementById('utilisation-correction-warning');
+    const utilisationPreviewButton = document.getElementById('utilisation-preview-button');
+    const utilisationConfirmButton = document.getElementById('utilisation-confirm-button');
+    const utilisationPreviewPanel = document.getElementById('utilisation-preview-panel');
+    const utilisationPreviewSummary = document.getElementById('utilisation-preview-summary');
+    const utilisationPreviewClassification = document.getElementById('utilisation-preview-classification');
+    const utilisationPreviewWarnings = document.getElementById('utilisation-preview-warnings');
+    const utilisationPreviewComponents = document.getElementById('utilisation-preview-components');
+    const utilisationPreviewDue = document.getElementById('utilisation-preview-due');
     const tabs = Array.from(document.querySelectorAll('.aircraft-tab'));
     const panels = Array.from(document.querySelectorAll('.aircraft-tab-panel'));
     const installedComponentsSubtabs = Array.from(document.querySelectorAll('.installed-components-subtab'));
@@ -1791,6 +1842,175 @@
       panels.forEach((panel) => {
         panel.classList.toggle('hidden', panel.id !== targetId);
       });
+    }
+
+    let utilisationPreviewReady = false;
+
+    function escapeHtml(value) {
+      return String(value ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
+    function formatPreviewValue(value) {
+      return value === null || value === undefined ? '-' : escapeHtml(value);
+    }
+
+    function formatLifeValues(life) {
+      const values = life?.values || {};
+      return [
+        `TSN ${formatPreviewValue(values.tsn_hours)}`,
+        `TSO ${formatPreviewValue(values.tso_hours)}`,
+        `CSN ${formatPreviewValue(values.csn_cycles)}`,
+        `CSO ${formatPreviewValue(values.cso_cycles)}`
+      ].join(' / ');
+    }
+
+    function markUtilisationPreviewStale() {
+      utilisationPreviewReady = false;
+
+      if (utilisationConfirmButton) {
+        utilisationConfirmButton.disabled = true;
+      }
+
+      utilisationPreviewPanel?.classList.add('hidden');
+    }
+
+    function renderPreviewWarnings(warnings) {
+      if (!utilisationPreviewWarnings) {
+        return;
+      }
+
+      if (!warnings || warnings.length === 0) {
+        utilisationPreviewWarnings.innerHTML = '';
+        return;
+      }
+
+      utilisationPreviewWarnings.innerHTML = warnings
+        .map((warning) => `
+          <div class="rounded border border-amber-300 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-900">
+            ${escapeHtml(warning.message || warning)}
+          </div>
+        `)
+        .join('');
+    }
+
+    function renderComponentPreviewRows(components) {
+      if (!utilisationPreviewComponents) {
+        return;
+      }
+
+      if (!components || components.length === 0) {
+        utilisationPreviewComponents.innerHTML = `
+          <tr>
+            <td colspan="5" class="px-3 py-4 text-sm text-slate-500">No active serialized components.</td>
+          </tr>
+        `;
+        return;
+      }
+
+      utilisationPreviewComponents.innerHTML = components
+        .map((component) => {
+          const identity = component.component_identity || {};
+          const title = identity.serial_number || identity.model_name || component.serialized_component_id;
+          const subtitle = [identity.model_code, identity.manufacturer_name, component.position]
+            .filter(Boolean)
+            .join(' | ');
+          const warnings = (component.warnings || [])
+            .map((warning) => `<div class="mt-1 text-xs font-semibold text-amber-700">${escapeHtml(warning.message)}</div>`)
+            .join('');
+
+          return `
+            <tr>
+              <td class="px-3 py-3 align-top">
+                <div class="font-semibold text-slate-900">${escapeHtml(title)}</div>
+                <div class="mt-1 text-xs text-slate-500">${escapeHtml(subtitle || '-')}</div>
+                ${warnings}
+              </td>
+              <td class="px-3 py-3 align-top text-slate-700">${escapeHtml(component.tracking_basis || '-')}</td>
+              <td class="px-3 py-3 align-top text-slate-700">${formatLifeValues(component.current_life)}</td>
+              <td class="px-3 py-3 align-top text-slate-700">${formatLifeValues(component.projected_life)}</td>
+              <td class="px-3 py-3 align-top text-slate-700">${escapeHtml(component.impact?.impact_summary || '-')}</td>
+            </tr>
+          `;
+        })
+        .join('');
+    }
+
+    function renderUtilisationPreview(preview) {
+      utilisationPreviewPanel?.classList.remove('hidden');
+
+      if (utilisationPreviewSummary) {
+        utilisationPreviewSummary.textContent =
+          `${preview.aircraft.current_total_time_hours}h / ${preview.aircraft.current_total_time_cycles}cyc -> ` +
+          `${preview.aircraft.proposed_total_time_hours}h / ${preview.aircraft.proposed_total_time_cycles}cyc ` +
+          `(delta ${preview.aircraft.delta_hours}h / ${preview.aircraft.delta_cycles}cyc).`;
+      }
+
+      if (utilisationPreviewClassification) {
+        utilisationPreviewClassification.textContent = preview.entry.classification;
+        utilisationPreviewClassification.classList.toggle('border-amber-400', preview.entry.classification === 'CORRECTION');
+        utilisationPreviewClassification.classList.toggle('text-amber-800', preview.entry.classification === 'CORRECTION');
+      }
+
+      renderPreviewWarnings([
+        ...(preview.validation_warnings || []),
+        ...(preview.entry.correction_warning ? [preview.entry.correction_warning] : []),
+      ]);
+      renderComponentPreviewRows(preview.affected_components || []);
+
+      if (utilisationPreviewDue) {
+        utilisationPreviewDue.textContent =
+          `${(preview.affected_due_items || []).length} due/compliance categories marked NOT_CALCULATED_IN_PHASE_5.`;
+      }
+
+      utilisationPreviewReady = (preview.validation_warnings || []).length === 0;
+
+      if (utilisationConfirmButton) {
+        utilisationConfirmButton.disabled = !utilisationPreviewReady;
+      }
+    }
+
+    async function requestUtilisationPreview() {
+      if (!utilisationForm || !utilisationPreviewButton) {
+        return;
+      }
+
+      utilisationPreviewButton.disabled = true;
+      utilisationPreviewButton.textContent = 'Previewing';
+
+      try {
+        const response = await fetch(`${utilisationForm.action}/preview`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'X-Requested-With': 'XMLHttpRequest'
+          },
+          body: new URLSearchParams(new FormData(utilisationForm))
+        });
+        const payload = await response.json();
+
+        if (!response.ok) {
+          throw new Error(payload.error || 'Unable to preview utilisation.');
+        }
+
+        renderUtilisationPreview(payload);
+      } catch (error) {
+        utilisationPreviewPanel?.classList.remove('hidden');
+        renderPreviewWarnings([{ message: error.message || 'Unable to preview utilisation.' }]);
+        renderComponentPreviewRows([]);
+        utilisationPreviewReady = false;
+
+        if (utilisationConfirmButton) {
+          utilisationConfirmButton.disabled = true;
+        }
+      } finally {
+        utilisationPreviewButton.disabled = false;
+        utilisationPreviewButton.textContent = 'Preview';
+      }
     }
 
     tabs.forEach((tab) => {
@@ -1844,6 +2064,18 @@
 
     utilisationHoursInput?.addEventListener('input', updateUtilisationCorrectionState);
     utilisationCyclesInput?.addEventListener('input', updateUtilisationCorrectionState);
+    Array.from(utilisationForm?.elements || []).forEach((element) => {
+      element.addEventListener('input', markUtilisationPreviewStale);
+      element.addEventListener('change', markUtilisationPreviewStale);
+    });
+    utilisationPreviewButton?.addEventListener('click', requestUtilisationPreview);
+    utilisationForm?.addEventListener('submit', function (event) {
+      if (!utilisationPreviewReady) {
+        event.preventDefault();
+        renderPreviewWarnings([{ message: 'Preview the utilisation impact before confirming.' }]);
+        utilisationPreviewPanel?.classList.remove('hidden');
+      }
+    });
     updateUtilisationCorrectionState();
 
     function setActiveSerializedInstallation(installationId) {

@@ -32,6 +32,11 @@ export type ComponentLifeCalculationResult = {
   explanation: string;
 };
 
+type ProposedAircraftSnapshot = {
+  total_time_hours: number;
+  total_time_cycles: number;
+};
+
 const dimensions: LifeDimension[] = ['tsn_hours', 'tso_hours', 'csn_cycles', 'cso_cycles'];
 
 export class ComponentLifeCalculationService {
@@ -91,6 +96,60 @@ export class ComponentLifeCalculationService {
     });
 
     return result;
+  }
+
+  static async calculateForInstallationWithAircraftSnapshot(
+    installationId: string,
+    aircraftSnapshot: ProposedAircraftSnapshot
+  ): Promise<ComponentLifeCalculationResult> {
+    const normalizedInstallationId = String(installationId || '').trim();
+
+    if (!normalizedInstallationId) {
+      throw new Error('INSTALLATION_ID_REQUIRED');
+    }
+
+    const installation = await AircraftComponentInstallation.findByPk(normalizedInstallationId, {
+      include: [
+        {
+          model: SerializedComponent,
+          as: 'SerializedComponent',
+          attributes: ['id'],
+          required: true,
+          include: [
+            {
+              model: SerializedComponentLifeState,
+              as: 'LifeState',
+              required: false,
+            },
+            {
+              model: SerializedComponentMaintenanceEvent,
+              as: 'MaintenanceEvents',
+              required: false,
+            },
+          ],
+        },
+      ],
+    });
+
+    if (!installation) {
+      throw new Error('INSTALLATION_NOT_FOUND');
+    }
+
+    const serializedComponent = (installation as any).SerializedComponent || null;
+    const lifeState = serializedComponent?.LifeState || null;
+    const maintenanceEvents = serializedComponent?.MaintenanceEvents || [];
+    const trackingBasis = this.normalizeTrackingBasis(installation.tracking_basis);
+
+    return this.calculateFromContext({
+      installation,
+      aircraft: {
+        total_time_hours: aircraftSnapshot.total_time_hours,
+        total_time_cycles: aircraftSnapshot.total_time_cycles,
+      } as Aircraft,
+      lifeState,
+      maintenanceEvents,
+      trackingBasis,
+    });
   }
 
   private static calculateFromContext(params: {
