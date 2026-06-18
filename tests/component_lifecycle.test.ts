@@ -9,13 +9,14 @@ describe('Component Lifecycle', () => {
 
   it('creates component', async () => {
     const seeded = await createAircraft();
+    aircraftId = seeded.id;
     modelId = seeded.modelId;
     // Corrected column: model_id (NOT component_model_id)
     const res = await pool.query(`
-      INSERT INTO aircraft_components (id, serial_number, model_id, current_status, install_af_hours)
-      VALUES (gen_random_uuid(), 'SN-001', $1, 'INSTALLED', 0)
+      INSERT INTO aircraft_components (id, serial_number, model_id, aircraft_id, installation_date, current_status, install_af_hours)
+      VALUES (gen_random_uuid(), 'SN-001', $1, $2, CURRENT_DATE, 'INSTALLED', 0)
       RETURNING id
-    `, [modelId]);
+    `, [modelId, aircraftId]);
 
     componentId = res.rows[0].id;
     expect(componentId).toBeDefined();
@@ -27,8 +28,8 @@ describe('Component Lifecycle', () => {
     modelId = seeded.modelId;
     // Corrected column: current_status (NOT status)
     const res = await pool.query(`
-      INSERT INTO aircraft_components (id, serial_number, model_id, aircraft_id, current_status, install_af_hours)
-      VALUES (gen_random_uuid(), 'SN-INST-01', $1, $2, 'INSTALLED', 0)
+      INSERT INTO aircraft_components (id, serial_number, model_id, aircraft_id, installation_date, current_status, install_af_hours)
+      VALUES (gen_random_uuid(), 'SN-INST-01', $1, $2, CURRENT_DATE, 'INSTALLED', 0)
       RETURNING current_status
     `, [modelId, aircraftId]);
 
@@ -40,8 +41,8 @@ describe('Component Lifecycle', () => {
     aircraftId = seeded.id;
     modelId = seeded.modelId;
     const setup = await pool.query(`
-      INSERT INTO aircraft_components (id, serial_number, model_id, aircraft_id, current_status, install_af_hours)
-      VALUES (gen_random_uuid(), 'SN-REM-01', $1, $2, 'INSTALLED', 0)
+      INSERT INTO aircraft_components (id, serial_number, model_id, aircraft_id, installation_date, current_status, install_af_hours)
+      VALUES (gen_random_uuid(), 'SN-REM-01', $1, $2, CURRENT_DATE, 'INSTALLED', 0)
       RETURNING id
     `, [modelId, aircraftId]);
     
@@ -49,8 +50,7 @@ describe('Component Lifecycle', () => {
 
     await pool.query(`
       UPDATE aircraft_components
-      SET aircraft_id = NULL,
-          current_status = 'REMOVED',
+      SET current_status = 'REMOVED',
           removed_at = CURRENT_TIMESTAMP
       WHERE id = $1
     `, [id]);
@@ -61,12 +61,13 @@ describe('Component Lifecycle', () => {
 
   it('quarantines component', async () => {
     const seeded = await createAircraft();
+    aircraftId = seeded.id;
     modelId = seeded.modelId;
     const setup = await pool.query(`
-      INSERT INTO aircraft_components (id, serial_number, model_id, current_status, install_af_hours, is_quarantined)
-      VALUES (gen_random_uuid(), 'SN-QUAR-01', $1, 'INSTALLED', 0, false)
+      INSERT INTO aircraft_components (id, serial_number, model_id, aircraft_id, installation_date, current_status, install_af_hours, is_quarantined)
+      VALUES (gen_random_uuid(), 'SN-QUAR-01', $1, $2, CURRENT_DATE, 'INSTALLED', 0, false)
       RETURNING id
-    `, [modelId]);
+    `, [modelId, aircraftId]);
     
     const id = setup.rows[0].id;
 

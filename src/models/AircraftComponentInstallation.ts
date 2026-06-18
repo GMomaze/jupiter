@@ -9,10 +9,19 @@ export class AircraftComponentInstallation extends Model {
   declare installed_at: string;
   declare removed_at: string | null;
   declare position: string | null;
+  declare tracking_basis: string | null;
+  declare install_aircraft_hours: number | null;
+  declare install_aircraft_cycles: number | null;
   declare install_tsn: number | null;
   declare install_tso: number | null;
+  declare install_csn: number | null;
+  declare install_cso: number | null;
+  declare removal_aircraft_hours: number | null;
+  declare removal_aircraft_cycles: number | null;
   declare removal_tsn: number | null;
   declare removal_tso: number | null;
+  declare removal_csn: number | null;
+  declare removal_cso: number | null;
   declare installed_by: string | null;
   declare removed_by: string | null;
   declare notes: string | null;
@@ -52,6 +61,18 @@ AircraftComponentInstallation.init(
       type: DataTypes.STRING,
       allowNull: true,
     },
+    tracking_basis: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
+    install_aircraft_hours: {
+      type: DataTypes.DECIMAL(10, 2),
+      allowNull: true,
+    },
+    install_aircraft_cycles: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+    },
     install_tsn: {
       type: DataTypes.DECIMAL(10, 2),
       allowNull: true,
@@ -60,12 +81,36 @@ AircraftComponentInstallation.init(
       type: DataTypes.DECIMAL(10, 2),
       allowNull: true,
     },
+    install_csn: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+    },
+    install_cso: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+    },
+    removal_aircraft_hours: {
+      type: DataTypes.DECIMAL(10, 2),
+      allowNull: true,
+    },
+    removal_aircraft_cycles: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+    },
     removal_tsn: {
       type: DataTypes.DECIMAL(10, 2),
       allowNull: true,
     },
     removal_tso: {
       type: DataTypes.DECIMAL(10, 2),
+      allowNull: true,
+    },
+    removal_csn: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+    },
+    removal_cso: {
+      type: DataTypes.INTEGER,
       allowNull: true,
     },
     installed_by: {

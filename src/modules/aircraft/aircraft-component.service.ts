@@ -13,10 +13,19 @@ import {
 
 export class AircraftComponentService {
   private static readonly serializedInstallStatuses = ['REMOVED', 'AVAILABLE'];
+  private static readonly serializedTrackingBases = new Set([
+    'AIRCRAFT_HOURS',
+    'AIRCRAFT_CYCLES',
+    'CALENDAR',
+    'ENGINE_METER',
+    'PROPELLER_METER',
+    'MANUAL_AUTHORISED',
+  ]);
   private static readonly aircraftAttributes = [
     'id',
     'status',
     'total_time_hours',
+    'total_time_cycles',
   ];
 
   private static readonly componentModelAttributes = [
@@ -30,6 +39,62 @@ export class AircraftComponentService {
     model: AssetType,
     attributes: ['id', 'code', 'label', 'is_installable_on_aircraft', 'is_required_for_aircraft'],
   };
+
+  private static normalizeTrackingBasis(value: unknown) {
+    const trackingBasis = String(value || '').trim().toUpperCase();
+
+    if (!trackingBasis) {
+      throw new Error('TRACKING_BASIS_REQUIRED');
+    }
+
+    if (!AircraftComponentService.serializedTrackingBases.has(trackingBasis)) {
+      throw new Error('INVALID_TRACKING_BASIS');
+    }
+
+    return trackingBasis;
+  }
+
+  private static parseOptionalDecimal(value: unknown, errorCode: string) {
+    const normalized = String(value ?? '').trim();
+
+    if (!normalized) {
+      return null;
+    }
+
+    const parsed = Number(normalized);
+
+    if (!Number.isFinite(parsed) || parsed < 0) {
+      throw new Error(errorCode);
+    }
+
+    return Number(parsed.toFixed(2));
+  }
+
+  private static parseOptionalInteger(value: unknown, errorCode: string) {
+    const normalized = String(value ?? '').trim();
+
+    if (!normalized) {
+      return null;
+    }
+
+    const parsed = Number(normalized);
+
+    if (!Number.isInteger(parsed) || parsed < 0) {
+      throw new Error(errorCode);
+    }
+
+    return parsed;
+  }
+
+  private static normalizeAircraftHours(value: unknown) {
+    const hours = Number(value ?? 0);
+    return Number.isFinite(hours) && hours >= 0 ? Number(hours.toFixed(2)) : 0;
+  }
+
+  private static normalizeAircraftCycles(value: unknown) {
+    const cycles = Number(value ?? 0);
+    return Number.isInteger(cycles) && cycles >= 0 ? cycles : 0;
+  }
 
   private static async hasLegacyPositionConflict(params: {
     aircraftId: string;
@@ -150,8 +215,17 @@ export class AircraftComponentService {
         'installed_at',
         'removed_at',
         'position',
+        'tracking_basis',
+        'install_aircraft_hours',
+        'install_aircraft_cycles',
         'install_tsn',
         'install_tso',
+        'install_csn',
+        'install_cso',
+        'removal_aircraft_hours',
+        'removal_aircraft_cycles',
+        'removal_csn',
+        'removal_cso',
         'notes',
       ],
       where: {
@@ -234,10 +308,19 @@ export class AircraftComponentService {
         'installed_at',
         'removed_at',
         'position',
+        'tracking_basis',
+        'install_aircraft_hours',
+        'install_aircraft_cycles',
         'install_tsn',
         'install_tso',
+        'install_csn',
+        'install_cso',
+        'removal_aircraft_hours',
+        'removal_aircraft_cycles',
         'removal_tsn',
         'removal_tso',
+        'removal_csn',
+        'removal_cso',
         'notes',
         'created_at',
         'updated_at',
@@ -646,30 +729,35 @@ export class AircraftComponentService {
     try {
       const aircraftId = String(data.aircraft_id || '').trim();
       const serializedComponentId = String(data.serialized_component_id || '').trim();
+      const trackingBasis = AircraftComponentService.normalizeTrackingBasis(data.tracking_basis);
       const installedAt = String(data.installed_at || '').trim();
       const position = String(data.position || '').trim().toUpperCase() || null;
       const notes = String(data.notes || '').trim() || null;
-      const installTsn = data.install_tsn !== undefined && data.install_tsn !== ''
-        ? Number(data.install_tsn)
-        : null;
-      const installTso = data.install_tso !== undefined && data.install_tso !== ''
-        ? Number(data.install_tso)
-        : null;
+      const installTsn = AircraftComponentService.parseOptionalDecimal(
+        data.install_tsn,
+        'INVALID_INSTALL_TSN'
+      );
+      const installTso = AircraftComponentService.parseOptionalDecimal(
+        data.install_tso,
+        'INVALID_INSTALL_TSO'
+      );
+      const installCsn = AircraftComponentService.parseOptionalInteger(
+        data.install_csn,
+        'INVALID_INSTALL_CSN'
+      );
+      const installCso = AircraftComponentService.parseOptionalInteger(
+        data.install_cso,
+        'INVALID_INSTALL_CSO'
+      );
 
       if (!aircraftId) throw new Error('AIRCRAFT_NOT_FOUND');
       if (!serializedComponentId) throw new Error('SERIALIZED_COMPONENT_NOT_FOUND');
       if (!installedAt || Number.isNaN(new Date(installedAt).getTime())) {
         throw new Error('INVALID_INSTALLATION_DATE');
       }
-      if (installTsn !== null && Number.isNaN(installTsn)) {
-        throw new Error('INVALID_INSTALL_TSN');
-      }
-      if (installTso !== null && Number.isNaN(installTso)) {
-        throw new Error('INVALID_INSTALL_TSO');
-      }
 
       const aircraft = await Aircraft.findByPk(aircraftId, {
-        attributes: ['id'],
+        attributes: ['id', 'total_time_hours', 'total_time_cycles'],
         transaction,
         lock: transaction.LOCK.UPDATE,
       });
@@ -739,8 +827,13 @@ export class AircraftComponentService {
           installed_at: installedAt,
           removed_at: null,
           position,
+          tracking_basis: trackingBasis,
+          install_aircraft_hours: AircraftComponentService.normalizeAircraftHours(aircraft.total_time_hours),
+          install_aircraft_cycles: AircraftComponentService.normalizeAircraftCycles(aircraft.total_time_cycles),
           install_tsn: installTsn,
           install_tso: installTso,
+          install_csn: installCsn,
+          install_cso: installCso,
           installed_by: data.installed_by || null,
           notes,
         },
@@ -765,14 +858,25 @@ export class AircraftComponentService {
     try {
       const aircraftId = String(data.aircraft_id || '').trim();
       const serializedComponentId = String(data.serialized_component_id || '').trim();
+      const trackingBasis = AircraftComponentService.normalizeTrackingBasis(data.tracking_basis);
       const installedAt = String(data.installed_at || '').trim();
       const position = String(data.position || '').trim().toUpperCase() || null;
-      const installTsn = data.install_tsn !== undefined && data.install_tsn !== ''
-        ? Number(data.install_tsn)
-        : null;
-      const installTso = data.install_tso !== undefined && data.install_tso !== ''
-        ? Number(data.install_tso)
-        : null;
+      const installTsn = AircraftComponentService.parseOptionalDecimal(
+        data.install_tsn,
+        'INVALID_INSTALL_TSN'
+      );
+      const installTso = AircraftComponentService.parseOptionalDecimal(
+        data.install_tso,
+        'INVALID_INSTALL_TSO'
+      );
+      const installCsn = AircraftComponentService.parseOptionalInteger(
+        data.install_csn,
+        'INVALID_INSTALL_CSN'
+      );
+      const installCso = AircraftComponentService.parseOptionalInteger(
+        data.install_cso,
+        'INVALID_INSTALL_CSO'
+      );
       const notes = String(data.notes || '').trim();
       const uncertaintyNotes = String(data.uncertainty_notes || '').trim();
       const inheritedStatusContext = String(data.inherited_status_context || '').trim();
@@ -782,15 +886,9 @@ export class AircraftComponentService {
       if (!installedAt || Number.isNaN(new Date(installedAt).getTime())) {
         throw new Error('INVALID_INSTALLATION_DATE');
       }
-      if (installTsn !== null && Number.isNaN(installTsn)) {
-        throw new Error('INVALID_INSTALL_TSN');
-      }
-      if (installTso !== null && Number.isNaN(installTso)) {
-        throw new Error('INVALID_INSTALL_TSO');
-      }
 
       const aircraft = await Aircraft.findByPk(aircraftId, {
-        attributes: ['id'],
+        attributes: ['id', 'total_time_hours', 'total_time_cycles'],
         transaction,
         lock: transaction.LOCK.UPDATE,
       });
@@ -867,8 +965,13 @@ export class AircraftComponentService {
           installed_at: installedAt,
           removed_at: null,
           position,
+          tracking_basis: trackingBasis,
+          install_aircraft_hours: AircraftComponentService.normalizeAircraftHours(aircraft.total_time_hours),
+          install_aircraft_cycles: AircraftComponentService.normalizeAircraftCycles(aircraft.total_time_cycles),
           install_tsn: installTsn,
           install_tso: installTso,
+          install_csn: installCsn,
+          install_cso: installCso,
           installed_by: data.installed_by || null,
           notes: composedNotes || null,
         },
@@ -896,12 +999,22 @@ export class AircraftComponentService {
       const removedAt = String(data.removed_at || '').trim();
       const notes = String(data.notes || '').trim() || null;
       const resultingStatus = String(data.resulting_status || '').trim().toUpperCase();
-      const removalTsn = data.removal_tsn !== undefined && data.removal_tsn !== ''
-        ? Number(data.removal_tsn)
-        : null;
-      const removalTso = data.removal_tso !== undefined && data.removal_tso !== ''
-        ? Number(data.removal_tso)
-        : null;
+      const removalTsn = AircraftComponentService.parseOptionalDecimal(
+        data.removal_tsn,
+        'INVALID_REMOVAL_TSN'
+      );
+      const removalTso = AircraftComponentService.parseOptionalDecimal(
+        data.removal_tso,
+        'INVALID_REMOVAL_TSO'
+      );
+      const removalCsn = AircraftComponentService.parseOptionalInteger(
+        data.removal_csn,
+        'INVALID_REMOVAL_CSN'
+      );
+      const removalCso = AircraftComponentService.parseOptionalInteger(
+        data.removal_cso,
+        'INVALID_REMOVAL_CSO'
+      );
 
       if (!aircraftId) throw new Error('AIRCRAFT_NOT_FOUND');
       if (!installationId) throw new Error('ACTIVE_SERIALIZED_INSTALLATION_NOT_FOUND');
@@ -911,15 +1024,9 @@ export class AircraftComponentService {
       if (!AircraftComponentService.serializedInstallStatuses.includes(resultingStatus)) {
         throw new Error('INVALID_RESULTING_STATUS');
       }
-      if (removalTsn !== null && Number.isNaN(removalTsn)) {
-        throw new Error('INVALID_REMOVAL_TSN');
-      }
-      if (removalTso !== null && Number.isNaN(removalTso)) {
-        throw new Error('INVALID_REMOVAL_TSO');
-      }
 
       const aircraft = await Aircraft.findByPk(aircraftId, {
-        attributes: ['id'],
+        attributes: ['id', 'total_time_hours', 'total_time_cycles'],
         transaction,
         lock: transaction.LOCK.UPDATE,
       });
@@ -964,8 +1071,12 @@ export class AircraftComponentService {
       await installation.update(
         {
           removed_at: removedAt,
+          removal_aircraft_hours: AircraftComponentService.normalizeAircraftHours(aircraft.total_time_hours),
+          removal_aircraft_cycles: AircraftComponentService.normalizeAircraftCycles(aircraft.total_time_cycles),
           removal_tsn: removalTsn,
           removal_tso: removalTso,
+          removal_csn: removalCsn,
+          removal_cso: removalCso,
           removed_by: data.removed_by || null,
           notes: notes
             ? [installation.notes, `Removal: ${notes}`].filter(Boolean).join('\n')

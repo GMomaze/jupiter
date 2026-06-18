@@ -122,12 +122,35 @@
 
                 <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
                     <div>
+                        <label class="block text-sm font-medium text-[#94a3b8]">Tracking Basis</label>
+                        <select name="tracking_basis" required class="mt-1 block w-full rounded-md border border-[#334155] bg-[#0f172a] text-[#e2e8f0] shadow-sm">
+                            <option value="">Select Tracking Basis</option>
+                            <option value="AIRCRAFT_HOURS">Aircraft Hours</option>
+                            <option value="AIRCRAFT_CYCLES">Aircraft Cycles</option>
+                            <option value="CALENDAR">Calendar</option>
+                            <option value="ENGINE_METER">Engine Meter</option>
+                            <option value="PROPELLER_METER">Propeller Meter</option>
+                            <option value="MANUAL_AUTHORISED">Manual Authorised</option>
+                        </select>
+                    </div>
+
+                    <div>
                         <label class="block text-sm font-medium text-[#94a3b8]">Inherited TSN at Baseline</label>
                         <input type="number" step="0.01" name="install_tsn" class="mt-1 block w-full rounded-md border border-[#334155] bg-[#0f172a] text-[#e2e8f0] shadow-sm">
                     </div>
                     <div>
                         <label class="block text-sm font-medium text-[#94a3b8]">Inherited TSO at Baseline</label>
                         <input type="number" step="0.01" name="install_tso" class="mt-1 block w-full rounded-md border border-[#334155] bg-[#0f172a] text-[#e2e8f0] shadow-sm">
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-medium text-[#94a3b8]">Inherited CSN at Baseline</label>
+                        <input type="number" step="1" min="0" name="install_csn" class="mt-1 block w-full rounded-md border border-[#334155] bg-[#0f172a] text-[#e2e8f0] shadow-sm">
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-medium text-[#94a3b8]">Inherited CSO at Baseline</label>
+                        <input type="number" step="1" min="0" name="install_cso" class="mt-1 block w-full rounded-md border border-[#334155] bg-[#0f172a] text-[#e2e8f0] shadow-sm">
                     </div>
                 </div>
 
@@ -212,6 +235,23 @@
                 <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
                     <div>
                         <label class="block text-sm font-medium text-[#94a3b8]">
+                            Tracking Basis
+                        </label>
+                        <select name="tracking_basis"
+                                required
+                                class="mt-1 block w-full rounded-md border border-[#334155] bg-[#0f172a] text-[#e2e8f0] shadow-sm">
+                            <option value="">Select Tracking Basis</option>
+                            <option value="AIRCRAFT_HOURS">Aircraft Hours</option>
+                            <option value="AIRCRAFT_CYCLES">Aircraft Cycles</option>
+                            <option value="CALENDAR">Calendar</option>
+                            <option value="ENGINE_METER">Engine Meter</option>
+                            <option value="PROPELLER_METER">Propeller Meter</option>
+                            <option value="MANUAL_AUTHORISED">Manual Authorised</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-medium text-[#94a3b8]">
                             Install TSN
                         </label>
                         <input type="number"
@@ -227,6 +267,28 @@
                         <input type="number"
                                step="0.01"
                                name="install_tso"
+                               class="mt-1 block w-full rounded-md border border-[#334155] bg-[#0f172a] text-[#e2e8f0] shadow-sm">
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-medium text-[#94a3b8]">
+                            Install CSN
+                        </label>
+                        <input type="number"
+                               step="1"
+                               min="0"
+                               name="install_csn"
+                               class="mt-1 block w-full rounded-md border border-[#334155] bg-[#0f172a] text-[#e2e8f0] shadow-sm">
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-medium text-[#94a3b8]">
+                            Install CSO
+                        </label>
+                        <input type="number"
+                               step="1"
+                               min="0"
+                               name="install_cso"
                                class="mt-1 block w-full rounded-md border border-[#334155] bg-[#0f172a] text-[#e2e8f0] shadow-sm">
                     </div>
                 </div>

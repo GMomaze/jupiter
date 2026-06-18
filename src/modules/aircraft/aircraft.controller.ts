@@ -110,12 +110,31 @@ export class AircraftController {
       installation?.position
         ? `Position ${installation.position}`
         : 'Position not captured',
+      installation?.tracking_basis
+        ? `Tracking Basis ${installation.tracking_basis}`
+        : 'Tracking basis unavailable',
+      installation?.install_aircraft_hours !== null &&
+      installation?.install_aircraft_hours !== undefined &&
+      installation?.install_aircraft_hours !== ''
+        ? `Install Aircraft Hours ${installation.install_aircraft_hours}`
+        : 'Install aircraft hours unavailable',
+      installation?.install_aircraft_cycles !== null &&
+      installation?.install_aircraft_cycles !== undefined &&
+      installation?.install_aircraft_cycles !== ''
+        ? `Install Aircraft Cycles ${installation.install_aircraft_cycles}`
+        : 'Install aircraft cycles unavailable',
       installation?.install_tsn !== null && installation?.install_tsn !== undefined && installation?.install_tsn !== ''
         ? `Install TSN ${installation.install_tsn}`
         : 'Install TSN unavailable',
       installation?.install_tso !== null && installation?.install_tso !== undefined && installation?.install_tso !== ''
         ? `Install TSO ${installation.install_tso}`
         : 'Install TSO unavailable',
+      installation?.install_csn !== null && installation?.install_csn !== undefined && installation?.install_csn !== ''
+        ? `Install CSN ${installation.install_csn}`
+        : 'Install CSN unavailable',
+      installation?.install_cso !== null && installation?.install_cso !== undefined && installation?.install_cso !== ''
+        ? `Install CSO ${installation.install_cso}`
+        : 'Install CSO unavailable',
       `Provenance ${provenanceLabel}`,
     ].join(' | ');
   }
@@ -135,12 +154,24 @@ export class AircraftController {
       flags.push('Position Not Captured');
     }
 
+    if (!installation?.tracking_basis) {
+      flags.push('Tracking Basis Not Captured');
+    }
+
     if (installation?.install_tsn === null || installation?.install_tsn === undefined || installation?.install_tsn === '') {
       flags.push('Unknown Install TSN');
     }
 
     if (installation?.install_tso === null || installation?.install_tso === undefined || installation?.install_tso === '') {
       flags.push('Unknown Install TSO');
+    }
+
+    if (installation?.install_csn === null || installation?.install_csn === undefined || installation?.install_csn === '') {
+      flags.push('Unknown Install CSN');
+    }
+
+    if (installation?.install_cso === null || installation?.install_cso === undefined || installation?.install_cso === '') {
+      flags.push('Unknown Install CSO');
     }
 
     if (String(installation?.installation_context || '') === 'BASELINE_CAPTURE') {

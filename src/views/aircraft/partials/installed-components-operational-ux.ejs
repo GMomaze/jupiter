@@ -315,6 +315,25 @@
                 <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
                     <div>
                         <label class="block text-xs font-bold uppercase tracking-[0.3em] text-slate-500">
+                            Tracking Basis
+                        </label>
+                        <select
+                            name="tracking_basis"
+                            required
+                            class="mt-2 block w-full rounded border border-slate-300 px-3 py-2 text-sm"
+                        >
+                            <option value="">Select Tracking Basis</option>
+                            <option value="AIRCRAFT_HOURS">Aircraft Hours</option>
+                            <option value="AIRCRAFT_CYCLES">Aircraft Cycles</option>
+                            <option value="CALENDAR">Calendar</option>
+                            <option value="ENGINE_METER">Engine Meter</option>
+                            <option value="PROPELLER_METER">Propeller Meter</option>
+                            <option value="MANUAL_AUTHORISED">Manual Authorised</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-bold uppercase tracking-[0.3em] text-slate-500">
                             Install TSN
                         </label>
                         <input
@@ -333,6 +352,32 @@
                             type="number"
                             step="0.01"
                             name="install_tso"
+                            class="mt-2 block w-full rounded border border-slate-300 px-3 py-2 text-sm"
+                        >
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-bold uppercase tracking-[0.3em] text-slate-500">
+                            Install CSN
+                        </label>
+                        <input
+                            type="number"
+                            step="1"
+                            min="0"
+                            name="install_csn"
+                            class="mt-2 block w-full rounded border border-slate-300 px-3 py-2 text-sm"
+                        >
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-bold uppercase tracking-[0.3em] text-slate-500">
+                            Install CSO
+                        </label>
+                        <input
+                            type="number"
+                            step="1"
+                            min="0"
+                            name="install_cso"
                             class="mt-2 block w-full rounded border border-slate-300 px-3 py-2 text-sm"
                         >
                     </div>
@@ -424,12 +469,30 @@
                                         <p class="mt-1"><%= item.installed_at || '-' %></p>
                                     </div>
                                     <div>
+                                        <p class="text-xs font-bold uppercase tracking-[0.3em] text-slate-500">Tracking Basis</p>
+                                        <p class="mt-1"><%= item.tracking_basis || '-' %></p>
+                                    </div>
+                                    <div>
                                         <p class="text-xs font-bold uppercase tracking-[0.3em] text-slate-500">Install TSN</p>
                                         <p class="mt-1"><%= item.install_tsn ?? '-' %></p>
                                     </div>
                                     <div>
                                         <p class="text-xs font-bold uppercase tracking-[0.3em] text-slate-500">Install TSO</p>
                                         <p class="mt-1"><%= item.install_tso ?? '-' %></p>
+                                    </div>
+                                    <div>
+                                        <p class="text-xs font-bold uppercase tracking-[0.3em] text-slate-500">Install CSN</p>
+                                        <p class="mt-1"><%= item.install_csn ?? '-' %></p>
+                                    </div>
+                                    <div>
+                                        <p class="text-xs font-bold uppercase tracking-[0.3em] text-slate-500">Install CSO</p>
+                                        <p class="mt-1"><%= item.install_cso ?? '-' %></p>
+                                    </div>
+                                    <div>
+                                        <p class="text-xs font-bold uppercase tracking-[0.3em] text-slate-500">Aircraft Baseline</p>
+                                        <p class="mt-1">
+                                            <%= item.install_aircraft_hours ?? '-' %> hrs / <%= item.install_aircraft_cycles ?? '-' %> cyc
+                                        </p>
                                     </div>
                                     <div>
                                         <p class="text-xs font-bold uppercase tracking-[0.3em] text-slate-500">Condition</p>
@@ -544,6 +607,26 @@
                                             type="number"
                                             step="0.01"
                                             name="removal_tso"
+                                            class="mt-2 block w-full rounded border border-slate-300 px-3 py-2 text-sm"
+                                        >
+                                    </div>
+                                    <div>
+                                        <label class="block text-xs font-bold uppercase tracking-[0.3em] text-slate-500">Removal CSN</label>
+                                        <input
+                                            type="number"
+                                            step="1"
+                                            min="0"
+                                            name="removal_csn"
+                                            class="mt-2 block w-full rounded border border-slate-300 px-3 py-2 text-sm"
+                                        >
+                                    </div>
+                                    <div>
+                                        <label class="block text-xs font-bold uppercase tracking-[0.3em] text-slate-500">Removal CSO</label>
+                                        <input
+                                            type="number"
+                                            step="1"
+                                            min="0"
+                                            name="removal_cso"
                                             class="mt-2 block w-full rounded border border-slate-300 px-3 py-2 text-sm"
                                         >
                                     </div>
