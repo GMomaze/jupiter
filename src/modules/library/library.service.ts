@@ -29,6 +29,7 @@ import { AirworthinessDirective } from '../../models/AirworthinessDirective.js';
 import { ComplianceItem } from '../../models/ComplianceItem.js';
 import { MaintenanceTemplate } from '../../models/MaintenanceTemplate.js';
 import { MaintenanceTemplateItem } from '../../models/MaintenanceTemplateItem.js';
+import { DueStatusService } from '../due-status/due-status.service.js';
 import { formatModelDisplay } from '../../utils/model-display.js';
 
 export class LibraryService {
@@ -109,17 +110,9 @@ export class LibraryService {
   ];
 
   private static readonly serializedComponentLifeLimitDueSoonThresholds = {
-    hours: 10,
-    cycles: 10,
-    calendarDays: 30,
-  };
-
-  private static readonly serializedComponentLifeLimitStatusRank: Record<string, number> = {
-    UNKNOWN: 0,
-    COMPLIANT: 1,
-    DUE_SOON: 2,
-    DUE: 3,
-    OVERDUE: 4,
+    hours: DueStatusService.defaultThresholds.hours,
+    cycles: DueStatusService.defaultThresholds.cycles,
+    calendarDays: DueStatusService.defaultThresholds.calendarDays,
   };
 
   static readonly serializedReconciliationBuckets = [
@@ -2785,18 +2778,11 @@ export class LibraryService {
   }
 
   private static statusForRemaining(value: number, threshold: number) {
-    if (value < 0) return 'OVERDUE';
-    if (value === 0) return 'DUE';
-    if (value <= threshold) return 'DUE_SOON';
-    return 'COMPLIANT';
+    return DueStatusService.statusForRemaining(value, threshold);
   }
 
   private static worstLifeLimitStatus(statuses: string[]) {
-    return statuses.reduce((worst, status) => {
-      const statusRank = this.serializedComponentLifeLimitStatusRank[status] ?? 0;
-      const worstRank = this.serializedComponentLifeLimitStatusRank[worst] ?? 0;
-      return statusRank > worstRank ? status : worst;
-    }, 'UNKNOWN');
+    return DueStatusService.mostRestrictiveStatus(statuses);
   }
 
   static evaluateSerializedComponentLifeLimits(
@@ -2980,8 +2966,7 @@ export class LibraryService {
         .filter((limit) => limit.status !== 'UNKNOWN')
         .sort((a, b) => {
           const rankDelta =
-            (this.serializedComponentLifeLimitStatusRank[b.status] || 0) -
-            (this.serializedComponentLifeLimitStatusRank[a.status] || 0);
+            DueStatusService.compareStates(b.status, a.status);
 
           if (rankDelta !== 0) return rankDelta;
 
