@@ -12,50 +12,70 @@ import { AircraftController } from '../aircraft/aircraft.controller.js';
 import { AircraftService } from '../aircraft/aircraft.service.js';
 import { UtilisationService } from './utilisation.service.js';
 
+let aircraftSequence = 0;
+
 async function createTestAircraft() {
-  const suffix = randomUUID().slice(0, 8).toUpperCase();
-  const registrationSuffix = suffix
-    .slice(0, 3)
-    .split('')
-    .map((char) => String.fromCharCode(65 + (char.charCodeAt(0) % 26)))
-    .join('');
-  const manufacturer = await Manufacturer.create({
-    code: `MFR_${suffix}`,
-    name: `Manufacturer ${suffix}`,
-    is_active: true,
-  });
-  const assetType = await AssetType.create({
-    code: `AIRFRAME_${suffix}`,
-    label: `Airframe ${suffix}`,
-    is_installable_on_aircraft: false,
-    is_required_for_aircraft: false,
-    required_quantity: 0,
-    is_active: true,
-    system_locked: false,
-  });
-  const category = await AircraftCategory.create({
-    code: `CAT_${suffix}`,
-    label: `Category ${suffix}`,
-    is_active: true,
-    system_locked: false,
-  });
-  const model = await ComponentModel.create({
-    model_name: `Model ${suffix}`,
-    model_code: `MODEL_${suffix}`,
-    manufacturer_id: manufacturer.id,
-    asset_type_id: assetType.id,
-    is_active: true,
-  });
-  const aircraft = await Aircraft.create({
-    registration: `ZS-${registrationSuffix}`,
-    serial_number: `SN-${suffix}`,
-    model_id: model.id,
-    category_id: category.id,
-    status: 'REGISTERED',
-    total_time_hours: 0,
-    total_time_cycles: 0,
-    version: 0,
-  });
+  let aircraft;
+  let category;
+  let model;
+
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    aircraftSequence += 1;
+    const suffix = `${Date.now().toString(36)}_${aircraftSequence}_${randomUUID().replace(/-/g, '').slice(0, 10)}`.toUpperCase();
+    const registrationSuffix = [
+      String.fromCharCode(65 + Math.floor((aircraftSequence + attempt) / (26 * 26)) % 26),
+      String.fromCharCode(65 + Math.floor((aircraftSequence + attempt) / 26) % 26),
+      String.fromCharCode(65 + (aircraftSequence + attempt) % 26),
+    ].join('');
+    const manufacturer = await Manufacturer.create({
+      code: `MFR_${suffix}`,
+      name: `Manufacturer ${suffix}`,
+      is_active: true,
+    });
+    const assetType = await AssetType.create({
+      code: `AIRFRAME_${suffix}`,
+      label: `Airframe ${suffix}`,
+      is_installable_on_aircraft: false,
+      is_required_for_aircraft: false,
+      required_quantity: 0,
+      is_active: true,
+      system_locked: false,
+    });
+    category = await AircraftCategory.create({
+      code: `CAT_${suffix}`,
+      label: `Category ${suffix}`,
+      is_active: true,
+      system_locked: false,
+    });
+    model = await ComponentModel.create({
+      model_name: `Model ${suffix}`,
+      model_code: `MODEL_${suffix}`,
+      manufacturer_id: manufacturer.id,
+      asset_type_id: assetType.id,
+      is_active: true,
+    });
+    try {
+      aircraft = await Aircraft.create({
+        registration: `ZS-${registrationSuffix}`,
+        serial_number: `SN-${suffix}`,
+        model_id: model.id,
+        category_id: category.id,
+        status: 'REGISTERED',
+        total_time_hours: 0,
+        total_time_cycles: 0,
+        version: 0,
+      });
+      break;
+    } catch (error: any) {
+      if (error?.name !== 'SequelizeUniqueConstraintError') {
+        throw error;
+      }
+    }
+  }
+
+  if (!aircraft || !category || !model) {
+    throw new Error('UNABLE_TO_CREATE_UNIQUE_TEST_AIRCRAFT');
+  }
 
   return { aircraft, category, model };
 }
@@ -147,9 +167,22 @@ describe('UtilisationService', () => {
       where: { aircraft_id: aircraft.id },
       order: [['created_at', 'DESC']],
     });
+    const utilisationSummary = JSON.parse(flashMessages.utilisationSummary?.[0] || '{}');
 
     expect(redirectPath).toBe(`/aircraft/view/${aircraft.id}`);
-    expect(flashMessages.success?.[0]).toBe('Aircraft utilisation updated successfully.');
+    expect(utilisationSummary).toEqual(
+      expect.objectContaining({
+        event_id: storedEvent?.id,
+        previous_total_time_hours: expect.anything(),
+        new_total_time_hours: expect.anything(),
+        delta_hours: expect.anything(),
+        previous_total_time_cycles: expect.anything(),
+        new_total_time_cycles: expect.anything(),
+        delta_cycles: expect.anything(),
+        source_type: 'JOURNEY_LOG',
+        reason: 'Controller cycle-only update',
+      })
+    );
     expect(updated?.total_time_cycles).toBe(4);
     expect(storedEvent?.delta_cycles).toBe(4);
   });

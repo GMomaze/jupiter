@@ -75,12 +75,14 @@ describe('Phase 7 Work Pack Integrity', () => {
     const bulletinId = uuid();
 
     // ✅ FIX: no model_id column
+    const bulletinReference = `SB-TEST-${uuid().slice(0, 8)}`;
     await pool.query(
       `INSERT INTO service_bulletins (
-        id, sb_number, title, compliance_type, source_primary, source_refs, status
+        id, sb_number, reference, manufacturer, title, compliance_type,
+        compliance_requirement, source_primary, source_format, source_refs, status, is_active
       )
-      VALUES ($1, $2, $3, 'MANDATORY', 'MANUAL', '[]', 'ACTIVE')`,
-      [bulletinId, 'SB-TEST-001', 'Wing Spar Inspection']
+      VALUES ($1, $2, $2, 'TEST', $3, 'MANDATORY', 'MANDATORY', 'MANUAL', 'MANUAL', '[]', 'ACTIVE', true)`,
+      [bulletinId, bulletinReference, 'Wing Spar Inspection']
     );
 
     // ✅ link table

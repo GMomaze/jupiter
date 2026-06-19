@@ -75,7 +75,10 @@ export class WorkpackServiceBulletinService {
         },
       ],
       transaction,
-      lock: transaction.LOCK.UPDATE,
+      lock: {
+        level: transaction.LOCK.UPDATE,
+        of: ServiceBulletin,
+      },
     });
 
     if (bulletins.length === 0) {
