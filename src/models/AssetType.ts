@@ -5,9 +5,12 @@ export class AssetType extends Model {
   declare id: string;
   declare code: string;
   declare label: string;
+  declare description: string | null;
   declare is_installable_on_aircraft: boolean;
   declare is_required_for_aircraft: boolean;
   declare required_quantity: number;
+  declare is_active: boolean;
+  declare system_locked: boolean;
 }
 
 AssetType.init(
@@ -26,6 +29,10 @@ AssetType.init(
       type: DataTypes.STRING,
       allowNull: false,
     },
+    description: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+    },
     is_installable_on_aircraft: {
       type: DataTypes.BOOLEAN,
       defaultValue: false,
@@ -37,6 +44,14 @@ AssetType.init(
     required_quantity: {
       type: DataTypes.INTEGER,
       defaultValue: 0,
+    },
+    is_active: {
+      type: DataTypes.BOOLEAN,
+      defaultValue: true,
+    },
+    system_locked: {
+      type: DataTypes.BOOLEAN,
+      defaultValue: false,
     },
   },
   {

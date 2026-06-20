@@ -1,6 +1,21 @@
 <%- include('../partials/header') %>
 
 <main class="max-w-7xl mx-auto py-10 px-4 sm:px-6 lg:px-8">
+  <% if (messages?.success?.length || messages?.error?.length) { %>
+    <section class="mb-8 space-y-3">
+      <% (messages?.success || []).forEach((message) => { %>
+        <div class="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+          <%= message %>
+        </div>
+      <% }) %>
+      <% (messages?.error || []).forEach((message) => { %>
+        <div class="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
+          <%= message %>
+        </div>
+      <% }) %>
+    </section>
+  <% } %>
+
   <div class="mb-10">
     <h1 class="text-4xl font-black text-slate-900 tracking-tight">
       Maintenance Library
@@ -20,6 +35,9 @@
     <div class="mt-4 flex flex-wrap gap-3">
       <a href="/library/manufacturers" class="inline-flex rounded border border-slate-300 bg-white px-4 py-2 text-sm font-bold text-slate-800 hover:bg-slate-100">
         Component Manufacturers / Models
+      </a>
+      <a href="/library/asset-types/new" class="inline-flex rounded border border-slate-300 bg-white px-4 py-2 text-sm font-bold text-slate-800 hover:bg-slate-100">
+        Create Asset Type
       </a>
       <a href="/library/models/import" class="inline-flex rounded border border-slate-300 bg-white px-4 py-2 text-sm font-bold text-slate-800 hover:bg-slate-100">
         Generic Model Import

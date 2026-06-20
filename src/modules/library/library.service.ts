@@ -270,6 +270,12 @@ export class LibraryService {
     return Number.isFinite(parsed) ? parsed : null;
   }
 
+  private static parseBoolean(value: unknown) {
+    if (typeof value === 'boolean') return value;
+    const normalized = String(value ?? '').trim().toLowerCase();
+    return ['true', 'on', '1', 'yes'].includes(normalized);
+  }
+
   /**
    * Fetch all asset types (AIRFRAME, ENGINE, etc.)
    */
@@ -277,6 +283,78 @@ export class LibraryService {
     return AssetType.findAll({
       order: [['code', 'ASC']],
     });
+  }
+
+  static async createAssetType(data: {
+    code?: unknown;
+    label?: unknown;
+    description?: unknown;
+    is_installable_on_aircraft?: unknown;
+    is_required_for_aircraft?: unknown;
+    required_quantity?: unknown;
+    is_active?: unknown;
+  }) {
+    const code = String(data.code ?? '').trim().toUpperCase();
+    const label = String(data.label ?? '').trim();
+    const description = String(data.description ?? '').trim() || null;
+    const isInstallable = this.parseBoolean(data.is_installable_on_aircraft);
+    const requestedRequired = this.parseBoolean(data.is_required_for_aircraft);
+    const isRequired = isInstallable ? requestedRequired : false;
+    const parsedQuantity = this.parseInteger(data.required_quantity);
+    const normalizedQuantity = parsedQuantity ?? 0;
+    const requiredQuantity = isInstallable ? normalizedQuantity : 0;
+    const isActive =
+      data.is_active === undefined || data.is_active === null
+        ? true
+        : this.parseBoolean(data.is_active);
+
+    if (!code) {
+      throw new Error('Asset type code is required.');
+    }
+
+    if (!label) {
+      throw new Error('Asset type label is required.');
+    }
+
+    if (String(data.required_quantity ?? '').trim() && parsedQuantity === null) {
+      throw new Error('Required quantity must be a non-negative whole number.');
+    }
+
+    if (parsedQuantity !== null && String(parsedQuantity) !== String(data.required_quantity).trim()) {
+      throw new Error('Required quantity must be a non-negative whole number.');
+    }
+
+    if (normalizedQuantity < 0) {
+      throw new Error('Required quantity must be a non-negative whole number.');
+    }
+
+    if (isRequired && requiredQuantity <= 0) {
+      throw new Error('Required aircraft asset types must have a required quantity greater than 0.');
+    }
+
+    const duplicate = await AssetType.findOne({ where: { code } });
+    if (duplicate) {
+      throw new Error('Asset type code already exists.');
+    }
+
+    try {
+      return await AssetType.create({
+        code,
+        label,
+        description,
+        is_installable_on_aircraft: isInstallable,
+        is_required_for_aircraft: isRequired,
+        required_quantity: requiredQuantity,
+        is_active: isActive,
+        system_locked: false,
+      });
+    } catch (error: any) {
+      if (error?.name === 'SequelizeUniqueConstraintError') {
+        throw new Error('Asset type code already exists.');
+      }
+
+      throw error;
+    }
   }
 
   /**

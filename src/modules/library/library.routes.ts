@@ -47,6 +47,44 @@ function getFriendlyLibraryErrorMessage(error: any) {
   return message || 'Unable to save manufacturer.';
 }
 
+function getAssetTypeFormModel(source: Record<string, any> = {}) {
+  return {
+    code: String(source.code || ''),
+    label: String(source.label || ''),
+    description: String(source.description || ''),
+    is_installable_on_aircraft:
+      source.is_installable_on_aircraft === true ||
+      source.is_installable_on_aircraft === 'true' ||
+      source.is_installable_on_aircraft === 'on',
+    is_required_for_aircraft:
+      source.is_required_for_aircraft === true ||
+      source.is_required_for_aircraft === 'true' ||
+      source.is_required_for_aircraft === 'on',
+    required_quantity: String(source.required_quantity ?? '0'),
+    is_active:
+      source.is_active === undefined ||
+      source.is_active === null ||
+      source.is_active === true ||
+      source.is_active === 'true' ||
+      source.is_active === 'on',
+  };
+}
+
+function renderAssetTypeCreateForm(
+  res: any,
+  status: number,
+  options: {
+    form?: Record<string, any>;
+    errors?: string[];
+  } = {}
+) {
+  return res.status(status).render('library/asset-type-create', {
+    title: 'Create Asset Type',
+    form: getAssetTypeFormModel(options.form),
+    errors: options.errors || [],
+  });
+}
+
 /**
  * GET /library
  * Main library page – shows placeholder sections for ADs, SBs, SIDs, Task Templates
@@ -538,6 +576,32 @@ router.post(
     res.redirect(`/library/serialized-components/${serializedComponentId}/edit`);
   }
 );
+
+router.get('/asset-types/new', requirePermission('LIBRARY_EDIT'), async (_req, res) => {
+  return renderAssetTypeCreateForm(res, 200);
+});
+
+router.post('/asset-types', requirePermission('LIBRARY_EDIT'), async (req, res) => {
+  try {
+    const assetType = await LibraryService.createAssetType({
+      code: req.body.code,
+      label: req.body.label,
+      description: req.body.description,
+      is_installable_on_aircraft: req.body.is_installable_on_aircraft,
+      is_required_for_aircraft: req.body.is_required_for_aircraft,
+      required_quantity: req.body.required_quantity,
+      is_active: req.body.is_active,
+    });
+
+    req.flash('success', `Asset type ${assetType.code} created successfully.`);
+    return res.redirect('/library');
+  } catch (error: any) {
+    return renderAssetTypeCreateForm(res, 400, {
+      form: req.body,
+      errors: [error?.message || 'Unable to create asset type.'],
+    });
+  }
+});
 
 router.get('/manufacturers', async (_req, res, next) => {
   try {

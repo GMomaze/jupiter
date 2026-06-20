@@ -1,0 +1,135 @@
+<%- include('../partials/header') %>
+
+<main class="mx-auto max-w-3xl px-4 py-10 sm:px-6 lg:px-8">
+  <div class="mb-8 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+    <div>
+      <h1 class="text-3xl font-black tracking-tight text-slate-900">
+        Create Asset Type
+      </h1>
+      <p class="mt-2 text-sm text-slate-500">
+        Define the asset category used for model, component, and aircraft configuration.
+      </p>
+    </div>
+
+    <a href="/library" class="text-sm font-semibold text-blue-600 hover:underline">
+      Back to Library
+    </a>
+  </div>
+
+  <% if (errors && errors.length > 0) { %>
+    <section class="mb-6 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
+      <% errors.forEach((error) => { %>
+        <p><%= error %></p>
+      <% }) %>
+    </section>
+  <% } %>
+
+  <section class="rounded-xl border bg-white p-6 shadow-sm">
+    <form method="POST" action="/library/asset-types" class="grid gap-4 md:grid-cols-2">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+
+      <div>
+        <label class="mb-1 block text-xs font-bold uppercase tracking-widest text-slate-500">
+          Code
+        </label>
+        <input
+          type="text"
+          name="code"
+          value="<%= form.code || '' %>"
+          required
+          class="w-full rounded border px-3 py-2 text-sm uppercase"
+          placeholder="ENGINE"
+        >
+      </div>
+
+      <div>
+        <label class="mb-1 block text-xs font-bold uppercase tracking-widest text-slate-500">
+          Label
+        </label>
+        <input
+          type="text"
+          name="label"
+          value="<%= form.label || '' %>"
+          required
+          class="w-full rounded border px-3 py-2 text-sm"
+          placeholder="Engine"
+        >
+      </div>
+
+      <div class="md:col-span-2">
+        <label class="mb-1 block text-xs font-bold uppercase tracking-widest text-slate-500">
+          Description
+        </label>
+        <textarea
+          name="description"
+          rows="3"
+          class="w-full rounded border px-3 py-2 text-sm"
+        ><%= form.description || '' %></textarea>
+      </div>
+
+      <label class="flex items-center gap-2 text-sm font-medium text-slate-700">
+        <input
+          type="checkbox"
+          name="is_installable_on_aircraft"
+          value="true"
+          class="rounded border-slate-300"
+          <%= form.is_installable_on_aircraft ? 'checked' : '' %>
+        >
+        Installable on aircraft
+      </label>
+
+      <label class="flex items-center gap-2 text-sm font-medium text-slate-700">
+        <input
+          type="checkbox"
+          name="is_required_for_aircraft"
+          value="true"
+          class="rounded border-slate-300"
+          <%= form.is_required_for_aircraft ? 'checked' : '' %>
+        >
+        Required on aircraft
+      </label>
+
+      <div>
+        <label class="mb-1 block text-xs font-bold uppercase tracking-widest text-slate-500">
+          Required Quantity
+        </label>
+        <input
+          type="number"
+          name="required_quantity"
+          value="<%= form.required_quantity || '0' %>"
+          min="0"
+          step="1"
+          class="w-full rounded border px-3 py-2 text-sm"
+        >
+      </div>
+
+      <label class="flex items-center gap-2 text-sm font-medium text-slate-700 md:self-end md:pb-2">
+        <input
+          type="checkbox"
+          name="is_active"
+          value="true"
+          class="rounded border-slate-300"
+          <%= form.is_active ? 'checked' : '' %>
+        >
+        Active
+      </label>
+
+      <div class="md:col-span-2 flex flex-wrap gap-3">
+        <button
+          type="submit"
+          class="rounded bg-slate-800 px-4 py-2 text-sm font-bold text-white hover:bg-black"
+        >
+          Save Asset Type
+        </button>
+        <a
+          href="/library"
+          class="rounded border border-slate-300 bg-white px-4 py-2 text-sm font-bold text-slate-800 hover:bg-slate-100"
+        >
+          Cancel
+        </a>
+      </div>
+    </form>
+  </section>
+</main>
+
+<%- include('../partials/footer') %>
