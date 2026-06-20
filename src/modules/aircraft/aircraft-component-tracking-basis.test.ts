@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {
   Aircraft,
@@ -13,13 +14,12 @@ import {
 import { UtilisationService } from '../utilisation/utilisation.service.js';
 import { AircraftComponentService } from './aircraft-component.service.js';
 
+const testRunSuffix = randomUUID().replace(/-/g, '').slice(0, 8).toUpperCase();
+let registrationSequence = 0;
+
 async function createSerializedInstallContext() {
   const suffix = randomUUID().slice(0, 8).toUpperCase();
-  const registrationSuffix = suffix
-    .slice(0, 3)
-    .split('')
-    .map((char) => String.fromCharCode(65 + (char.charCodeAt(0) % 26)))
-    .join('');
+  registrationSequence += 1;
   const manufacturer = await Manufacturer.create({
     code: `MFR_${suffix}`,
     name: `Manufacturer ${suffix}`,
@@ -48,8 +48,8 @@ async function createSerializedInstallContext() {
     is_active: true,
   });
   const aircraft = await Aircraft.create({
-    registration: `ZS-${registrationSuffix}`,
-    serial_number: `SN-${suffix}`,
+    registration: `ZS-TRK-${testRunSuffix}-${registrationSequence}`,
+    serial_number: `TRK-SN-${suffix}-${registrationSequence}`,
     model_id: model.id,
     category_id: category.id,
     status: 'ACTIVE',
@@ -113,6 +113,28 @@ describe('AircraftComponentService serialized tracking basis baselines', () => {
     expect(Number(installation?.install_tso)).toBe(5.5);
     expect(installation?.install_csn).toBe(42);
     expect(installation?.install_cso).toBe(6);
+  });
+
+  it('shows installed serialized components through active installation visibility after install', async () => {
+    const { aircraft, serializedComponent } = await createSerializedInstallContext();
+
+    await AircraftComponentService.installSerializedComponent({
+      aircraft_id: aircraft.id,
+      serialized_component_id: serializedComponent.id,
+      installed_at: '2026-06-17',
+      tracking_basis: 'AIRCRAFT_HOURS',
+      position: 'BAT-1',
+    });
+
+    const activeInstallations =
+      await AircraftComponentService.getActiveSerializedInstallationsForAircraft(aircraft.id);
+
+    expect(activeInstallations).toHaveLength(1);
+    expect(activeInstallations[0]?.serialized_component_id).toBe(serializedComponent.id);
+    expect(activeInstallations[0]?.removed_at).toBeNull();
+    expect(activeInstallations[0]?.SerializedComponent?.serial_number).toBe(
+      serializedComponent.serial_number
+    );
   });
 
   it('captures aircraft snapshot and CSN/CSO baselines on serialized removal', async () => {
@@ -203,5 +225,20 @@ describe('AircraftComponentService serialized tracking basis baselines', () => {
     expect(Number(stored?.install_af_hours)).toBe(12.5);
     expect(Number(stored?.tsn_at_install)).toBe(10);
     expect(Number(stored?.tso_at_install)).toBe(2);
+  });
+
+  it('does not render a conflicting legacy empty message in installed component views', () => {
+    const aircraftView = readFileSync('src/views/aircraft/view.ejs', 'utf8');
+    const operationalPartial = readFileSync(
+      'src/views/aircraft/partials/installed-components-operational-ux.ejs',
+      'utf8'
+    );
+
+    expect(aircraftView).toContain('No active serialized installations are currently visible on this aircraft.');
+    expect(aircraftView).toContain('Legacy Component Records');
+    expect(aircraftView).not.toContain('No components installed.');
+    expect(operationalPartial).toContain('No active serialized installations are currently visible on this aircraft.');
+    expect(operationalPartial).toContain('Legacy Component Records');
+    expect(operationalPartial).not.toContain('No components installed.');
   });
 });
