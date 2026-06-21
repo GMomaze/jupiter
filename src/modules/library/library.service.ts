@@ -3796,7 +3796,17 @@ export class LibraryService {
     const normalizedSbNumber = data.sb_number.trim().toUpperCase();
     const model = await ComponentModel.findByPk(data.model_id, {
       attributes: ['id', 'manufacturer_id'],
+      include: [
+        {
+          model: Manufacturer,
+          attributes: ['code', 'name'],
+          required: false,
+        },
+      ],
     });
+    const modelManufacturer = (model as any)?.Manufacturer;
+    const manufacturer =
+      String(modelManufacturer?.code || modelManufacturer?.name || '').trim() || 'UNKNOWN';
 
     const existing = model
       ? await ServiceBulletin.findOne({
@@ -3841,17 +3851,30 @@ export class LibraryService {
       return existing;
     }
 
-    const bulletin = await ServiceBulletin.create({
-      model_id: data.model_id,
-      sb_number: normalizedSbNumber,
-      title: data.title,
-      description: data.description ?? null,
-      issued_on: data.issued_on || null,
-      compliance_type: data.compliance_type || 'MANUAL',
-      status: 'ACTIVE',
-      revision: data.revision?.trim() || null,
-      document_url: data.document_url?.trim() || null,
-    });
+    let bulletin;
+    try {
+      bulletin = await ServiceBulletin.create({
+        manufacturer,
+        model_id: data.model_id,
+        sb_number: normalizedSbNumber,
+        title: data.title,
+        description: data.description ?? null,
+        issued_on: data.issued_on || null,
+        compliance_type: data.compliance_type || 'MANUAL',
+        status: 'ACTIVE',
+        revision: data.revision?.trim() || null,
+        document_url: data.document_url?.trim() || null,
+      });
+    } catch (error: any) {
+      console.error('[LibraryService] Service Bulletin create failed', {
+        manufacturer,
+        reference: normalizedSbNumber,
+        title: data.title,
+        message: error?.message,
+        databaseMessage: error?.original?.message || error?.parent?.message,
+      });
+      throw error;
+    }
 
     await ServiceBulletinModel.findOrCreate({
       where: {

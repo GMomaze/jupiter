@@ -119,11 +119,6 @@ ServiceBulletin.init(
       defaultValue: 'MANUAL',
       field: 'source_format',
     },
-    source_refs: {
-      type: DataTypes.JSONB,
-      allowNull: false,
-      defaultValue: [],
-    },
     status: {
       type: DataTypes.STRING,
       allowNull: false,

@@ -1140,7 +1140,11 @@ router.post('/service-bulletin', requirePermission('LIBRARY_EDIT'), async (req, 
     }
 
     res.redirect(`/library/model/${model_id}`);
-  } catch (error) {
+  } catch (error: any) {
+    console.error('[LibraryRoutes] Service Bulletin create request failed', {
+      message: error?.message,
+      databaseMessage: error?.original?.message || error?.parent?.message,
+    });
     next(error);
   }
 });
