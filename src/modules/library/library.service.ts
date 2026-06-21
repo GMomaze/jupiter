@@ -3857,6 +3857,7 @@ export class LibraryService {
         manufacturer,
         model_id: data.model_id,
         sb_number: normalizedSbNumber,
+        reference: normalizedSbNumber,
         title: data.title,
         description: data.description ?? null,
         issued_on: data.issued_on || null,

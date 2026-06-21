@@ -37,12 +37,13 @@ describe('LibraryService service bulletin creation', () => {
       expect.objectContaining({
         manufacturer: 'BENDIX',
         sb_number: 'SB-001',
+        reference: 'SB-001',
         title: 'Magneto Inspection',
       })
     );
   });
 
-  it('writes reference through the current sb_number model mapping without source_refs', async () => {
+  it('writes both physical service bulletin reference columns without source_refs', async () => {
     mockModel({ name: 'Bendix' });
     vi.spyOn(ServiceBulletin, 'findOne').mockResolvedValue(null);
     const createSpy = vi.spyOn(ServiceBulletin, 'create').mockResolvedValue({
@@ -58,10 +59,13 @@ describe('LibraryService service bulletin creation', () => {
     });
 
     expect(ServiceBulletin.getAttributes()).not.toHaveProperty('source_refs');
+    expect(ServiceBulletin.getAttributes().sb_number.field).toBe('sb_number');
+    expect(ServiceBulletin.getAttributes().reference.field).toBe('reference');
     expect(createSpy).toHaveBeenCalledWith(
       expect.objectContaining({
         manufacturer: 'Bendix',
         sb_number: 'SB-002',
+        reference: 'SB-002',
         compliance_type: 'MANUAL',
         status: 'ACTIVE',
       })
@@ -89,11 +93,38 @@ describe('LibraryService service bulletin creation', () => {
       expect.objectContaining({
         manufacturer: 'PIPER',
         sb_number: 'PIPER-1005',
+        reference: 'PIPER-1005',
         title: 'Drain Hole Inspection',
         compliance_type: 'MANUAL',
         status: 'ACTIVE',
       })
     );
+  });
+
+  it('preserves full document references with publication prefixes', async () => {
+    mockModel({ code: 'PIPER', name: 'Piper' });
+    vi.spyOn(ServiceBulletin, 'findOne').mockResolvedValue(null);
+    const createSpy = vi.spyOn(ServiceBulletin, 'create').mockResolvedValue({
+      id: 'sb-prefixed',
+    } as any);
+    vi.spyOn(ServiceBulletinModel, 'findOrCreate').mockResolvedValue([{} as any, true]);
+
+    for (const reference of ['SB 223', 'SL 1141A', 'SI 100', 'CIL 2025-002']) {
+      await LibraryService.createServiceBulletin({
+        model_id: 'model-1',
+        sb_number: reference,
+        title: `${reference} Title`,
+      });
+    }
+
+    for (const reference of ['SB 223', 'SL 1141A', 'SI 100', 'CIL 2025-002']) {
+      expect(createSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          sb_number: reference,
+          reference,
+        })
+      );
+    }
   });
 
   it('keeps duplicate handling by linking the existing bulletin instead of creating', async () => {

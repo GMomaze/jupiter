@@ -5,6 +5,7 @@ export class ServiceBulletin extends Model {
   declare id: string;
   declare manufacturer: string;
   declare sb_number: string;
+  declare reference: string;
   declare title: string;
   declare category: string | null;
   declare applicability_make: string | null;
@@ -23,14 +24,6 @@ export class ServiceBulletin extends Model {
   declare is_active: boolean;
   declare created_at: Date;
   declare updated_at: Date;
-
-  get reference(): string {
-    return this.getDataValue('sb_number');
-  }
-
-  set reference(value: string) {
-    this.setDataValue('sb_number', value);
-  }
 
   get issue_date(): Date | null {
     return this.getDataValue('issued_on');
@@ -86,6 +79,11 @@ ServiceBulletin.init(
       defaultValue: 'UNKNOWN',
     },
     sb_number: {
+      type: DataTypes.STRING,
+      allowNull: false,
+      field: 'sb_number',
+    },
+    reference: {
       type: DataTypes.STRING,
       allowNull: false,
       field: 'reference',
@@ -156,8 +154,23 @@ ServiceBulletin.init(
           instance.manufacturer = instance.source_primary || 'UNKNOWN';
         }
 
+        const sbNumber = String(instance.sb_number || '').trim();
+        const reference = String(instance.reference || '').trim();
+
+        if (!sbNumber && reference) {
+          instance.sb_number = reference;
+        }
+
+        if (!reference && sbNumber) {
+          instance.reference = sbNumber;
+        }
+
         if (!instance.sb_number) {
           instance.sb_number = 'UNSPECIFIED';
+        }
+
+        if (!instance.reference) {
+          instance.reference = instance.sb_number;
         }
 
         if (!instance.compliance_type) {
