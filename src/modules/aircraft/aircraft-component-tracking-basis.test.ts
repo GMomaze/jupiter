@@ -229,6 +229,10 @@ describe('AircraftComponentService serialized tracking basis baselines', () => {
 
   it('does not render a conflicting legacy empty message in installed component views', () => {
     const aircraftView = readFileSync('src/views/aircraft/view.ejs', 'utf8');
+    const overviewPartial = readFileSync(
+      'src/views/aircraft/partials/view-overview-panel.ejs',
+      'utf8'
+    );
     const operationalPartial = readFileSync(
       'src/views/aircraft/partials/installed-components-operational-ux.ejs',
       'utf8'
@@ -237,8 +241,70 @@ describe('AircraftComponentService serialized tracking basis baselines', () => {
     expect(aircraftView).toContain('No active serialized installations are currently visible on this aircraft.');
     expect(aircraftView).toContain('Legacy Component Records');
     expect(aircraftView).not.toContain('No components installed.');
+    expect(overviewPartial).not.toContain('No components installed.');
     expect(operationalPartial).toContain('No active serialized installations are currently visible on this aircraft.');
     expect(operationalPartial).toContain('Legacy Component Records');
     expect(operationalPartial).not.toContain('No components installed.');
+  });
+
+  it('renders serialized allocation as a guided single entry point across aircraft views', () => {
+    const aircraftView = readFileSync('src/views/aircraft/view.ejs', 'utf8');
+    const overviewPartial = readFileSync(
+      'src/views/aircraft/partials/view-overview-panel.ejs',
+      'utf8'
+    );
+    const operationalPartial = readFileSync(
+      'src/views/aircraft/partials/installed-components-operational-ux.ejs',
+      'utf8'
+    );
+
+    for (const template of [aircraftView, overviewPartial, operationalPartial]) {
+      expect(template).toContain('Allocate Serialized Component to Aircraft');
+      expect(template).toContain('Is this component already installed on the aircraft?');
+      expect(template).toContain('Yes - Capture Existing Installed Component');
+      expect(template).toContain('No - Install Component Now');
+      expect(template).toContain('Already installed / onboarding capture');
+      expect(template).toContain('Install component now');
+      expect(template).toContain('/serialized-components/baseline-capture');
+      expect(template).toContain('/serialized-components');
+      expect(template).toContain('Allocate to Aircraft');
+    }
+  });
+
+  it('defaults serialized allocation to install and hides the onboarding form until selected', () => {
+    const aircraftView = readFileSync('src/views/aircraft/view.ejs', 'utf8');
+    const overviewPartial = readFileSync(
+      'src/views/aircraft/partials/view-overview-panel.ejs',
+      'utf8'
+    );
+    const operationalPartial = readFileSync(
+      'src/views/aircraft/partials/installed-components-operational-ux.ejs',
+      'utf8'
+    );
+
+    for (const template of [aircraftView, overviewPartial, operationalPartial]) {
+      expect(template).toMatch(/data-serialized-allocation-intent="install"[\s\S]*checked/);
+      expect(template).toMatch(
+        /class="[^"]*hidden[^"]*"[\s\S]*data-serialized-allocation-panel="baseline"/
+      );
+      expect(template).toContain('data-serialized-allocation-panel="install"');
+    }
+
+    expect(aircraftView).toContain('activateSerializedAllocationIntent');
+    expect(operationalPartial).toContain('activateAllocationIntent');
+  });
+
+  it('keeps installed serialized visibility primary and uses remove/unallocate wording', () => {
+    const aircraftView = readFileSync('src/views/aircraft/view.ejs', 'utf8');
+    const operationalPartial = readFileSync(
+      'src/views/aircraft/partials/installed-components-operational-ux.ejs',
+      'utf8'
+    );
+
+    for (const template of [aircraftView, operationalPartial]) {
+      expect(template).toContain('Active Serialized Installations');
+      expect(template).toContain('Legacy Component Records');
+      expect(template).toContain('Remove / Unallocate');
+    }
   });
 });

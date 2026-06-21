@@ -78,10 +78,59 @@
         </div>
     </div>
 
-    <div class="grid gap-6 xl:grid-cols-2">
-        <div class="rounded-2xl border border-[#334155] bg-[#1e293b] p-6 shadow-[0_16px_40px_rgba(0,0,0,0.28)]">
+    <section class="rounded-2xl border border-[#334155] bg-[#1e293b] p-6 shadow-[0_16px_40px_rgba(0,0,0,0.28)]">
+        <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div>
+                <p class="text-xs font-bold uppercase tracking-widest text-[#94a3b8]">Serialized Component Allocation</p>
+                <h2 class="mt-2 text-xl font-semibold text-[#e2e8f0]">Allocate Serialized Component to Aircraft</h2>
+                <p class="mt-2 text-sm text-[#94a3b8]">
+                    Choose whether this is an onboarding capture of an already-installed component or a current maintenance installation.
+                </p>
+            </div>
+            <span class="rounded-full border border-[#334155] bg-[#0f172a] px-3 py-1 text-xs font-bold uppercase tracking-widest text-[#94a3b8]">
+                Allocate to Aircraft
+            </span>
+        </div>
+
+        <fieldset class="mt-5 rounded-xl border border-[#334155] bg-[#0f172a] p-4">
+            <legend class="text-sm font-semibold text-[#e2e8f0]">Is this component already installed on the aircraft?</legend>
+            <div class="mt-3 grid gap-3 md:grid-cols-2">
+                <label class="flex cursor-pointer items-start gap-3 rounded border border-[#334155] bg-[#1e293b] p-3 text-sm text-[#94a3b8]">
+                    <input
+                        type="radio"
+                        name="serialized_allocation_intent_overview"
+                        value="baseline"
+                        class="mt-1"
+                        data-serialized-allocation-intent="baseline"
+                    >
+                    <span>
+                        <span class="block font-semibold text-[#e2e8f0]">Yes - Capture Existing Installed Component</span>
+                        <span class="mt-1 block text-xs text-[#94a3b8]">Already installed / onboarding capture.</span>
+                    </span>
+                </label>
+                <label class="flex cursor-pointer items-start gap-3 rounded border border-[#334155] bg-[#1e293b] p-3 text-sm text-[#94a3b8]">
+                    <input
+                        type="radio"
+                        name="serialized_allocation_intent_overview"
+                        value="install"
+                        class="mt-1"
+                        data-serialized-allocation-intent="install"
+                        checked
+                    >
+                    <span>
+                        <span class="block font-semibold text-[#e2e8f0]">No - Install Component Now</span>
+                        <span class="mt-1 block text-xs text-[#94a3b8]">Install component now through the current maintenance workflow.</span>
+                    </span>
+                </label>
+            </div>
+        </fieldset>
+
+        <div
+            class="mt-5 hidden rounded-2xl border border-[#334155] bg-[#0f172a] p-6"
+            data-serialized-allocation-panel="baseline"
+        >
             <p class="text-xs font-bold uppercase tracking-widest text-[#94a3b8]">Inherited Aircraft Configuration</p>
-            <h2 class="mt-2 text-xl font-semibold text-[#e2e8f0]">Baseline Capture</h2>
+            <h3 class="mt-2 text-xl font-semibold text-[#e2e8f0]">Already installed / onboarding capture</h3>
             <p class="mt-2 text-sm text-[#94a3b8]">
                 Capture Existing Installed Component is for onboarding an already-installed serialized component state without implying an authoritative installation event.
             </p>
@@ -175,8 +224,11 @@
             </form>
         </div>
 
-        <div class="rounded-2xl border border-[#334155] bg-[#1e293b] p-6 shadow-[0_16px_40px_rgba(0,0,0,0.28)]">
-            <h2 class="text-xl font-semibold text-[#e2e8f0]">Install Serialized Component</h2>
+        <div
+            class="mt-5 rounded-2xl border border-[#334155] bg-[#0f172a] p-6"
+            data-serialized-allocation-panel="install"
+        >
+            <h3 class="text-xl font-semibold text-[#e2e8f0]">Install component now</h3>
             <p class="mb-4 mt-1 text-sm text-[#94a3b8]">
                 Use this only for a current authoritative installation event. This remains distinct from Baseline Capture.
             </p>
@@ -307,10 +359,10 @@
 
                 <button type="submit"
                         class="rounded border border-[#334155] bg-[#2563eb] px-4 py-2 font-bold text-white hover:bg-blue-700">
-                    Install Serialized Component
+                    Allocate to Aircraft
                 </button>
 
             </form>
         </div>
-    </div>
+    </section>
 </section>
