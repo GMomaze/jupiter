@@ -6,11 +6,17 @@
       <a href="/library" class="text-sm text-blue-600 hover:underline">Back to Library</a>
       <h1 class="mt-3 text-3xl font-bold text-slate-900">Service Bulletins</h1>
       <p class="mt-2 text-sm text-slate-500">
-        Read-only admin view of Service Bulletin records stored in <code>service_bulletins</code>.
+        Admin view of Service Bulletin records stored in <code>service_bulletins</code>.
       </p>
     </div>
 
     <div class="flex flex-wrap gap-2">
+      <a
+        href="/library/sbs/new"
+        class="rounded border border-slate-300 bg-white px-4 py-2 text-sm font-bold text-slate-800 hover:bg-slate-100"
+      >
+        Add New SB / SL / SI
+      </a>
       <a
         href="/library/sbs/import-issues/unallocated-models"
         class="rounded border border-slate-300 bg-white px-4 py-2 text-sm font-bold text-slate-800 hover:bg-slate-100"
@@ -43,7 +49,7 @@
       <div class="mt-6 rounded-xl border border-slate-200 bg-slate-50 px-6 py-10 text-center">
         <p class="text-sm font-semibold text-slate-700">No service bulletins exist yet.</p>
         <p class="mt-2 text-sm text-slate-500">
-          Use the SB import flow to add bulletin records.
+          Use manual create or the SB import flow to add bulletin records.
         </p>
       </div>
     <% } else { %>

@@ -1,0 +1,105 @@
+<%- include('../../partials/header') %>
+
+<main class="max-w-5xl mx-auto py-10 px-6 space-y-8">
+  <div>
+    <a href="/library/sids" class="text-sm text-blue-600 hover:underline">Back to SID Library</a>
+    <h1 class="mt-3 text-3xl font-bold text-slate-900">Add New SID</h1>
+    <p class="mt-2 text-sm text-slate-500">
+      Create one Supplemental Inspection Document using existing SID source-data fields.
+    </p>
+  </div>
+
+  <% if (errors && errors.length) { %>
+    <div class="rounded border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-700">
+      <% errors.forEach((error) => { %>
+        <p><%= error %></p>
+      <% }) %>
+    </div>
+  <% } %>
+
+  <form method="POST" action="/library/sids" class="grid gap-4 rounded-xl border bg-white p-6 shadow-sm md:grid-cols-2">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+
+    <label class="block">
+      <span class="text-xs font-bold uppercase tracking-widest text-slate-600">Manufacturer *</span>
+      <input name="manufacturer" value="<%= form.manufacturer || '' %>" required class="mt-1 w-full rounded border px-3 py-2 text-sm">
+    </label>
+
+    <label class="block">
+      <span class="text-xs font-bold uppercase tracking-widest text-slate-600">Reference *</span>
+      <input name="reference" value="<%= form.reference || '' %>" required class="mt-1 w-full rounded border px-3 py-2 text-sm">
+    </label>
+
+    <label class="block md:col-span-2">
+      <span class="text-xs font-bold uppercase tracking-widest text-slate-600">Title *</span>
+      <input name="title" value="<%= form.title || '' %>" required class="mt-1 w-full rounded border px-3 py-2 text-sm">
+    </label>
+
+    <label class="block md:col-span-2">
+      <span class="text-xs font-bold uppercase tracking-widest text-slate-600">Description</span>
+      <textarea name="description" rows="3" class="mt-1 w-full rounded border px-3 py-2 text-sm"><%= form.description || '' %></textarea>
+    </label>
+
+    <label class="block">
+      <span class="text-xs font-bold uppercase tracking-widest text-slate-600">Category</span>
+      <input name="category" value="<%= form.category || '' %>" class="mt-1 w-full rounded border px-3 py-2 text-sm">
+    </label>
+
+    <label class="block">
+      <span class="text-xs font-bold uppercase tracking-widest text-slate-600">Section Reference</span>
+      <input name="section_reference" value="<%= form.section_reference || '' %>" class="mt-1 w-full rounded border px-3 py-2 text-sm">
+    </label>
+
+    <label class="block">
+      <span class="text-xs font-bold uppercase tracking-widest text-slate-600">ATA Chapter</span>
+      <input name="ata_chapter" value="<%= form.ata_chapter || '' %>" class="mt-1 w-full rounded border px-3 py-2 text-sm">
+    </label>
+
+    <label class="block">
+      <span class="text-xs font-bold uppercase tracking-widest text-slate-600">Inspection Operation</span>
+      <input name="inspection_operation" value="<%= form.inspection_operation || '' %>" class="mt-1 w-full rounded border px-3 py-2 text-sm">
+    </label>
+
+    <label class="block">
+      <span class="text-xs font-bold uppercase tracking-widest text-slate-600">Initial Interval Hours</span>
+      <input type="number" min="0" step="1" name="initial_interval_hours" value="<%= form.initial_interval_hours || '' %>" class="mt-1 w-full rounded border px-3 py-2 text-sm">
+    </label>
+
+    <label class="block">
+      <span class="text-xs font-bold uppercase tracking-widest text-slate-600">Initial Interval Months</span>
+      <input type="number" min="0" step="1" name="initial_interval_months" value="<%= form.initial_interval_months || '' %>" class="mt-1 w-full rounded border px-3 py-2 text-sm">
+    </label>
+
+    <label class="block">
+      <span class="text-xs font-bold uppercase tracking-widest text-slate-600">Repeat Interval Hours</span>
+      <input type="number" min="0" step="1" name="repeat_interval_hours" value="<%= form.repeat_interval_hours || '' %>" class="mt-1 w-full rounded border px-3 py-2 text-sm">
+    </label>
+
+    <label class="block">
+      <span class="text-xs font-bold uppercase tracking-widest text-slate-600">Repeat Interval Months</span>
+      <input type="number" min="0" step="1" name="repeat_interval_months" value="<%= form.repeat_interval_months || '' %>" class="mt-1 w-full rounded border px-3 py-2 text-sm">
+    </label>
+
+    <label class="block md:col-span-2">
+      <span class="text-xs font-bold uppercase tracking-widest text-slate-600">Notes</span>
+      <textarea name="notes" rows="4" class="mt-1 w-full rounded border px-3 py-2 text-sm"><%= form.notes || '' %></textarea>
+    </label>
+
+    <label class="block">
+      <span class="text-xs font-bold uppercase tracking-widest text-slate-600">Source Document</span>
+      <input name="source_document" value="<%= form.source_document || '' %>" class="mt-1 w-full rounded border px-3 py-2 text-sm">
+    </label>
+
+    <label class="flex items-center gap-2 pt-6 text-sm font-semibold text-slate-700">
+      <input type="checkbox" name="is_active" value="true" <%= form.is_active === 'false' ? '' : 'checked' %>>
+      Active
+    </label>
+
+    <div class="md:col-span-2 flex justify-end gap-3">
+      <a href="/library/sids" class="rounded border border-slate-300 bg-white px-4 py-2 text-sm font-bold text-slate-800 hover:bg-slate-100">Cancel</a>
+      <button type="submit" class="rounded bg-slate-800 px-4 py-2 text-sm font-bold text-white hover:bg-black">Create SID</button>
+    </div>
+  </form>
+</main>
+
+<%- include('../../partials/footer') %>

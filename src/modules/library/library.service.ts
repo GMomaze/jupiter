@@ -276,6 +276,53 @@ export class LibraryService {
     return ['true', 'on', '1', 'yes'].includes(normalized);
   }
 
+  private static normalizeOptionalString(value: unknown) {
+    const normalized = String(value ?? '').trim();
+    return normalized || null;
+  }
+
+  private static normalizeRequiredString(value: unknown, label: string) {
+    const normalized = String(value ?? '').trim();
+
+    if (!normalized) {
+      throw new Error(`${label} is required.`);
+    }
+
+    return normalized;
+  }
+
+  private static normalizeOptionalWholeNumber(value: unknown, label: string) {
+    const normalized = String(value ?? '').trim();
+
+    if (!normalized) {
+      return null;
+    }
+
+    if (!/^\d+$/.test(normalized)) {
+      throw new Error(`${label} must be a non-negative whole number.`);
+    }
+
+    return Number.parseInt(normalized, 10);
+  }
+
+  private static normalizeOptionalDate(value: unknown, label: string) {
+    const normalized = String(value ?? '').trim();
+
+    if (!normalized) {
+      return null;
+    }
+
+    if (Number.isNaN(new Date(normalized).getTime())) {
+      throw new Error(`${label} must be a valid date.`);
+    }
+
+    return normalized;
+  }
+
+  private static valuesMatch(left: unknown, right: unknown) {
+    return String(left ?? '').trim().toLowerCase() === String(right ?? '').trim().toLowerCase();
+  }
+
   /**
    * Fetch all asset types (AIRFRAME, ENGINE, etc.)
    */
@@ -732,6 +779,52 @@ export class LibraryService {
     });
   }
 
+  static async createAirworthinessDirective(data: {
+    ad_number?: unknown;
+    revision?: unknown;
+    subject_heading?: unknown;
+    effective_date?: unknown;
+    authority?: unknown;
+    make?: unknown;
+    model?: unknown;
+    status?: unknown;
+    interval_hours?: unknown;
+    interval_months?: unknown;
+    summary?: unknown;
+  }) {
+    const adNumber = this.normalizeRequiredString(data.ad_number, 'AD number');
+    const subjectHeading = this.normalizeRequiredString(data.subject_heading, 'Title / subject');
+    const revision = this.normalizeOptionalString(data.revision);
+    const existing = await AirworthinessDirective.findAll({
+      where: {
+        ad_number: { [Op.iLike]: adNumber },
+      },
+      attributes: ['id', 'ad_number', 'revision'],
+    });
+    const duplicate = existing.find((directive) =>
+      this.valuesMatch((directive as any).revision, revision)
+    );
+
+    if (duplicate) {
+      throw new Error(`Airworthiness Directive ${adNumber}${revision ? ` revision ${revision}` : ''} already exists.`);
+    }
+
+    return AirworthinessDirective.create({
+      ad_number: adNumber,
+      revision,
+      subject_heading: subjectHeading,
+      effective_date: this.normalizeOptionalDate(data.effective_date, 'Effective date'),
+      authority: this.normalizeOptionalString(data.authority),
+      make: this.normalizeOptionalString(data.make),
+      model: this.normalizeOptionalString(data.model),
+      status: this.normalizeOptionalString(data.status) || 'ACTIVE',
+      interval_hours: this.normalizeOptionalWholeNumber(data.interval_hours, 'Interval hours'),
+      interval_months: this.normalizeOptionalWholeNumber(data.interval_months, 'Interval months'),
+      summary: this.normalizeOptionalString(data.summary),
+      is_active: true,
+    });
+  }
+
   static async getServiceBulletins() {
     return ServiceBulletin.findAll({
       attributes: [
@@ -749,6 +842,62 @@ export class LibraryService {
         'created_at',
       ],
       order: [['created_at', 'DESC'], ['manufacturer', 'ASC'], ['sb_number', 'ASC']],
+    });
+  }
+
+  static async createLibraryServiceBulletin(data: {
+    category?: unknown;
+    reference?: unknown;
+    sb_number?: unknown;
+    title?: unknown;
+    manufacturer?: unknown;
+    revision?: unknown;
+    issued_on?: unknown;
+    compliance_type?: unknown;
+    document_url?: unknown;
+    description?: unknown;
+    applicability_make?: unknown;
+    applicability_model?: unknown;
+    status?: unknown;
+  }) {
+    const reference = this.normalizeRequiredString(
+      data.reference || data.sb_number,
+      'Reference'
+    );
+    const title = this.normalizeRequiredString(data.title, 'Title');
+    const manufacturer = this.normalizeRequiredString(data.manufacturer, 'Manufacturer');
+    const revision = this.normalizeOptionalString(data.revision);
+    const existing = await ServiceBulletin.findAll({
+      where: {
+        manufacturer: { [Op.iLike]: manufacturer },
+        reference: { [Op.iLike]: reference },
+      },
+      attributes: ['id', 'manufacturer', 'reference', 'revision'],
+    });
+    const duplicate = existing.find((bulletin) =>
+      this.valuesMatch((bulletin as any).revision, revision)
+    );
+
+    if (duplicate) {
+      throw new Error(`${manufacturer} ${reference}${revision ? ` revision ${revision}` : ''} already exists.`);
+    }
+
+    return ServiceBulletin.create({
+      category: this.normalizeOptionalString(data.category) || 'SB',
+      manufacturer,
+      sb_number: reference,
+      reference,
+      title,
+      revision,
+      issued_on: this.normalizeOptionalDate(data.issued_on, 'Issue date'),
+      compliance_type: this.normalizeOptionalString(data.compliance_type) || 'MANUAL',
+      document_url: this.normalizeOptionalString(data.document_url),
+      description: this.normalizeOptionalString(data.description),
+      applicability_make: this.normalizeOptionalString(data.applicability_make),
+      applicability_model: this.normalizeOptionalString(data.applicability_model),
+      status: this.normalizeOptionalString(data.status) || 'ACTIVE',
+      source_primary: 'MANUAL',
+      is_active: true,
     });
   }
 
@@ -860,6 +1009,72 @@ export class LibraryService {
         },
       ],
       order: [['created_at', 'DESC'], ['manufacturer', 'ASC'], ['reference', 'ASC']],
+    });
+  }
+
+  static async createSupplementalInspectionDocument(data: {
+    manufacturer?: unknown;
+    reference?: unknown;
+    title?: unknown;
+    description?: unknown;
+    category?: unknown;
+    section_reference?: unknown;
+    ata_chapter?: unknown;
+    initial_interval_hours?: unknown;
+    initial_interval_months?: unknown;
+    repeat_interval_hours?: unknown;
+    repeat_interval_months?: unknown;
+    inspection_operation?: unknown;
+    notes?: unknown;
+    source_document?: unknown;
+    is_active?: unknown;
+  }) {
+    const manufacturer = this.normalizeRequiredString(data.manufacturer, 'Manufacturer');
+    const reference = this.normalizeRequiredString(data.reference, 'Reference');
+    const title = this.normalizeRequiredString(data.title, 'Title');
+    const existing = await SupplementalInspectionDocument.findAll({
+      where: {
+        manufacturer: { [Op.iLike]: manufacturer },
+        reference: { [Op.iLike]: reference },
+      },
+      attributes: ['id', 'manufacturer', 'reference'],
+    });
+
+    if (existing.length > 0) {
+      throw new Error(`${manufacturer} ${reference} already exists.`);
+    }
+
+    return SupplementalInspectionDocument.create({
+      manufacturer,
+      reference,
+      title,
+      description: this.normalizeOptionalString(data.description),
+      category: this.normalizeOptionalString(data.category),
+      section_reference: this.normalizeOptionalString(data.section_reference),
+      ata_chapter: this.normalizeOptionalString(data.ata_chapter),
+      initial_interval_hours: this.normalizeOptionalWholeNumber(
+        data.initial_interval_hours,
+        'Initial interval hours'
+      ),
+      initial_interval_months: this.normalizeOptionalWholeNumber(
+        data.initial_interval_months,
+        'Initial interval months'
+      ),
+      repeat_interval_hours: this.normalizeOptionalWholeNumber(
+        data.repeat_interval_hours,
+        'Repeat interval hours'
+      ),
+      repeat_interval_months: this.normalizeOptionalWholeNumber(
+        data.repeat_interval_months,
+        'Repeat interval months'
+      ),
+      inspection_operation: this.normalizeOptionalString(data.inspection_operation),
+      notes: this.normalizeOptionalString(data.notes),
+      source_document: this.normalizeOptionalString(data.source_document),
+      is_active:
+        data.is_active === undefined || data.is_active === null
+          ? true
+          : this.parseBoolean(data.is_active),
     });
   }
 

@@ -6,9 +6,15 @@
       <a href="/library" class="text-sm text-blue-600 hover:underline">Back to Library</a>
       <h1 class="mt-3 text-3xl font-bold text-slate-900">Supplemental Inspection Documents</h1>
       <p class="mt-2 text-sm text-slate-500">
-        Read-only admin view of SID records stored in <code>supplemental_inspection_documents</code>.
+        Admin view of SID records stored in <code>supplemental_inspection_documents</code>.
       </p>
     </div>
+    <a
+      href="/library/sids/new"
+      class="rounded bg-slate-800 px-4 py-2 text-sm font-bold text-white hover:bg-black"
+    >
+      Add New SID
+    </a>
   </div>
 
   <section class="rounded-xl border bg-white p-6 shadow-sm">
@@ -28,7 +34,7 @@
       <div class="mt-6 rounded-xl border border-slate-200 bg-slate-50 px-6 py-10 text-center">
         <p class="text-sm font-semibold text-slate-700">No SIDs imported yet.</p>
         <p class="mt-2 text-sm text-slate-500">
-          SID source records will appear here after the SID import flow is implemented and used.
+          Use manual create to add SID source records.
         </p>
       </div>
     <% } else { %>

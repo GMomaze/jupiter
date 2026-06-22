@@ -104,9 +104,21 @@ router.get(
 );
 
 router.get(
+  '/ads/new',
+  requirePermission('LIBRARY_EDIT'),
+  LibraryController.renderAdCreateForm
+);
+
+router.get(
   '/sbs/import',
   requirePermission('LIBRARY_EDIT'),
   SbImportController.renderImportForm
+);
+
+router.get(
+  '/sbs/new',
+  requirePermission('LIBRARY_EDIT'),
+  LibraryController.renderSbCreateForm
 );
 
 router.get(
@@ -127,10 +139,22 @@ router.get(
   LibraryController.renderAdList
 );
 
+router.post(
+  '/ads',
+  requirePermission('LIBRARY_EDIT'),
+  LibraryController.createAirworthinessDirective
+);
+
 router.get(
   '/sbs',
   requirePermission('LIBRARY_EDIT'),
   LibraryController.renderSbList
+);
+
+router.post(
+  '/sbs',
+  requirePermission('LIBRARY_EDIT'),
+  LibraryController.createLibraryServiceBulletin
 );
 
 router.get(
@@ -178,6 +202,18 @@ router.get(
   '/sids',
   requirePermission('LIBRARY_EDIT'),
   LibraryController.renderSidList
+);
+
+router.get(
+  '/sids/new',
+  requirePermission('LIBRARY_EDIT'),
+  LibraryController.renderSidCreateForm
+);
+
+router.post(
+  '/sids',
+  requirePermission('LIBRARY_EDIT'),
+  LibraryController.createSupplementalInspectionDocument
 );
 
 router.get(

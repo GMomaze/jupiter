@@ -1,0 +1,89 @@
+<%- include('../../partials/header') %>
+
+<main class="max-w-5xl mx-auto py-10 px-6 space-y-8">
+  <div>
+    <a href="/library/ads" class="text-sm text-blue-600 hover:underline">Back to AD Library</a>
+    <h1 class="mt-3 text-3xl font-bold text-slate-900">Add New AD</h1>
+    <p class="mt-2 text-sm text-slate-500">
+      Create one Airworthiness Directive using the existing AD source-data fields.
+    </p>
+  </div>
+
+  <% if (errors && errors.length) { %>
+    <div class="rounded border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-700">
+      <% errors.forEach((error) => { %>
+        <p><%= error %></p>
+      <% }) %>
+    </div>
+  <% } %>
+
+  <form method="POST" action="/library/ads" class="grid gap-4 rounded-xl border bg-white p-6 shadow-sm md:grid-cols-2">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+
+    <label class="block">
+      <span class="text-xs font-bold uppercase tracking-widest text-slate-600">AD Number *</span>
+      <input name="ad_number" value="<%= form.ad_number || '' %>" required class="mt-1 w-full rounded border px-3 py-2 text-sm">
+    </label>
+
+    <label class="block">
+      <span class="text-xs font-bold uppercase tracking-widest text-slate-600">Revision</span>
+      <input name="revision" value="<%= form.revision || '' %>" class="mt-1 w-full rounded border px-3 py-2 text-sm">
+    </label>
+
+    <label class="block md:col-span-2">
+      <span class="text-xs font-bold uppercase tracking-widest text-slate-600">Title / Subject *</span>
+      <input name="subject_heading" value="<%= form.subject_heading || '' %>" required class="mt-1 w-full rounded border px-3 py-2 text-sm">
+    </label>
+
+    <label class="block">
+      <span class="text-xs font-bold uppercase tracking-widest text-slate-600">Effective Date</span>
+      <input type="date" name="effective_date" value="<%= form.effective_date || '' %>" class="mt-1 w-full rounded border px-3 py-2 text-sm">
+    </label>
+
+    <label class="block">
+      <span class="text-xs font-bold uppercase tracking-widest text-slate-600">Issuing Authority</span>
+      <input name="authority" value="<%= form.authority || '' %>" class="mt-1 w-full rounded border px-3 py-2 text-sm">
+    </label>
+
+    <label class="block">
+      <span class="text-xs font-bold uppercase tracking-widest text-slate-600">Make</span>
+      <input name="make" value="<%= form.make || '' %>" class="mt-1 w-full rounded border px-3 py-2 text-sm">
+    </label>
+
+    <label class="block">
+      <span class="text-xs font-bold uppercase tracking-widest text-slate-600">Model</span>
+      <input name="model" value="<%= form.model || '' %>" class="mt-1 w-full rounded border px-3 py-2 text-sm">
+    </label>
+
+    <label class="block">
+      <span class="text-xs font-bold uppercase tracking-widest text-slate-600">Status</span>
+      <select name="status" class="mt-1 w-full rounded border px-3 py-2 text-sm">
+        <% ['ACTIVE', 'SUPERSEDED', 'CANCELLED', 'DRAFT', 'ARCHIVED'].forEach((status) => { %>
+          <option value="<%= status %>" <%= (form.status || 'ACTIVE') === status ? 'selected' : '' %>><%= status %></option>
+        <% }) %>
+      </select>
+    </label>
+
+    <label class="block">
+      <span class="text-xs font-bold uppercase tracking-widest text-slate-600">Interval Hours</span>
+      <input type="number" min="0" step="1" name="interval_hours" value="<%= form.interval_hours || '' %>" class="mt-1 w-full rounded border px-3 py-2 text-sm">
+    </label>
+
+    <label class="block">
+      <span class="text-xs font-bold uppercase tracking-widest text-slate-600">Interval Months</span>
+      <input type="number" min="0" step="1" name="interval_months" value="<%= form.interval_months || '' %>" class="mt-1 w-full rounded border px-3 py-2 text-sm">
+    </label>
+
+    <label class="block md:col-span-2">
+      <span class="text-xs font-bold uppercase tracking-widest text-slate-600">Notes / Summary</span>
+      <textarea name="summary" rows="4" class="mt-1 w-full rounded border px-3 py-2 text-sm"><%= form.summary || '' %></textarea>
+    </label>
+
+    <div class="md:col-span-2 flex justify-end gap-3">
+      <a href="/library/ads" class="rounded border border-slate-300 bg-white px-4 py-2 text-sm font-bold text-slate-800 hover:bg-slate-100">Cancel</a>
+      <button type="submit" class="rounded bg-slate-800 px-4 py-2 text-sm font-bold text-white hover:bg-black">Create AD</button>
+    </div>
+  </form>
+</main>
+
+<%- include('../../partials/footer') %>

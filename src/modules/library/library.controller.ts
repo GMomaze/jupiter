@@ -18,6 +18,12 @@ function getMigrationDryRunFilters(source: Record<string, any>) {
   };
 }
 
+function getManualCreateForm(source: Record<string, any> = {}) {
+  return Object.fromEntries(
+    Object.entries(source).map(([key, value]) => [key, String(value ?? '')])
+  );
+}
+
 export class LibraryController {
   /**
    * GET /library
@@ -47,6 +53,28 @@ export class LibraryController {
     });
   }
 
+  static renderAdCreateForm(_req: Request, res: Response): void {
+    res.render('library/ads/new', {
+      title: 'Add New Airworthiness Directive',
+      form: getManualCreateForm(),
+      errors: [],
+    });
+  }
+
+  static async createAirworthinessDirective(req: Request, res: Response): Promise<void> {
+    try {
+      await LibraryService.createAirworthinessDirective(req.body || {});
+      req.flash('success', `Airworthiness Directive ${String(req.body?.ad_number || '').trim()} created.`);
+      res.redirect('/library/ads');
+    } catch (error: any) {
+      res.status(400).render('library/ads/new', {
+        title: 'Add New Airworthiness Directive',
+        form: getManualCreateForm(req.body || {}),
+        errors: [error?.message || 'Unable to create Airworthiness Directive.'],
+      });
+    }
+  }
+
   static async renderSbList(_req: Request, res: Response): Promise<void> {
     const bulletins = await LibraryService.getServiceBulletins();
 
@@ -54,6 +82,28 @@ export class LibraryController {
       title: 'Service Bulletins',
       bulletins,
     });
+  }
+
+  static renderSbCreateForm(_req: Request, res: Response): void {
+    res.render('library/sbs/new', {
+      title: 'Add New SB / SL / SI',
+      form: getManualCreateForm({ category: 'SB', compliance_type: 'MANUAL', status: 'ACTIVE' }),
+      errors: [],
+    });
+  }
+
+  static async createLibraryServiceBulletin(req: Request, res: Response): Promise<void> {
+    try {
+      await LibraryService.createLibraryServiceBulletin(req.body || {});
+      req.flash('success', `Service document ${String(req.body?.reference || req.body?.sb_number || '').trim()} created.`);
+      res.redirect('/library/sbs');
+    } catch (error: any) {
+      res.status(400).render('library/sbs/new', {
+        title: 'Add New SB / SL / SI',
+        form: getManualCreateForm(req.body || {}),
+        errors: [error?.message || 'Unable to create service document.'],
+      });
+    }
   }
 
   static async renderSbModelAllocationIssues(req: Request, res: Response): Promise<void> {
@@ -200,6 +250,28 @@ export class LibraryController {
       title: 'Supplemental Inspection Documents',
       sids,
     });
+  }
+
+  static renderSidCreateForm(_req: Request, res: Response): void {
+    res.render('library/sids/new', {
+      title: 'Add New SID',
+      form: getManualCreateForm({ is_active: 'true' }),
+      errors: [],
+    });
+  }
+
+  static async createSupplementalInspectionDocument(req: Request, res: Response): Promise<void> {
+    try {
+      await LibraryService.createSupplementalInspectionDocument(req.body || {});
+      req.flash('success', `SID ${String(req.body?.reference || '').trim()} created.`);
+      res.redirect('/library/sids');
+    } catch (error: any) {
+      res.status(400).render('library/sids/new', {
+        title: 'Add New SID',
+        form: getManualCreateForm(req.body || {}),
+        errors: [error?.message || 'Unable to create SID.'],
+      });
+    }
   }
 
   static async renderSidDetail(req: Request, res: Response): Promise<void> {
