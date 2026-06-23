@@ -108,7 +108,7 @@ ServiceBulletin.init(
     compliance_type: {
       type: DataTypes.STRING,
       allowNull: false,
-      defaultValue: 'MANUAL',
+      defaultValue: 'REQUIRED',
       field: 'compliance_requirement',
     },
     source_primary: {
@@ -174,7 +174,7 @@ ServiceBulletin.init(
         }
 
         if (!instance.compliance_type) {
-          instance.compliance_type = 'MANUAL';
+          instance.compliance_type = 'REQUIRED';
         }
 
         if (!instance.source_primary) {

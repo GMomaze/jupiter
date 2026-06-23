@@ -37,10 +37,15 @@ export class VeryonAdapter {
   private static mapCompliance(label: string) {
     const normalized = label.trim().toUpperCase();
 
-    if (normalized === 'MANDATORY') return 'MANDATORY' as const;
-    if (normalized === 'OPTIONAL') return 'OPTIONAL' as const;
+    if (normalized.includes('MANDATORY') || normalized.includes('ALERT') || normalized.includes('EMERGENCY')) {
+      return 'MANDATORY' as const;
+    }
 
-    return 'MANUAL' as const;
+    if (normalized.includes('OPTIONAL')) {
+      return 'OPTIONAL' as const;
+    }
+
+    return 'REQUIRED' as const;
   }
 
   private static parseDate(value: string) {

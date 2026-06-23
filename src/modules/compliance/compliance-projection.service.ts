@@ -40,6 +40,7 @@ const COMPLIANCE_BASIS_VALUES = new Set([
   'MANDATORY',
   'RECOMMENDED',
   'MANUAL',
+  'REQUIRED',
 ]);
 
 function normalizeString(value: unknown) {
@@ -146,7 +147,7 @@ async function createSbProjection(
     source_table: definition.source_table ? 'service_bulletins' : undefined,
     source_type: 'SB',
     source_id: bulletin.id,
-    compliance_basis: normalizeComplianceBasis(bulletin.compliance_type, 'MANUAL'),
+    compliance_basis: normalizeComplianceBasis(bulletin.compliance_type, 'REQUIRED'),
     status: normalizeComplianceStatus(bulletin.status),
   };
 

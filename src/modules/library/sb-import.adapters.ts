@@ -353,8 +353,22 @@ function normalizePiperClassification(rawClassification: string) {
   return 'RECOMMENDED';
 }
 
+function normalizeServiceBulletinComplianceRequirement(value: unknown) {
+  const compact = normalizeCompact(value);
+
+  if (compact.includes('MANDATORY') || compact.includes('ALERT') || compact.includes('EMERGENCY')) {
+    return 'MANDATORY';
+  }
+
+  if (compact.includes('OPTIONAL')) {
+    return 'OPTIONAL';
+  }
+
+  return 'REQUIRED';
+}
+
 function mapPiperClassificationToComplianceRequirement(classification: string) {
-  if (classification === 'MANDATORY' || classification === 'REQUIRED') {
+  if (classification === 'MANDATORY') {
     return 'MANDATORY';
   }
 
@@ -366,7 +380,7 @@ function mapPiperClassificationToComplianceRequirement(classification: string) {
     return 'OPTIONAL';
   }
 
-  return 'MANUAL';
+  return 'REQUIRED';
 }
 
 function buildRawSourceText(headers: string[], row: string[]) {
@@ -540,6 +554,11 @@ function previewGenericCsv(fileName: string, matrix: string[][]): SbPreviewResul
 
       if (field === 'is_active') {
         values.is_active = parseOptionalBoolean(rawValue, errors);
+        return;
+      }
+
+      if (field === 'compliance_requirement') {
+        values.compliance_requirement = normalizeServiceBulletinComplianceRequirement(rawValue);
         return;
       }
 

@@ -259,9 +259,9 @@
           Compliance Class
         </label>
         <select name="compliance_type" class="w-full rounded border px-3 py-2 text-sm">
-          <option value="MANUAL" <%= values.compliance_type === 'MANUAL' ? 'selected' : '' %>>Manual</option>
-          <option value="MANDATORY" <%= values.compliance_type === 'MANDATORY' ? 'selected' : '' %>>Mandatory</option>
-          <option value="OPTIONAL" <%= values.compliance_type === 'OPTIONAL' ? 'selected' : '' %>>Optional</option>
+          <option value="MANDATORY" <%= values.compliance_type === 'MANDATORY' ? 'selected' : '' %>>MANDATORY</option>
+          <option value="REQUIRED" <%= (values.compliance_type || 'REQUIRED') === 'REQUIRED' ? 'selected' : '' %>>REQUIRED</option>
+          <option value="OPTIONAL" <%= values.compliance_type === 'OPTIONAL' ? 'selected' : '' %>>OPTIONAL</option>
         </select>
       </div>
 

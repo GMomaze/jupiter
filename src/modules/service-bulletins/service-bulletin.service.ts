@@ -12,12 +12,26 @@ export class ServiceBulletinService {
   private static hasLoggedSyncRunSchemaGap = false;
 
   private static compliancePriority(value: string | null | undefined) {
-    const normalized = (value || 'MANUAL').toUpperCase();
+    const normalized = (value || 'REQUIRED').toUpperCase();
 
     if (normalized === 'MANDATORY') return 0;
-    if (normalized === 'MANUAL') return 1;
+    if (normalized === 'REQUIRED') return 1;
     if (normalized === 'OPTIONAL') return 2;
     return 3;
+  }
+
+  private static normalizeComplianceType(value: string | null | undefined) {
+    const normalized = String(value ?? '').trim().toUpperCase();
+
+    if (normalized.includes('MANDATORY') || normalized.includes('ALERT') || normalized.includes('EMERGENCY')) {
+      return 'MANDATORY';
+    }
+
+    if (normalized.includes('OPTIONAL')) {
+      return 'OPTIONAL';
+    }
+
+    return 'REQUIRED';
   }
 
   private static sortBulletins<T extends { compliance_type?: string | null; sb_number: string }>(
@@ -197,7 +211,8 @@ export class ServiceBulletinService {
 
       await existing.update({
         title: existing.title || data.title?.trim() || normalizedSbNumber,
-        compliance_type: existing.compliance_type || data.compliance_type || 'MANUAL',
+        compliance_type:
+          existing.compliance_type || this.normalizeComplianceType(data.compliance_type),
         revision: existing.revision || data.revision?.trim() || null,
         document_url: existing.document_url || data.document_url?.trim() || null,
         description: existing.description || data.description?.trim() || null,
@@ -210,7 +225,7 @@ export class ServiceBulletinService {
     const created = await ServiceBulletin.create({
       sb_number: normalizedSbNumber,
       title: data.title?.trim() || normalizedSbNumber,
-      compliance_type: data.compliance_type || 'MANUAL',
+      compliance_type: this.normalizeComplianceType(data.compliance_type),
       source_primary: 'MANUAL',
       source_refs: [
         {

@@ -295,7 +295,7 @@ export class PiperPdfAdapter {
           sb_number: bulletin.sbNumber,
           title: bulletin.title,
           model_id: model.id,
-          compliance_type: 'MANUAL',
+          compliance_type: 'REQUIRED',
           revision: null,
           document_url: pdfPath,
           description: `Imported from Piper PDF index: ${pdfPath}`,

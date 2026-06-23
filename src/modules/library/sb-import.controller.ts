@@ -113,6 +113,20 @@ function normalizeOptionalText(value: string) {
   return normalized || null;
 }
 
+function normalizeServiceBulletinComplianceRequirement(value: unknown) {
+  const normalized = normalizeString(value).toUpperCase();
+
+  if (normalized.includes('MANDATORY') || normalized.includes('ALERT') || normalized.includes('EMERGENCY')) {
+    return 'MANDATORY';
+  }
+
+  if (normalized.includes('OPTIONAL')) {
+    return 'OPTIONAL';
+  }
+
+  return 'REQUIRED';
+}
+
 function buildDuplicateKey(manufacturer: string, reference: string, revision: string) {
   return [
     normalizeString(manufacturer).toUpperCase(),
@@ -590,8 +604,9 @@ async function insertServiceBulletinRow(
   );
   const applicabilityNotes = normalizeOptionalText(row.values.applicability_notes);
   const summary = normalizeOptionalText(row.values.summary);
-  const complianceRequirement =
-    normalizeOptionalText(row.values.compliance_requirement) || 'MANUAL';
+  const complianceRequirement = normalizeServiceBulletinComplianceRequirement(
+    row.values.compliance_requirement
+  );
   const sourceFile = normalizeOptionalText(row.values.source_file);
   const sourceFormat =
     normalizeOptionalText(row.values.source_format) || preview.adapterUsed;

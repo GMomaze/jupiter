@@ -215,12 +215,26 @@ export class LibraryService {
   }
 
   private static compliancePriority(value: string | null | undefined) {
-    const normalized = (value || 'MANUAL').toUpperCase();
+    const normalized = (value || 'REQUIRED').toUpperCase();
 
     if (normalized === 'MANDATORY') return 0;
-    if (normalized === 'MANUAL') return 1;
+    if (normalized === 'REQUIRED') return 1;
     if (normalized === 'OPTIONAL') return 2;
     return 3;
+  }
+
+  private static normalizeServiceBulletinCompliance(value: unknown) {
+    const normalized = String(value ?? '').trim().toUpperCase();
+
+    if (normalized.includes('MANDATORY') || normalized.includes('ALERT') || normalized.includes('EMERGENCY')) {
+      return 'MANDATORY';
+    }
+
+    if (normalized.includes('OPTIONAL')) {
+      return 'OPTIONAL';
+    }
+
+    return 'REQUIRED';
   }
 
   private static pickFirstValue(record: Record<string, unknown>, keys: string[]) {
@@ -890,7 +904,7 @@ export class LibraryService {
       title,
       revision,
       issued_on: this.normalizeOptionalDate(data.issued_on, 'Issue date'),
-      compliance_type: this.normalizeOptionalString(data.compliance_type) || 'MANUAL',
+      compliance_type: this.normalizeServiceBulletinCompliance(data.compliance_type),
       document_url: this.normalizeOptionalString(data.document_url),
       description: this.normalizeOptionalString(data.description),
       applicability_make: this.normalizeOptionalString(data.applicability_make),
@@ -4058,7 +4072,9 @@ export class LibraryService {
         title: existing.title || data.title,
         description: existing.description || data.description || null,
         issued_on: existing.issued_on || data.issued_on || null,
-        compliance_type: existing.compliance_type || data.compliance_type || 'MANUAL',
+        compliance_type:
+          existing.compliance_type ||
+          this.normalizeServiceBulletinCompliance(data.compliance_type),
         revision: existing.revision || data.revision?.trim() || null,
         document_url: existing.document_url || data.document_url?.trim() || null,
       });
@@ -4076,7 +4092,7 @@ export class LibraryService {
         title: data.title,
         description: data.description ?? null,
         issued_on: data.issued_on || null,
-        compliance_type: data.compliance_type || 'MANUAL',
+        compliance_type: this.normalizeServiceBulletinCompliance(data.compliance_type),
         status: 'ACTIVE',
         revision: data.revision?.trim() || null,
         document_url: data.document_url?.trim() || null,
@@ -4133,7 +4149,7 @@ export class LibraryService {
           sb_number: sbNumber,
           title,
           description,
-          compliance_type: entry.compliance_type?.trim() || 'MANUAL',
+          compliance_type: this.normalizeServiceBulletinCompliance(entry.compliance_type),
           issued_on: entry.issued_on?.trim() || undefined,
           revision: entry.revision?.trim() || undefined,
           document_url: entry.document_url?.trim() || undefined,

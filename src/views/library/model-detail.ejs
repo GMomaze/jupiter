@@ -314,7 +314,7 @@
                       <%= sb.title || sb.description || '-' %>
                     </td>
                     <td class="px-3 py-3 align-top text-sm text-slate-700">
-                      <%= sb.compliance_type || 'MANUAL' %>
+                      <%= sb.compliance_type || 'REQUIRED' %>
                     </td>
                     <td class="px-3 py-3 align-top text-sm text-slate-500">
                       <%= (sb.ApplicableModels || []).map((entry) => formatModelDisplay(entry)).join(', ') || '-' %>
@@ -550,9 +550,9 @@
                   </td>
                   <td class="p-2 align-top">
                     <select name="compliance_type" class="w-40 rounded border px-2 py-2 text-sm">
-                      <option value="MANDATORY">Mandatory</option>
-                      <option value="MANUAL" selected>Recommended</option>
-                      <option value="OPTIONAL">Optional</option>
+                      <option value="MANDATORY">MANDATORY</option>
+                      <option value="REQUIRED" selected>REQUIRED</option>
+                      <option value="OPTIONAL">OPTIONAL</option>
                     </select>
                   </td>
                   <td class="p-2 align-top">
@@ -659,9 +659,9 @@
         </td>
         <td class="p-2 align-top">
           <select name="compliance_type" class="w-40 rounded border px-2 py-2 text-sm">
-            <option value="MANDATORY">Mandatory</option>
-            <option value="MANUAL" selected>Recommended</option>
-            <option value="OPTIONAL">Optional</option>
+            <option value="MANDATORY">MANDATORY</option>
+            <option value="REQUIRED" selected>REQUIRED</option>
+            <option value="OPTIONAL">OPTIONAL</option>
           </select>
         </td>
         <td class="p-2 align-top">

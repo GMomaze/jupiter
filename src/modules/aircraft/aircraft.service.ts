@@ -51,7 +51,7 @@ export class AircraftService {
   ]);
   private static readonly serviceBulletinPriority: Record<string, number> = {
     MANDATORY: 0,
-    MANUAL: 1,
+    REQUIRED: 1,
     OPTIONAL: 2
   };
 
@@ -565,7 +565,7 @@ export class AircraftService {
         asset_type: matchingModel?.AssetType?.code || null,
         source_primary: bulletin.source_primary || 'MANUAL',
         source_refs: bulletin.source_refs || [],
-        compliance_type: bulletin.compliance_type || 'MANUAL',
+        compliance_type: bulletin.compliance_type || 'REQUIRED',
         status: compliance?.status || 'OPEN',
         description: bulletin.description || null,
         document_url: bulletin.document_url || null,
