@@ -31,609 +31,704 @@
     <a href="/library" class="text-sm text-blue-600 hover:underline">Back to Library</a>
   </div>
 
-  <section class="bg-white border rounded-xl p-6 shadow-sm">
-    <h1 class="text-3xl font-bold text-slate-900"><%= formatModelDisplay(model || {}) %></h1>
-    <p class="mt-2 text-sm text-slate-500">
-      Manufacturer: <%= model?.Manufacturer?.name || '-' %>
-      |
-      Asset Type: <%= model?.AssetType?.code || '-' %>
-    </p>
-    <div class="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-      <div class="rounded-lg bg-slate-50 p-3">
-        <div class="text-[10px] font-bold uppercase tracking-widest text-slate-500">Applicability / OEM Model Code</div>
-        <div class="mt-1 text-sm font-semibold text-slate-900"><%= model?.model_code || '-' %></div>
-      </div>
-      <div class="rounded-lg bg-slate-50 p-3">
-        <div class="text-[10px] font-bold uppercase tracking-widest text-slate-500">Service Interval</div>
-        <div class="mt-1 text-sm font-semibold text-slate-900"><%= model?.service_interval_hours ?? '-' %> hrs / <%= model?.service_interval_months ?? '-' %> months</div>
-      </div>
-      <div class="rounded-lg bg-slate-50 p-3">
-        <div class="text-[10px] font-bold uppercase tracking-widest text-slate-500">Overhaul Interval</div>
-        <div class="mt-1 text-sm font-semibold text-slate-900"><%= model?.overhaul_interval_hours ?? '-' %> hrs / <%= model?.overhaul_interval_months ?? '-' %> months</div>
-      </div>
-      <div class="rounded-lg bg-slate-50 p-3">
-        <div class="text-[10px] font-bold uppercase tracking-widest text-slate-500">Life Limited</div>
-        <div class="mt-1 text-sm font-semibold text-slate-900"><%= model?.is_life_limited ? 'Yes' : 'No' %></div>
-      </div>
+  <section class="space-y-4">
+    <div class="border-b border-slate-200">
+      <nav class="-mb-px flex flex-wrap gap-2" aria-label="Component model detail tabs">
+        <button
+          type="button"
+          class="component-model-tab rounded-t-lg border border-b-white border-slate-200 bg-white px-4 py-2 text-sm font-bold text-slate-900"
+          data-component-model-tab="identity"
+          aria-controls="component-model-tab-identity"
+          aria-selected="true"
+        >
+          Identity
+        </button>
+        <button
+          type="button"
+          class="component-model-tab rounded-t-lg border border-transparent px-4 py-2 text-sm font-semibold text-slate-500 hover:border-slate-200 hover:text-slate-900"
+          data-component-model-tab="planning"
+          aria-controls="component-model-tab-planning"
+          aria-selected="false"
+        >
+          Planning Data
+        </button>
+        <button
+          type="button"
+          class="component-model-tab rounded-t-lg border border-transparent px-4 py-2 text-sm font-semibold text-slate-500 hover:border-slate-200 hover:text-slate-900"
+          data-component-model-tab="compliance"
+          aria-controls="component-model-tab-compliance"
+          aria-selected="false"
+        >
+          Compliance Data
+        </button>
+        <button
+          type="button"
+          class="component-model-tab rounded-t-lg border border-transparent px-4 py-2 text-sm font-semibold text-slate-500 hover:border-slate-200 hover:text-slate-900"
+          data-component-model-tab="maintenance-requirements"
+          aria-controls="component-model-tab-maintenance-requirements"
+          aria-selected="false"
+        >
+          Maintenance Requirements
+        </button>
+        <button
+          type="button"
+          class="component-model-tab rounded-t-lg border border-transparent px-4 py-2 text-sm font-semibold text-slate-500 hover:border-slate-200 hover:text-slate-900"
+          data-component-model-tab="standard-tasks"
+          aria-controls="component-model-tab-standard-tasks"
+          aria-selected="false"
+        >
+          Standard Tasks
+        </button>
+      </nav>
     </div>
-    <% if (model?.maintenance_notes) { %>
-      <p class="mt-4 text-sm text-slate-600"><%= model.maintenance_notes %></p>
-    <% } %>
-  </section>
 
-  <section class="space-y-8">
-    <div class="bg-white border rounded-xl p-6 shadow-sm">
-      <h2 class="text-lg font-bold text-slate-900 mb-4">Maintenance Requirements</h2>
-      <% if (!requirements || requirements.length === 0) { %>
-        <p class="text-sm text-slate-500 italic">No maintenance requirements loaded.</p>
-      <% } %>
-
-      <div class="space-y-3">
-        <% requirements.forEach(requirement => { %>
-          <div class="rounded-lg border p-4">
-            <p class="font-semibold text-slate-900"><%= requirement.title %></p>
-            <p class="text-sm text-slate-500">
-              <%= requirement.interval_hours || '-' %> hrs / <%= requirement.interval_months || '-' %> months
-            </p>
+    <div id="component-model-tab-identity" class="component-model-tab-panel" data-component-model-tab-panel="identity">
+      <section class="bg-white border rounded-xl p-6 shadow-sm">
+        <h1 class="text-3xl font-bold text-slate-900"><%= formatModelDisplay(model || {}) %></h1>
+        <p class="mt-2 text-sm text-slate-500">
+          Manufacturer: <%= model?.Manufacturer?.name || '-' %>
+          |
+          Asset Type: <%= model?.AssetType?.code || '-' %>
+        </p>
+        <div class="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <div class="rounded-lg bg-slate-50 p-3">
+            <div class="text-[10px] font-bold uppercase tracking-widest text-slate-500">Applicability / OEM Model Code</div>
+            <div class="mt-1 text-sm font-semibold text-slate-900"><%= model?.model_code || '-' %></div>
           </div>
-        <% }) %>
-      </div>
+          <div class="rounded-lg bg-slate-50 p-3">
+            <div class="text-[10px] font-bold uppercase tracking-widest text-slate-500">Service Interval</div>
+            <div class="mt-1 text-sm font-semibold text-slate-900"><%= model?.service_interval_hours ?? '-' %> hrs / <%= model?.service_interval_months ?? '-' %> months</div>
+          </div>
+          <div class="rounded-lg bg-slate-50 p-3">
+            <div class="text-[10px] font-bold uppercase tracking-widest text-slate-500">Overhaul Interval</div>
+            <div class="mt-1 text-sm font-semibold text-slate-900"><%= model?.overhaul_interval_hours ?? '-' %> hrs / <%= model?.overhaul_interval_months ?? '-' %> months</div>
+          </div>
+          <div class="rounded-lg bg-slate-50 p-3">
+            <div class="text-[10px] font-bold uppercase tracking-widest text-slate-500">Life Limited</div>
+            <div class="mt-1 text-sm font-semibold text-slate-900"><%= model?.is_life_limited ? 'Yes' : 'No' %></div>
+          </div>
+        </div>
+        <% if (model?.maintenance_notes) { %>
+          <p class="mt-4 text-sm text-slate-600"><%= model.maintenance_notes %></p>
+        <% } %>
+      </section>
     </div>
 
-    <div class="bg-white border rounded-xl p-6 shadow-sm">
-      <h2 class="text-lg font-bold text-slate-900 mb-4">Airworthiness Directives</h2>
+    <div id="component-model-tab-planning" class="component-model-tab-panel hidden" data-component-model-tab-panel="planning">
+      <section class="bg-white border rounded-xl p-6 shadow-sm">
+        <h2 class="text-lg font-bold text-slate-900 mb-4">Model Planning Data</h2>
 
-      <% if (!assignableAds || assignableAds.length === 0) { %>
-        <p class="mb-6 text-sm text-slate-500 italic">No additional ADs are available to assign to this model.</p>
-      <% } else { %>
-        <form method="POST" action="/library/model/<%= model.id %>/airworthiness-directives/assign" class="mb-8 space-y-4">
+        <form method="POST" action="/library/model/<%= model.id %>/update" class="space-y-3 mb-8">
           <input type="hidden" name="_csrf" value="<%= csrfToken %>">
 
-          <div class="max-h-80 overflow-y-auto rounded-lg border">
-            <table class="min-w-full divide-y divide-slate-200">
-              <thead class="bg-slate-50">
-                <tr>
-                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Use</th>
-                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">AD Number</th>
-                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Subject</th>
-                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Status</th>
-                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Effective</th>
-                </tr>
-              </thead>
-              <tbody class="divide-y divide-slate-100 bg-white">
-                <% assignableAds.forEach((directive) => { %>
-                  <tr>
-                    <td class="px-3 py-3 align-top">
-                      <input type="checkbox" name="airworthiness_directive_ids" value="<%= directive.id %>" class="rounded border-slate-300">
-                    </td>
-                    <td class="px-3 py-3 align-top text-sm font-semibold text-slate-900"><%= directive.ad_number || '-' %></td>
-                    <td class="px-3 py-3 align-top text-sm text-slate-700"><%= directive.subject_heading || '-' %></td>
-                    <td class="px-3 py-3 align-top text-xs text-slate-700"><%= directive.status || '-' %></td>
-                    <td class="px-3 py-3 align-top text-xs text-slate-700"><%= directive.effective_date || '-' %></td>
-                  </tr>
-                <% }) %>
-              </tbody>
-            </table>
-          </div>
-
-          <button type="submit" class="rounded bg-slate-800 px-4 py-2 text-sm font-bold text-white hover:bg-black">
-            Assign Selected ADs
-          </button>
-        </form>
-      <% } %>
-
-      <% if (!assignedAds || assignedAds.length === 0) { %>
-        <p class="text-sm text-slate-500 italic">No ADs assigned to this model.</p>
-      <% } else { %>
-        <div class="overflow-x-auto rounded-lg border">
-          <table class="min-w-full divide-y divide-slate-200">
-            <thead class="bg-slate-50">
-              <tr>
-                <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">AD Number</th>
-                <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Subject</th>
-                <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Make</th>
-                <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Model</th>
-              </tr>
-            </thead>
-            <tbody class="divide-y divide-slate-100 bg-white">
-              <% assignedAds.forEach((directive) => { %>
-                <tr>
-                  <td class="px-3 py-3 align-top text-sm font-semibold text-slate-900"><%= directive.ad_number || '-' %></td>
-                  <td class="px-3 py-3 align-top text-sm text-slate-700"><%= directive.subject_heading || '-' %></td>
-                  <td class="px-3 py-3 align-top text-xs text-slate-700"><%= directive.make || '-' %></td>
-                  <td class="px-3 py-3 align-top text-xs text-slate-700"><%= directive.model || '-' %></td>
-                </tr>
-              <% }) %>
-            </tbody>
-          </table>
-        </div>
-      <% } %>
-    </div>
-
-    <div class="bg-white border rounded-xl p-6 shadow-sm">
-      <h2 class="text-lg font-bold text-slate-900 mb-4">Structural Inspection Directives</h2>
-
-      <form
-        method="POST"
-        action="/library/model/<%= model.id %>/sids/import?_csrf=<%= encodeURIComponent(csrfToken) %>"
-        enctype="multipart/form-data"
-        class="mb-8 rounded-lg border border-slate-200 bg-slate-50 p-4 space-y-4"
-      >
-        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-        <div>
-          <p class="text-sm font-semibold text-slate-900">Load SID CSV</p>
-          <p class="mt-1 text-sm text-slate-500">
-            Import SID rows for this model. Duplicate summaries already linked to this model are skipped automatically.
-          </p>
-        </div>
-        <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
           <input
-            type="file"
-            name="sid_csv"
-            accept=".csv,text/csv"
+            type="text"
+            name="model_name"
+            value="<%= model.model_name || '' %>"
+            placeholder="Display / Common Name"
             required
-            class="block w-full rounded border bg-white px-3 py-2 text-sm text-slate-700"
+            class="w-full border rounded px-3 py-2 text-sm"
           >
-          <button
-            type="submit"
-            class="rounded bg-slate-800 px-4 py-2 text-sm font-bold text-white hover:bg-black"
+          <input
+            type="text"
+            name="model_code"
+            value="<%= model.model_code || '' %>"
+            placeholder="Applicability / OEM Model Code"
+            class="w-full border rounded px-3 py-2 text-sm"
           >
-            Import SID CSV
-          </button>
-        </div>
-        <p class="text-xs text-slate-500">
-          Supported headers include `sid_number`, `summary` or `title`, plus optional ATA, section, hour, month, operation, and source columns.
-        </p>
-      </form>
-
-      <% if (!assignableSids || assignableSids.length === 0) { %>
-        <p class="mb-6 text-sm text-slate-500 italic">No additional SIDs are available to assign to this model.</p>
-      <% } else { %>
-        <form method="POST" action="/library/model/<%= model.id %>/sids/assign" class="mb-8 space-y-4">
-          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-
-          <div class="max-h-80 overflow-y-auto rounded-lg border">
-            <table class="min-w-full divide-y divide-slate-200">
-              <thead class="bg-slate-50">
-                <tr>
-                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Use</th>
-                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">SID</th>
-                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Title</th>
-                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Category</th>
-                </tr>
-              </thead>
-              <tbody class="divide-y divide-slate-100 bg-white">
-                <% assignableSids.forEach((sid) => { %>
-                  <tr>
-                    <td class="px-3 py-3 align-top">
-                      <input type="checkbox" name="sid_ids" value="<%= sid.id %>" class="rounded border-slate-300">
-                    </td>
-                    <td class="px-3 py-3 align-top text-sm font-semibold text-slate-900"><%= sid.reference || '-' %></td>
-                    <td class="px-3 py-3 align-top text-sm text-slate-700"><%= sid.title || '-' %></td>
-                    <td class="px-3 py-3 align-top text-xs text-slate-700"><%= sid.category || '-' %></td>
-                  </tr>
-                <% }) %>
-              </tbody>
-            </table>
-          </div>
-
-          <button type="submit" class="rounded bg-slate-800 px-4 py-2 text-sm font-bold text-white hover:bg-black">
-            Assign Selected SIDs
-          </button>
-        </form>
-      <% } %>
-
-      <% if (!sids || sids.length === 0) { %>
-        <p class="mb-8 text-sm text-slate-500 italic">No SIDs loaded for this model yet.</p>
-      <% } else { %>
-        <div class="mb-8 overflow-x-auto rounded-lg border">
-          <table class="min-w-full divide-y divide-slate-200">
-            <thead class="bg-slate-50">
-              <tr>
-                <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">SID</th>
-                <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Summary</th>
-                <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">ATA</th>
-                <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Section</th>
-                <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Repeat</th>
-              </tr>
-            </thead>
-            <tbody class="divide-y divide-slate-100 bg-white">
-              <% sids.forEach((sid) => { %>
-                <tr>
-                  <td class="px-3 py-3 align-top text-sm font-semibold text-slate-900">
-                    <%= sid.reference || sid.sid_number || '-' %>
-                  </td>
-                  <td class="px-3 py-3 align-top text-sm text-slate-700">
-                    <%= sid.title || '-' %>
-                  </td>
-                  <td class="px-3 py-3 align-top text-sm text-slate-700">
-                    <%= sid.ata_chapter || '-' %>
-                  </td>
-                  <td class="px-3 py-3 align-top text-sm text-slate-700">
-                    <%= sid.section_reference || '-' %>
-                  </td>
-                  <td class="px-3 py-3 align-top text-sm text-slate-700">
-                    <%= sid.repeat_interval_hours ?? '-' %> hrs / <%= sid.repeat_interval_months ?? '-' %> months
-                  </td>
-                </tr>
-              <% }) %>
-            </tbody>
-          </table>
-        </div>
-      <% } %>
-
-      <h2 class="text-lg font-bold text-slate-900 mb-4">Attach Existing Service Bulletins</h2>
-
-      <% if (!attachableServiceBulletins || attachableServiceBulletins.length === 0) { %>
-        <p class="mb-8 text-sm text-slate-500 italic">
-          No additional relevant service bulletins are available to attach for this model.
-        </p>
-      <% } else { %>
-        <form method="POST" action="/library/model/<%= model.id %>/service-bulletins/attach" class="mb-8 space-y-4">
-          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-
-          <div class="flex items-center justify-between gap-4">
-            <p class="text-sm text-slate-500">
-              Select existing SBs from the database to mark them as applicable to this model.
-            </p>
-            <button
-              type="button"
-              id="select-all-attachable-sbs"
-              class="rounded border border-slate-300 px-3 py-1.5 text-xs font-bold uppercase tracking-widest text-slate-700 hover:bg-slate-50"
+          <div class="grid grid-cols-2 gap-3">
+            <input
+              type="number"
+              step="0.01"
+              min="0"
+              name="service_interval_hours"
+              value="<%= model.service_interval_hours ?? '' %>"
+              placeholder="Service Hours"
+              class="w-full border rounded px-3 py-2 text-sm"
             >
-              Select All
-            </button>
+            <input
+              type="number"
+              min="0"
+              name="service_interval_months"
+              value="<%= model.service_interval_months ?? '' %>"
+              placeholder="Service Months"
+              class="w-full border rounded px-3 py-2 text-sm"
+            >
+            <input
+              type="number"
+              step="0.01"
+              min="0"
+              name="overhaul_interval_hours"
+              value="<%= model.overhaul_interval_hours ?? '' %>"
+              placeholder="Overhaul Hours"
+              class="w-full border rounded px-3 py-2 text-sm"
+            >
+            <input
+              type="number"
+              min="0"
+              name="overhaul_interval_months"
+              value="<%= model.overhaul_interval_months ?? '' %>"
+              placeholder="Overhaul Months"
+              class="w-full border rounded px-3 py-2 text-sm"
+            >
+            <input
+              type="number"
+              step="0.01"
+              min="0"
+              name="default_tbo_hours"
+              value="<%= model.default_tbo_hours ?? '' %>"
+              placeholder="Default TBO Hours"
+              class="w-full border rounded px-3 py-2 text-sm"
+            >
+            <input
+              type="number"
+              min="0"
+              name="default_tbo_months"
+              value="<%= model.default_tbo_months ?? '' %>"
+              placeholder="Default TBO Months"
+              class="w-full border rounded px-3 py-2 text-sm"
+            >
           </div>
-
-          <div class="max-h-80 overflow-y-auto rounded-lg border">
-            <table class="min-w-full divide-y divide-slate-200">
-              <thead class="bg-slate-50">
-                <tr>
-                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Use</th>
-                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">SB Number</th>
-                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Description</th>
-                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Compliance</th>
-                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Already On</th>
-                </tr>
-              </thead>
-              <tbody class="divide-y divide-slate-100 bg-white">
-                <% attachableServiceBulletins.forEach((sb) => { %>
-                  <tr>
-                    <td class="px-3 py-3 align-top">
-                      <input
-                        type="checkbox"
-                        name="service_bulletin_ids"
-                        value="<%= sb.id %>"
-                        class="attachable-sb-checkbox rounded border-slate-300"
-                      >
-                    </td>
-                    <td class="px-3 py-3 align-top text-sm font-semibold text-slate-900">
-                      <%= sb.sb_number %>
-                    </td>
-                    <td class="px-3 py-3 align-top text-sm text-slate-700">
-                      <%= sb.title || sb.description || '-' %>
-                    </td>
-                    <td class="px-3 py-3 align-top text-sm text-slate-700">
-                      <%= sb.compliance_type || 'REQUIRED' %>
-                    </td>
-                    <td class="px-3 py-3 align-top text-sm text-slate-500">
-                      <%= (sb.ApplicableModels || []).map((entry) => formatModelDisplay(entry)).join(', ') || '-' %>
-                    </td>
-                  </tr>
-                <% }) %>
-              </tbody>
-            </table>
-          </div>
-
+          <label class="flex items-center gap-2 text-sm text-slate-700">
+            <input
+              type="checkbox"
+              name="is_life_limited"
+              value="true"
+              <%= model.is_life_limited ? 'checked' : '' %>
+              class="rounded border-slate-300"
+            >
+            Life-limited model
+          </label>
+          <textarea
+            name="maintenance_notes"
+            rows="4"
+            placeholder="Maintenance notes"
+            class="w-full border rounded px-3 py-2 text-sm"
+          ><%= model.maintenance_notes || '' %></textarea>
           <button
             type="submit"
             class="rounded bg-slate-800 px-4 py-2 text-sm font-bold text-white hover:bg-black"
           >
-            Attach Selected SBs
+            Save Model Details
           </button>
         </form>
-      <% } %>
+      </section>
+    </div>
 
-      <h2 class="text-lg font-bold text-slate-900 mb-4">Standard Tasks</h2>
+    <div id="component-model-tab-compliance" class="component-model-tab-panel hidden" data-component-model-tab-panel="compliance">
+      <section class="space-y-8">
+        <div class="bg-white border rounded-xl p-6 shadow-sm">
+          <h2 class="text-lg font-bold text-slate-900 mb-4">Airworthiness Directives</h2>
 
-      <% if (!assignableStandardTasks || assignableStandardTasks.length === 0) { %>
-        <p class="mb-8 text-sm text-slate-500 italic">No additional standard tasks are available to assign to this model.</p>
-      <% } else { %>
-        <form method="POST" action="/library/model/<%= model.id %>/standard-tasks/assign" class="mb-8 space-y-4">
-          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+          <% if (!assignableAds || assignableAds.length === 0) { %>
+            <p class="mb-6 text-sm text-slate-500 italic">No additional ADs are available to assign to this model.</p>
+          <% } else { %>
+            <form method="POST" action="/library/model/<%= model.id %>/airworthiness-directives/assign" class="mb-8 space-y-4">
+              <input type="hidden" name="_csrf" value="<%= csrfToken %>">
 
-          <div class="max-h-80 overflow-y-auto rounded-lg border">
+              <div class="max-h-80 overflow-y-auto rounded-lg border">
+                <table class="min-w-full divide-y divide-slate-200">
+                  <thead class="bg-slate-50">
+                    <tr>
+                      <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Use</th>
+                      <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">AD Number</th>
+                      <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Subject</th>
+                      <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Status</th>
+                      <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Effective</th>
+                    </tr>
+                  </thead>
+                  <tbody class="divide-y divide-slate-100 bg-white">
+                    <% assignableAds.forEach((directive) => { %>
+                      <tr>
+                        <td class="px-3 py-3 align-top">
+                          <input type="checkbox" name="airworthiness_directive_ids" value="<%= directive.id %>" class="rounded border-slate-300">
+                        </td>
+                        <td class="px-3 py-3 align-top text-sm font-semibold text-slate-900"><%= directive.ad_number || '-' %></td>
+                        <td class="px-3 py-3 align-top text-sm text-slate-700"><%= directive.subject_heading || '-' %></td>
+                        <td class="px-3 py-3 align-top text-xs text-slate-700"><%= directive.status || '-' %></td>
+                        <td class="px-3 py-3 align-top text-xs text-slate-700"><%= directive.effective_date || '-' %></td>
+                      </tr>
+                    <% }) %>
+                  </tbody>
+                </table>
+              </div>
+
+              <button type="submit" class="rounded bg-slate-800 px-4 py-2 text-sm font-bold text-white hover:bg-black">
+                Assign Selected ADs
+              </button>
+            </form>
+          <% } %>
+
+          <% if (!assignedAds || assignedAds.length === 0) { %>
+            <p class="text-sm text-slate-500 italic">No ADs assigned to this model.</p>
+          <% } else { %>
+            <div class="overflow-x-auto rounded-lg border">
+              <table class="min-w-full divide-y divide-slate-200">
+                <thead class="bg-slate-50">
+                  <tr>
+                    <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">AD Number</th>
+                    <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Subject</th>
+                    <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Make</th>
+                    <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Model</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100 bg-white">
+                  <% assignedAds.forEach((directive) => { %>
+                    <tr>
+                      <td class="px-3 py-3 align-top text-sm font-semibold text-slate-900"><%= directive.ad_number || '-' %></td>
+                      <td class="px-3 py-3 align-top text-sm text-slate-700"><%= directive.subject_heading || '-' %></td>
+                      <td class="px-3 py-3 align-top text-xs text-slate-700"><%= directive.make || '-' %></td>
+                      <td class="px-3 py-3 align-top text-xs text-slate-700"><%= directive.model || '-' %></td>
+                    </tr>
+                  <% }) %>
+                </tbody>
+              </table>
+            </div>
+          <% } %>
+        </div>
+
+        <div class="bg-white border rounded-xl p-6 shadow-sm">
+          <h2 class="text-lg font-bold text-slate-900 mb-4">Structural Inspection Directives</h2>
+
+          <form
+            method="POST"
+            action="/library/model/<%= model.id %>/sids/import?_csrf=<%= encodeURIComponent(csrfToken) %>"
+            enctype="multipart/form-data"
+            class="mb-8 rounded-lg border border-slate-200 bg-slate-50 p-4 space-y-4"
+          >
+            <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+            <div>
+              <p class="text-sm font-semibold text-slate-900">Load SID CSV</p>
+              <p class="mt-1 text-sm text-slate-500">
+                Import SID rows for this model. Duplicate summaries already linked to this model are skipped automatically.
+              </p>
+            </div>
+            <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
+              <input
+                type="file"
+                name="sid_csv"
+                accept=".csv,text/csv"
+                required
+                class="block w-full rounded border bg-white px-3 py-2 text-sm text-slate-700"
+              >
+              <button
+                type="submit"
+                class="rounded bg-slate-800 px-4 py-2 text-sm font-bold text-white hover:bg-black"
+              >
+                Import SID CSV
+              </button>
+            </div>
+            <p class="text-xs text-slate-500">
+              Supported headers include `sid_number`, `summary` or `title`, plus optional ATA, section, hour, month, operation, and source columns.
+            </p>
+          </form>
+
+          <% if (!assignableSids || assignableSids.length === 0) { %>
+            <p class="mb-6 text-sm text-slate-500 italic">No additional SIDs are available to assign to this model.</p>
+          <% } else { %>
+            <form method="POST" action="/library/model/<%= model.id %>/sids/assign" class="mb-8 space-y-4">
+              <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+
+              <div class="max-h-80 overflow-y-auto rounded-lg border">
+                <table class="min-w-full divide-y divide-slate-200">
+                  <thead class="bg-slate-50">
+                    <tr>
+                      <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Use</th>
+                      <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">SID</th>
+                      <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Title</th>
+                      <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Category</th>
+                    </tr>
+                  </thead>
+                  <tbody class="divide-y divide-slate-100 bg-white">
+                    <% assignableSids.forEach((sid) => { %>
+                      <tr>
+                        <td class="px-3 py-3 align-top">
+                          <input type="checkbox" name="sid_ids" value="<%= sid.id %>" class="rounded border-slate-300">
+                        </td>
+                        <td class="px-3 py-3 align-top text-sm font-semibold text-slate-900"><%= sid.reference || '-' %></td>
+                        <td class="px-3 py-3 align-top text-sm text-slate-700"><%= sid.title || '-' %></td>
+                        <td class="px-3 py-3 align-top text-xs text-slate-700"><%= sid.category || '-' %></td>
+                      </tr>
+                    <% }) %>
+                  </tbody>
+                </table>
+              </div>
+
+              <button type="submit" class="rounded bg-slate-800 px-4 py-2 text-sm font-bold text-white hover:bg-black">
+                Assign Selected SIDs
+              </button>
+            </form>
+          <% } %>
+
+          <% if (!sids || sids.length === 0) { %>
+            <p class="mb-8 text-sm text-slate-500 italic">No SIDs loaded for this model yet.</p>
+          <% } else { %>
+            <div class="mb-8 overflow-x-auto rounded-lg border">
+              <table class="min-w-full divide-y divide-slate-200">
+                <thead class="bg-slate-50">
+                  <tr>
+                    <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">SID</th>
+                    <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Summary</th>
+                    <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">ATA</th>
+                    <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Section</th>
+                    <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Repeat</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100 bg-white">
+                  <% sids.forEach((sid) => { %>
+                    <tr>
+                      <td class="px-3 py-3 align-top text-sm font-semibold text-slate-900">
+                        <%= sid.reference || sid.sid_number || '-' %>
+                      </td>
+                      <td class="px-3 py-3 align-top text-sm text-slate-700">
+                        <%= sid.title || '-' %>
+                      </td>
+                      <td class="px-3 py-3 align-top text-sm text-slate-700">
+                        <%= sid.ata_chapter || '-' %>
+                      </td>
+                      <td class="px-3 py-3 align-top text-sm text-slate-700">
+                        <%= sid.section_reference || '-' %>
+                      </td>
+                      <td class="px-3 py-3 align-top text-sm text-slate-700">
+                        <%= sid.repeat_interval_hours ?? '-' %> hrs / <%= sid.repeat_interval_months ?? '-' %> months
+                      </td>
+                    </tr>
+                  <% }) %>
+                </tbody>
+              </table>
+            </div>
+          <% } %>
+
+          <h2 class="text-lg font-bold text-slate-900 mb-4">Attach Existing Service Bulletins</h2>
+
+          <% if (!attachableServiceBulletins || attachableServiceBulletins.length === 0) { %>
+            <p class="mb-8 text-sm text-slate-500 italic">
+              No additional relevant service bulletins are available to attach for this model.
+            </p>
+          <% } else { %>
+            <form method="POST" action="/library/model/<%= model.id %>/service-bulletins/attach" class="mb-8 space-y-4">
+              <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+
+              <div class="flex items-center justify-between gap-4">
+                <p class="text-sm text-slate-500">
+                  Select existing SBs from the database to mark them as applicable to this model.
+                </p>
+                <button
+                  type="button"
+                  id="select-all-attachable-sbs"
+                  class="rounded border border-slate-300 px-3 py-1.5 text-xs font-bold uppercase tracking-widest text-slate-700 hover:bg-slate-50"
+                >
+                  Select All
+                </button>
+              </div>
+
+              <div class="max-h-80 overflow-y-auto rounded-lg border">
+                <table class="min-w-full divide-y divide-slate-200">
+                  <thead class="bg-slate-50">
+                    <tr>
+                      <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Use</th>
+                      <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">SB Number</th>
+                      <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Description</th>
+                      <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Compliance</th>
+                      <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Already On</th>
+                    </tr>
+                  </thead>
+                  <tbody class="divide-y divide-slate-100 bg-white">
+                    <% attachableServiceBulletins.forEach((sb) => { %>
+                      <tr>
+                        <td class="px-3 py-3 align-top">
+                          <input
+                            type="checkbox"
+                            name="service_bulletin_ids"
+                            value="<%= sb.id %>"
+                            class="attachable-sb-checkbox rounded border-slate-300"
+                          >
+                        </td>
+                        <td class="px-3 py-3 align-top text-sm font-semibold text-slate-900">
+                          <%= sb.sb_number %>
+                        </td>
+                        <td class="px-3 py-3 align-top text-sm text-slate-700">
+                          <%= sb.title || sb.description || '-' %>
+                        </td>
+                        <td class="px-3 py-3 align-top text-sm text-slate-700">
+                          <%= sb.compliance_type || 'REQUIRED' %>
+                        </td>
+                        <td class="px-3 py-3 align-top text-sm text-slate-500">
+                          <%= (sb.ApplicableModels || []).map((entry) => formatModelDisplay(entry)).join(', ') || '-' %>
+                        </td>
+                      </tr>
+                    <% }) %>
+                  </tbody>
+                </table>
+              </div>
+
+              <button
+                type="submit"
+                class="rounded bg-slate-800 px-4 py-2 text-sm font-bold text-white hover:bg-black"
+              >
+                Attach Selected SBs
+              </button>
+            </form>
+          <% } %>
+
+          <div class="mb-4 flex items-start justify-between gap-4">
+            <div>
+              <h2 class="text-lg font-bold text-slate-900">Service Bulletins</h2>
+              <p class="mt-1 text-sm text-slate-500">
+                Add multiple service bulletins at once. Each row needs an SB number, description, and compliance.
+              </p>
+            </div>
+          </div>
+
+          <form method="POST" action="/library/service-bulletin" class="space-y-4 mb-6">
+            <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+            <input type="hidden" name="model_id" value="<%= model.id %>">
+
+            <div class="overflow-x-auto rounded-lg border">
+              <table class="min-w-full divide-y divide-slate-200">
+                <thead class="bg-slate-50">
+                  <tr>
+                    <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">SB Number</th>
+                    <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Description</th>
+                    <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Compliance</th>
+                    <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Issued</th>
+                    <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Revision</th>
+                    <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Document URL</th>
+                  </tr>
+                </thead>
+                <tbody id="sb-grid-body" class="divide-y divide-slate-100 bg-white">
+                  <% for (let rowIndex = 0; rowIndex < 5; rowIndex += 1) { %>
+                    <tr>
+                      <td class="p-2 align-top">
+                        <input
+                          type="text"
+                          name="sb_number"
+                          class="w-36 rounded border px-2 py-2 text-sm"
+                          placeholder="SB-001"
+                        >
+                      </td>
+                      <td class="p-2 align-top">
+                        <input
+                          type="hidden"
+                          name="title"
+                          value=""
+                        >
+                        <input
+                          type="text"
+                          name="description"
+                          class="min-w-[16rem] w-full rounded border px-2 py-2 text-sm"
+                          placeholder="Brief bulletin description"
+                        >
+                      </td>
+                      <td class="p-2 align-top">
+                        <select name="compliance_type" class="w-40 rounded border px-2 py-2 text-sm">
+                          <option value="MANDATORY">MANDATORY</option>
+                          <option value="REQUIRED" selected>REQUIRED</option>
+                          <option value="OPTIONAL">OPTIONAL</option>
+                        </select>
+                      </td>
+                      <td class="p-2 align-top">
+                        <input
+                          type="date"
+                          name="issued_on"
+                          class="w-36 rounded border px-2 py-2 text-sm"
+                        >
+                      </td>
+                      <td class="p-2 align-top">
+                        <input
+                          type="text"
+                          name="revision"
+                          class="w-28 rounded border px-2 py-2 text-sm"
+                          placeholder="Rev"
+                        >
+                      </td>
+                      <td class="p-2 align-top">
+                        <input
+                          type="url"
+                          name="document_url"
+                          class="min-w-[14rem] w-full rounded border px-2 py-2 text-sm"
+                          placeholder="https://..."
+                        >
+                      </td>
+                    </tr>
+                  <% } %>
+                </tbody>
+              </table>
+            </div>
+            <div class="flex gap-3">
+              <button
+                type="button"
+                id="add-sb-row"
+                class="rounded border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+              >
+                Add Row
+              </button>
+              <span class="self-center text-xs text-slate-500">
+                Blank rows are ignored when you save.
+              </span>
+            </div>
+            <button
+              type="submit"
+              class="rounded bg-slate-800 px-4 py-2 text-sm font-bold text-white hover:bg-black"
+            >
+              Save Service Bulletins
+            </button>
+          </form>
+
+          <% if (!serviceBulletins || serviceBulletins.length === 0) { %>
+            <p class="text-sm text-slate-500 italic">No service bulletins loaded for this model.</p>
+          <% } %>
+
+          <div class="space-y-3">
+            <% serviceBulletins.forEach(sb => { %>
+              <div class="rounded-lg border p-4">
+                <p class="font-semibold text-slate-900"><%= sb.sb_number %> - <%= sb.title %></p>
+                <p class="text-xs uppercase tracking-wide text-slate-400 mt-1">
+                  Issued: <%= sb.issued_on || '-' %>
+                </p>
+                <p class="mt-1 text-xs uppercase tracking-wide text-slate-400">
+                  Source: <%= sb.compliance_type || '-' %> | Status: <%= sb.status || '-' %>
+                </p>
+                <% if (sb.revision || sb.document_url) { %>
+                  <p class="mt-1 text-xs text-slate-500">
+                    <%= sb.revision ? `Revision: ${sb.revision}` : '' %>
+                    <%= sb.revision && sb.document_url ? ' | ' : '' %>
+                    <%= sb.document_url ? `Document: ${sb.document_url}` : '' %>
+                  </p>
+                <% } %>
+                <p class="mt-2 text-sm text-slate-600"><%= sb.description || 'No description.' %></p>
+              </div>
+            <% }) %>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <div id="component-model-tab-maintenance-requirements" class="component-model-tab-panel hidden" data-component-model-tab-panel="maintenance-requirements">
+      <section class="bg-white border rounded-xl p-6 shadow-sm">
+        <h2 class="text-lg font-bold text-slate-900 mb-4">Maintenance Requirements</h2>
+        <% if (!requirements || requirements.length === 0) { %>
+          <p class="text-sm text-slate-500 italic">No maintenance requirements loaded.</p>
+        <% } %>
+
+        <div class="space-y-3">
+          <% requirements.forEach(requirement => { %>
+            <div class="rounded-lg border p-4">
+              <p class="font-semibold text-slate-900"><%= requirement.title %></p>
+              <p class="text-sm text-slate-500">
+                <%= requirement.interval_hours || '-' %> hrs / <%= requirement.interval_months || '-' %> months
+              </p>
+            </div>
+          <% }) %>
+        </div>
+      </section>
+    </div>
+
+    <div id="component-model-tab-standard-tasks" class="component-model-tab-panel hidden" data-component-model-tab-panel="standard-tasks">
+      <section class="bg-white border rounded-xl p-6 shadow-sm">
+        <h2 class="text-lg font-bold text-slate-900 mb-4">Standard Tasks</h2>
+
+        <% if (!assignableStandardTasks || assignableStandardTasks.length === 0) { %>
+          <p class="mb-8 text-sm text-slate-500 italic">No additional standard tasks are available to assign to this model.</p>
+        <% } else { %>
+          <form method="POST" action="/library/model/<%= model.id %>/standard-tasks/assign" class="mb-8 space-y-4">
+            <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+
+            <div class="max-h-80 overflow-y-auto rounded-lg border">
+              <table class="min-w-full divide-y divide-slate-200">
+                <thead class="bg-slate-50">
+                  <tr>
+                    <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Use</th>
+                    <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Task Card</th>
+                    <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Title</th>
+                    <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Scope</th>
+                    <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Interval</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100 bg-white">
+                  <% assignableStandardTasks.forEach((task) => { %>
+                    <tr>
+                      <td class="px-3 py-3 align-top">
+                        <input type="checkbox" name="task_template_ids" value="<%= task.id %>" class="rounded border-slate-300">
+                      </td>
+                      <td class="px-3 py-3 align-top text-sm font-semibold text-slate-900"><%= task.task_card_number || '-' %></td>
+                      <td class="px-3 py-3 align-top text-sm text-slate-700"><%= task.title || '-' %></td>
+                      <td class="px-3 py-3 align-top text-xs text-slate-700"><%= task.scope || '-' %></td>
+                      <td class="px-3 py-3 align-top text-xs text-slate-700"><%= task.interval_hours ?? '-' %> hrs / <%= task.interval_months ?? '-' %> months</td>
+                    </tr>
+                  <% }) %>
+                </tbody>
+              </table>
+            </div>
+
+            <button type="submit" class="rounded bg-slate-800 px-4 py-2 text-sm font-bold text-white hover:bg-black">
+              Assign Selected Tasks
+            </button>
+          </form>
+        <% } %>
+
+        <% if (!assignedStandardTasks || assignedStandardTasks.length === 0) { %>
+          <p class="mb-8 text-sm text-slate-500 italic">No standard tasks assigned to this model.</p>
+        <% } else { %>
+          <div class="mb-8 overflow-x-auto rounded-lg border">
             <table class="min-w-full divide-y divide-slate-200">
               <thead class="bg-slate-50">
                 <tr>
-                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Use</th>
                   <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Task Card</th>
                   <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Title</th>
-                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Scope</th>
+                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Source</th>
                   <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Interval</th>
                 </tr>
               </thead>
               <tbody class="divide-y divide-slate-100 bg-white">
-                <% assignableStandardTasks.forEach((task) => { %>
+                <% assignedStandardTasks.forEach((task) => { %>
                   <tr>
-                    <td class="px-3 py-3 align-top">
-                      <input type="checkbox" name="task_template_ids" value="<%= task.id %>" class="rounded border-slate-300">
-                    </td>
                     <td class="px-3 py-3 align-top text-sm font-semibold text-slate-900"><%= task.task_card_number || '-' %></td>
                     <td class="px-3 py-3 align-top text-sm text-slate-700"><%= task.title || '-' %></td>
-                    <td class="px-3 py-3 align-top text-xs text-slate-700"><%= task.scope || '-' %></td>
+                    <td class="px-3 py-3 align-top text-xs text-slate-700"><%= task.source_type || '-' %></td>
                     <td class="px-3 py-3 align-top text-xs text-slate-700"><%= task.interval_hours ?? '-' %> hrs / <%= task.interval_months ?? '-' %> months</td>
                   </tr>
                 <% }) %>
               </tbody>
             </table>
           </div>
-
-          <button type="submit" class="rounded bg-slate-800 px-4 py-2 text-sm font-bold text-white hover:bg-black">
-            Assign Selected Tasks
-          </button>
-        </form>
-      <% } %>
-
-      <% if (!assignedStandardTasks || assignedStandardTasks.length === 0) { %>
-        <p class="mb-8 text-sm text-slate-500 italic">No standard tasks assigned to this model.</p>
-      <% } else { %>
-        <div class="mb-8 overflow-x-auto rounded-lg border">
-          <table class="min-w-full divide-y divide-slate-200">
-            <thead class="bg-slate-50">
-              <tr>
-                <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Task Card</th>
-                <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Title</th>
-                <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Source</th>
-                <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Interval</th>
-              </tr>
-            </thead>
-            <tbody class="divide-y divide-slate-100 bg-white">
-              <% assignedStandardTasks.forEach((task) => { %>
-                <tr>
-                  <td class="px-3 py-3 align-top text-sm font-semibold text-slate-900"><%= task.task_card_number || '-' %></td>
-                  <td class="px-3 py-3 align-top text-sm text-slate-700"><%= task.title || '-' %></td>
-                  <td class="px-3 py-3 align-top text-xs text-slate-700"><%= task.source_type || '-' %></td>
-                  <td class="px-3 py-3 align-top text-xs text-slate-700"><%= task.interval_hours ?? '-' %> hrs / <%= task.interval_months ?? '-' %> months</td>
-                </tr>
-              <% }) %>
-            </tbody>
-          </table>
-        </div>
-      <% } %>
-
-      <h2 class="text-lg font-bold text-slate-900 mb-4">Model Planning Data</h2>
-
-      <form method="POST" action="/library/model/<%= model.id %>/update" class="space-y-3 mb-8">
-        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-
-        <input
-          type="text"
-          name="model_name"
-          value="<%= model.model_name || '' %>"
-          placeholder="Display / Common Name"
-          required
-          class="w-full border rounded px-3 py-2 text-sm"
-        >
-        <input
-          type="text"
-          name="model_code"
-          value="<%= model.model_code || '' %>"
-          placeholder="Applicability / OEM Model Code"
-          class="w-full border rounded px-3 py-2 text-sm"
-        >
-        <div class="grid grid-cols-2 gap-3">
-          <input
-            type="number"
-            step="0.01"
-            min="0"
-            name="service_interval_hours"
-            value="<%= model.service_interval_hours ?? '' %>"
-            placeholder="Service Hours"
-            class="w-full border rounded px-3 py-2 text-sm"
-          >
-          <input
-            type="number"
-            min="0"
-            name="service_interval_months"
-            value="<%= model.service_interval_months ?? '' %>"
-            placeholder="Service Months"
-            class="w-full border rounded px-3 py-2 text-sm"
-          >
-          <input
-            type="number"
-            step="0.01"
-            min="0"
-            name="overhaul_interval_hours"
-            value="<%= model.overhaul_interval_hours ?? '' %>"
-            placeholder="Overhaul Hours"
-            class="w-full border rounded px-3 py-2 text-sm"
-          >
-          <input
-            type="number"
-            min="0"
-            name="overhaul_interval_months"
-            value="<%= model.overhaul_interval_months ?? '' %>"
-            placeholder="Overhaul Months"
-            class="w-full border rounded px-3 py-2 text-sm"
-          >
-          <input
-            type="number"
-            step="0.01"
-            min="0"
-            name="default_tbo_hours"
-            value="<%= model.default_tbo_hours ?? '' %>"
-            placeholder="Default TBO Hours"
-            class="w-full border rounded px-3 py-2 text-sm"
-          >
-          <input
-            type="number"
-            min="0"
-            name="default_tbo_months"
-            value="<%= model.default_tbo_months ?? '' %>"
-            placeholder="Default TBO Months"
-            class="w-full border rounded px-3 py-2 text-sm"
-          >
-        </div>
-        <label class="flex items-center gap-2 text-sm text-slate-700">
-          <input
-            type="checkbox"
-            name="is_life_limited"
-            value="true"
-            <%= model.is_life_limited ? 'checked' : '' %>
-            class="rounded border-slate-300"
-          >
-          Life-limited model
-        </label>
-        <textarea
-          name="maintenance_notes"
-          rows="4"
-          placeholder="Maintenance notes"
-          class="w-full border rounded px-3 py-2 text-sm"
-        ><%= model.maintenance_notes || '' %></textarea>
-        <button
-          type="submit"
-          class="rounded bg-slate-800 px-4 py-2 text-sm font-bold text-white hover:bg-black"
-        >
-          Save Model Details
-        </button>
-      </form>
-
-      <div class="mb-4 flex items-start justify-between gap-4">
-        <div>
-          <h2 class="text-lg font-bold text-slate-900">Service Bulletins</h2>
-          <p class="mt-1 text-sm text-slate-500">
-            Add multiple service bulletins at once. Each row needs an SB number, description, and compliance.
-          </p>
-        </div>
-      </div>
-
-      <form method="POST" action="/library/service-bulletin" class="space-y-4 mb-6">
-        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-        <input type="hidden" name="model_id" value="<%= model.id %>">
-
-        <div class="overflow-x-auto rounded-lg border">
-          <table class="min-w-full divide-y divide-slate-200">
-            <thead class="bg-slate-50">
-              <tr>
-                <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">SB Number</th>
-                <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Description</th>
-                <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Compliance</th>
-                <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Issued</th>
-                <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Revision</th>
-                <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Document URL</th>
-              </tr>
-            </thead>
-            <tbody id="sb-grid-body" class="divide-y divide-slate-100 bg-white">
-              <% for (let rowIndex = 0; rowIndex < 5; rowIndex += 1) { %>
-                <tr>
-                  <td class="p-2 align-top">
-                    <input
-                      type="text"
-                      name="sb_number"
-                      class="w-36 rounded border px-2 py-2 text-sm"
-                      placeholder="SB-001"
-                    >
-                  </td>
-                  <td class="p-2 align-top">
-                    <input
-                      type="hidden"
-                      name="title"
-                      value=""
-                    >
-                    <input
-                      type="text"
-                      name="description"
-                      class="min-w-[16rem] w-full rounded border px-2 py-2 text-sm"
-                      placeholder="Brief bulletin description"
-                    >
-                  </td>
-                  <td class="p-2 align-top">
-                    <select name="compliance_type" class="w-40 rounded border px-2 py-2 text-sm">
-                      <option value="MANDATORY">MANDATORY</option>
-                      <option value="REQUIRED" selected>REQUIRED</option>
-                      <option value="OPTIONAL">OPTIONAL</option>
-                    </select>
-                  </td>
-                  <td class="p-2 align-top">
-                    <input
-                      type="date"
-                      name="issued_on"
-                      class="w-36 rounded border px-2 py-2 text-sm"
-                    >
-                  </td>
-                  <td class="p-2 align-top">
-                    <input
-                      type="text"
-                      name="revision"
-                      class="w-28 rounded border px-2 py-2 text-sm"
-                      placeholder="Rev"
-                    >
-                  </td>
-                  <td class="p-2 align-top">
-                    <input
-                      type="url"
-                      name="document_url"
-                      class="min-w-[14rem] w-full rounded border px-2 py-2 text-sm"
-                      placeholder="https://..."
-                    >
-                  </td>
-                </tr>
-              <% } %>
-            </tbody>
-          </table>
-        </div>
-        <div class="flex gap-3">
-          <button
-            type="button"
-            id="add-sb-row"
-            class="rounded border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
-          >
-            Add Row
-          </button>
-          <span class="self-center text-xs text-slate-500">
-            Blank rows are ignored when you save.
-          </span>
-        </div>
-        <button
-          type="submit"
-          class="rounded bg-slate-800 px-4 py-2 text-sm font-bold text-white hover:bg-black"
-        >
-          Save Service Bulletins
-        </button>
-      </form>
-
-      <% if (!serviceBulletins || serviceBulletins.length === 0) { %>
-        <p class="text-sm text-slate-500 italic">No service bulletins loaded for this model.</p>
-      <% } %>
-
-      <div class="space-y-3">
-        <% serviceBulletins.forEach(sb => { %>
-          <div class="rounded-lg border p-4">
-            <p class="font-semibold text-slate-900"><%= sb.sb_number %> - <%= sb.title %></p>
-            <p class="text-xs uppercase tracking-wide text-slate-400 mt-1">
-              Issued: <%= sb.issued_on || '-' %>
-            </p>
-            <p class="mt-1 text-xs uppercase tracking-wide text-slate-400">
-              Source: <%= sb.compliance_type || '-' %> | Status: <%= sb.status || '-' %>
-            </p>
-            <% if (sb.revision || sb.document_url) { %>
-              <p class="mt-1 text-xs text-slate-500">
-                <%= sb.revision ? `Revision: ${sb.revision}` : '' %>
-                <%= sb.revision && sb.document_url ? ' | ' : '' %>
-                <%= sb.document_url ? `Document: ${sb.document_url}` : '' %>
-              </p>
-            <% } %>
-            <p class="mt-2 text-sm text-slate-600"><%= sb.description || 'No description.' %></p>
-          </div>
-        <% }) %>
-      </div>
+        <% } %>
+      </section>
     </div>
   </section>
+
 </main>
 
 <script>
   (function () {
+    const tabs = Array.from(document.querySelectorAll('[data-component-model-tab]'));
+    const panels = Array.from(document.querySelectorAll('[data-component-model-tab-panel]'));
+
+    function activateTab(tabName) {
+      tabs.forEach((tab) => {
+        const isActive = tab.dataset.componentModelTab === tabName;
+        tab.setAttribute('aria-selected', isActive ? 'true' : 'false');
+        tab.classList.toggle('border-b-white', isActive);
+        tab.classList.toggle('border-slate-200', isActive);
+        tab.classList.toggle('bg-white', isActive);
+        tab.classList.toggle('font-bold', isActive);
+        tab.classList.toggle('text-slate-900', isActive);
+        tab.classList.toggle('border-transparent', !isActive);
+        tab.classList.toggle('font-semibold', !isActive);
+        tab.classList.toggle('text-slate-500', !isActive);
+      });
+
+      panels.forEach((panel) => {
+        panel.classList.toggle('hidden', panel.dataset.componentModelTabPanel !== tabName);
+      });
+    }
+
+    tabs.forEach((tab) => {
+      tab.addEventListener('click', function () {
+        activateTab(tab.dataset.componentModelTab);
+      });
+    });
+
     const selectAllAttachableSbsButton = document.getElementById('select-all-attachable-sbs');
     selectAllAttachableSbsButton?.addEventListener('click', function () {
       const checkboxes = document.querySelectorAll('.attachable-sb-checkbox');
