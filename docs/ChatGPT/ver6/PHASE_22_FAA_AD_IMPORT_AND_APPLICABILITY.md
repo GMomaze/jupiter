@@ -536,6 +536,173 @@
 - [ ] Stop gate: implementation may not begin until RBAC permission names are approved.
 - [ ] Stop gate: implementation verification must prove no SB, SID, task, workpack, utilisation, due, or existing compliance behavior changed.
 
+## Phase 22A.4 - AD Applicability Review UI And Actions
+
+- [ ] Define this slice as the review UI and action workflow for durable AD applicability allocations.
+- [ ] Confirm 22A.1 read-only relevance suggestions remain unchanged.
+- [ ] Confirm 22A.3.2 allocation persistence remains explicit and is not called automatically from model detail.
+- [ ] Confirm existing manual AD assignment remains separate and unchanged.
+- [ ] Confirm no aircraft inheritance or compliance effect exists in this slice.
+- [ ] Confirm this slice only reviews `ad_applicability_allocations` rows.
+
+### 22A.4 Review Screen Location
+
+- [ ] Add the primary review screen at `GET /library/ads/applicability-review`.
+- [ ] Keep the review screen under the Library AD area.
+- [ ] Display allocations from `ad_applicability_allocations`.
+- [ ] Do not replace the existing model-detail AD assignment form in this slice.
+- [ ] Do not remove the existing read-only model-detail AD relevance suggestions until a later verified replacement is approved.
+- [ ] Keep model-scoped review entry points future-only unless explicitly approved.
+
+### 22A.4 Routes
+
+- [ ] Define `GET /library/ads/applicability-review` for the allocation review list.
+- [ ] Define `POST /library/ads/applicability-review/refresh` for manual suggestion persistence refresh.
+- [ ] Define `POST /library/ads/applicability-review/allocations/:id/accept` for accepting an allocation.
+- [ ] Define `POST /library/ads/applicability-review/allocations/:id/ignore` for ignoring an allocation.
+- [ ] Define `POST /library/ads/applicability-review/allocations/:id/restore` for restoring an ignored allocation.
+- [ ] Define `POST /library/ads/applicability-review/allocations/:id/link-model` for manually linking an allocation to a model.
+- [ ] Define `POST /library/ads/applicability-review/allocations/:id/link-manufacturer` for manually linking an allocation to a manufacturer.
+- [ ] Require CSRF protection on every POST route.
+- [ ] Redirect every POST route back to a safe review URL.
+- [ ] Do not add route behavior that creates `ComplianceItem` rows.
+- [ ] Do not add route behavior that creates `ComplianceAssignment` rows.
+- [ ] Do not add route behavior that creates aircraft applicability.
+
+### 22A.4 Review Buckets
+
+- [ ] Show `SUGGESTED` allocations as reviewable suggestions.
+- [ ] Show `NEEDS_REVIEW` allocations as broad, ambiguous, or manually reviewable suggestions.
+- [ ] Show `ACCEPTED` allocations as reviewed accepted applicability decisions.
+- [ ] Show `IGNORED` allocations as suppressed false-positive decisions.
+- [ ] Keep `SUGGESTED` separate from `NEEDS_REVIEW`.
+- [ ] Keep `ACCEPTED` separate from current suggestions.
+- [ ] Keep `IGNORED` visible to authorized review users.
+- [ ] Do not treat `SUGGESTED` or `NEEDS_REVIEW` as final operational applicability.
+- [ ] Do not treat `ACCEPTED` as aircraft compliance applicability until a later aircraft inheritance phase explicitly approves it.
+
+### 22A.4 UI Columns
+
+- [ ] Display AD number.
+- [ ] Display subject.
+- [ ] Display source make.
+- [ ] Display source model.
+- [ ] Display source product type/subtype.
+- [ ] Display target type.
+- [ ] Display matched manufacturer/model.
+- [ ] Display classification.
+- [ ] Display status.
+- [ ] Display match reason.
+- [ ] Display reviewed by / reviewed at.
+- [ ] Display review reason.
+- [ ] Display review action.
+- [ ] Preserve source snapshots exactly as stored on the allocation row.
+- [ ] Show enough target context to distinguish model, manufacturer, broad, manual, ignored, and unresolved allocations.
+
+### 22A.4 Refresh Rules
+
+- [ ] Refresh is manual/admin-triggered only.
+- [ ] Refresh must not run automatically on model detail.
+- [ ] Refresh must not run automatically on ordinary review page load.
+- [ ] Refresh may call the 22A.3.2 allocation service to persist current 22A.1 suggestions.
+- [ ] Refresh may create only `SUGGESTED` and `NEEDS_REVIEW` allocation rows.
+- [ ] Refresh must not persist `ASSIGNED` suggestions as allocation review rows.
+- [ ] Refresh must not persist `UNMATCHED` rows by default.
+- [ ] Refresh must not overwrite `ACCEPTED` decisions.
+- [ ] Refresh must not overwrite `IGNORED` decisions.
+- [ ] Refresh must be idempotent and must not duplicate allocation rows.
+- [ ] All-model refresh remains future-only unless separately approved.
+- [ ] Model-specific refresh remains future-only unless separately approved.
+
+### 22A.4 User Actions
+
+- [ ] Accept allocation by updating the selected allocation status to `ACCEPTED`.
+- [ ] Accept allocation must set `reviewed_by`.
+- [ ] Accept allocation must set `reviewed_at`.
+- [ ] Accept allocation may set `review_reason`.
+- [ ] Ignore allocation by updating the selected allocation status to `IGNORED`.
+- [ ] Ignore allocation must set `reviewed_by`.
+- [ ] Ignore allocation must set `reviewed_at`.
+- [ ] Ignore allocation should require or strongly encourage `review_reason`.
+- [ ] Restore ignored allocation by changing the selected allocation back to its active review status.
+- [ ] Restore ignored allocation must set `reviewed_by`.
+- [ ] Restore ignored allocation must set `reviewed_at`.
+- [ ] Restore ignored allocation may set `review_reason`.
+- [ ] Restore returns ignored rows to `SUGGESTED` unless their classification is `BROAD_SERIES`, `BROAD_ALL`, or `MULTI_MODEL_REVIEW`.
+- [ ] Restore returns ignored rows with classification `BROAD_SERIES`, `BROAD_ALL`, or `MULTI_MODEL_REVIEW` to `NEEDS_REVIEW`.
+- [ ] Manually link to model by setting or creating model-targeted allocation context.
+- [ ] Manually link to model must populate `matched_component_model_id` or a model target id.
+- [ ] Manually link to model must set status to `ACCEPTED` only after explicit user confirmation.
+- [ ] Manually link to manufacturer by setting or creating manufacturer-targeted allocation context.
+- [ ] Manually link to manufacturer must populate `matched_manufacturer_id` or a manufacturer target id.
+- [ ] Manually link to manufacturer must set status to `ACCEPTED` only after explicit user confirmation.
+- [ ] Every action must be explicit and attributable to the acting user.
+- [ ] No action may create aircraft applicability in this slice.
+- [ ] No action may create compliance records in this slice.
+
+### 22A.4 RBAC Requirements
+
+- [ ] Define `AD_APPLICABILITY_REVIEW_VIEW` for viewing the review screen.
+- [ ] Define `AD_APPLICABILITY_REVIEW_REFRESH` for manually refreshing persisted suggestions.
+- [ ] Define `AD_APPLICABILITY_REVIEW_ACCEPT` for accepting allocations.
+- [ ] Define `AD_APPLICABILITY_REVIEW_IGNORE` for ignoring allocations.
+- [ ] Define `AD_APPLICABILITY_REVIEW_RESTORE` for restoring ignored allocations.
+- [ ] Define `AD_APPLICABILITY_REVIEW_LINK_MODEL` for manual model links.
+- [ ] Define `AD_APPLICABILITY_REVIEW_LINK_MANUFACTURER` for manual manufacturer links.
+- [ ] First implementation may temporarily reuse `LIBRARY_EDIT` only if explicit AD applicability review permissions are not seeded yet.
+- [ ] If `LIBRARY_EDIT` is temporarily reused, document the temporary fallback in the implementation notes.
+- [ ] If `LIBRARY_EDIT` is temporarily reused, keep route checks centralized so explicit permissions can replace it cleanly.
+- [ ] Unauthorized users must not see review action controls.
+- [ ] Unauthorized POST attempts must be blocked by route permission checks.
+- [ ] Customer users must not manage AD applicability review decisions.
+
+### 22A.4 Strict Boundaries
+
+- [ ] Do not create `ComplianceItem` rows.
+- [ ] Do not create `ComplianceAssignment` rows.
+- [ ] Do not create aircraft applicability.
+- [ ] Do not connect aircraft inheritance.
+- [ ] Do not change AD import behavior.
+- [ ] Do not change existing manual AD assignment behavior.
+- [ ] Do not change existing AD projection behavior.
+- [ ] Do not change SB logic.
+- [ ] Do not change SID logic.
+- [ ] Do not change standard task logic.
+- [ ] Do not change workpack logic.
+- [ ] Do not change utilisation logic.
+- [ ] Do not change due calculation logic.
+- [ ] Do not add AD-to-SB linking in this phase.
+- [ ] Do not infer compliance equivalence from AD-to-SB references.
+- [ ] Do not remove existing model-detail workflows.
+
+### 22A.4 Test Expectations
+
+- [ ] Verify the review route renders review buckets.
+- [ ] Verify the review route shows the required UI columns.
+- [ ] Verify refresh is manual and not triggered by model detail.
+- [ ] Verify refresh is idempotent.
+- [ ] Verify accept updates only allocation status and review fields.
+- [ ] Verify ignore updates only allocation status and review fields.
+- [ ] Verify restore returns ordinary ignored rows to `SUGGESTED`.
+- [ ] Verify restore returns broad ignored rows to `NEEDS_REVIEW`.
+- [ ] Verify manual model link updates only allocation target/review fields.
+- [ ] Verify manual manufacturer link updates only allocation target/review fields.
+- [ ] Verify no action creates `ComplianceItem`.
+- [ ] Verify no action creates `ComplianceAssignment`.
+- [ ] Verify no action creates aircraft applicability.
+- [ ] Verify no SB, SID, task, workpack, utilisation, due, or AD-to-SB logic is called.
+- [ ] Verify unauthorized users cannot access write routes.
+- [ ] Verify CSRF protection remains on every POST route.
+
+### 22A.4 Stop Gates
+
+- [ ] Stop gate: implementation may not begin until route names are accepted.
+- [ ] Stop gate: implementation may not begin until restore semantics are accepted.
+- [ ] Stop gate: implementation may not begin until RBAC fallback behavior is accepted.
+- [ ] Stop gate: implementation verification must prove no compliance rows are created.
+- [ ] Stop gate: implementation verification must prove no aircraft applicability is created.
+- [ ] Stop gate: implementation verification must prove SB, SID, task, workpack, utilisation, due, and AD-to-SB logic remain untouched.
+
 ## Phase 22.9 - Aircraft Inheritance From Make And Model
 
 - [ ] Define aircraft inheritance from assigned model ADs.
