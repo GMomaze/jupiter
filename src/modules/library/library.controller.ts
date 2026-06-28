@@ -69,6 +69,23 @@ export class LibraryController {
     });
   }
 
+  static async refreshAdApplicabilityReview(req: Request, res: Response): Promise<void> {
+    try {
+      const result = await LibraryService.refreshAdApplicabilityReviewAllocations(
+        (req.user as any)?.id || null
+      );
+
+      req.flash(
+        'success',
+        `AD applicability refresh complete: ${result.modelsScanned} model(s) scanned, ${result.adsScanned} active AD(s) scanned, ${result.created} created, ${result.updated} updated, ${result.skippedAccepted} accepted skipped, ${result.skippedIgnored} ignored skipped, ${result.unchanged} unchanged.`
+      );
+    } catch (error: any) {
+      req.flash('error', error?.message || 'Unable to refresh AD applicability suggestions.');
+    }
+
+    res.redirect('/library/ads/applicability-review');
+  }
+
   static renderAdCreateForm(_req: Request, res: Response): void {
     res.render('library/ads/new', {
       title: 'Add New Airworthiness Directive',

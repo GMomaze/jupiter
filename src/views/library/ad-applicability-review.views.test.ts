@@ -6,17 +6,22 @@ const readFile = (path: string) => readFileSync(resolve(process.cwd(), path), 'u
 const view = readFile('src/views/library/ads/applicability-review.ejs');
 const routes = readFile('src/modules/library/library.routes.ts');
 const controller = readFile('src/modules/library/library.controller.ts');
+const service = readFile('src/modules/library/library.service.ts');
 const adListView = readFile('src/views/library/ads/index.ejs');
 
 describe('AD applicability review read-only page', () => {
-  it('registers the read-only review route with the documented LIBRARY_EDIT fallback', () => {
+  it('registers the review and manual refresh routes with the documented LIBRARY_EDIT fallback', () => {
     expect(routes).toContain("'/ads/applicability-review'");
+    expect(routes).toContain("'/ads/applicability-review/refresh'");
     expect(routes).toContain("requirePermission('LIBRARY_EDIT')");
+    expect(routes).toContain('csrfProtection');
     expect(routes).toContain('LibraryController.renderAdApplicabilityReview');
-    expect(routes).not.toContain("'/ads/applicability-review/refresh'");
+    expect(routes).toContain('LibraryController.refreshAdApplicabilityReview');
     expect(routes).not.toContain("'/ads/applicability-review/allocations/:id/accept'");
     expect(routes).not.toContain("'/ads/applicability-review/allocations/:id/ignore'");
     expect(routes).not.toContain("'/ads/applicability-review/allocations/:id/restore'");
+    expect(routes).not.toContain("'/ads/applicability-review/allocations/:id/link-model'");
+    expect(routes).not.toContain("'/ads/applicability-review/allocations/:id/link-manufacturer'");
   });
 
   it('renders the required review buckets and UI columns', () => {
@@ -42,31 +47,79 @@ describe('AD applicability review read-only page', () => {
     });
   });
 
-  it('keeps the review view read-only with no POST forms or action buttons', () => {
-    expect(view).not.toContain('<form');
-    expect(view).not.toContain('method="POST"');
-    expect(view).not.toContain('<button');
+  it('adds only the manual refresh form and no review action buttons', () => {
+    expect(view).toContain('method="POST"');
+    expect(view).toContain('action="/library/ads/applicability-review/refresh?_csrf=<%= encodeURIComponent(csrfToken) %>"');
+    expect(view).toContain('name="_csrf" value="<%= csrfToken %>"');
+    expect(view).toContain('Refresh Suggestions');
     expect(view).not.toContain('Accept');
     expect(view).not.toContain('Ignore');
     expect(view).not.toContain('Restore');
-    expect(view).not.toContain('Refresh');
+    expect(view).not.toContain('Link Model');
+    expect(view).not.toContain('Link Manufacturer');
   });
 
-  it('does not call allocation persistence from route or controller code', () => {
+  it('calls allocation persistence only from the manual refresh path', () => {
     expect(routes).not.toContain('persistSuggestedAllocations');
-    expect(controller).not.toContain('persistSuggestedAllocations');
     expect(controller).toContain('LibraryService.getAdApplicabilityReviewAllocations');
+    expect(controller).toContain('LibraryService.refreshAdApplicabilityReviewAllocations');
+  });
+
+  it('renders visible refresh feedback messages with the required summary counts', () => {
+    expect(view).toContain('messages && messages.success && messages.success.length');
+    expect(view).toContain('messages.success[0]');
+    expect(view).toContain('messages && messages.error && messages.error.length');
+    expect(view).toContain('messages.error[0]');
+    [
+      'modelsScanned',
+      'adsScanned',
+      'created',
+      'updated',
+      'skippedAccepted',
+      'skippedIgnored',
+      'unchanged',
+    ].forEach((expectedCount) => {
+      expect(controller).toContain(expectedCount);
+    });
+    [
+      'model(s) scanned',
+      'active AD(s) scanned',
+      'created',
+      'updated',
+      'accepted skipped',
+      'ignored skipped',
+      'unchanged',
+    ].forEach((expectedMessageText) => {
+      expect(controller).toContain(expectedMessageText);
+    });
   });
 
   it('uses existing user fields for reviewer display', () => {
-    const service = readFile('src/modules/library/library.service.ts');
-
     expect(service).toContain("attributes: ['id', 'full_name', 'email']");
     expect(view).toContain('allocation.Reviewer?.full_name');
     expect(view).not.toContain('allocation.Reviewer?.name');
   });
 
-  it('links the review screen from the AD list without adding mutation controls', () => {
+  it('keeps refresh orchestration scoped to relevance and allocation persistence', () => {
+    const refreshStart = service.indexOf('static async refreshAdApplicabilityReviewAllocations');
+    const refreshEnd = service.indexOf('static async createAirworthinessDirective');
+    const refreshMethod = service.slice(refreshStart, refreshEnd);
+
+    expect(refreshMethod).toContain('ComponentModel.findAll');
+    expect(refreshMethod).toContain('AirworthinessDirective.count');
+    expect(refreshMethod).toContain('AdRelevanceService.getReadOnlyRelevanceForModel');
+    expect(refreshMethod).toContain('AdApplicabilityAllocationService.persistSuggestedAllocations');
+    expect(refreshMethod).toContain('getAssignedAirworthinessDirectives');
+    expect(refreshMethod).not.toContain('ComplianceItem');
+    expect(refreshMethod).not.toContain('ComplianceAssignment');
+    expect(refreshMethod).not.toContain('ServiceBulletin');
+    expect(refreshMethod).not.toContain('SupplementalInspectionDocument');
+    expect(refreshMethod).not.toContain('TaskTemplate');
+    expect(refreshMethod).not.toContain('Workpack');
+    expect(refreshMethod).not.toContain('DueStatus');
+  });
+
+  it('links the review screen from the AD list', () => {
     expect(adListView).toContain('href="/library/ads/applicability-review"');
     expect(adListView).toContain('Applicability Review');
   });

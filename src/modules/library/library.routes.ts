@@ -116,6 +116,13 @@ router.get(
   LibraryController.renderAdApplicabilityReview
 );
 
+router.post(
+  '/ads/applicability-review/refresh',
+  requirePermission('LIBRARY_EDIT'),
+  csrfProtection,
+  LibraryController.refreshAdApplicabilityReview
+);
+
 router.get(
   '/sbs/import',
   requirePermission('LIBRARY_EDIT'),

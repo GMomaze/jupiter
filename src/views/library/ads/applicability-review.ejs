@@ -35,10 +35,30 @@
       </p>
     </div>
 
-    <div class="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-xs font-bold uppercase tracking-widest text-slate-700">
-      <%= allocations.length %> Allocation Records
+    <div class="flex flex-col gap-3 sm:items-end">
+      <form method="POST" action="/library/ads/applicability-review/refresh?_csrf=<%= encodeURIComponent(csrfToken) %>">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <button type="submit" class="rounded bg-slate-800 px-4 py-2 text-sm font-bold text-white hover:bg-black">
+          Refresh Suggestions
+        </button>
+      </form>
+      <div class="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-xs font-bold uppercase tracking-widest text-slate-700">
+        <%= allocations.length %> Allocation Records
+      </div>
     </div>
   </div>
+
+  <% if (messages && messages.success && messages.success.length) { %>
+    <div class="rounded border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+      <%= messages.success[0] %>
+    </div>
+  <% } %>
+
+  <% if (messages && messages.error && messages.error.length) { %>
+    <div class="rounded border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+      <%= messages.error[0] %>
+    </div>
+  <% } %>
 
   <section class="grid gap-3 md:grid-cols-4">
     <% statuses.forEach((status) => { %>
@@ -53,7 +73,7 @@
     <div>
       <h2 class="text-lg font-bold text-slate-900">Allocation Review Buckets</h2>
       <p class="mt-1 text-sm text-slate-500">
-        This page does not accept, ignore, restore, refresh, or persist suggestions. Review actions will be added in a later phase.
+        Manual refresh creates review suggestions only. It does not accept applicability, create compliance records, or affect aircraft.
       </p>
     </div>
 

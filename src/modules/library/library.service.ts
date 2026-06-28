@@ -32,6 +32,8 @@ import { MaintenanceTemplate } from '../../models/MaintenanceTemplate.js';
 import { MaintenanceTemplateItem } from '../../models/MaintenanceTemplateItem.js';
 import { DueStatusService } from '../due-status/due-status.service.js';
 import { formatModelDisplay } from '../../utils/model-display.js';
+import { AdRelevanceService, type AdRelevanceDirective } from './ad-relevance.service.js';
+import { AdApplicabilityAllocationService } from './ad-applicability-allocation.service.js';
 
 export class LibraryService {
   static readonly sbModelAllocationStatuses = [
@@ -836,6 +838,55 @@ export class LibraryService {
         ['created_at', 'DESC'],
       ],
     });
+  }
+
+  static async refreshAdApplicabilityReviewAllocations(actorUserId: string | null = null) {
+    const [models, activeAdCount] = await Promise.all([
+      ComponentModel.findAll({
+        attributes: ['id', 'manufacturer_id'],
+        order: [['model_name', 'ASC'], ['model_code', 'ASC']],
+      }),
+      AirworthinessDirective.count({
+        where: {
+          is_active: true,
+        },
+      }),
+    ]);
+
+    const totals = {
+      modelsScanned: models.length,
+      adsScanned: Number(activeAdCount || 0),
+      created: 0,
+      updated: 0,
+      skippedAccepted: 0,
+      skippedIgnored: 0,
+      unchanged: 0,
+    };
+
+    for (const model of models) {
+      const modelId = String(model.id);
+      const assignedDirectives = (await this.getAssignedAirworthinessDirectives(
+        modelId
+      )) as AdRelevanceDirective[];
+      const relevance = await AdRelevanceService.getReadOnlyRelevanceForModel(
+        modelId,
+        assignedDirectives
+      );
+      const result = await AdApplicabilityAllocationService.persistSuggestedAllocations({
+        relevance,
+        modelId,
+        manufacturerId: model.manufacturer_id || null,
+        actorUserId,
+      });
+
+      totals.created += result.created;
+      totals.updated += result.updated;
+      totals.skippedAccepted += result.skippedAccepted;
+      totals.skippedIgnored += result.skippedIgnored;
+      totals.unchanged += result.unchanged;
+    }
+
+    return totals;
   }
 
   static async createAirworthinessDirective(data: {
