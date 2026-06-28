@@ -50,6 +50,10 @@ describe('component model detail tabs', () => {
     expect(compliancePanel).toContain('Attach Existing Service Bulletins');
     expect(compliancePanel).toContain('action="/library/model/<%= model.id %>/service-bulletins/attach"');
     expect(compliancePanel).toContain('action="/library/service-bulletin"');
+    expect(compliancePanel).toContain('Read-only AD Relevance Suggestions');
+    expect(template).toContain("label: 'Exact Model Suggestions'");
+    expect(template).toContain("label: 'Manufacturer Suggestions'");
+    expect(template).toContain("label: 'Broad Review'");
     expect(compliancePanel).toContain('id="select-all-attachable-sbs"');
     expect(compliancePanel).toContain('id="sb-grid-body"');
     expect(compliancePanel).toContain('id="add-sb-row"');
@@ -107,6 +111,22 @@ describe('component model detail tabs', () => {
     expect(template).toContain('action="/library/model/<%= model.id %>/update"');
     expect(template).toContain('action="/library/service-bulletin"');
     expect(template.match(/name="_csrf" value="<%= csrfToken %>"/g)?.length).toBe(7);
+  });
+
+  it('keeps AD relevance suggestions read-only', () => {
+    const compliancePanelStart = template.indexOf('id="component-model-tab-compliance"');
+    const maintenancePanelStart = template.indexOf('id="component-model-tab-maintenance-requirements"');
+    const compliancePanel = template.slice(compliancePanelStart, maintenancePanelStart);
+    const suggestionStart = compliancePanel.indexOf('Read-only AD Relevance Suggestions');
+    const sidStart = compliancePanel.indexOf('Structural Inspection Directives');
+    const suggestionPanel = compliancePanel.slice(suggestionStart, sidStart);
+
+    expect(suggestionPanel).toContain('readOnlyAdSuggestionGroups.forEach');
+    expect(suggestionPanel).toContain('directive.relevance_reason');
+    expect(suggestionPanel).not.toContain('<form');
+    expect(suggestionPanel).not.toContain('type="checkbox"');
+    expect(template.match(/action="\/library\/model\/<%= model.id %>\/airworthiness-directives\/assign"/g)?.length).toBe(1);
+    expect(template.match(/name="airworthiness_directive_ids"/g)?.length).toBe(1);
   });
 
   it('preserves existing model planning and service bulletin field names', () => {

@@ -5,6 +5,7 @@ import { LibraryService } from './library.service.js';
 import { LibraryController } from './library.controller.js';
 import { StandardTaskImportController } from './standard-task-import.controller.js';
 import { AdImportController } from './ad-import.controller.js';
+import { AdRelevanceService, type AdRelevanceDirective } from './ad-relevance.service.js';
 import { SbImportController } from './sb-import.controller.js';
 import { PiperModelMasterImportController } from './piper-model-master-import.controller.js';
 import { ensureAuthenticated } from '../../middleware/auth.middleware.js';
@@ -873,6 +874,10 @@ router.get('/model/:id', async (req, res, next) => {
     const attachableServiceBulletins = await LibraryService.getAttachableServiceBulletins(id);
     const sids = await LibraryService.getModelSids(id);
     const applicabilityAssignments = await LibraryService.getModelApplicabilityAssignments(id);
+    const adRelevance = await AdRelevanceService.getReadOnlyRelevanceForModel(
+      id,
+      (applicabilityAssignments.assignedAirworthinessDirectives || []) as AdRelevanceDirective[]
+    );
 
     res.render('library/model-detail', {
       model,
@@ -881,6 +886,7 @@ router.get('/model/:id', async (req, res, next) => {
       attachableServiceBulletins,
       sids,
       applicabilityAssignments,
+      adRelevance,
     });
   } catch (error) {
     next(error);
