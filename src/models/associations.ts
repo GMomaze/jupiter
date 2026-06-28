@@ -1,4 +1,5 @@
 import { AirworthinessDirective } from './AirworthinessDirective.js';
+import { AdApplicabilityAllocation } from './AdApplicabilityAllocation.js';
 import { AdRelationship } from './AdRelationship.js';
 import { AssetType } from './AssetType.js';
 import { Manufacturer } from './Manufacturer.js';
@@ -66,12 +67,36 @@ AdRelationship.belongsTo(AirworthinessDirective, {
   foreignKey: 'ad_id',
   as: 'AirworthinessDirective',
 });
+AirworthinessDirective.hasMany(AdApplicabilityAllocation, {
+  foreignKey: 'airworthiness_directive_id',
+  as: 'ApplicabilityAllocations',
+});
+AdApplicabilityAllocation.belongsTo(AirworthinessDirective, {
+  foreignKey: 'airworthiness_directive_id',
+  as: 'AirworthinessDirective',
+});
 
 AssetType.hasMany(ComponentModel, { foreignKey: 'asset_type_id' });
 ComponentModel.belongsTo(AssetType, { foreignKey: 'asset_type_id' });
 
 Manufacturer.hasMany(ComponentModel, { foreignKey: 'manufacturer_id' });
 ComponentModel.belongsTo(Manufacturer, { foreignKey: 'manufacturer_id' });
+Manufacturer.hasMany(AdApplicabilityAllocation, {
+  foreignKey: 'matched_manufacturer_id',
+  as: 'MatchedAdApplicabilityAllocations',
+});
+AdApplicabilityAllocation.belongsTo(Manufacturer, {
+  foreignKey: 'matched_manufacturer_id',
+  as: 'MatchedManufacturer',
+});
+ComponentModel.hasMany(AdApplicabilityAllocation, {
+  foreignKey: 'matched_component_model_id',
+  as: 'MatchedAdApplicabilityAllocations',
+});
+AdApplicabilityAllocation.belongsTo(ComponentModel, {
+  foreignKey: 'matched_component_model_id',
+  as: 'MatchedComponentModel',
+});
 ServiceBulletin.belongsToMany(ComponentModel, {
   through: ServiceBulletinModel,
   foreignKey: 'service_bulletin_id',
@@ -271,6 +296,8 @@ WorkpackSnag.hasMany(WorkpackSnagAuditLog, { foreignKey: 'snag_id', as: 'AuditEn
 WorkpackSnagAuditLog.belongsTo(WorkpackSnag, { foreignKey: 'snag_id', as: 'Snag' });
 WorkpackSnagAuditLog.belongsTo(Workpack, { foreignKey: 'workpack_id', as: 'Workpack' });
 WorkpackSnagAuditLog.belongsTo(User, { foreignKey: 'user_id', as: 'Actor' });
+AdApplicabilityAllocation.belongsTo(User, { foreignKey: 'created_by', as: 'Creator' });
+AdApplicabilityAllocation.belongsTo(User, { foreignKey: 'reviewed_by', as: 'Reviewer' });
 
 AuditLog.belongsTo(User, { foreignKey: 'actor_id', as: 'actor' });
 User.hasMany(AuditLog, { foreignKey: 'actor_id' });

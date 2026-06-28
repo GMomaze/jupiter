@@ -8,6 +8,7 @@ import sequelize from '../config/database.js';
 
 // Core models
 export { AirworthinessDirective } from './AirworthinessDirective.js';
+export { AdApplicabilityAllocation } from './AdApplicabilityAllocation.js';
 export { AdRelationship } from './AdRelationship.js';
 export { AssetType } from './AssetType.js';
 export { Manufacturer } from './Manufacturer.js';
