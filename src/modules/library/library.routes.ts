@@ -123,6 +123,20 @@ router.post(
   LibraryController.refreshAdApplicabilityReview
 );
 
+router.post(
+  '/ads/applicability-review/allocations/:id/accept',
+  requirePermission('LIBRARY_EDIT'),
+  csrfProtection,
+  LibraryController.acceptAdApplicabilityAllocation
+);
+
+router.post(
+  '/ads/applicability-review/allocations/:id/ignore',
+  requirePermission('LIBRARY_EDIT'),
+  csrfProtection,
+  LibraryController.ignoreAdApplicabilityAllocation
+);
+
 router.get(
   '/sbs/import',
   requirePermission('LIBRARY_EDIT'),

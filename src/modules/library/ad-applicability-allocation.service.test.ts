@@ -259,6 +259,76 @@ describe('AD applicability allocation service foundation', () => {
     expect(assignmentCreate).not.toHaveBeenCalled();
   });
 
+  it('accepts a reviewable allocation by updating only review fields', async () => {
+    const update = vi.fn().mockResolvedValue({ id: 'allocation', status: 'ACCEPTED' });
+    vi.spyOn(AdApplicabilityAllocation, 'findByPk').mockResolvedValue({
+      status: 'SUGGESTED',
+      update,
+    } as any);
+
+    await AdApplicabilityAllocationService.reviewAllocation({
+      allocationId: 'allocation',
+      status: 'ACCEPTED',
+      actorUserId,
+      reviewReason: 'Confirmed applicability.',
+    });
+
+    expect(update).toHaveBeenCalledTimes(1);
+    const payload = update.mock.calls[0]?.[0];
+    expect(Object.keys(payload).sort()).toEqual([
+      'review_reason',
+      'reviewed_at',
+      'reviewed_by',
+      'status',
+    ]);
+    expect(payload).toMatchObject({
+      status: 'ACCEPTED',
+      reviewed_by: actorUserId,
+      review_reason: 'Confirmed applicability.',
+    });
+    expect(payload.reviewed_at).toBeInstanceOf(Date);
+  });
+
+  it('ignores a reviewable allocation by updating only review fields', async () => {
+    const update = vi.fn().mockResolvedValue({ id: 'allocation', status: 'IGNORED' });
+    vi.spyOn(AdApplicabilityAllocation, 'findByPk').mockResolvedValue({
+      status: 'NEEDS_REVIEW',
+      update,
+    } as any);
+
+    await AdApplicabilityAllocationService.reviewAllocation({
+      allocationId: 'allocation',
+      status: 'IGNORED',
+      actorUserId,
+      reviewReason: 'False positive.',
+    });
+
+    expect(update).toHaveBeenCalledWith({
+      status: 'IGNORED',
+      reviewed_by: actorUserId,
+      reviewed_at: expect.any(Date),
+      review_reason: 'False positive.',
+    });
+  });
+
+  it('does not review already accepted or ignored allocations', async () => {
+    const update = vi.fn();
+    vi.spyOn(AdApplicabilityAllocation, 'findByPk').mockResolvedValue({
+      status: 'ACCEPTED',
+      update,
+    } as any);
+
+    await expect(
+      AdApplicabilityAllocationService.reviewAllocation({
+        allocationId: 'allocation',
+        status: 'IGNORED',
+        actorUserId,
+        reviewReason: null,
+      })
+    ).rejects.toThrow('Only suggested or needs-review allocations can be reviewed.');
+    expect(update).not.toHaveBeenCalled();
+  });
+
   it('does not introduce aircraft, SB, SID, task, workpack, utilisation, due, or RBAC code', () => {
     const source = readFileSync(
       resolve(process.cwd(), 'src/modules/library/ad-applicability-allocation.service.ts'),

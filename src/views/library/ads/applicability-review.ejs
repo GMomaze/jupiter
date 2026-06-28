@@ -115,6 +115,7 @@
                   <th class="min-w-72 px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Match Reason</th>
                   <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Reviewed By / Reviewed At</th>
                   <th class="min-w-64 px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Review Reason</th>
+                  <th class="min-w-72 px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Review Action</th>
                 </tr>
               </thead>
               <tbody class="divide-y divide-slate-100 bg-white">
@@ -166,6 +167,40 @@
                     </td>
                     <td class="px-3 py-3 align-top text-xs text-slate-700">
                       <%= allocation.review_reason || '-' %>
+                    </td>
+                    <td class="px-3 py-3 align-top text-xs text-slate-700">
+                      <% if (['SUGGESTED', 'NEEDS_REVIEW'].includes(allocation.status)) { %>
+                        <div class="space-y-2">
+                          <form method="POST" action="/library/ads/applicability-review/allocations/<%= allocation.id %>/accept?_csrf=<%= encodeURIComponent(csrfToken) %>" class="space-y-2">
+                            <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                            <input
+                              type="text"
+                              name="review_reason"
+                              value=""
+                              placeholder="Optional review reason"
+                              class="w-full rounded border border-slate-300 px-2 py-1 text-xs"
+                            >
+                            <button type="submit" class="w-full rounded bg-emerald-700 px-3 py-1.5 text-xs font-bold text-white hover:bg-emerald-800">
+                              Accept Applicability
+                            </button>
+                          </form>
+                          <form method="POST" action="/library/ads/applicability-review/allocations/<%= allocation.id %>/ignore?_csrf=<%= encodeURIComponent(csrfToken) %>" class="space-y-2">
+                            <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                            <input
+                              type="text"
+                              name="review_reason"
+                              value=""
+                              placeholder="Optional review reason"
+                              class="w-full rounded border border-slate-300 px-2 py-1 text-xs"
+                            >
+                            <button type="submit" class="w-full rounded border border-slate-300 px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50">
+                              Ignore Suggestion
+                            </button>
+                          </form>
+                        </div>
+                      <% } else { %>
+                        <span class="text-slate-400">-</span>
+                      <% } %>
                     </td>
                   </tr>
                 <% }) %>

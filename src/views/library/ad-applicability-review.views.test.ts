@@ -13,12 +13,14 @@ describe('AD applicability review read-only page', () => {
   it('registers the review and manual refresh routes with the documented LIBRARY_EDIT fallback', () => {
     expect(routes).toContain("'/ads/applicability-review'");
     expect(routes).toContain("'/ads/applicability-review/refresh'");
+    expect(routes).toContain("'/ads/applicability-review/allocations/:id/accept'");
+    expect(routes).toContain("'/ads/applicability-review/allocations/:id/ignore'");
     expect(routes).toContain("requirePermission('LIBRARY_EDIT')");
     expect(routes).toContain('csrfProtection');
     expect(routes).toContain('LibraryController.renderAdApplicabilityReview');
     expect(routes).toContain('LibraryController.refreshAdApplicabilityReview');
-    expect(routes).not.toContain("'/ads/applicability-review/allocations/:id/accept'");
-    expect(routes).not.toContain("'/ads/applicability-review/allocations/:id/ignore'");
+    expect(routes).toContain('LibraryController.acceptAdApplicabilityAllocation');
+    expect(routes).toContain('LibraryController.ignoreAdApplicabilityAllocation');
     expect(routes).not.toContain("'/ads/applicability-review/allocations/:id/restore'");
     expect(routes).not.toContain("'/ads/applicability-review/allocations/:id/link-model'");
     expect(routes).not.toContain("'/ads/applicability-review/allocations/:id/link-manufacturer'");
@@ -47,22 +49,29 @@ describe('AD applicability review read-only page', () => {
     });
   });
 
-  it('adds only the manual refresh form and no review action buttons', () => {
+  it('adds manual refresh and accept-ignore forms without restore or link actions', () => {
     expect(view).toContain('method="POST"');
     expect(view).toContain('action="/library/ads/applicability-review/refresh?_csrf=<%= encodeURIComponent(csrfToken) %>"');
+    expect(view).toContain('action="/library/ads/applicability-review/allocations/<%= allocation.id %>/accept?_csrf=<%= encodeURIComponent(csrfToken) %>"');
+    expect(view).toContain('action="/library/ads/applicability-review/allocations/<%= allocation.id %>/ignore?_csrf=<%= encodeURIComponent(csrfToken) %>"');
     expect(view).toContain('name="_csrf" value="<%= csrfToken %>"');
     expect(view).toContain('Refresh Suggestions');
-    expect(view).not.toContain('Accept');
-    expect(view).not.toContain('Ignore');
+    expect(view).toContain('Accept Applicability');
+    expect(view).toContain('Ignore Suggestion');
+    expect(view).toContain("['SUGGESTED', 'NEEDS_REVIEW'].includes(allocation.status)");
+    expect(view).toContain('name="review_reason"');
     expect(view).not.toContain('Restore');
     expect(view).not.toContain('Link Model');
     expect(view).not.toContain('Link Manufacturer');
   });
 
-  it('calls allocation persistence only from the manual refresh path', () => {
+  it('keeps allocation mutations scoped to manual refresh and explicit review actions', () => {
     expect(routes).not.toContain('persistSuggestedAllocations');
     expect(controller).toContain('LibraryService.getAdApplicabilityReviewAllocations');
     expect(controller).toContain('LibraryService.refreshAdApplicabilityReviewAllocations');
+    expect(controller).toContain("LibraryService.reviewAdApplicabilityAllocation(");
+    expect(controller).toContain("'ACCEPTED'");
+    expect(controller).toContain("'IGNORED'");
   });
 
   it('renders visible refresh feedback messages with the required summary counts', () => {
@@ -117,6 +126,24 @@ describe('AD applicability review read-only page', () => {
     expect(refreshMethod).not.toContain('TaskTemplate');
     expect(refreshMethod).not.toContain('Workpack');
     expect(refreshMethod).not.toContain('DueStatus');
+  });
+
+  it('keeps accept-ignore controllers scoped to allocation review updates', () => {
+    const acceptStart = controller.indexOf('static async acceptAdApplicabilityAllocation');
+    const ignoreEnd = controller.indexOf('static renderAdCreateForm');
+    const actionMethods = controller.slice(acceptStart, ignoreEnd);
+
+    expect(actionMethods).toContain("LibraryService.reviewAdApplicabilityAllocation(");
+    expect(actionMethods).toContain("'ACCEPTED'");
+    expect(actionMethods).toContain("'IGNORED'");
+    expect(actionMethods).not.toContain('ComplianceItem');
+    expect(actionMethods).not.toContain('ComplianceAssignment');
+    expect(actionMethods).not.toContain('Aircraft');
+    expect(actionMethods).not.toContain('ServiceBulletin');
+    expect(actionMethods).not.toContain('SupplementalInspectionDocument');
+    expect(actionMethods).not.toContain('TaskTemplate');
+    expect(actionMethods).not.toContain('Workpack');
+    expect(actionMethods).not.toContain('DueStatus');
   });
 
   it('links the review screen from the AD list', () => {

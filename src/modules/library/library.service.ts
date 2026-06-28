@@ -889,6 +889,20 @@ export class LibraryService {
     return totals;
   }
 
+  static async reviewAdApplicabilityAllocation(
+    allocationId: string,
+    status: 'ACCEPTED' | 'IGNORED',
+    actorUserId: string | null,
+    reviewReason?: string | null
+  ) {
+    return AdApplicabilityAllocationService.reviewAllocation({
+      allocationId,
+      status,
+      actorUserId,
+      reviewReason: reviewReason ?? null,
+    });
+  }
+
   static async createAirworthinessDirective(data: {
     ad_number?: unknown;
     revision?: unknown;

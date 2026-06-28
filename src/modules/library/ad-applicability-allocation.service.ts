@@ -75,6 +75,13 @@ export type AdApplicabilityAllocationPersistResult = {
   candidates: AdApplicabilityAllocationCandidate[];
 };
 
+export type ReviewAdApplicabilityAllocationInput = {
+  allocationId: string;
+  status: 'ACCEPTED' | 'IGNORED';
+  actorUserId: string | null;
+  reviewReason?: string | null;
+};
+
 function normalizeSourcePart(value: unknown) {
   return String(value ?? '')
     .trim()
@@ -350,5 +357,24 @@ export class AdApplicabilityAllocationService {
     }
 
     return result;
+  }
+
+  static async reviewAllocation(input: ReviewAdApplicabilityAllocationInput) {
+    const allocation = await AdApplicabilityAllocation.findByPk(input.allocationId);
+
+    if (!allocation) {
+      throw new Error('AD applicability allocation not found.');
+    }
+
+    if (!['SUGGESTED', 'NEEDS_REVIEW'].includes(String(allocation.status))) {
+      throw new Error('Only suggested or needs-review allocations can be reviewed.');
+    }
+
+    return allocation.update({
+      status: input.status,
+      reviewed_by: input.actorUserId || null,
+      reviewed_at: new Date(),
+      review_reason: String(input.reviewReason || '').trim() || null,
+    });
   }
 }

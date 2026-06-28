@@ -86,6 +86,40 @@ export class LibraryController {
     res.redirect('/library/ads/applicability-review');
   }
 
+  static async acceptAdApplicabilityAllocation(req: Request, res: Response): Promise<void> {
+    try {
+      await LibraryService.reviewAdApplicabilityAllocation(
+        getParam(req.params.id),
+        'ACCEPTED',
+        (req.user as any)?.id || null,
+        req.body?.review_reason
+      );
+
+      req.flash('success', 'AD applicability allocation accepted for review.');
+    } catch (error: any) {
+      req.flash('error', error?.message || 'Unable to accept AD applicability allocation.');
+    }
+
+    res.redirect('/library/ads/applicability-review');
+  }
+
+  static async ignoreAdApplicabilityAllocation(req: Request, res: Response): Promise<void> {
+    try {
+      await LibraryService.reviewAdApplicabilityAllocation(
+        getParam(req.params.id),
+        'IGNORED',
+        (req.user as any)?.id || null,
+        req.body?.review_reason
+      );
+
+      req.flash('success', 'AD applicability suggestion ignored.');
+    } catch (error: any) {
+      req.flash('error', error?.message || 'Unable to ignore AD applicability suggestion.');
+    }
+
+    res.redirect('/library/ads/applicability-review');
+  }
+
   static renderAdCreateForm(_req: Request, res: Response): void {
     res.render('library/ads/new', {
       title: 'Add New Airworthiness Directive',
