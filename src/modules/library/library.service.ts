@@ -22,6 +22,7 @@ import {
   Aircraft,
   ComplianceAssignment,
   User,
+  AdApplicabilityAllocation,
 } from '../../models/index.js';
 import { Op, QueryTypes } from 'sequelize';
 import sequelize from '../../config/database.js';
@@ -790,6 +791,50 @@ export class LibraryService {
         'created_at',
       ],
       order: [['created_at', 'DESC'], ['ad_number', 'ASC']],
+    });
+  }
+
+  static async getAdApplicabilityReviewAllocations() {
+    return AdApplicabilityAllocation.findAll({
+      include: [
+        {
+          model: AirworthinessDirective,
+          as: 'AirworthinessDirective',
+          attributes: ['id', 'ad_number', 'revision', 'subject_heading', 'subject'],
+          required: false,
+        },
+        {
+          model: Manufacturer,
+          as: 'MatchedManufacturer',
+          attributes: ['id', 'name', 'code'],
+          required: false,
+        },
+        {
+          model: ComponentModel,
+          as: 'MatchedComponentModel',
+          attributes: ['id', 'model_code', 'model_name'],
+          required: false,
+          include: [
+            {
+              model: Manufacturer,
+              attributes: ['id', 'name', 'code'],
+              required: false,
+            },
+          ],
+        },
+        {
+          model: User,
+          as: 'Reviewer',
+          attributes: ['id', 'full_name', 'email'],
+          required: false,
+        },
+      ],
+      order: [
+        ['status', 'ASC'],
+        ['ad_number_snapshot', 'ASC'],
+        ['classification', 'ASC'],
+        ['created_at', 'DESC'],
+      ],
     });
   }
 

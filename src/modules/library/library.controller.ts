@@ -53,6 +53,22 @@ export class LibraryController {
     });
   }
 
+  static async renderAdApplicabilityReview(_req: Request, res: Response): Promise<void> {
+    const allocations = await LibraryService.getAdApplicabilityReviewAllocations();
+    const bucketStatuses = ['SUGGESTED', 'NEEDS_REVIEW', 'ACCEPTED', 'IGNORED'];
+    const bucketCounts = bucketStatuses.reduce<Record<string, number>>((counts, status) => {
+      counts[status] = allocations.filter((allocation: any) => allocation.status === status).length;
+      return counts;
+    }, {});
+
+    res.render('library/ads/applicability-review', {
+      title: 'AD Applicability Review',
+      allocations,
+      bucketStatuses,
+      bucketCounts,
+    });
+  }
+
   static renderAdCreateForm(_req: Request, res: Response): void {
     res.render('library/ads/new', {
       title: 'Add New Airworthiness Directive',

@@ -111,6 +111,12 @@ router.get(
 );
 
 router.get(
+  '/ads/applicability-review',
+  requirePermission('LIBRARY_EDIT'),
+  LibraryController.renderAdApplicabilityReview
+);
+
+router.get(
   '/sbs/import',
   requirePermission('LIBRARY_EDIT'),
   SbImportController.renderImportForm

@@ -1,0 +1,161 @@
+<%- include('../../partials/header') %>
+
+<%
+  const statuses = bucketStatuses || ['SUGGESTED', 'NEEDS_REVIEW', 'ACCEPTED', 'IGNORED'];
+  const groupedAllocations = statuses.reduce((groups, status) => {
+    groups[status] = (allocations || []).filter((allocation) => allocation.status === status);
+    return groups;
+  }, {});
+  const formatDateTime = (value) => value ? new Date(value).toLocaleString() : '-';
+  const formatTarget = (allocation) => {
+    const manufacturer = allocation.MatchedManufacturer;
+    const model = allocation.MatchedComponentModel;
+
+    if (model) {
+      const modelLabel = [model.model_code, model.model_name].filter(Boolean).join(' - ');
+      const modelManufacturer = model.Manufacturer?.name || model.Manufacturer?.code || '';
+      return [modelManufacturer, modelLabel || model.id].filter(Boolean).join(' / ');
+    }
+
+    if (manufacturer) {
+      return [manufacturer.name, manufacturer.code].filter(Boolean).join(' / ');
+    }
+
+    return '-';
+  };
+%>
+
+<main class="max-w-7xl mx-auto py-10 px-6 space-y-8">
+  <div class="flex items-center justify-between gap-4">
+    <div>
+      <a href="/library/ads" class="text-sm text-blue-600 hover:underline">Back to Airworthiness Directives</a>
+      <h1 class="mt-3 text-3xl font-bold text-slate-900">AD Applicability Review</h1>
+      <p class="mt-2 text-sm text-slate-500">
+        Read-only allocation review for FAA AD applicability suggestions and reviewed decisions.
+      </p>
+    </div>
+
+    <div class="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-xs font-bold uppercase tracking-widest text-slate-700">
+      <%= allocations.length %> Allocation Records
+    </div>
+  </div>
+
+  <section class="grid gap-3 md:grid-cols-4">
+    <% statuses.forEach((status) => { %>
+      <div class="rounded-lg border bg-white p-4 shadow-sm">
+        <p class="text-[10px] font-bold uppercase tracking-widest text-slate-500"><%= status %></p>
+        <p class="mt-2 text-3xl font-bold text-slate-900"><%= bucketCounts[status] || 0 %></p>
+      </div>
+    <% }) %>
+  </section>
+
+  <section class="rounded-xl border bg-white p-6 shadow-sm">
+    <div>
+      <h2 class="text-lg font-bold text-slate-900">Allocation Review Buckets</h2>
+      <p class="mt-1 text-sm text-slate-500">
+        This page does not accept, ignore, restore, refresh, or persist suggestions. Review actions will be added in a later phase.
+      </p>
+    </div>
+
+    <% if (!allocations.length) { %>
+      <div class="mt-6 rounded-xl border border-slate-200 bg-slate-50 px-6 py-10 text-center">
+        <p class="text-sm font-semibold text-slate-700">No AD applicability allocation records exist yet.</p>
+        <p class="mt-2 text-sm text-slate-500">
+          Future manual refresh will persist suggestions into this review queue.
+        </p>
+      </div>
+    <% } %>
+
+    <% statuses.forEach((status) => { %>
+      <% const rows = groupedAllocations[status] || []; %>
+      <section class="mt-6">
+        <div class="mb-3 flex items-center justify-between gap-3">
+          <h3 class="text-sm font-bold uppercase tracking-widest text-slate-700"><%= status %></h3>
+          <span class="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-700"><%= rows.length %></span>
+        </div>
+
+        <% if (!rows.length) { %>
+          <div class="rounded-lg border border-dashed border-slate-200 bg-slate-50 px-4 py-5 text-sm text-slate-500">
+            No <%= status %> allocation records.
+          </div>
+        <% } else { %>
+          <div class="overflow-x-auto rounded-lg border">
+            <table class="min-w-full divide-y divide-slate-200">
+              <thead class="bg-slate-50">
+                <tr>
+                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">AD Number</th>
+                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Subject</th>
+                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Source Make</th>
+                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Source Model</th>
+                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Source Product Type/Subtype</th>
+                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Target Type</th>
+                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Matched Manufacturer/Model</th>
+                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Classification</th>
+                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Status</th>
+                  <th class="min-w-72 px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Match Reason</th>
+                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Reviewed By / Reviewed At</th>
+                  <th class="min-w-64 px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Review Reason</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-slate-100 bg-white">
+                <% rows.forEach((allocation) => { %>
+                  <% const directive = allocation.AirworthinessDirective || {}; %>
+                  <tr>
+                    <td class="px-3 py-3 align-top text-sm font-semibold text-slate-900">
+                      <%= allocation.ad_number_snapshot || directive.ad_number || '-' %>
+                      <% if (allocation.ad_revision_snapshot || directive.revision) { %>
+                        <span class="block text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                          Rev <%= allocation.ad_revision_snapshot || directive.revision %>
+                        </span>
+                      <% } %>
+                    </td>
+                    <td class="px-3 py-3 align-top text-sm text-slate-700">
+                      <%= directive.subject_heading || directive.subject || '-' %>
+                    </td>
+                    <td class="px-3 py-3 align-top text-xs text-slate-700">
+                      <%= allocation.source_make || '-' %>
+                    </td>
+                    <td class="px-3 py-3 align-top text-xs text-slate-700">
+                      <%= allocation.source_model || '-' %>
+                    </td>
+                    <td class="px-3 py-3 align-top text-xs text-slate-700">
+                      <%= [allocation.source_product_type, allocation.source_product_subtype].filter(Boolean).join(' / ') || '-' %>
+                    </td>
+                    <td class="px-3 py-3 align-top">
+                      <span class="inline-flex rounded-full bg-slate-100 px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-700">
+                        <%= allocation.target_type || '-' %>
+                      </span>
+                    </td>
+                    <td class="px-3 py-3 align-top text-xs text-slate-700">
+                      <%= formatTarget(allocation) %>
+                    </td>
+                    <td class="px-3 py-3 align-top text-xs text-slate-700">
+                      <%= allocation.classification || '-' %>
+                    </td>
+                    <td class="px-3 py-3 align-top">
+                      <span class="inline-flex rounded-full bg-blue-50 px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-blue-700">
+                        <%= allocation.status || '-' %>
+                      </span>
+                    </td>
+                    <td class="px-3 py-3 align-top text-xs text-slate-700">
+                      <%= allocation.match_reason || '-' %>
+                    </td>
+                    <td class="px-3 py-3 align-top text-xs text-slate-700">
+                      <%= allocation.Reviewer?.full_name || allocation.Reviewer?.email || '-' %>
+                      <span class="block text-slate-500"><%= formatDateTime(allocation.reviewed_at) %></span>
+                    </td>
+                    <td class="px-3 py-3 align-top text-xs text-slate-700">
+                      <%= allocation.review_reason || '-' %>
+                    </td>
+                  </tr>
+                <% }) %>
+              </tbody>
+            </table>
+          </div>
+        <% } %>
+      </section>
+    <% }) %>
+  </section>
+</main>
+
+<%- include('../../partials/footer') %>
