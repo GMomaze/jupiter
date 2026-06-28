@@ -358,6 +358,184 @@
 - [ ] Stop gate: implementation may not begin until exact/broad/unresolved/ignored workflows have test expectations.
 - [ ] Stop gate: implementation verification must prove existing SB, SID, task, workpack, utilisation, due, and compliance tests remain unaffected.
 
+## Phase 22A.3 - AD Applicability Allocation Foundation
+
+- [ ] Define this slice as the durable allocation foundation for reviewed AD applicability decisions.
+- [ ] Confirm this allocation layer becomes the source of truth for reviewed AD applicability only after implementation is approved.
+- [ ] Confirm this slice does not create aircraft applicability.
+- [ ] Confirm this slice does not create or update compliance items.
+- [ ] Confirm this slice does not create or update compliance assignments.
+- [ ] Confirm this slice does not create tasks.
+- [ ] Confirm this slice does not trigger due calculations.
+- [ ] Confirm this slice does not generate workpacks.
+- [ ] Confirm this slice does not create SB links.
+- [ ] Confirm this slice does not affect SID logic.
+
+### 22A.3 Allocation Table
+
+- [ ] Define a dedicated AD applicability allocation table.
+- [ ] Use the allocation table for reviewed/saved AD applicability decisions.
+- [ ] Keep read-only 22A.1 suggestion generation separate from durable allocation writes until an explicit persist step is approved.
+- [ ] Store the allocation row id.
+- [ ] Store `airworthiness_directive_id`.
+- [ ] Store AD number snapshot for audit and debugging.
+- [ ] Store AD revision snapshot where present.
+- [ ] Store target type.
+- [ ] Store decision/status value.
+- [ ] Store original FAA Make used for the suggestion.
+- [ ] Store original FAA Model used for the suggestion.
+- [ ] Store original FAA Product Type used for the suggestion.
+- [ ] Store original FAA Product Subtype used for the suggestion.
+- [ ] Store matched `manufacturer_id` where applicable.
+- [ ] Store matched `component_model_id` where applicable.
+- [ ] Store nullable `asset_type_id` or product context where broad rules require it.
+- [ ] Store classification reason.
+- [ ] Store source bucket from the 22A.1/22A.2 review flow.
+- [ ] Store source hash or match hash if needed for idempotent rerun detection.
+- [ ] Store active/inactive state if superseded allocations must remain in audit history.
+- [ ] Store created timestamp.
+- [ ] Store updated timestamp.
+
+### 22A.3 Target Types
+
+- [ ] Define `MANUFACTURER` for accepted manufacturer-level AD applicability.
+- [ ] Define `MODEL` for accepted model-specific AD applicability.
+- [ ] Define `BROAD_RULE` for reviewed broad/series/all manufacturer or product applicability.
+- [ ] Define `MANUAL_LINK` for user-created AD-to-model links that did not originate from an exact imported suggestion.
+- [ ] Define `IGNORED` for intentionally suppressed false-positive suggestions.
+- [ ] Define `UNRESOLVED` for persisted unresolved Make/Model candidates that require later review.
+- [ ] Ensure target type is required.
+- [ ] Ensure `MANUFACTURER` rows require `manufacturer_id`.
+- [ ] Ensure `MODEL` rows require `component_model_id`.
+- [ ] Ensure `BROAD_RULE` rows require enough context to explain the broad rule.
+- [ ] Ensure `MANUAL_LINK` rows require the manually selected model or explicitly documented target.
+- [ ] Ensure `IGNORED` rows preserve the source suggestion context that was ignored.
+- [ ] Ensure `UNRESOLVED` rows preserve raw FAA Make/Model/Product fields.
+
+### 22A.3 Decision And Status Values
+
+- [ ] Define `SUGGESTED` for persisted suggestions not yet accepted or ignored.
+- [ ] Define `ACCEPTED` for reviewed allocations accepted by an authorized user.
+- [ ] Define `IGNORED` for suggestions suppressed by an authorized user.
+- [ ] Define `RESTORED` for suggestions brought back from ignored/excluded state.
+- [ ] Define `NEEDS_REVIEW` for broad, ambiguous, unresolved, or changed-source allocations.
+- [ ] Ensure status is required.
+- [ ] Ensure accepted allocations remain distinguishable from suggestions.
+- [ ] Ensure ignored allocations remain distinguishable from deleted rows.
+- [ ] Ensure restored allocations are auditable.
+- [ ] Ensure broad/unresolved allocations cannot be treated as accepted without an explicit accepted status.
+
+### 22A.3 Audit Fields
+
+- [ ] Store `created_by` when the allocation is created by a user action.
+- [ ] Store nullable `created_by` or system actor when allocation is created from suggestion persistence.
+- [ ] Store `reviewed_by` when a user accepts, ignores, restores, or otherwise reviews the allocation.
+- [ ] Store `reviewed_at` when a review action occurs.
+- [ ] Store `review_reason` for user-entered or system-provided review explanation.
+- [ ] Store original source bucket at creation.
+- [ ] Store latest classification reason.
+- [ ] Store raw FAA source snapshots even if the AD source row later changes.
+- [ ] Preserve old allocation rows or audit history when decisions are superseded.
+- [ ] Do not hard-delete allocation decisions in normal workflow.
+
+### 22A.3 Idempotency And Rerun Rules
+
+- [ ] Define a stable allocation natural key before implementation.
+- [ ] Include `airworthiness_directive_id` in the natural key.
+- [ ] Include target type in the natural key.
+- [ ] Include target id fields relevant to the target type.
+- [ ] Include normalized FAA Make/Model/Product source hash if needed to distinguish changed-source suggestions.
+- [ ] Rerunning 22A.1 suggestion generation must not duplicate allocation rows.
+- [ ] Rerunning FAA AD import must not duplicate allocation rows.
+- [ ] Rerunning FAA AD import must not erase accepted allocation decisions.
+- [ ] Rerunning FAA AD import must not erase ignored allocation decisions.
+- [ ] Rerunning FAA AD import must not erase unresolved allocation rows.
+- [ ] If source FAA Make/Model/Product fields change, flag the existing allocation as `NEEDS_REVIEW` or create a new review candidate according to the approved rule.
+- [ ] If AD number/revision changes, define whether the allocation remains linked by AD id or requires a new allocation.
+- [ ] If an AD is deactivated, define whether allocations remain visible as inactive/history.
+- [ ] Repeated accept of the same allocation must be idempotent.
+- [ ] Repeated ignore of the same allocation must be idempotent.
+- [ ] Repeated restore of the same allocation must be idempotent.
+
+### 22A.3 Feeding From 22A.1 Suggestions
+
+- [ ] Map `EXACT_MODEL_SUGGESTED` to a candidate `MODEL` allocation with `SUGGESTED` status.
+- [ ] Map `MANUFACTURER_SUGGESTED` to a candidate `MANUFACTURER` allocation with `SUGGESTED` status.
+- [ ] Map `BROAD_REVIEW` to a candidate `BROAD_RULE` allocation with `NEEDS_REVIEW` status.
+- [ ] Map unmatched or ambiguous source rows to `UNRESOLVED` only when unresolved persistence is explicitly approved.
+- [ ] Do not persist `UNMATCHED` rows unless a review workflow requires unresolved visibility.
+- [ ] Preserve the 22A.1 classification reason in the allocation.
+- [ ] Preserve the 22A.1 matched manufacturer/model ids where available.
+- [ ] Do not create allocations during read-only suggestion display.
+- [ ] Introduce a separate explicit persist/review action in a later implementation slice.
+- [ ] Keep the existing manual AD assignment workflow separate unless a later slice explicitly maps it into allocations.
+
+### 22A.3 Manual Actions In Later Implementation
+
+- [ ] Accept model applicability by changing the relevant allocation to `ACCEPTED`.
+- [ ] Accept manufacturer applicability by changing the relevant allocation to `ACCEPTED`.
+- [ ] Manually link to model by creating or activating a `MANUAL_LINK` allocation.
+- [ ] Mark broad manufacturer applicability by creating or accepting a `BROAD_RULE` allocation.
+- [ ] Ignore/exclude by creating or updating an `IGNORED` allocation with `IGNORED` status.
+- [ ] Restore ignored by recording a `RESTORED` status or creating a new active suggestion row according to the approved audit rule.
+- [ ] Require review reason for ignore/exclude when the UI supports notes.
+- [ ] Require explicit confirmation for broad manufacturer applicability.
+- [ ] Do not convert accepted allocations into compliance items in this slice.
+- [ ] Do not project accepted allocations to aircraft in this slice.
+
+### 22A.3 Indexes And Uniqueness Constraints
+
+- [ ] Add an index on `airworthiness_directive_id`.
+- [ ] Add an index on AD number snapshot if query/reporting needs it.
+- [ ] Add an index on target type.
+- [ ] Add an index on decision/status.
+- [ ] Add an index on `manufacturer_id`.
+- [ ] Add an index on `component_model_id`.
+- [ ] Add an index on active/inactive state if included.
+- [ ] Add an index on reviewed timestamp if review queues sort by review activity.
+- [ ] Define a uniqueness constraint for active AD/model allocations.
+- [ ] Define a uniqueness constraint for active AD/manufacturer allocations.
+- [ ] Define a uniqueness constraint for active AD/broad-rule context.
+- [ ] Define a uniqueness constraint for active ignored source suggestion context.
+- [ ] Ensure uniqueness constraints allow historical superseded decisions where audit history is retained.
+- [ ] Ensure null target fields do not break uniqueness for target-specific allocation rows.
+
+### 22A.3 RBAC Requirements
+
+- [ ] Define permission required to view AD allocation rows.
+- [ ] Define permission required to persist suggestions into allocation rows.
+- [ ] Define permission required to accept allocations.
+- [ ] Define permission required to create manual model links.
+- [ ] Define permission required to mark broad manufacturer applicability.
+- [ ] Define permission required to ignore/exclude allocations.
+- [ ] Define permission required to restore ignored allocations.
+- [ ] Define permission required to view audit fields.
+- [ ] Customer users must not manage AD allocations.
+- [ ] Unauthorized users must not see allocation write controls.
+- [ ] Unauthorized POST attempts must be blocked by route permission checks.
+
+### 22A.3 Strict Boundaries
+
+- [ ] Do not create aircraft inheritance in this slice.
+- [ ] Do not create aircraft applicability rows in this slice.
+- [ ] Do not create or update compliance items in this slice.
+- [ ] Do not create or update compliance assignments in this slice except existing manual assignment flows already approved outside this allocation foundation.
+- [ ] Do not change existing AD manual assignment behavior.
+- [ ] Do not change existing AD projection behavior.
+- [ ] Do not change SB import behavior.
+- [ ] Do not change SB allocation behavior.
+- [ ] Do not create AD-to-SB links.
+- [ ] Do not change SID import or assignment behavior.
+- [ ] Do not change standard task behavior.
+- [ ] Do not change workpack generation.
+- [ ] Do not change utilisation tracking.
+- [ ] Do not change due calculations.
+- [ ] Do not change aircraft compliance display.
+- [ ] Stop gate: implementation may not begin until table name, columns, indexes, and uniqueness rules are approved.
+- [ ] Stop gate: implementation may not begin until target type and status enum values are approved.
+- [ ] Stop gate: implementation may not begin until RBAC permission names are approved.
+- [ ] Stop gate: implementation verification must prove no SB, SID, task, workpack, utilisation, due, or existing compliance behavior changed.
+
 ## Phase 22.9 - Aircraft Inheritance From Make And Model
 
 - [ ] Define aircraft inheritance from assigned model ADs.
