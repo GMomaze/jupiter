@@ -151,6 +151,13 @@ router.post(
   LibraryController.linkAdApplicabilityAllocationToModel
 );
 
+router.post(
+  '/ads/applicability-review/allocations/:id/link-manufacturer',
+  requirePermission('LIBRARY_EDIT'),
+  csrfProtection,
+  LibraryController.linkAdApplicabilityAllocationToManufacturer
+);
+
 router.get(
   '/sbs/import',
   requirePermission('LIBRARY_EDIT'),

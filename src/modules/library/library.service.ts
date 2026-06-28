@@ -854,6 +854,13 @@ export class LibraryService {
     });
   }
 
+  static async getAdApplicabilityReviewManufacturerOptions() {
+    return Manufacturer.findAll({
+      attributes: ['id', 'name', 'code'],
+      order: [['name', 'ASC'], ['code', 'ASC']],
+    });
+  }
+
   static async refreshAdApplicabilityReviewAllocations(actorUserId: string | null = null) {
     const [models, activeAdCount] = await Promise.all([
       ComponentModel.findAll({
@@ -953,6 +960,34 @@ export class LibraryService {
       allocationId,
       componentModelId: String(model.id),
       manufacturerId: model.manufacturer_id || null,
+      actorUserId,
+      reviewReason: reviewReason ?? null,
+    });
+  }
+
+  static async linkAdApplicabilityAllocationToManufacturer(
+    allocationId: string,
+    manufacturerId: string,
+    actorUserId: string | null,
+    reviewReason?: string | null
+  ) {
+    const normalizedManufacturerId = String(manufacturerId || '').trim();
+
+    if (!normalizedManufacturerId) {
+      throw new Error('Manufacturer is required.');
+    }
+
+    const manufacturer = await Manufacturer.findByPk(normalizedManufacturerId, {
+      attributes: ['id'],
+    });
+
+    if (!manufacturer) {
+      throw new Error('Manufacturer not found.');
+    }
+
+    return AdApplicabilityAllocationService.linkAllocationToManufacturer({
+      allocationId,
+      manufacturerId: String(manufacturer.id),
       actorUserId,
       reviewReason: reviewReason ?? null,
     });

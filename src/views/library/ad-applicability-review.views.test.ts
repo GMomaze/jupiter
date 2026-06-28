@@ -17,6 +17,7 @@ describe('AD applicability review read-only page', () => {
     expect(routes).toContain("'/ads/applicability-review/allocations/:id/ignore'");
     expect(routes).toContain("'/ads/applicability-review/allocations/:id/restore'");
     expect(routes).toContain("'/ads/applicability-review/allocations/:id/link-model'");
+    expect(routes).toContain("'/ads/applicability-review/allocations/:id/link-manufacturer'");
     expect(routes).toContain("requirePermission('LIBRARY_EDIT')");
     expect(routes).toContain('csrfProtection');
     expect(routes).toContain('LibraryController.renderAdApplicabilityReview');
@@ -25,7 +26,7 @@ describe('AD applicability review read-only page', () => {
     expect(routes).toContain('LibraryController.ignoreAdApplicabilityAllocation');
     expect(routes).toContain('LibraryController.restoreAdApplicabilityAllocation');
     expect(routes).toContain('LibraryController.linkAdApplicabilityAllocationToModel');
-    expect(routes).not.toContain("'/ads/applicability-review/allocations/:id/link-manufacturer'");
+    expect(routes).toContain('LibraryController.linkAdApplicabilityAllocationToManufacturer');
   });
 
   it('renders the required review buckets and UI columns', () => {
@@ -51,13 +52,14 @@ describe('AD applicability review read-only page', () => {
     });
   });
 
-  it('adds manual refresh and review action forms with model-link actions only', () => {
+  it('adds manual refresh and review action forms with model and manufacturer link actions', () => {
     expect(view).toContain('method="POST"');
     expect(view).toContain('action="/library/ads/applicability-review/refresh?_csrf=<%= encodeURIComponent(csrfToken) %>"');
     expect(view).toContain('action="/library/ads/applicability-review/allocations/<%= allocation.id %>/accept?_csrf=<%= encodeURIComponent(csrfToken) %>"');
     expect(view).toContain('action="/library/ads/applicability-review/allocations/<%= allocation.id %>/ignore?_csrf=<%= encodeURIComponent(csrfToken) %>"');
     expect(view).toContain('action="/library/ads/applicability-review/allocations/<%= allocation.id %>/restore?_csrf=<%= encodeURIComponent(csrfToken) %>"');
     expect(view).toContain('action="/library/ads/applicability-review/allocations/<%= allocation.id %>/link-model?_csrf=<%= encodeURIComponent(csrfToken) %>"');
+    expect(view).toContain('action="/library/ads/applicability-review/allocations/<%= allocation.id %>/link-manufacturer?_csrf=<%= encodeURIComponent(csrfToken) %>"');
     expect(view).toContain('name="_csrf" value="<%= csrfToken %>"');
     expect(view).toContain('Refresh Suggestions');
     expect(view).toContain('Accept Applicability');
@@ -65,10 +67,11 @@ describe('AD applicability review read-only page', () => {
     expect(view).toContain('Restore Suggestion');
     expect(view).toContain('name="component_model_id"');
     expect(view).toContain('Link Model');
+    expect(view).toContain('name="manufacturer_id"');
+    expect(view).toContain('Link Manufacturer');
     expect(view).toContain("['SUGGESTED', 'NEEDS_REVIEW'].includes(allocation.status)");
     expect(view).toContain("allocation.status === 'IGNORED'");
     expect(view).toContain('name="review_reason"');
-    expect(view).not.toContain('Link Manufacturer');
   });
 
   it('keeps allocation mutations scoped to manual refresh and explicit review actions', () => {
@@ -78,6 +81,7 @@ describe('AD applicability review read-only page', () => {
     expect(controller).toContain("LibraryService.reviewAdApplicabilityAllocation(");
     expect(controller).toContain("LibraryService.restoreAdApplicabilityAllocation(");
     expect(controller).toContain("LibraryService.linkAdApplicabilityAllocationToModel(");
+    expect(controller).toContain("LibraryService.linkAdApplicabilityAllocationToManufacturer(");
     expect(controller).toContain("'ACCEPTED'");
     expect(controller).toContain("'IGNORED'");
   });
@@ -91,12 +95,29 @@ describe('AD applicability review read-only page', () => {
     expect(view).toContain('(componentModels || []).forEach');
   });
 
+  it('loads existing manufacturers for manual manufacturer linking', () => {
+    expect(controller).toContain('LibraryService.getAdApplicabilityReviewManufacturerOptions');
+    expect(controller).toContain('manufacturers');
+    expect(service).toContain('static async getAdApplicabilityReviewManufacturerOptions');
+    expect(service).toContain('Manufacturer.findAll');
+    expect(service).toContain("attributes: ['id', 'name', 'code']");
+    expect(view).toContain('(manufacturers || []).forEach');
+  });
+
   it('validates selected component models before manual allocation linking', () => {
     expect(service).toContain('static async linkAdApplicabilityAllocationToModel');
     expect(service).toContain("throw new Error('Component model is required.')");
     expect(service).toContain('ComponentModel.findByPk(normalizedModelId');
     expect(service).toContain("throw new Error('Component model not found.')");
     expect(service).toContain('AdApplicabilityAllocationService.linkAllocationToModel');
+  });
+
+  it('validates selected manufacturers before manual allocation linking', () => {
+    expect(service).toContain('static async linkAdApplicabilityAllocationToManufacturer');
+    expect(service).toContain("throw new Error('Manufacturer is required.')");
+    expect(service).toContain('Manufacturer.findByPk(normalizedManufacturerId');
+    expect(service).toContain("throw new Error('Manufacturer not found.')");
+    expect(service).toContain('AdApplicabilityAllocationService.linkAllocationToManufacturer');
   });
 
   it('renders visible refresh feedback messages with the required summary counts', () => {
@@ -161,6 +182,7 @@ describe('AD applicability review read-only page', () => {
     expect(actionMethods).toContain("LibraryService.reviewAdApplicabilityAllocation(");
     expect(actionMethods).toContain("LibraryService.restoreAdApplicabilityAllocation(");
     expect(actionMethods).toContain("LibraryService.linkAdApplicabilityAllocationToModel(");
+    expect(actionMethods).toContain("LibraryService.linkAdApplicabilityAllocationToManufacturer(");
     expect(actionMethods).toContain("'ACCEPTED'");
     expect(actionMethods).toContain("'IGNORED'");
     expect(actionMethods).not.toContain('ComplianceItem');

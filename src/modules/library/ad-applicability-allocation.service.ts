@@ -96,6 +96,13 @@ export type LinkAdApplicabilityAllocationToModelInput = {
   reviewReason?: string | null;
 };
 
+export type LinkAdApplicabilityAllocationToManufacturerInput = {
+  allocationId: string;
+  manufacturerId: string;
+  actorUserId: string | null;
+  reviewReason?: string | null;
+};
+
 const broadReviewClassifications = new Set<AdApplicabilityAllocationClassification>([
   'BROAD_SERIES',
   'BROAD_ALL',
@@ -439,6 +446,32 @@ export class AdApplicabilityAllocationService {
       matched_manufacturer_id: input.manufacturerId,
       status: 'ACCEPTED',
       classification: 'MANUAL_MODEL_LINK',
+      reviewed_by: input.actorUserId || null,
+      reviewed_at: new Date(),
+      review_reason: String(input.reviewReason || '').trim() || null,
+    });
+  }
+
+  static async linkAllocationToManufacturer(
+    input: LinkAdApplicabilityAllocationToManufacturerInput
+  ) {
+    const allocation = await AdApplicabilityAllocation.findByPk(input.allocationId);
+
+    if (!allocation) {
+      throw new Error('AD applicability allocation not found.');
+    }
+
+    if (!['SUGGESTED', 'NEEDS_REVIEW'].includes(String(allocation.status))) {
+      throw new Error('Only suggested or needs-review allocations can be linked to a manufacturer.');
+    }
+
+    return allocation.update({
+      target_type: 'MANUAL_LINK',
+      target_id: input.manufacturerId,
+      matched_manufacturer_id: input.manufacturerId,
+      matched_component_model_id: null,
+      status: 'ACCEPTED',
+      classification: 'MANUAL_MANUFACTURER_LINK',
       reviewed_by: input.actorUserId || null,
       reviewed_at: new Date(),
       review_reason: String(input.reviewReason || '').trim() || null,

@@ -54,9 +54,10 @@ export class LibraryController {
   }
 
   static async renderAdApplicabilityReview(_req: Request, res: Response): Promise<void> {
-    const [allocations, componentModels] = await Promise.all([
+    const [allocations, componentModels, manufacturers] = await Promise.all([
       LibraryService.getAdApplicabilityReviewAllocations(),
       LibraryService.getAdApplicabilityReviewModelOptions(),
+      LibraryService.getAdApplicabilityReviewManufacturerOptions(),
     ]);
     const bucketStatuses = ['SUGGESTED', 'NEEDS_REVIEW', 'ACCEPTED', 'IGNORED'];
     const bucketCounts = bucketStatuses.reduce<Record<string, number>>((counts, status) => {
@@ -70,6 +71,7 @@ export class LibraryController {
       bucketStatuses,
       bucketCounts,
       componentModels,
+      manufacturers,
     });
   }
 
@@ -152,6 +154,23 @@ export class LibraryController {
       req.flash('success', 'AD applicability allocation linked to model.');
     } catch (error: any) {
       req.flash('error', error?.message || 'Unable to link AD applicability allocation to model.');
+    }
+
+    res.redirect('/library/ads/applicability-review');
+  }
+
+  static async linkAdApplicabilityAllocationToManufacturer(req: Request, res: Response): Promise<void> {
+    try {
+      await LibraryService.linkAdApplicabilityAllocationToManufacturer(
+        getParam(req.params.id),
+        String(req.body?.manufacturer_id || ''),
+        (req.user as any)?.id || null,
+        req.body?.review_reason
+      );
+
+      req.flash('success', 'AD applicability allocation linked to manufacturer.');
+    } catch (error: any) {
+      req.flash('error', error?.message || 'Unable to link AD applicability allocation to manufacturer.');
     }
 
     res.redirect('/library/ads/applicability-review');

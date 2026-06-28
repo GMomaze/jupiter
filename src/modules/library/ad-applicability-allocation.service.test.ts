@@ -459,6 +459,64 @@ describe('AD applicability allocation service foundation', () => {
     expect(update).not.toHaveBeenCalled();
   });
 
+  it('manually links a reviewable allocation to an existing manufacturer using only approved fields', async () => {
+    const update = vi.fn().mockResolvedValue({ id: 'allocation', status: 'ACCEPTED' });
+    vi.spyOn(AdApplicabilityAllocation, 'findByPk').mockResolvedValue({
+      status: 'SUGGESTED',
+      update,
+    } as any);
+
+    await AdApplicabilityAllocationService.linkAllocationToManufacturer({
+      allocationId: 'allocation',
+      manufacturerId,
+      actorUserId,
+      reviewReason: 'Manual manufacturer confirmation.',
+    });
+
+    expect(update).toHaveBeenCalledTimes(1);
+    const payload = update.mock.calls[0]?.[0];
+    expect(Object.keys(payload).sort()).toEqual([
+      'classification',
+      'matched_component_model_id',
+      'matched_manufacturer_id',
+      'review_reason',
+      'reviewed_at',
+      'reviewed_by',
+      'status',
+      'target_id',
+      'target_type',
+    ]);
+    expect(payload).toMatchObject({
+      target_type: 'MANUAL_LINK',
+      target_id: manufacturerId,
+      matched_manufacturer_id: manufacturerId,
+      matched_component_model_id: null,
+      status: 'ACCEPTED',
+      classification: 'MANUAL_MANUFACTURER_LINK',
+      reviewed_by: actorUserId,
+      review_reason: 'Manual manufacturer confirmation.',
+    });
+    expect(payload.reviewed_at).toBeInstanceOf(Date);
+  });
+
+  it('does not manually link manufacturers for accepted or ignored allocations', async () => {
+    const update = vi.fn();
+    vi.spyOn(AdApplicabilityAllocation, 'findByPk').mockResolvedValue({
+      status: 'IGNORED',
+      update,
+    } as any);
+
+    await expect(
+      AdApplicabilityAllocationService.linkAllocationToManufacturer({
+        allocationId: 'allocation',
+        manufacturerId,
+        actorUserId,
+        reviewReason: null,
+      })
+    ).rejects.toThrow('Only suggested or needs-review allocations can be linked to a manufacturer.');
+    expect(update).not.toHaveBeenCalled();
+  });
+
   it('does not introduce aircraft, SB, SID, task, workpack, utilisation, due, or RBAC code', () => {
     const source = readFileSync(
       resolve(process.cwd(), 'src/modules/library/ad-applicability-allocation.service.ts'),

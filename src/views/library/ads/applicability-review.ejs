@@ -227,6 +227,31 @@
                               Link Model
                             </button>
                           </form>
+                          <form method="POST" action="/library/ads/applicability-review/allocations/<%= allocation.id %>/link-manufacturer?_csrf=<%= encodeURIComponent(csrfToken) %>" class="space-y-2 border-t border-slate-100 pt-2">
+                            <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                            <select
+                              name="manufacturer_id"
+                              class="w-full rounded border border-slate-300 px-2 py-1 text-xs"
+                              required
+                            >
+                              <option value="">Select existing manufacturer...</option>
+                              <% (manufacturers || []).forEach((manufacturer) => { %>
+                                <option value="<%= manufacturer.id %>">
+                                  <%= [manufacturer.name, manufacturer.code].filter(Boolean).join(' / ') || manufacturer.id %>
+                                </option>
+                              <% }) %>
+                            </select>
+                            <input
+                              type="text"
+                              name="review_reason"
+                              value=""
+                              placeholder="Optional manufacturer link reason"
+                              class="w-full rounded border border-slate-300 px-2 py-1 text-xs"
+                            >
+                            <button type="submit" class="w-full rounded bg-violet-700 px-3 py-1.5 text-xs font-bold text-white hover:bg-violet-800">
+                              Link Manufacturer
+                            </button>
+                          </form>
                         </div>
                       <% } else if (allocation.status === 'IGNORED') { %>
                         <form method="POST" action="/library/ads/applicability-review/allocations/<%= allocation.id %>/restore?_csrf=<%= encodeURIComponent(csrfToken) %>" class="space-y-2">
