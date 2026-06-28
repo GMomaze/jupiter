@@ -329,6 +329,76 @@ describe('AD applicability allocation service foundation', () => {
     expect(update).not.toHaveBeenCalled();
   });
 
+  it('restores broad ignored allocations to NEEDS_REVIEW using only review fields', async () => {
+    const update = vi.fn().mockResolvedValue({ id: 'allocation', status: 'NEEDS_REVIEW' });
+    vi.spyOn(AdApplicabilityAllocation, 'findByPk').mockResolvedValue({
+      status: 'IGNORED',
+      classification: 'BROAD_SERIES',
+      update,
+    } as any);
+
+    await AdApplicabilityAllocationService.restoreAllocation({
+      allocationId: 'allocation',
+      actorUserId,
+      reviewReason: 'Review again.',
+    });
+
+    expect(update).toHaveBeenCalledTimes(1);
+    const payload = update.mock.calls[0]?.[0];
+    expect(Object.keys(payload).sort()).toEqual([
+      'review_reason',
+      'reviewed_at',
+      'reviewed_by',
+      'status',
+    ]);
+    expect(payload).toMatchObject({
+      status: 'NEEDS_REVIEW',
+      reviewed_by: actorUserId,
+      review_reason: 'Review again.',
+    });
+    expect(payload.reviewed_at).toBeInstanceOf(Date);
+  });
+
+  it('restores non-broad ignored allocations to SUGGESTED', async () => {
+    const update = vi.fn().mockResolvedValue({ id: 'allocation', status: 'SUGGESTED' });
+    vi.spyOn(AdApplicabilityAllocation, 'findByPk').mockResolvedValue({
+      status: 'IGNORED',
+      classification: 'EXACT_MODEL_CODE',
+      update,
+    } as any);
+
+    await AdApplicabilityAllocationService.restoreAllocation({
+      allocationId: 'allocation',
+      actorUserId,
+      reviewReason: null,
+    });
+
+    expect(update).toHaveBeenCalledWith({
+      status: 'SUGGESTED',
+      reviewed_by: actorUserId,
+      reviewed_at: expect.any(Date),
+      review_reason: null,
+    });
+  });
+
+  it('does not restore allocations unless they are ignored', async () => {
+    const update = vi.fn();
+    vi.spyOn(AdApplicabilityAllocation, 'findByPk').mockResolvedValue({
+      status: 'SUGGESTED',
+      classification: 'EXACT_MODEL_CODE',
+      update,
+    } as any);
+
+    await expect(
+      AdApplicabilityAllocationService.restoreAllocation({
+        allocationId: 'allocation',
+        actorUserId,
+        reviewReason: null,
+      })
+    ).rejects.toThrow('Only ignored allocations can be restored.');
+    expect(update).not.toHaveBeenCalled();
+  });
+
   it('does not introduce aircraft, SB, SID, task, workpack, utilisation, due, or RBAC code', () => {
     const source = readFileSync(
       resolve(process.cwd(), 'src/modules/library/ad-applicability-allocation.service.ts'),

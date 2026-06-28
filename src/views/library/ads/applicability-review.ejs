@@ -198,6 +198,20 @@
                             </button>
                           </form>
                         </div>
+                      <% } else if (allocation.status === 'IGNORED') { %>
+                        <form method="POST" action="/library/ads/applicability-review/allocations/<%= allocation.id %>/restore?_csrf=<%= encodeURIComponent(csrfToken) %>" class="space-y-2">
+                          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                          <input
+                            type="text"
+                            name="review_reason"
+                            value=""
+                            placeholder="Optional restore reason"
+                            class="w-full rounded border border-slate-300 px-2 py-1 text-xs"
+                          >
+                          <button type="submit" class="w-full rounded bg-blue-700 px-3 py-1.5 text-xs font-bold text-white hover:bg-blue-800">
+                            Restore Suggestion
+                          </button>
+                        </form>
                       <% } else { %>
                         <span class="text-slate-400">-</span>
                       <% } %>

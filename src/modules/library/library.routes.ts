@@ -137,6 +137,13 @@ router.post(
   LibraryController.ignoreAdApplicabilityAllocation
 );
 
+router.post(
+  '/ads/applicability-review/allocations/:id/restore',
+  requirePermission('LIBRARY_EDIT'),
+  csrfProtection,
+  LibraryController.restoreAdApplicabilityAllocation
+);
+
 router.get(
   '/sbs/import',
   requirePermission('LIBRARY_EDIT'),

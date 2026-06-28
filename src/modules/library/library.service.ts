@@ -903,6 +903,18 @@ export class LibraryService {
     });
   }
 
+  static async restoreAdApplicabilityAllocation(
+    allocationId: string,
+    actorUserId: string | null,
+    reviewReason?: string | null
+  ) {
+    return AdApplicabilityAllocationService.restoreAllocation({
+      allocationId,
+      actorUserId,
+      reviewReason: reviewReason ?? null,
+    });
+  }
+
   static async createAirworthinessDirective(data: {
     ad_number?: unknown;
     revision?: unknown;

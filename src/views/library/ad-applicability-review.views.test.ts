@@ -15,13 +15,14 @@ describe('AD applicability review read-only page', () => {
     expect(routes).toContain("'/ads/applicability-review/refresh'");
     expect(routes).toContain("'/ads/applicability-review/allocations/:id/accept'");
     expect(routes).toContain("'/ads/applicability-review/allocations/:id/ignore'");
+    expect(routes).toContain("'/ads/applicability-review/allocations/:id/restore'");
     expect(routes).toContain("requirePermission('LIBRARY_EDIT')");
     expect(routes).toContain('csrfProtection');
     expect(routes).toContain('LibraryController.renderAdApplicabilityReview');
     expect(routes).toContain('LibraryController.refreshAdApplicabilityReview');
     expect(routes).toContain('LibraryController.acceptAdApplicabilityAllocation');
     expect(routes).toContain('LibraryController.ignoreAdApplicabilityAllocation');
-    expect(routes).not.toContain("'/ads/applicability-review/allocations/:id/restore'");
+    expect(routes).toContain('LibraryController.restoreAdApplicabilityAllocation');
     expect(routes).not.toContain("'/ads/applicability-review/allocations/:id/link-model'");
     expect(routes).not.toContain("'/ads/applicability-review/allocations/:id/link-manufacturer'");
   });
@@ -49,18 +50,20 @@ describe('AD applicability review read-only page', () => {
     });
   });
 
-  it('adds manual refresh and accept-ignore forms without restore or link actions', () => {
+  it('adds manual refresh and review action forms without link actions', () => {
     expect(view).toContain('method="POST"');
     expect(view).toContain('action="/library/ads/applicability-review/refresh?_csrf=<%= encodeURIComponent(csrfToken) %>"');
     expect(view).toContain('action="/library/ads/applicability-review/allocations/<%= allocation.id %>/accept?_csrf=<%= encodeURIComponent(csrfToken) %>"');
     expect(view).toContain('action="/library/ads/applicability-review/allocations/<%= allocation.id %>/ignore?_csrf=<%= encodeURIComponent(csrfToken) %>"');
+    expect(view).toContain('action="/library/ads/applicability-review/allocations/<%= allocation.id %>/restore?_csrf=<%= encodeURIComponent(csrfToken) %>"');
     expect(view).toContain('name="_csrf" value="<%= csrfToken %>"');
     expect(view).toContain('Refresh Suggestions');
     expect(view).toContain('Accept Applicability');
     expect(view).toContain('Ignore Suggestion');
+    expect(view).toContain('Restore Suggestion');
     expect(view).toContain("['SUGGESTED', 'NEEDS_REVIEW'].includes(allocation.status)");
+    expect(view).toContain("allocation.status === 'IGNORED'");
     expect(view).toContain('name="review_reason"');
-    expect(view).not.toContain('Restore');
     expect(view).not.toContain('Link Model');
     expect(view).not.toContain('Link Manufacturer');
   });
@@ -70,6 +73,7 @@ describe('AD applicability review read-only page', () => {
     expect(controller).toContain('LibraryService.getAdApplicabilityReviewAllocations');
     expect(controller).toContain('LibraryService.refreshAdApplicabilityReviewAllocations');
     expect(controller).toContain("LibraryService.reviewAdApplicabilityAllocation(");
+    expect(controller).toContain("LibraryService.restoreAdApplicabilityAllocation(");
     expect(controller).toContain("'ACCEPTED'");
     expect(controller).toContain("'IGNORED'");
   });
@@ -128,12 +132,13 @@ describe('AD applicability review read-only page', () => {
     expect(refreshMethod).not.toContain('DueStatus');
   });
 
-  it('keeps accept-ignore controllers scoped to allocation review updates', () => {
+  it('keeps accept-ignore-restore controllers scoped to allocation review updates', () => {
     const acceptStart = controller.indexOf('static async acceptAdApplicabilityAllocation');
     const ignoreEnd = controller.indexOf('static renderAdCreateForm');
     const actionMethods = controller.slice(acceptStart, ignoreEnd);
 
     expect(actionMethods).toContain("LibraryService.reviewAdApplicabilityAllocation(");
+    expect(actionMethods).toContain("LibraryService.restoreAdApplicabilityAllocation(");
     expect(actionMethods).toContain("'ACCEPTED'");
     expect(actionMethods).toContain("'IGNORED'");
     expect(actionMethods).not.toContain('ComplianceItem');

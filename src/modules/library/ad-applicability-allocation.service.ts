@@ -82,6 +82,18 @@ export type ReviewAdApplicabilityAllocationInput = {
   reviewReason?: string | null;
 };
 
+export type RestoreAdApplicabilityAllocationInput = {
+  allocationId: string;
+  actorUserId: string | null;
+  reviewReason?: string | null;
+};
+
+const broadReviewClassifications = new Set<AdApplicabilityAllocationClassification>([
+  'BROAD_SERIES',
+  'BROAD_ALL',
+  'MULTI_MODEL_REVIEW',
+]);
+
 function normalizeSourcePart(value: unknown) {
   return String(value ?? '')
     .trim()
@@ -372,6 +384,29 @@ export class AdApplicabilityAllocationService {
 
     return allocation.update({
       status: input.status,
+      reviewed_by: input.actorUserId || null,
+      reviewed_at: new Date(),
+      review_reason: String(input.reviewReason || '').trim() || null,
+    });
+  }
+
+  static async restoreAllocation(input: RestoreAdApplicabilityAllocationInput) {
+    const allocation = await AdApplicabilityAllocation.findByPk(input.allocationId);
+
+    if (!allocation) {
+      throw new Error('AD applicability allocation not found.');
+    }
+
+    if (allocation.status !== 'IGNORED') {
+      throw new Error('Only ignored allocations can be restored.');
+    }
+
+    const restoredStatus = broadReviewClassifications.has(allocation.classification)
+      ? 'NEEDS_REVIEW'
+      : 'SUGGESTED';
+
+    return allocation.update({
+      status: restoredStatus,
       reviewed_by: input.actorUserId || null,
       reviewed_at: new Date(),
       review_reason: String(input.reviewReason || '').trim() || null,

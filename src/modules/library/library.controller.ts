@@ -120,6 +120,22 @@ export class LibraryController {
     res.redirect('/library/ads/applicability-review');
   }
 
+  static async restoreAdApplicabilityAllocation(req: Request, res: Response): Promise<void> {
+    try {
+      await LibraryService.restoreAdApplicabilityAllocation(
+        getParam(req.params.id),
+        (req.user as any)?.id || null,
+        req.body?.review_reason
+      );
+
+      req.flash('success', 'AD applicability suggestion restored for review.');
+    } catch (error: any) {
+      req.flash('error', error?.message || 'Unable to restore AD applicability suggestion.');
+    }
+
+    res.redirect('/library/ads/applicability-review');
+  }
+
   static renderAdCreateForm(_req: Request, res: Response): void {
     res.render('library/ads/new', {
       title: 'Add New Airworthiness Directive',
