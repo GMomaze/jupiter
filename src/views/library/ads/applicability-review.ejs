@@ -197,6 +197,36 @@
                               Ignore Suggestion
                             </button>
                           </form>
+                          <form method="POST" action="/library/ads/applicability-review/allocations/<%= allocation.id %>/link-model?_csrf=<%= encodeURIComponent(csrfToken) %>" class="space-y-2 border-t border-slate-100 pt-2">
+                            <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                            <select
+                              name="component_model_id"
+                              class="w-full rounded border border-slate-300 px-2 py-1 text-xs"
+                              required
+                            >
+                              <option value="">Select existing model...</option>
+                              <% (componentModels || []).forEach((componentModel) => { %>
+                                <%
+                                  const manufacturer = componentModel.Manufacturer;
+                                  const manufacturerLabel = [manufacturer?.name, manufacturer?.code].filter(Boolean).join(' / ');
+                                  const modelLabel = [componentModel.model_code, componentModel.model_name].filter(Boolean).join(' - ') || componentModel.id;
+                                %>
+                                <option value="<%= componentModel.id %>">
+                                  <%= [manufacturerLabel, modelLabel].filter(Boolean).join(' / ') %>
+                                </option>
+                              <% }) %>
+                            </select>
+                            <input
+                              type="text"
+                              name="review_reason"
+                              value=""
+                              placeholder="Optional link reason"
+                              class="w-full rounded border border-slate-300 px-2 py-1 text-xs"
+                            >
+                            <button type="submit" class="w-full rounded bg-indigo-700 px-3 py-1.5 text-xs font-bold text-white hover:bg-indigo-800">
+                              Link Model
+                            </button>
+                          </form>
                         </div>
                       <% } else if (allocation.status === 'IGNORED') { %>
                         <form method="POST" action="/library/ads/applicability-review/allocations/<%= allocation.id %>/restore?_csrf=<%= encodeURIComponent(csrfToken) %>" class="space-y-2">

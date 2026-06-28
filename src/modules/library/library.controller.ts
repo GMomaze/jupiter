@@ -54,7 +54,10 @@ export class LibraryController {
   }
 
   static async renderAdApplicabilityReview(_req: Request, res: Response): Promise<void> {
-    const allocations = await LibraryService.getAdApplicabilityReviewAllocations();
+    const [allocations, componentModels] = await Promise.all([
+      LibraryService.getAdApplicabilityReviewAllocations(),
+      LibraryService.getAdApplicabilityReviewModelOptions(),
+    ]);
     const bucketStatuses = ['SUGGESTED', 'NEEDS_REVIEW', 'ACCEPTED', 'IGNORED'];
     const bucketCounts = bucketStatuses.reduce<Record<string, number>>((counts, status) => {
       counts[status] = allocations.filter((allocation: any) => allocation.status === status).length;
@@ -66,6 +69,7 @@ export class LibraryController {
       allocations,
       bucketStatuses,
       bucketCounts,
+      componentModels,
     });
   }
 
@@ -131,6 +135,23 @@ export class LibraryController {
       req.flash('success', 'AD applicability suggestion restored for review.');
     } catch (error: any) {
       req.flash('error', error?.message || 'Unable to restore AD applicability suggestion.');
+    }
+
+    res.redirect('/library/ads/applicability-review');
+  }
+
+  static async linkAdApplicabilityAllocationToModel(req: Request, res: Response): Promise<void> {
+    try {
+      await LibraryService.linkAdApplicabilityAllocationToModel(
+        getParam(req.params.id),
+        String(req.body?.component_model_id || ''),
+        (req.user as any)?.id || null,
+        req.body?.review_reason
+      );
+
+      req.flash('success', 'AD applicability allocation linked to model.');
+    } catch (error: any) {
+      req.flash('error', error?.message || 'Unable to link AD applicability allocation to model.');
     }
 
     res.redirect('/library/ads/applicability-review');

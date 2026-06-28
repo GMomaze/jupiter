@@ -840,6 +840,20 @@ export class LibraryService {
     });
   }
 
+  static async getAdApplicabilityReviewModelOptions() {
+    return ComponentModel.findAll({
+      attributes: ['id', 'model_code', 'model_name', 'manufacturer_id'],
+      include: [
+        {
+          model: Manufacturer,
+          attributes: ['id', 'name', 'code'],
+          required: false,
+        },
+      ],
+      order: [[Manufacturer, 'name', 'ASC'], ['model_code', 'ASC'], ['model_name', 'ASC']],
+    });
+  }
+
   static async refreshAdApplicabilityReviewAllocations(actorUserId: string | null = null) {
     const [models, activeAdCount] = await Promise.all([
       ComponentModel.findAll({
@@ -910,6 +924,35 @@ export class LibraryService {
   ) {
     return AdApplicabilityAllocationService.restoreAllocation({
       allocationId,
+      actorUserId,
+      reviewReason: reviewReason ?? null,
+    });
+  }
+
+  static async linkAdApplicabilityAllocationToModel(
+    allocationId: string,
+    componentModelId: string,
+    actorUserId: string | null,
+    reviewReason?: string | null
+  ) {
+    const normalizedModelId = String(componentModelId || '').trim();
+
+    if (!normalizedModelId) {
+      throw new Error('Component model is required.');
+    }
+
+    const model = await ComponentModel.findByPk(normalizedModelId, {
+      attributes: ['id', 'manufacturer_id'],
+    });
+
+    if (!model) {
+      throw new Error('Component model not found.');
+    }
+
+    return AdApplicabilityAllocationService.linkAllocationToModel({
+      allocationId,
+      componentModelId: String(model.id),
+      manufacturerId: model.manufacturer_id || null,
       actorUserId,
       reviewReason: reviewReason ?? null,
     });

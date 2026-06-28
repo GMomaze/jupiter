@@ -399,6 +399,66 @@ describe('AD applicability allocation service foundation', () => {
     expect(update).not.toHaveBeenCalled();
   });
 
+  it('manually links a reviewable allocation to an existing model using only approved fields', async () => {
+    const update = vi.fn().mockResolvedValue({ id: 'allocation', status: 'ACCEPTED' });
+    vi.spyOn(AdApplicabilityAllocation, 'findByPk').mockResolvedValue({
+      status: 'NEEDS_REVIEW',
+      update,
+    } as any);
+
+    await AdApplicabilityAllocationService.linkAllocationToModel({
+      allocationId: 'allocation',
+      componentModelId: modelId,
+      manufacturerId,
+      actorUserId,
+      reviewReason: 'Manual model confirmation.',
+    });
+
+    expect(update).toHaveBeenCalledTimes(1);
+    const payload = update.mock.calls[0]?.[0];
+    expect(Object.keys(payload).sort()).toEqual([
+      'classification',
+      'matched_component_model_id',
+      'matched_manufacturer_id',
+      'review_reason',
+      'reviewed_at',
+      'reviewed_by',
+      'status',
+      'target_id',
+      'target_type',
+    ]);
+    expect(payload).toMatchObject({
+      target_type: 'MANUAL_LINK',
+      target_id: modelId,
+      matched_component_model_id: modelId,
+      matched_manufacturer_id: manufacturerId,
+      status: 'ACCEPTED',
+      classification: 'MANUAL_MODEL_LINK',
+      reviewed_by: actorUserId,
+      review_reason: 'Manual model confirmation.',
+    });
+    expect(payload.reviewed_at).toBeInstanceOf(Date);
+  });
+
+  it('does not manually link accepted or ignored allocations', async () => {
+    const update = vi.fn();
+    vi.spyOn(AdApplicabilityAllocation, 'findByPk').mockResolvedValue({
+      status: 'ACCEPTED',
+      update,
+    } as any);
+
+    await expect(
+      AdApplicabilityAllocationService.linkAllocationToModel({
+        allocationId: 'allocation',
+        componentModelId: modelId,
+        manufacturerId,
+        actorUserId,
+        reviewReason: null,
+      })
+    ).rejects.toThrow('Only suggested or needs-review allocations can be linked to a model.');
+    expect(update).not.toHaveBeenCalled();
+  });
+
   it('does not introduce aircraft, SB, SID, task, workpack, utilisation, due, or RBAC code', () => {
     const source = readFileSync(
       resolve(process.cwd(), 'src/modules/library/ad-applicability-allocation.service.ts'),

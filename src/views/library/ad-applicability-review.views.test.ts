@@ -16,6 +16,7 @@ describe('AD applicability review read-only page', () => {
     expect(routes).toContain("'/ads/applicability-review/allocations/:id/accept'");
     expect(routes).toContain("'/ads/applicability-review/allocations/:id/ignore'");
     expect(routes).toContain("'/ads/applicability-review/allocations/:id/restore'");
+    expect(routes).toContain("'/ads/applicability-review/allocations/:id/link-model'");
     expect(routes).toContain("requirePermission('LIBRARY_EDIT')");
     expect(routes).toContain('csrfProtection');
     expect(routes).toContain('LibraryController.renderAdApplicabilityReview');
@@ -23,7 +24,7 @@ describe('AD applicability review read-only page', () => {
     expect(routes).toContain('LibraryController.acceptAdApplicabilityAllocation');
     expect(routes).toContain('LibraryController.ignoreAdApplicabilityAllocation');
     expect(routes).toContain('LibraryController.restoreAdApplicabilityAllocation');
-    expect(routes).not.toContain("'/ads/applicability-review/allocations/:id/link-model'");
+    expect(routes).toContain('LibraryController.linkAdApplicabilityAllocationToModel');
     expect(routes).not.toContain("'/ads/applicability-review/allocations/:id/link-manufacturer'");
   });
 
@@ -50,21 +51,23 @@ describe('AD applicability review read-only page', () => {
     });
   });
 
-  it('adds manual refresh and review action forms without link actions', () => {
+  it('adds manual refresh and review action forms with model-link actions only', () => {
     expect(view).toContain('method="POST"');
     expect(view).toContain('action="/library/ads/applicability-review/refresh?_csrf=<%= encodeURIComponent(csrfToken) %>"');
     expect(view).toContain('action="/library/ads/applicability-review/allocations/<%= allocation.id %>/accept?_csrf=<%= encodeURIComponent(csrfToken) %>"');
     expect(view).toContain('action="/library/ads/applicability-review/allocations/<%= allocation.id %>/ignore?_csrf=<%= encodeURIComponent(csrfToken) %>"');
     expect(view).toContain('action="/library/ads/applicability-review/allocations/<%= allocation.id %>/restore?_csrf=<%= encodeURIComponent(csrfToken) %>"');
+    expect(view).toContain('action="/library/ads/applicability-review/allocations/<%= allocation.id %>/link-model?_csrf=<%= encodeURIComponent(csrfToken) %>"');
     expect(view).toContain('name="_csrf" value="<%= csrfToken %>"');
     expect(view).toContain('Refresh Suggestions');
     expect(view).toContain('Accept Applicability');
     expect(view).toContain('Ignore Suggestion');
     expect(view).toContain('Restore Suggestion');
+    expect(view).toContain('name="component_model_id"');
+    expect(view).toContain('Link Model');
     expect(view).toContain("['SUGGESTED', 'NEEDS_REVIEW'].includes(allocation.status)");
     expect(view).toContain("allocation.status === 'IGNORED'");
     expect(view).toContain('name="review_reason"');
-    expect(view).not.toContain('Link Model');
     expect(view).not.toContain('Link Manufacturer');
   });
 
@@ -74,8 +77,26 @@ describe('AD applicability review read-only page', () => {
     expect(controller).toContain('LibraryService.refreshAdApplicabilityReviewAllocations');
     expect(controller).toContain("LibraryService.reviewAdApplicabilityAllocation(");
     expect(controller).toContain("LibraryService.restoreAdApplicabilityAllocation(");
+    expect(controller).toContain("LibraryService.linkAdApplicabilityAllocationToModel(");
     expect(controller).toContain("'ACCEPTED'");
     expect(controller).toContain("'IGNORED'");
+  });
+
+  it('loads existing component models for manual model linking', () => {
+    expect(controller).toContain('LibraryService.getAdApplicabilityReviewModelOptions');
+    expect(controller).toContain('componentModels');
+    expect(service).toContain('static async getAdApplicabilityReviewModelOptions');
+    expect(service).toContain('ComponentModel.findAll');
+    expect(service).toContain("attributes: ['id', 'model_code', 'model_name', 'manufacturer_id']");
+    expect(view).toContain('(componentModels || []).forEach');
+  });
+
+  it('validates selected component models before manual allocation linking', () => {
+    expect(service).toContain('static async linkAdApplicabilityAllocationToModel');
+    expect(service).toContain("throw new Error('Component model is required.')");
+    expect(service).toContain('ComponentModel.findByPk(normalizedModelId');
+    expect(service).toContain("throw new Error('Component model not found.')");
+    expect(service).toContain('AdApplicabilityAllocationService.linkAllocationToModel');
   });
 
   it('renders visible refresh feedback messages with the required summary counts', () => {
@@ -132,13 +153,14 @@ describe('AD applicability review read-only page', () => {
     expect(refreshMethod).not.toContain('DueStatus');
   });
 
-  it('keeps accept-ignore-restore controllers scoped to allocation review updates', () => {
+  it('keeps accept-ignore-restore-link controllers scoped to allocation review updates', () => {
     const acceptStart = controller.indexOf('static async acceptAdApplicabilityAllocation');
     const ignoreEnd = controller.indexOf('static renderAdCreateForm');
     const actionMethods = controller.slice(acceptStart, ignoreEnd);
 
     expect(actionMethods).toContain("LibraryService.reviewAdApplicabilityAllocation(");
     expect(actionMethods).toContain("LibraryService.restoreAdApplicabilityAllocation(");
+    expect(actionMethods).toContain("LibraryService.linkAdApplicabilityAllocationToModel(");
     expect(actionMethods).toContain("'ACCEPTED'");
     expect(actionMethods).toContain("'IGNORED'");
     expect(actionMethods).not.toContain('ComplianceItem');

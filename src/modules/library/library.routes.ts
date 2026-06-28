@@ -144,6 +144,13 @@ router.post(
   LibraryController.restoreAdApplicabilityAllocation
 );
 
+router.post(
+  '/ads/applicability-review/allocations/:id/link-model',
+  requirePermission('LIBRARY_EDIT'),
+  csrfProtection,
+  LibraryController.linkAdApplicabilityAllocationToModel
+);
+
 router.get(
   '/sbs/import',
   requirePermission('LIBRARY_EDIT'),
