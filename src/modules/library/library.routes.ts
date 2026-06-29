@@ -112,48 +112,48 @@ router.get(
 
 router.get(
   '/ads/applicability-review',
-  requirePermission('LIBRARY_EDIT'),
+  requirePermission('AD_APPLICABILITY_REVIEW_VIEW'),
   LibraryController.renderAdApplicabilityReview
 );
 
 router.post(
   '/ads/applicability-review/refresh',
-  requirePermission('LIBRARY_EDIT'),
+  requirePermission('AD_APPLICABILITY_REVIEW_REFRESH'),
   csrfProtection,
   LibraryController.refreshAdApplicabilityReview
 );
 
 router.post(
   '/ads/applicability-review/allocations/:id/accept',
-  requirePermission('LIBRARY_EDIT'),
+  requirePermission('AD_APPLICABILITY_REVIEW_ACCEPT'),
   csrfProtection,
   LibraryController.acceptAdApplicabilityAllocation
 );
 
 router.post(
   '/ads/applicability-review/allocations/:id/ignore',
-  requirePermission('LIBRARY_EDIT'),
+  requirePermission('AD_APPLICABILITY_REVIEW_IGNORE'),
   csrfProtection,
   LibraryController.ignoreAdApplicabilityAllocation
 );
 
 router.post(
   '/ads/applicability-review/allocations/:id/restore',
-  requirePermission('LIBRARY_EDIT'),
+  requirePermission('AD_APPLICABILITY_REVIEW_RESTORE'),
   csrfProtection,
   LibraryController.restoreAdApplicabilityAllocation
 );
 
 router.post(
   '/ads/applicability-review/allocations/:id/link-model',
-  requirePermission('LIBRARY_EDIT'),
+  requirePermission('AD_APPLICABILITY_REVIEW_LINK_MODEL'),
   csrfProtection,
   LibraryController.linkAdApplicabilityAllocationToModel
 );
 
 router.post(
   '/ads/applicability-review/allocations/:id/link-manufacturer',
-  requirePermission('LIBRARY_EDIT'),
+  requirePermission('AD_APPLICABILITY_REVIEW_LINK_MANUFACTURER'),
   csrfProtection,
   LibraryController.linkAdApplicabilityAllocationToManufacturer
 );

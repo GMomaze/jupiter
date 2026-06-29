@@ -10,7 +10,7 @@ const service = readFile('src/modules/library/library.service.ts');
 const adListView = readFile('src/views/library/ads/index.ejs');
 
 describe('AD applicability review read-only page', () => {
-  it('registers the review and manual refresh routes with the documented LIBRARY_EDIT fallback', () => {
+  it('registers the review routes with dedicated AD applicability permissions', () => {
     expect(routes).toContain("'/ads/applicability-review'");
     expect(routes).toContain("'/ads/applicability-review/refresh'");
     expect(routes).toContain("'/ads/applicability-review/allocations/:id/accept'");
@@ -18,8 +18,13 @@ describe('AD applicability review read-only page', () => {
     expect(routes).toContain("'/ads/applicability-review/allocations/:id/restore'");
     expect(routes).toContain("'/ads/applicability-review/allocations/:id/link-model'");
     expect(routes).toContain("'/ads/applicability-review/allocations/:id/link-manufacturer'");
-    expect(routes).toContain("requirePermission('LIBRARY_EDIT')");
-    expect(routes).toContain('csrfProtection');
+    expect(routes).toContain("requirePermission('AD_APPLICABILITY_REVIEW_VIEW')");
+    expect(routes).toContain("requirePermission('AD_APPLICABILITY_REVIEW_REFRESH')");
+    expect(routes).toContain("requirePermission('AD_APPLICABILITY_REVIEW_ACCEPT')");
+    expect(routes).toContain("requirePermission('AD_APPLICABILITY_REVIEW_IGNORE')");
+    expect(routes).toContain("requirePermission('AD_APPLICABILITY_REVIEW_RESTORE')");
+    expect(routes).toContain("requirePermission('AD_APPLICABILITY_REVIEW_LINK_MODEL')");
+    expect(routes).toContain("requirePermission('AD_APPLICABILITY_REVIEW_LINK_MANUFACTURER')");
     expect(routes).toContain('LibraryController.renderAdApplicabilityReview');
     expect(routes).toContain('LibraryController.refreshAdApplicabilityReview');
     expect(routes).toContain('LibraryController.acceptAdApplicabilityAllocation');
@@ -27,6 +32,30 @@ describe('AD applicability review read-only page', () => {
     expect(routes).toContain('LibraryController.restoreAdApplicabilityAllocation');
     expect(routes).toContain('LibraryController.linkAdApplicabilityAllocationToModel');
     expect(routes).toContain('LibraryController.linkAdApplicabilityAllocationToManufacturer');
+  });
+
+  it('keeps csrfProtection on every AD applicability review POST route', () => {
+    [
+      "'/ads/applicability-review/refresh'",
+      "'/ads/applicability-review/allocations/:id/accept'",
+      "'/ads/applicability-review/allocations/:id/ignore'",
+      "'/ads/applicability-review/allocations/:id/restore'",
+      "'/ads/applicability-review/allocations/:id/link-model'",
+      "'/ads/applicability-review/allocations/:id/link-manufacturer'",
+    ].forEach((route) => {
+      const routeStart = routes.indexOf(route);
+      const routeEnd = routes.indexOf(');', routeStart);
+      const routeBlock = routes.slice(routeStart, routeEnd);
+      expect(routeBlock).toContain('csrfProtection');
+    });
+  });
+
+  it('removes LIBRARY_EDIT fallback from the AD applicability review route block', () => {
+    const reviewBlockStart = routes.indexOf("'/ads/applicability-review'");
+    const reviewBlockEnd = routes.indexOf("'/sbs/import'", reviewBlockStart);
+    const reviewBlock = routes.slice(reviewBlockStart, reviewBlockEnd);
+
+    expect(reviewBlock).not.toContain("requirePermission('LIBRARY_EDIT')");
   });
 
   it('renders the required review buckets and UI columns', () => {
