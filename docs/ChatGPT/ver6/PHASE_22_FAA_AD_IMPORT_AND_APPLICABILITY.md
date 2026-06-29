@@ -951,6 +951,151 @@
 - [ ] Stop gate: implementation verification must prove no workflow behavior changed.
 - [ ] Stop gate: implementation verification must prove no aircraft, compliance, SB, SID, task, workpack, due, or import behavior changed.
 
+## Phase 22B.0 - AD Compliance Foundation
+
+### 22B.0 Purpose
+
+- [ ] Define the AD compliance foundation before any operational compliance records are created.
+- [ ] Treat accepted aircraft applicability as a prerequisite only.
+- [ ] State that accepted applicability means an AD may apply; it does not automatically create compliance.
+- [ ] Require every AD compliance creation action to be explicit and reviewed.
+- [ ] Keep this phase documentation-only until a later implementation slice is approved.
+
+### 22B.0 Creation Mode
+
+- [ ] First implementation should be manual per-aircraft/per-AD creation from the aircraft AD applicability preview.
+- [ ] Manual creation must show the source AD and accepted applicability reason before creation.
+- [ ] Manual creation must require an authorized user confirmation.
+- [ ] Batch creation is future scope only.
+- [ ] Automatic/background creation is out of scope.
+- [ ] Scheduled creation is out of scope.
+- [ ] Import-triggered compliance creation is out of scope.
+
+### 22B.0 Eligibility
+
+- [ ] The source AD must exist as an `AirworthinessDirective`.
+- [ ] The aircraft must be current and active enough for compliance tracking according to existing aircraft rules.
+- [ ] The aircraft must have a current model.
+- [ ] The aircraft model must provide manufacturer context where manufacturer applicability is used.
+- [ ] The AD must be applicable through the 22A.7 aircraft applicability authority resolver.
+- [ ] Applicability must originate from ACCEPTED `ad_applicability_allocations`.
+- [ ] SUGGESTED, NEEDS_REVIEW, IGNORED, RESTORED, and UNRESOLVED allocations must not create compliance.
+- [ ] Classifications `UNRESOLVED_MAKE` and `UNRESOLVED_MODEL` must not create compliance.
+- [ ] Superseded ADs must not create new compliance unless an explicit review confirms the correct operational treatment.
+- [ ] Revised ADs must not alter existing compliance unless an explicit review confirms the correct operational treatment.
+
+### 22B.0 Relationship Model
+
+- [ ] `AirworthinessDirective` remains the source regulatory AD record.
+- [ ] `ad_applicability_allocations` remain the reviewed applicability authority.
+- [ ] `aircraft` supplies the operational target and current model/manufacturer context.
+- [ ] `ComplianceItem` represents the compliance obligation only after explicit creation.
+- [ ] `ComplianceAssignment` links the compliance obligation to the aircraft or operational target only after explicit creation.
+- [ ] Compliance creation must record the source `AirworthinessDirective` id.
+- [ ] Compliance creation must record the accepted allocation context used at creation time.
+- [ ] Compliance creation must preserve enough source snapshot data to remain auditable if aircraft model or allocation decisions later change.
+- [ ] Existing manual model-level AD assignment authority must remain separate unless a later phase explicitly merges it.
+
+### 22B.0 Recurring And One-Time Classification
+
+- [ ] Recurring AD classification must be manually reviewed unless a reliable parser is approved.
+- [ ] One-time AD classification must be manually reviewed unless a reliable parser is approved.
+- [ ] FAA text may be used as supporting evidence but must not be blindly parsed into due rules.
+- [ ] Ambiguous recurrence language must produce a review state rather than automatic due logic.
+- [ ] Interval, threshold, repeat, and terminating-action text must remain visible to the reviewer where available.
+
+### 22B.0 Terminating Action
+
+- [ ] Support a terminating action indicator for AD compliance where applicable.
+- [ ] Terminating action must be explicitly recorded by an authorized user.
+- [ ] Terminating action must include notes or source reference where available.
+- [ ] Terminating action must not auto-close other compliance records unless a later phase explicitly approves that behavior.
+- [ ] Terminating action must remain auditable.
+
+### 22B.0 AMOC Support
+
+- [ ] AMOC support must allow recording an alternate method of compliance reference.
+- [ ] AMOC support should capture approval authority, approval reference, date, notes, and attachments/links when available.
+- [ ] AMOC use must be explicit and reviewed.
+- [ ] AMOC must not silently replace the AD source requirement.
+- [ ] AMOC must not alter source AD import data.
+
+### 22B.0 Superseded And Revised AD Handling
+
+- [ ] Superseded AD relationships must be displayed as review context.
+- [ ] Superseded ADs must not be deleted from compliance history.
+- [ ] Supersession must not automatically close, cancel, or replace compliance records.
+- [ ] Revised AD numbers and revision suffixes must be preserved.
+- [ ] Revised ADs must require review before creating new compliance or updating existing compliance.
+- [ ] A later phase must define whether a revision creates a new `ComplianceItem` or updates an existing one.
+
+### 22B.0 Applicability Removal
+
+- [ ] Applicability removal must not delete existing compliance history.
+- [ ] Applicability removal must not automatically mark compliance complete.
+- [ ] Applicability removal must be reviewable and auditable.
+- [ ] If an aircraft model changes, derived applicability may change, but existing compliance records must remain historically explainable.
+- [ ] A later phase must define whether removed applicability marks a compliance record not applicable, superseded, closed by review, or retained.
+
+### 22B.0 Audit Requirements
+
+- [ ] Audit the actor who creates AD compliance.
+- [ ] Audit the aircraft id.
+- [ ] Audit the source `AirworthinessDirective` id.
+- [ ] Audit the accepted allocation id or allocation snapshot used for creation.
+- [ ] Audit the compliance creation timestamp.
+- [ ] Audit the reason or review note supplied by the user.
+- [ ] Audit any manual recurrence, one-time, terminating action, AMOC, supersession, or revision decisions.
+- [ ] Audit changes without deleting prior decision context.
+
+### 22B.0 Future RBAC Requirements
+
+- [ ] Define a future permission for viewing eligible AD compliance creation candidates.
+- [ ] Define a future permission for creating AD compliance manually.
+- [ ] Define a future permission for batch AD compliance creation if batch creation is later approved.
+- [ ] Define a future permission for recording terminating actions.
+- [ ] Define a future permission for recording AMOC decisions.
+- [ ] Define a future permission for supersession/revision compliance review.
+- [ ] Keep AD compliance permissions separate from AD applicability review permissions.
+
+### 22B.0 UI Expectations
+
+- [ ] Start from the aircraft AD applicability preview.
+- [ ] Show a clear distinction between preview applicability and operational compliance.
+- [ ] Show a manual Create Compliance action only for eligible accepted ADs.
+- [ ] Show source AD number, subject, allocation type, matched target, classification, accepted by/at, and review reason before creation.
+- [ ] Show whether the AD is believed recurring, one-time, ambiguous, superseded, revised, or requiring AMOC/terminating-action review.
+- [ ] Require explicit confirmation before creating compliance.
+- [ ] Show success/failure feedback without changing aircraft preview behavior.
+
+### 22B.0 Strict Boundaries
+
+- [ ] Do not implement in this DEFINE slice.
+- [ ] Do not create compliance records.
+- [ ] Do not automatically create `ComplianceItem`.
+- [ ] Do not automatically create `ComplianceAssignment`.
+- [ ] Do not modify existing compliance logic.
+- [ ] Do not run due calculations.
+- [ ] Do not generate workpack tasks.
+- [ ] Do not generate tasks.
+- [ ] Do not change SB logic.
+- [ ] Do not change SID logic.
+- [ ] Do not change AD import.
+- [ ] Do not change aircraft AD applicability preview.
+- [ ] Do not change AD applicability review workflow.
+- [ ] Do not destructively change existing compliance records.
+
+### 22B.0 Stop Gates
+
+- [ ] Stop gate: no implementation until eligibility rules are approved.
+- [ ] Stop gate: no implementation until the manual creation workflow is approved.
+- [ ] Stop gate: no implementation until audit fields are approved.
+- [ ] Stop gate: no implementation until future RBAC permission names are approved.
+- [ ] Stop gate: no implementation until recurring/one-time ambiguity handling is approved.
+- [ ] Stop gate: no implementation until superseded and revised AD behavior is approved.
+- [ ] Stop gate: no implementation until tests prove no automatic compliance creation occurs.
+- [ ] Stop gate: no implementation until tests prove no due, workpack, task, SB, SID, import, aircraft preview, or review workflow behavior changes.
+
 ## Phase 22.9 - Aircraft Inheritance From Make And Model
 
 - [ ] Define aircraft inheritance from assigned model ADs.
