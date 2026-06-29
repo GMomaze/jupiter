@@ -3,11 +3,14 @@ import {
   Aircraft,
   AircraftComponent,
   ComponentModel,
+  AdApplicabilityAllocation,
+  AirworthinessDirective,
   AircraftSbCompliance,
   ServiceBulletin,
   Manufacturer,
   AssetType,
-  TaskTemplate
+  TaskTemplate,
+  User
 } from '../../models/index.js';
 import { AuditService } from '../audit/audit.service.js';
 import { UtilisationService } from '../utilisation/utilisation.service.js';
@@ -651,6 +654,134 @@ export class AircraftService {
         ['task_card_number', 'ASC'],
         ['title', 'ASC'],
       ],
+    });
+  }
+
+  static async getAdApplicabilityPreviewForAircraft(aircraftId: string) {
+    const aircraft = await Aircraft.findByPk(aircraftId, {
+      attributes: ['id', 'model_id'],
+      include: [
+        {
+          model: ComponentModel,
+          attributes: ['id', 'model_code', 'model_name', 'manufacturer_id'],
+          required: false,
+          include: [
+            {
+              model: Manufacturer,
+              attributes: ['id', 'name', 'code'],
+              required: false,
+            },
+          ],
+        },
+      ],
+    });
+
+    if (!aircraft) throw new Error('AIRCRAFT_NOT_FOUND');
+
+    const modelId = aircraft.model_id || null;
+    const manufacturerId = (aircraft as any).ComponentModel?.manufacturer_id || null;
+    const matchFilters = [
+      modelId ? { matched_component_model_id: modelId } : null,
+      manufacturerId ? { matched_manufacturer_id: manufacturerId } : null,
+    ].filter(Boolean) as Record<string, string>[];
+
+    if (matchFilters.length === 0) {
+      return [];
+    }
+
+    const allocations = await AdApplicabilityAllocation.findAll({
+      where: {
+        status: 'ACCEPTED',
+        classification: {
+          [Op.notIn]: ['UNRESOLVED_MAKE', 'UNRESOLVED_MODEL'],
+        },
+        [Op.or]: matchFilters,
+      },
+      include: [
+        {
+          model: AirworthinessDirective,
+          as: 'AirworthinessDirective',
+          attributes: ['id', 'ad_number', 'revision', 'subject_heading', 'subject'],
+          required: false,
+        },
+        {
+          model: Manufacturer,
+          as: 'MatchedManufacturer',
+          attributes: ['id', 'name', 'code'],
+          required: false,
+        },
+        {
+          model: ComponentModel,
+          as: 'MatchedComponentModel',
+          attributes: ['id', 'model_code', 'model_name', 'manufacturer_id'],
+          required: false,
+          include: [
+            {
+              model: Manufacturer,
+              attributes: ['id', 'name', 'code'],
+              required: false,
+            },
+          ],
+        },
+        {
+          model: User,
+          as: 'Reviewer',
+          attributes: ['id', 'full_name', 'email'],
+          required: false,
+        },
+      ],
+      order: [
+        ['ad_number_snapshot', 'ASC'],
+        ['classification', 'ASC'],
+        ['reviewed_at', 'DESC'],
+      ],
+    });
+
+    const previewableAllocations = allocations.filter(
+      (allocation: any) =>
+        !['UNRESOLVED_MAKE', 'UNRESOLVED_MODEL'].includes(String(allocation.classification))
+    );
+
+    return previewableAllocations.map((allocation: any) => {
+      const directive = allocation.AirworthinessDirective || {};
+      const matchedModel = allocation.MatchedComponentModel || null;
+      const matchedManufacturer = allocation.MatchedManufacturer || null;
+      const modelLabel = matchedModel
+        ? [matchedModel.model_code, matchedModel.model_name].filter(Boolean).join(' - ')
+        : '';
+      const modelManufacturer = matchedModel?.Manufacturer
+        ? [matchedModel.Manufacturer.name, matchedModel.Manufacturer.code].filter(Boolean).join(' / ')
+        : '';
+      const manufacturerLabel = matchedManufacturer
+        ? [matchedManufacturer.name, matchedManufacturer.code].filter(Boolean).join(' / ')
+        : '';
+
+      return {
+        id: allocation.id,
+        ad_number: allocation.ad_number_snapshot || directive.ad_number || '-',
+        revision: allocation.ad_revision_snapshot || directive.revision || null,
+        subject: directive.subject_heading || directive.subject || '-',
+        allocation_type:
+          allocation.target_type === 'MANUAL_LINK' &&
+          allocation.classification === 'MANUAL_MODEL_LINK'
+            ? 'Manual model link'
+            : allocation.target_type === 'MANUAL_LINK' &&
+                allocation.classification === 'MANUAL_MANUFACTURER_LINK'
+              ? 'Manual manufacturer link'
+              : allocation.target_type === 'BROAD_RULE'
+                ? 'Broad rule'
+                : allocation.matched_component_model_id === modelId
+                  ? 'Model allocation'
+                  : 'Manufacturer allocation',
+        matched_target:
+          [modelManufacturer, modelLabel].filter(Boolean).join(' / ') ||
+          manufacturerLabel ||
+          '-',
+        classification: allocation.classification || '-',
+        accepted_by: allocation.Reviewer?.full_name || allocation.Reviewer?.email || '-',
+        accepted_at: allocation.reviewed_at || null,
+        review_reason: allocation.review_reason || '-',
+      };
     });
   }
 

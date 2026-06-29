@@ -42,6 +42,67 @@
         </div>
     </section>
 
+    <% const safeAdApplicabilityPreview = typeof adApplicabilityPreview !== 'undefined' ? adApplicabilityPreview : []; %>
+
+    <section class="mb-8 rounded-lg bg-white shadow">
+        <div class="flex flex-wrap items-start justify-between gap-4 border-b border-slate-200 px-6 py-4">
+            <div>
+                <h2 class="text-lg font-semibold text-slate-900">AD Applicability Preview</h2>
+                <p class="mt-1 text-sm text-slate-500">
+                    Preview only — does not create compliance status.
+                </p>
+            </div>
+            <span class="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold uppercase tracking-widest text-slate-700">
+                <%= safeAdApplicabilityPreview.length %> Accepted Allocation<%= safeAdApplicabilityPreview.length === 1 ? '' : 's' %>
+            </span>
+        </div>
+
+        <% if (safeAdApplicabilityPreview.length === 0) { %>
+            <div class="px-6 py-8 text-sm text-slate-500">
+                No accepted AD applicability allocations currently preview for this aircraft.
+            </div>
+        <% } else { %>
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-slate-200">
+                    <thead class="bg-slate-50">
+                        <tr>
+                            <th class="px-4 py-3 text-left text-xs font-bold uppercase tracking-widest text-slate-500">AD Number</th>
+                            <th class="px-4 py-3 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Subject</th>
+                            <th class="px-4 py-3 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Allocation Type</th>
+                            <th class="px-4 py-3 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Matched Model/Manufacturer</th>
+                            <th class="px-4 py-3 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Classification</th>
+                            <th class="px-4 py-3 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Accepted By / Accepted At</th>
+                            <th class="px-4 py-3 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Review Reason</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-100 bg-white">
+                        <% safeAdApplicabilityPreview.forEach((item) => { %>
+                            <tr>
+                                <td class="px-4 py-4 align-top text-sm font-semibold text-slate-900">
+                                    <%= item.ad_number || '-' %>
+                                    <% if (item.revision) { %>
+                                        <span class="block text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                                            Rev <%= item.revision %>
+                                        </span>
+                                    <% } %>
+                                </td>
+                                <td class="px-4 py-4 align-top text-sm text-slate-700"><%= item.subject || '-' %></td>
+                                <td class="px-4 py-4 align-top text-sm text-slate-700"><%= item.allocation_type || '-' %></td>
+                                <td class="px-4 py-4 align-top text-sm text-slate-700"><%= item.matched_target || '-' %></td>
+                                <td class="px-4 py-4 align-top text-xs font-bold uppercase tracking-widest text-slate-600"><%= item.classification || '-' %></td>
+                                <td class="px-4 py-4 align-top text-sm text-slate-700">
+                                    <%= item.accepted_by || '-' %>
+                                    <span class="block text-xs text-slate-500"><%= item.accepted_at ? new Date(item.accepted_at).toLocaleString() : '-' %></span>
+                                </td>
+                                <td class="px-4 py-4 align-top text-sm text-slate-600"><%= item.review_reason || '-' %></td>
+                            </tr>
+                        <% }) %>
+                    </tbody>
+                </table>
+            </div>
+        <% } %>
+    </section>
+
     <% const sections = [
         { key: 'ad', label: 'Airworthiness Directives', badge: 'AD' },
         { key: 'sb', label: 'Service Bulletins', badge: 'SB' },

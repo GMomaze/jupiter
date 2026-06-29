@@ -807,12 +807,15 @@ export class AircraftController {
       const groupedItems = AircraftController.groupApplicabilityItems(
         applicability.items
       );
+      const adApplicabilityPreview =
+        await AircraftService.getAdApplicabilityPreviewForAircraft(aircraftId);
 
       res.render('aircraft/applicability', {
         aircraft,
         applicability,
         summary,
         groupedItems,
+        adApplicabilityPreview,
       });
     } catch (err: any) {
       if (err.message === 'INVALID_AIRCRAFT') {
