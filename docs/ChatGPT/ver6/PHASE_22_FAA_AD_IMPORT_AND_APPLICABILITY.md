@@ -842,6 +842,115 @@
 - [ ] Stop gate: no due calculation may consume this authority until separately approved.
 - [ ] Stop gate: no workpack planning may consume this authority until separately approved.
 
+## Phase 22A.8 - Explicit AD Applicability Review RBAC
+
+### 22A.8 Purpose
+
+- [ ] Replace temporary `LIBRARY_EDIT` fallback guards with dedicated AD applicability review permissions.
+- [ ] Keep this slice RBAC-only.
+- [ ] Preserve existing review workflow behavior while permissions are introduced.
+- [ ] Do not change AD applicability matching, review decisions, aircraft preview, or compliance behavior.
+
+### 22A.8 Permission Names And Purpose
+
+- [ ] Define `AD_APPLICABILITY_REVIEW_VIEW` for viewing the AD applicability review screen.
+- [ ] Define `AD_APPLICABILITY_REVIEW_REFRESH` for running manual refresh to persist suggestion allocations.
+- [ ] Define `AD_APPLICABILITY_REVIEW_ACCEPT` for accepting suggested or needs-review allocations.
+- [ ] Define `AD_APPLICABILITY_REVIEW_IGNORE` for ignoring suggested or needs-review allocations.
+- [ ] Define `AD_APPLICABILITY_REVIEW_RESTORE` for restoring ignored allocations.
+- [ ] Define `AD_APPLICABILITY_REVIEW_LINK_MODEL` for manually linking an allocation to an existing component model.
+- [ ] Define `AD_APPLICABILITY_REVIEW_LINK_MANUFACTURER` for manually linking an allocation to an existing manufacturer.
+- [ ] Permission names must remain stable once seeded.
+- [ ] Permission names must be used directly by route guards after the transition.
+
+### 22A.8 Recommended Role Mapping
+
+- [ ] ADMIN receives `AD_APPLICABILITY_REVIEW_VIEW`.
+- [ ] ADMIN receives `AD_APPLICABILITY_REVIEW_REFRESH`.
+- [ ] ADMIN receives `AD_APPLICABILITY_REVIEW_ACCEPT`.
+- [ ] ADMIN receives `AD_APPLICABILITY_REVIEW_IGNORE`.
+- [ ] ADMIN receives `AD_APPLICABILITY_REVIEW_RESTORE`.
+- [ ] ADMIN receives `AD_APPLICABILITY_REVIEW_LINK_MODEL`.
+- [ ] ADMIN receives `AD_APPLICABILITY_REVIEW_LINK_MANUFACTURER`.
+- [ ] QA receives `AD_APPLICABILITY_REVIEW_VIEW`.
+- [ ] QA receives `AD_APPLICABILITY_REVIEW_REFRESH`.
+- [ ] QA receives `AD_APPLICABILITY_REVIEW_ACCEPT`.
+- [ ] QA receives `AD_APPLICABILITY_REVIEW_IGNORE`.
+- [ ] QA receives `AD_APPLICABILITY_REVIEW_RESTORE`.
+- [ ] QA receives `AD_APPLICABILITY_REVIEW_LINK_MODEL`.
+- [ ] QA receives `AD_APPLICABILITY_REVIEW_LINK_MANUFACTURER`.
+- [ ] ENGINEER receives `AD_APPLICABILITY_REVIEW_VIEW` only unless later explicitly approved.
+- [ ] PLANNER receives `AD_APPLICABILITY_REVIEW_VIEW` only.
+- [ ] VIEWER receives `AD_APPLICABILITY_REVIEW_VIEW` only.
+- [ ] No non-review role receives write/action permissions by default.
+
+### 22A.8 Seed And Migration Strategy
+
+- [ ] Add permission definitions first.
+- [ ] Add role-permission mapping second.
+- [ ] Replace route guards third.
+- [ ] Verify permission seeds before replacing `LIBRARY_EDIT` fallback guards.
+- [ ] Verify role mappings before replacing `LIBRARY_EDIT` fallback guards.
+- [ ] Keep seed changes narrowly scoped to AD applicability review permissions.
+- [ ] Do not combine RBAC seed changes with workflow behavior changes.
+
+### 22A.8 Transition Rule
+
+- [ ] `LIBRARY_EDIT` fallback may remain only until explicit permissions are seeded.
+- [ ] `LIBRARY_EDIT` fallback may remain only until route tests verify explicit permissions.
+- [ ] Dedicated permissions must fully replace `LIBRARY_EDIT` guards after seeds and tests are verified.
+- [ ] Transition must not lock out current authorized reviewers.
+- [ ] Transition must not broaden access beyond the recommended role mapping.
+
+### 22A.8 Route Guard Replacement Plan
+
+- [ ] Replace review screen guard with `AD_APPLICABILITY_REVIEW_VIEW`.
+- [ ] Replace refresh guard with `AD_APPLICABILITY_REVIEW_REFRESH`.
+- [ ] Replace accept guard with `AD_APPLICABILITY_REVIEW_ACCEPT`.
+- [ ] Replace ignore guard with `AD_APPLICABILITY_REVIEW_IGNORE`.
+- [ ] Replace restore guard with `AD_APPLICABILITY_REVIEW_RESTORE`.
+- [ ] Replace manual model link guard with `AD_APPLICABILITY_REVIEW_LINK_MODEL`.
+- [ ] Replace manual manufacturer link guard with `AD_APPLICABILITY_REVIEW_LINK_MANUFACTURER`.
+- [ ] Remove `LIBRARY_EDIT` fallback only after all dedicated route guards are verified.
+
+### 22A.8 Boundaries
+
+- [ ] RBAC changes must not change workflow behavior.
+- [ ] RBAC changes must not change aircraft applicability behavior.
+- [ ] RBAC changes must not create aircraft applicability rows.
+- [ ] RBAC changes must not create `ComplianceItem`.
+- [ ] RBAC changes must not create `ComplianceAssignment`.
+- [ ] RBAC changes must not affect SB logic.
+- [ ] RBAC changes must not affect SID logic.
+- [ ] RBAC changes must not affect task logic.
+- [ ] RBAC changes must not affect workpack logic.
+- [ ] RBAC changes must not affect due calculations.
+- [ ] RBAC changes must not affect AD import.
+- [ ] RBAC changes must not alter allocation matching or review action payloads.
+
+### 22A.8 Tests Required
+
+- [ ] Verify users with `AD_APPLICABILITY_REVIEW_VIEW` can access the review screen.
+- [ ] Verify users without `AD_APPLICABILITY_REVIEW_VIEW` cannot access the review screen.
+- [ ] Verify refresh requires `AD_APPLICABILITY_REVIEW_REFRESH`.
+- [ ] Verify accept requires `AD_APPLICABILITY_REVIEW_ACCEPT`.
+- [ ] Verify ignore requires `AD_APPLICABILITY_REVIEW_IGNORE`.
+- [ ] Verify restore requires `AD_APPLICABILITY_REVIEW_RESTORE`.
+- [ ] Verify manual model link requires `AD_APPLICABILITY_REVIEW_LINK_MODEL`.
+- [ ] Verify manual manufacturer link requires `AD_APPLICABILITY_REVIEW_LINK_MANUFACTURER`.
+- [ ] Verify `LIBRARY_EDIT` alone no longer grants review access after fallback removal.
+- [ ] Verify ADMIN and QA role mappings grant expected access.
+- [ ] Verify ENGINEER, PLANNER, and VIEWER receive view-only access.
+
+### 22A.8 Stop Gates
+
+- [ ] Stop gate: no guard replacement until dedicated permissions are seeded.
+- [ ] Stop gate: no guard replacement until role mappings are seeded.
+- [ ] Stop gate: no guard replacement until route tests verify explicit permissions.
+- [ ] Stop gate: no `LIBRARY_EDIT` fallback removal until current reviewer access is verified.
+- [ ] Stop gate: implementation verification must prove no workflow behavior changed.
+- [ ] Stop gate: implementation verification must prove no aircraft, compliance, SB, SID, task, workpack, due, or import behavior changed.
+
 ## Phase 22.9 - Aircraft Inheritance From Make And Model
 
 - [ ] Define aircraft inheritance from assigned model ADs.
