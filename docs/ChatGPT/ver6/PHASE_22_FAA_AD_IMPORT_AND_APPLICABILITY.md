@@ -703,6 +703,145 @@
 - [ ] Stop gate: implementation verification must prove no aircraft applicability is created.
 - [ ] Stop gate: implementation verification must prove SB, SID, task, workpack, utilisation, due, and AD-to-SB logic remain untouched.
 
+## Phase 22A.6 - Aircraft AD Applicability Preview
+
+- [x] Define read-only aircraft AD applicability preview.
+- [x] Implement preview on aircraft applicability page.
+- [x] Use ACCEPTED allocations only.
+- [x] Exclude SUGGESTED, NEEDS_REVIEW, IGNORED, UNRESOLVED.
+- [x] Exclude UNRESOLVED_MAKE and UNRESOLVED_MODEL.
+- [x] Require MANUAL_LINK target_type for manual model/manufacturer links.
+- [x] Display preview-only warning.
+- [x] Do not create ComplianceItem.
+- [x] Do not create ComplianceAssignment.
+- [x] Do not create aircraft applicability rows.
+- [x] Do not create tasks/workpacks.
+- [x] Do not affect due calculations.
+- [x] Do not affect SB logic.
+- [x] Do not affect SID logic.
+- [x] Build passed: `npm.cmd run build`.
+- [x] Tests passed: `npx.cmd vitest run src/modules/aircraft/aircraft-ad-applicability-preview.service.test.ts src/views/aircraft/ad-applicability-preview.views.test.ts`.
+- [x] Committed: 13f54e3 Add aircraft AD applicability preview.
+
+## Phase 22A.7 - Aircraft AD Applicability Authority
+
+### 22A.7 Purpose
+
+- [ ] Define the single authoritative method for determining which ADs apply to an aircraft before compliance records are created.
+- [ ] Treat this phase as an authority contract only.
+- [ ] Keep the authority read-only until a later explicit compliance phase approves operational use.
+
+### 22A.7 Authority Inputs
+
+- [ ] Aircraft AD applicability shall be determined only from ACCEPTED `ad_applicability_allocations`.
+- [ ] Aircraft AD applicability shall use the aircraft's current `model_id`.
+- [ ] Aircraft AD applicability shall use the aircraft model's current `manufacturer_id`.
+- [ ] Current aircraft model always governs applicability.
+- [ ] Changing an aircraft model must immediately change derived applicability.
+- [ ] No cached aircraft applicability table is approved in this phase.
+- [ ] No aircraft applicability persistence is approved in this phase.
+- [ ] No background sync is approved in this phase.
+- [ ] No scheduled job is approved in this phase.
+
+### 22A.7 Non-Authoritative Rows
+
+- [ ] SUGGESTED allocations must never determine aircraft applicability.
+- [ ] NEEDS_REVIEW allocations must never determine aircraft applicability.
+- [ ] IGNORED allocations must never determine aircraft applicability.
+- [ ] RESTORED is not an aircraft applicability authority status. Restored rows return to SUGGESTED or NEEDS_REVIEW and only become applicable after a later explicit ACCEPTED review decision.
+- [ ] UNRESOLVED allocations must never determine aircraft applicability.
+- [ ] Classifications `UNRESOLVED_MAKE` and `UNRESOLVED_MODEL` must be excluded even if a row is accidentally ACCEPTED.
+
+### 22A.7 Matching Rules
+
+- [ ] Model allocation applies when `matched_component_model_id == aircraft.model_id`.
+- [ ] Manufacturer allocation applies when `matched_manufacturer_id == aircraft model manufacturer_id`.
+- [ ] Manual model link applies only when `target_type = MANUAL_LINK`, `classification = MANUAL_MODEL_LINK`, and `matched_component_model_id == aircraft.model_id`.
+- [ ] Manual manufacturer link applies only when `target_type = MANUAL_LINK`, `classification = MANUAL_MANUFACTURER_LINK`, and `matched_manufacturer_id == aircraft model manufacturer_id`.
+- [ ] Broad rules apply only when status is ACCEPTED.
+- [ ] Broad rules must preserve classification for explainability.
+- [ ] Broad rules must preserve review reason for explainability.
+- [ ] Broad rules must not imply final compliance status.
+
+### 22A.7 Read-Only Boundaries
+
+- [ ] The authority resolver must not create `ComplianceItem`.
+- [ ] The authority resolver must not create `ComplianceAssignment`.
+- [ ] The authority resolver must not create aircraft applicability rows.
+- [ ] The authority resolver must not create tasks.
+- [ ] The authority resolver must not create workpacks.
+- [ ] The authority resolver must not affect due calculations.
+- [ ] The authority resolver must not affect SB logic.
+- [ ] The authority resolver must not affect SID logic.
+- [ ] The authority resolver must not alter AD import.
+- [ ] The authority resolver must not alter allocation review workflow.
+- [ ] The authority resolver must not perform writes.
+
+### 22A.7 Future Consumers
+
+- [ ] Aircraft AD applicability preview may consume this authority.
+- [ ] Future AD compliance engine may consume this authority only after a later explicit phase approves operational use.
+- [ ] Future AD due engine may consume this authority only after a later explicit phase approves operational use.
+- [ ] Future workpack planning may consume this authority only after a later explicit phase approves operational use.
+- [ ] Future consumers must not duplicate matching rules outside the shared authority resolver.
+
+### 22A.7 Query Strategy
+
+- [ ] Load the aircraft with its current component model.
+- [ ] Load the model's current manufacturer.
+- [ ] Query `ad_applicability_allocations` where `status = ACCEPTED`.
+- [ ] Exclude `UNRESOLVED_MAKE` and `UNRESOLVED_MODEL` classifications.
+- [ ] Match rows where `matched_component_model_id` equals the aircraft model id.
+- [ ] Match rows where `matched_manufacturer_id` equals the aircraft model manufacturer id.
+- [ ] Include linked `AirworthinessDirective` data for AD number and subject display.
+- [ ] Include matched model/manufacturer details for explainability.
+- [ ] Include reviewer and review timestamp for audit display.
+- [ ] Return a read-only result set without persisting derived applicability.
+
+### 22A.7 Index Expectations
+
+- [ ] Existing or future indexes should support `status`.
+- [ ] Existing or future indexes should support `classification`.
+- [ ] Existing or future indexes should support `matched_component_model_id`.
+- [ ] Existing or future indexes should support `matched_manufacturer_id`.
+- [ ] Existing or future indexes should support `airworthiness_directive_id`.
+- [ ] Future caching may be considered only after correctness and operational authority are verified.
+- [ ] Future caching must not become the source of truth unless a later phase explicitly approves it.
+
+### 22A.7 Risks
+
+- [ ] Broad manufacturer rules can affect many aircraft once accepted.
+- [ ] Broad accepted rows must remain explainable with classification and review reason.
+- [ ] Manual manufacturer links can intentionally apply to many models under a manufacturer.
+- [ ] Aircraft model changes can change applicability immediately and must be visible to users.
+- [ ] Future compliance creation must consume this authority rather than reimplementing matching rules.
+- [ ] Any later persistence layer must avoid stale applicability after aircraft model changes.
+
+### 22A.7 Tests Required
+
+- [ ] Verify aircraft model changes change derived applicability.
+- [ ] Verify manufacturer changes change derived applicability.
+- [ ] Verify only ACCEPTED rows are considered.
+- [ ] Verify SUGGESTED rows are ignored.
+- [ ] Verify NEEDS_REVIEW rows are ignored.
+- [ ] Verify IGNORED rows are ignored.
+- [ ] Verify UNRESOLVED rows are ignored.
+- [ ] Verify model allocations are honoured.
+- [ ] Verify manufacturer allocations are honoured.
+- [ ] Verify manual model links require `target_type = MANUAL_LINK` and `classification = MANUAL_MODEL_LINK`.
+- [ ] Verify manual manufacturer links require `target_type = MANUAL_LINK` and `classification = MANUAL_MANUFACTURER_LINK`.
+- [ ] Verify accepted broad rules are honoured and remain explainable.
+- [ ] Verify no writes occur.
+- [ ] Verify no compliance, task, workpack, due, SB, or SID side effects occur.
+
+### 22A.7 Stop Gates
+
+- [ ] Stop gate: aircraft applicability authority must remain read-only until a later compliance phase explicitly authorises operational use.
+- [ ] Stop gate: no ComplianceItem creation may consume this authority until separately approved.
+- [ ] Stop gate: no ComplianceAssignment creation may consume this authority until separately approved.
+- [ ] Stop gate: no due calculation may consume this authority until separately approved.
+- [ ] Stop gate: no workpack planning may consume this authority until separately approved.
+
 ## Phase 22.9 - Aircraft Inheritance From Make And Model
 
 - [ ] Define aircraft inheritance from assigned model ADs.
