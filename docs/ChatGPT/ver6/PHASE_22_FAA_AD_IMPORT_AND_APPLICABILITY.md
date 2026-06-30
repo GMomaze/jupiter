@@ -1096,6 +1096,143 @@
 - [ ] Stop gate: no implementation until tests prove no automatic compliance creation occurs.
 - [ ] Stop gate: no implementation until tests prove no due, workpack, task, SB, SID, import, aircraft preview, or review workflow behavior changes.
 
+## Phase 22B.1A - Manual AD Compliance Assignment
+
+### 22B.1A Purpose
+
+- [ ] Define the first safe manual AD compliance creation slice.
+- [ ] Create a global `ComplianceItem` for the AD if missing.
+- [ ] Create or reactivate an aircraft-level `ComplianceAssignment`.
+- [ ] Treat this slice as compliance assignment only, not operational compliance status tracking.
+
+### 22B.1A Route
+
+- [ ] Add route in the later implementation slice: `POST /aircraft/:id/ad-applicability/:allocationId/create-compliance-assignment`.
+- [ ] Protect the route with authentication.
+- [ ] Protect the route with CSRF.
+- [ ] Protect the route with a dedicated AD compliance assignment permission once seeded.
+
+### 22B.1A Explicitly Out Of Scope
+
+- [ ] Do not create an `aircraft_compliance` row.
+- [ ] Do not store due dates.
+- [ ] Do not store next-due hours, cycles, or dates.
+- [ ] Do not record compliance status.
+- [ ] Do not record compliance completion.
+- [ ] Do not generate tasks.
+- [ ] Do not generate workpacks.
+- [ ] Do not create automatic or batch assignments.
+
+### 22B.1A Eligibility
+
+- [ ] Require the selected allocation to exist.
+- [ ] Require allocation `status = ACCEPTED`.
+- [ ] Require the allocation to apply to the selected aircraft through the 22A.7 aircraft AD applicability authority resolver.
+- [ ] Require the source `AirworthinessDirective` to exist.
+- [ ] Require the aircraft to exist.
+- [ ] Require no active aircraft-level `ComplianceAssignment` already exists for this aircraft and the AD `ComplianceItem`.
+- [ ] Block SUGGESTED allocations.
+- [ ] Block NEEDS_REVIEW allocations.
+- [ ] Block IGNORED allocations.
+- [ ] Block RESTORED rows unless they later become ACCEPTED through explicit review.
+- [ ] Block UNRESOLVED rows and unresolved classifications.
+
+### 22B.1A ComplianceItem Record Rules
+
+- [ ] Find an existing `ComplianceItem` by `source_type = AD` and `source_id = AirworthinessDirective.id`.
+- [ ] Create `ComplianceItem` only when missing.
+- [ ] Set `item_type = AD`.
+- [ ] Set `source_type = AD`.
+- [ ] Set `source_id = AirworthinessDirective.id`.
+- [ ] Set `source_table = airworthiness_directives`.
+- [ ] Set `code = AD number`.
+- [ ] Set `title = subject_heading || subject || AD number`.
+- [ ] Set `revision = AirworthinessDirective.revision`.
+- [ ] Set `effective_on = AirworthinessDirective.effective_date`.
+- [ ] Set `compliance_basis = MANDATORY`.
+- [ ] Set `status = ACTIVE`, or reuse the existing project-normalized AD status mapping only if already proven safe.
+- [ ] Do not use `compliance_basis = AD` unless a later schema change explicitly allows it.
+- [ ] Do not store aircraft-specific reason or notes on the global `ComplianceItem`.
+
+### 22B.1A ComplianceAssignment Record Rules
+
+- [ ] Create or reactivate one aircraft-level `ComplianceAssignment`.
+- [ ] Set `assignment_type = AIRCRAFT`.
+- [ ] Set `aircraft_id = aircraft.id`.
+- [ ] Set `model_id = null`.
+- [ ] Set `compliance_item_id = ComplianceItem.id`.
+- [ ] Set `assignment_source = MANUAL`.
+- [ ] Set `is_active = true`.
+- [ ] Do not use `assignment_source = AD_APPLICABILITY` unless a later schema change explicitly allows it.
+- [ ] Use existing active aircraft assignment uniqueness to prevent duplicates.
+
+### 22B.1A User Input
+
+- [ ] Accept optional reason or notes from the reviewer.
+- [ ] Do not accept due data in this slice.
+- [ ] Do not accept compliance status in this slice.
+- [ ] Do not accept recurrence classification in this slice.
+- [ ] Do not accept terminating-action data in this slice.
+- [ ] Do not accept AMOC data in this slice.
+- [ ] Document that reason persistence needs a separate audit design because `ComplianceAssignment` has no reason field.
+- [ ] Do not store aircraft-specific reason on the global `ComplianceItem`.
+
+### 22B.1A RBAC
+
+- [ ] Define future dedicated permission `AD_COMPLIANCE_ASSIGN_CREATE`.
+- [ ] Do not reuse AD applicability review permissions for operational compliance assignment creation.
+- [ ] If implementation needs a fallback before the dedicated permission is seeded, document and verify the fallback before use.
+- [ ] Prefer the narrowest existing compliance/admin permission if a temporary fallback is explicitly approved.
+
+### 22B.1A UI Contract
+
+- [ ] Add the later implementation button only on eligible aircraft AD applicability preview rows.
+- [ ] Button label: `Create AD Compliance Assignment`.
+- [ ] Show warning: `This creates an aircraft compliance assignment only. It does not record compliance status or due dates.`
+- [ ] Show the source AD number and title before submission.
+- [ ] Show the accepted allocation classification and review reason before submission.
+- [ ] Show success/failure feedback after submission.
+- [ ] Do not change the read-only meaning of the aircraft AD applicability preview.
+
+### 22B.1A Tests
+
+- [ ] Test eligible ACCEPTED allocation creates or reuses the AD `ComplianceItem`.
+- [ ] Test eligible ACCEPTED allocation creates an aircraft-level `ComplianceAssignment`.
+- [ ] Test duplicate active aircraft assignment is blocked or handled idempotently.
+- [ ] Test SUGGESTED allocations are blocked.
+- [ ] Test NEEDS_REVIEW allocations are blocked.
+- [ ] Test IGNORED allocations are blocked.
+- [ ] Test allocation that does not apply to the aircraft is blocked.
+- [ ] Test missing source AD is blocked.
+- [ ] Test no `aircraft_compliance` row is created.
+- [ ] Test no due recalculation is triggered.
+- [ ] Test no task or workpack generation is triggered.
+- [ ] Test no SB or SID logic is called.
+- [ ] Test no AD import logic is called.
+
+### 22B.1A Strict Boundaries
+
+- [ ] Do not create `aircraft_compliance`.
+- [ ] Do not run due calculations.
+- [ ] Do not create tasks.
+- [ ] Do not create workpacks.
+- [ ] Do not change SB logic.
+- [ ] Do not change SID logic.
+- [ ] Do not change AD import.
+- [ ] Do not change AD applicability allocation review behavior.
+- [ ] Do not change aircraft AD applicability authority rules.
+- [ ] Do not add batch creation.
+- [ ] Do not add automatic creation.
+- [ ] Do not destructively change existing compliance records.
+
+### 22B.1A Stop Gates
+
+- [ ] Stop gate: no implementation until route and RBAC are approved.
+- [ ] Stop gate: no implementation until reason/audit persistence is explicitly accepted or deferred.
+- [ ] Stop gate: no implementation until duplicate behavior is verified against existing unique constraints.
+- [ ] Stop gate: no implementation until tests prove no `aircraft_compliance` row is created.
+- [ ] Stop gate: no implementation until tests prove no due, task, workpack, SB, SID, or AD import behavior changes.
+
 ## Phase 22.9 - Aircraft Inheritance From Make And Model
 
 - [ ] Define aircraft inheritance from assigned model ADs.
