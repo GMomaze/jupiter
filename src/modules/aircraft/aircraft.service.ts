@@ -6,6 +6,8 @@ import {
   AdApplicabilityAllocation,
   AirworthinessDirective,
   AircraftSbCompliance,
+  ComplianceAssignment,
+  ComplianceItem,
   ServiceBulletin,
   Manufacturer,
   AssetType,
@@ -824,6 +826,172 @@ export class AircraftService {
         },
         { transaction }
       );
+    });
+  }
+
+  static async createAdComplianceAssignmentFromAcceptedAllocation(params: {
+    aircraftId: string;
+    allocationId: string;
+    actorUserId?: string | null;
+  }) {
+    void params.actorUserId;
+
+    const aircraft = await Aircraft.findByPk(params.aircraftId, {
+      attributes: ['id', 'model_id'],
+      include: [
+        {
+          model: ComponentModel,
+          attributes: ['id', 'manufacturer_id'],
+          required: false,
+        },
+      ],
+    });
+
+    if (!aircraft) {
+      throw new Error('AIRCRAFT_NOT_FOUND');
+    }
+
+    if (!aircraft.model_id || !(aircraft as any).ComponentModel?.manufacturer_id) {
+      throw new Error('AIRCRAFT_MODEL_CONTEXT_REQUIRED');
+    }
+
+    const allocation = await AdApplicabilityAllocation.findByPk(params.allocationId, {
+      include: [
+        {
+          model: AirworthinessDirective,
+          as: 'AirworthinessDirective',
+          required: false,
+        },
+      ],
+    });
+
+    if (!allocation) {
+      throw new Error('AD_ALLOCATION_NOT_FOUND');
+    }
+
+    if (allocation.status !== 'ACCEPTED') {
+      throw new Error('AD_ALLOCATION_NOT_ACCEPTED');
+    }
+
+    const applicableAllocations = await this.getAdApplicabilityPreviewForAircraft(
+      params.aircraftId
+    );
+    const appliesToAircraft = applicableAllocations.some(
+      (item) => item.id === params.allocationId
+    );
+
+    if (!appliesToAircraft) {
+      throw new Error('AD_ALLOCATION_NOT_APPLICABLE_TO_AIRCRAFT');
+    }
+
+    const directive =
+      (allocation as any).AirworthinessDirective ||
+      (await AirworthinessDirective.findByPk(allocation.airworthiness_directive_id));
+
+    if (!directive) {
+      throw new Error('AIRWORTHINESS_DIRECTIVE_NOT_FOUND');
+    }
+
+    return sequelize.transaction(async (transaction) => {
+      let complianceItem = await ComplianceItem.findOne({
+        where: {
+          source_type: 'AD',
+          source_id: directive.id,
+        } as any,
+        transaction,
+      });
+      let createdComplianceItem = false;
+
+      if (!complianceItem) {
+        complianceItem = await ComplianceItem.create(
+          {
+            item_type: 'AD',
+            code: directive.ad_number,
+            title:
+              directive.subject_heading?.trim() ||
+              directive.subject?.trim() ||
+              directive.ad_number,
+            description: directive.summary?.trim() || directive.subject?.trim() || null,
+            authority: directive.authority || null,
+            revision: directive.revision || null,
+            effective_on: directive.effective_date || null,
+            source_table: 'airworthiness_directives',
+            source_type: 'AD',
+            source_id: directive.id,
+            compliance_basis: 'MANDATORY',
+            status: 'ACTIVE',
+          } as any,
+          { transaction }
+        );
+        createdComplianceItem = true;
+      }
+
+      const existingAssignment = await ComplianceAssignment.findOne({
+        where: {
+          compliance_item_id: complianceItem.id,
+          assignment_type: 'AIRCRAFT',
+          aircraft_id: params.aircraftId,
+        },
+        order: [
+          ['is_active', 'DESC'],
+          ['created_at', 'DESC'],
+        ],
+        transaction,
+      });
+
+      if (existingAssignment) {
+        if (!existingAssignment.is_active) {
+          await existingAssignment.update(
+            {
+              assignment_type: 'AIRCRAFT',
+              aircraft_id: params.aircraftId,
+              model_id: null,
+              assignment_source: 'MANUAL',
+              is_active: true,
+            },
+            { transaction }
+          );
+
+          return {
+            complianceItem,
+            assignment: existingAssignment,
+            createdComplianceItem,
+            createdAssignment: false,
+            reactivatedAssignment: true,
+            alreadyAssigned: false,
+          };
+        }
+
+        return {
+          complianceItem,
+          assignment: existingAssignment,
+          createdComplianceItem,
+          createdAssignment: false,
+          reactivatedAssignment: false,
+          alreadyAssigned: true,
+        };
+      }
+
+      const assignment = await ComplianceAssignment.create(
+        {
+          compliance_item_id: complianceItem.id,
+          assignment_type: 'AIRCRAFT',
+          aircraft_id: params.aircraftId,
+          model_id: null,
+          assignment_source: 'MANUAL',
+          is_active: true,
+        },
+        { transaction }
+      );
+
+      return {
+        complianceItem,
+        assignment,
+        createdComplianceItem,
+        createdAssignment: true,
+        reactivatedAssignment: false,
+        alreadyAssigned: false,
+      };
     });
   }
 

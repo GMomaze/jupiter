@@ -826,6 +826,43 @@ export class AircraftController {
     }
   }
 
+  static async createAdComplianceAssignment(req: Request, res: Response) {
+    try {
+      const aircraftId = AircraftController.getParam(req.params.id);
+      const allocationId = AircraftController.getParam(req.params.allocationId);
+
+      await AircraftService.createAdComplianceAssignmentFromAcceptedAllocation({
+        aircraftId,
+        allocationId,
+        actorUserId: (req.user as any)?.id || null,
+      });
+
+      res.redirect(`/aircraft/${aircraftId}/applicability`);
+    } catch (err: any) {
+      if (
+        [
+          'AIRCRAFT_NOT_FOUND',
+          'AD_ALLOCATION_NOT_FOUND',
+          'AIRWORTHINESS_DIRECTIVE_NOT_FOUND',
+        ].includes(err.message)
+      ) {
+        return res.status(404).send(err.message);
+      }
+
+      if (
+        [
+          'AIRCRAFT_MODEL_CONTEXT_REQUIRED',
+          'AD_ALLOCATION_NOT_ACCEPTED',
+          'AD_ALLOCATION_NOT_APPLICABLE_TO_AIRCRAFT',
+        ].includes(err.message)
+      ) {
+        return res.status(400).send(err.message);
+      }
+
+      res.status(500).send(err.message);
+    }
+  }
+
   static async showByRegistration(req: Request, res: Response) {
     try {
       const registration = AircraftController.getParam(req.params.registration);

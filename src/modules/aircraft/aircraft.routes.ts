@@ -3,7 +3,7 @@ import csrf from 'csurf';
 import { AircraftController } from './aircraft.controller.js';
 import { aircraftPhotoUpload } from '../../middleware/upload.middleware.js';
 import { requireAuth } from '../../middleware/auth.middleware.js';
-import { requireRole } from '../../middleware/rbac.middleware.js';
+import { requirePermission, requireRole } from '../../middleware/rbac.middleware.js';
 
 const router = Router();
 const csrfProtection = csrf();
@@ -29,6 +29,13 @@ router.get('/view/:id', AircraftController.showView);
 router.get('/:id/applicability', AircraftController.showApplicability);
 router.get('/:id/service-bulletins', AircraftController.getServiceBulletins);
 router.post('/', aircraftPhotoUpload.single('aircraft_photo'), csrfProtection, AircraftController.create);
+router.post(
+  '/:id/ad-applicability/:allocationId/create-compliance-assignment',
+  requireAuth,
+  requirePermission('AD_COMPLIANCE_ASSIGN_CREATE'),
+  csrfProtection,
+  AircraftController.createAdComplianceAssignment
+);
 router.post('/:id/utilisation/preview', requireAuth, requireRole('ADMIN'), csrfProtection, AircraftController.previewUtilisation);
 router.post('/:id/utilisation', requireAuth, requireRole('ADMIN'), csrfProtection, AircraftController.updateUtilisation);
 router.post('/:id', requireAuth, requireRole('ADMIN'), aircraftPhotoUpload.single('aircraft_photo'), csrfProtection, AircraftController.update);

@@ -51,6 +51,9 @@
                 <p class="mt-1 text-sm text-slate-500">
                     Preview only — does not create compliance status.
                 </p>
+                <p class="mt-1 text-xs font-semibold text-amber-700">
+                    This creates an aircraft compliance assignment only. It does not record compliance status or due dates.
+                </p>
             </div>
             <span class="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold uppercase tracking-widest text-slate-700">
                 <%= safeAdApplicabilityPreview.length %> Accepted Allocation<%= safeAdApplicabilityPreview.length === 1 ? '' : 's' %>
@@ -73,6 +76,7 @@
                             <th class="px-4 py-3 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Classification</th>
                             <th class="px-4 py-3 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Accepted By / Accepted At</th>
                             <th class="px-4 py-3 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Review Reason</th>
+                            <th class="px-4 py-3 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Action</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-slate-100 bg-white">
@@ -95,6 +99,14 @@
                                     <span class="block text-xs text-slate-500"><%= item.accepted_at ? new Date(item.accepted_at).toLocaleString() : '-' %></span>
                                 </td>
                                 <td class="px-4 py-4 align-top text-sm text-slate-600"><%= item.review_reason || '-' %></td>
+                                <td class="px-4 py-4 align-top text-sm">
+                                    <form method="POST" action="/aircraft/<%= aircraft.id %>/ad-applicability/<%= item.id %>/create-compliance-assignment?_csrf=<%= encodeURIComponent(csrfToken) %>">
+                                        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                                        <button type="submit" class="rounded bg-slate-900 px-3 py-2 text-xs font-bold uppercase tracking-widest text-white hover:bg-slate-700">
+                                            Create AD Compliance Assignment
+                                        </button>
+                                    </form>
+                                </td>
                             </tr>
                         <% }) %>
                     </tbody>
