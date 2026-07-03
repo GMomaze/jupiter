@@ -16,7 +16,7 @@ import {
 } from '../../models/index.js';
 import { AuditService } from '../audit/audit.service.js';
 import { UtilisationService } from '../utilisation/utilisation.service.js';
-import { Op } from 'sequelize';
+import { Op, QueryTypes } from 'sequelize';
 
 type AircraftStatus =
   | 'REGISTERED'
@@ -744,8 +744,53 @@ export class AircraftService {
         !['UNRESOLVED_MAKE', 'UNRESOLVED_MODEL'].includes(String(allocation.classification))
     );
 
+    const directiveIds = Array.from(
+      new Set(
+        previewableAllocations
+          .map((allocation: any) => allocation.airworthiness_directive_id)
+          .filter(Boolean)
+      )
+    );
+    const operationalRows = directiveIds.length
+      ? await sequelize.query<{
+          directive_id: string;
+          compliance_item_id: string;
+          compliance_assignment_id: string | null;
+          aircraft_compliance_id: string | null;
+        }>(
+          `
+          SELECT
+            ci.source_id::text AS directive_id,
+            ci.id::text AS compliance_item_id,
+            ca.id::text AS compliance_assignment_id,
+            ac.id::text AS aircraft_compliance_id
+          FROM compliance_items ci
+          LEFT JOIN compliance_assignments ca
+            ON ca.compliance_item_id = ci.id
+           AND ca.assignment_type = 'AIRCRAFT'
+           AND ca.aircraft_id = :aircraftId
+           AND ca.is_active = TRUE
+          LEFT JOIN aircraft_compliance ac
+            ON ac.compliance_item_id = ci.id
+           AND ac.aircraft_id = :aircraftId
+          WHERE ci.source_type = 'AD'
+            AND ci.source_id IN (:directiveIds)
+          `,
+          {
+            replacements: { aircraftId, directiveIds },
+            type: QueryTypes.SELECT,
+          }
+        )
+      : [];
+    const operationalByDirectiveId = new Map(
+      operationalRows.map((row) => [row.directive_id, row])
+    );
+
     return previewableAllocations.map((allocation: any) => {
       const directive = allocation.AirworthinessDirective || {};
+      const operationalRow = operationalByDirectiveId.get(
+        allocation.airworthiness_directive_id
+      );
       const matchedModel = allocation.MatchedComponentModel || null;
       const matchedManufacturer = allocation.MatchedManufacturer || null;
       const modelLabel = matchedModel
@@ -783,6 +828,9 @@ export class AircraftService {
         accepted_by: allocation.Reviewer?.full_name || allocation.Reviewer?.email || '-',
         accepted_at: allocation.reviewed_at || null,
         review_reason: allocation.review_reason || '-',
+        compliance_item_id: operationalRow?.compliance_item_id || null,
+        compliance_assignment_id: operationalRow?.compliance_assignment_id || null,
+        aircraft_compliance_id: operationalRow?.aircraft_compliance_id || null,
       };
     });
   }
@@ -991,6 +1039,121 @@ export class AircraftService {
         createdAssignment: true,
         reactivatedAssignment: false,
         alreadyAssigned: false,
+      };
+    });
+  }
+
+  static async createAdOperationalComplianceRecordFromAssignment(params: {
+    aircraftId: string;
+    assignmentId: string;
+    actorUserId?: string | null;
+    notes?: string | null;
+  }) {
+    void params.actorUserId;
+
+    const aircraft = await Aircraft.findByPk(params.aircraftId, {
+      attributes: ['id'],
+    });
+
+    if (!aircraft) {
+      throw new Error('AIRCRAFT_NOT_FOUND');
+    }
+
+    const assignment = await ComplianceAssignment.findByPk(params.assignmentId, {
+      include: [
+        {
+          model: ComplianceItem,
+          as: 'ComplianceItem',
+          required: false,
+        },
+      ],
+    });
+
+    if (!assignment) {
+      throw new Error('AD_COMPLIANCE_ASSIGNMENT_NOT_FOUND');
+    }
+
+    if (assignment.assignment_type !== 'AIRCRAFT') {
+      throw new Error('AD_COMPLIANCE_ASSIGNMENT_NOT_AIRCRAFT');
+    }
+
+    if (!assignment.is_active) {
+      throw new Error('AD_COMPLIANCE_ASSIGNMENT_INACTIVE');
+    }
+
+    if (assignment.aircraft_id !== params.aircraftId) {
+      throw new Error('AD_COMPLIANCE_ASSIGNMENT_AIRCRAFT_MISMATCH');
+    }
+
+    const complianceItem =
+      (assignment as any).ComplianceItem ||
+      (await ComplianceItem.findByPk(assignment.compliance_item_id));
+
+    if (!complianceItem) {
+      throw new Error('COMPLIANCE_ITEM_NOT_FOUND');
+    }
+
+    if (complianceItem.item_type !== 'AD' && complianceItem.source_type !== 'AD') {
+      throw new Error('COMPLIANCE_ITEM_NOT_AD');
+    }
+
+    const notes = params.notes?.trim() || null;
+
+    return sequelize.transaction(async (transaction) => {
+      const existingRows = await sequelize.query<{ id: string }>(
+        `
+        SELECT id::text
+        FROM aircraft_compliance
+        WHERE aircraft_id = :aircraftId
+          AND compliance_item_id = :complianceItemId
+        LIMIT 1
+        `,
+        {
+          replacements: {
+            aircraftId: params.aircraftId,
+            complianceItemId: complianceItem.id,
+          },
+          type: QueryTypes.SELECT,
+          transaction,
+        }
+      );
+
+      if (existingRows.length > 0) {
+        throw new Error('AIRCRAFT_COMPLIANCE_ALREADY_EXISTS');
+      }
+
+      const createdRows = await sequelize.query<{ id: string }>(
+        `
+        INSERT INTO aircraft_compliance (
+          aircraft_id,
+          compliance_item_id,
+          status,
+          notes
+        )
+        VALUES (
+          :aircraftId,
+          :complianceItemId,
+          'DUE',
+          :notes
+        )
+        RETURNING id::text
+        `,
+        {
+          replacements: {
+            aircraftId: params.aircraftId,
+            complianceItemId: complianceItem.id,
+            notes,
+          },
+          type: QueryTypes.SELECT,
+          transaction,
+        }
+      );
+
+      return {
+        aircraftComplianceId: createdRows[0]?.id || null,
+        complianceItem,
+        assignment,
+        created: true,
       };
     });
   }

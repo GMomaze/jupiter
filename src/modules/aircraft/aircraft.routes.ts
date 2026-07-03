@@ -36,6 +36,13 @@ router.post(
   csrfProtection,
   AircraftController.createAdComplianceAssignment
 );
+router.post(
+  '/:id/ad-compliance-assignments/:assignmentId/create-operational-record',
+  requireAuth,
+  requirePermission('AD_COMPLIANCE_RECORD_CREATE'),
+  csrfProtection,
+  AircraftController.createAdOperationalComplianceRecord
+);
 router.post('/:id/utilisation/preview', requireAuth, requireRole('ADMIN'), csrfProtection, AircraftController.previewUtilisation);
 router.post('/:id/utilisation', requireAuth, requireRole('ADMIN'), csrfProtection, AircraftController.updateUtilisation);
 router.post('/:id', requireAuth, requireRole('ADMIN'), aircraftPhotoUpload.single('aircraft_photo'), csrfProtection, AircraftController.update);

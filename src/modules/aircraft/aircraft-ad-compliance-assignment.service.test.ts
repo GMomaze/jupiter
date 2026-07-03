@@ -220,7 +220,10 @@ describe('aircraft AD compliance assignment creation', () => {
     const start = source.indexOf(
       'static async createAdComplianceAssignmentFromAcceptedAllocation'
     );
-    const end = source.indexOf('static async markServiceBulletinComplied', start);
+    const end = source.indexOf(
+      'static async createAdOperationalComplianceRecordFromAssignment',
+      start
+    );
     const method = source.slice(start, end);
 
     [
