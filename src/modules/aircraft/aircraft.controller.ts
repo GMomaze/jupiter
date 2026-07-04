@@ -903,6 +903,50 @@ export class AircraftController {
     }
   }
 
+  static async updateAdOperationalComplianceStatus(req: Request, res: Response) {
+    try {
+      const aircraftId = AircraftController.getParam(req.params.id);
+      const complianceId = AircraftController.getParam(req.params.complianceId);
+
+      await AircraftService.updateAdOperationalComplianceStatus({
+        aircraftId,
+        complianceId,
+        status: typeof req.body.status === 'string' ? req.body.status : '',
+        actorUserId: (req.user as any)?.id || null,
+        notes: typeof req.body.notes === 'string' ? req.body.notes : undefined,
+        complianceMethod:
+          typeof req.body.compliance_method === 'string'
+            ? req.body.compliance_method
+            : undefined,
+      });
+
+      res.redirect(`/aircraft/${aircraftId}/applicability`);
+    } catch (err: any) {
+      if (
+        [
+          'AIRCRAFT_NOT_FOUND',
+          'AIRCRAFT_COMPLIANCE_NOT_FOUND',
+          'COMPLIANCE_ITEM_NOT_FOUND',
+        ].includes(err.message)
+      ) {
+        return res.status(404).send(err.message);
+      }
+
+      if (
+        [
+          'AIRCRAFT_COMPLIANCE_AIRCRAFT_MISMATCH',
+          'COMPLIANCE_ITEM_NOT_AD',
+          'INVALID_AD_COMPLIANCE_STATUS',
+          'INVALID_AD_COMPLIANCE_STATUS_TRANSITION',
+        ].includes(err.message)
+      ) {
+        return res.status(400).send(err.message);
+      }
+
+      res.status(500).send(err.message);
+    }
+  }
+
   static async showByRegistration(req: Request, res: Response) {
     try {
       const registration = AircraftController.getParam(req.params.registration);

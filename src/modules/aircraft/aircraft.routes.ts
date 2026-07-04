@@ -43,6 +43,13 @@ router.post(
   csrfProtection,
   AircraftController.createAdOperationalComplianceRecord
 );
+router.post(
+  '/:id/ad-compliance/:complianceId/update-status',
+  requireAuth,
+  requirePermission('AD_COMPLIANCE_STATUS_UPDATE'),
+  csrfProtection,
+  AircraftController.updateAdOperationalComplianceStatus
+);
 router.post('/:id/utilisation/preview', requireAuth, requireRole('ADMIN'), csrfProtection, AircraftController.previewUtilisation);
 router.post('/:id/utilisation', requireAuth, requireRole('ADMIN'), csrfProtection, AircraftController.updateUtilisation);
 router.post('/:id', requireAuth, requireRole('ADMIN'), aircraftPhotoUpload.single('aircraft_photo'), csrfProtection, AircraftController.update);

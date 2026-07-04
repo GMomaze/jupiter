@@ -104,9 +104,33 @@
                                 <td class="px-4 py-4 align-top text-sm text-slate-600"><%= item.review_reason || '-' %></td>
                                 <td class="px-4 py-4 align-top text-sm">
                                     <% if (item.aircraft_compliance_id) { %>
-                                        <span class="rounded bg-emerald-100 px-3 py-2 text-xs font-bold uppercase tracking-widest text-emerald-800">
-                                            Operational Record Created
-                                        </span>
+                                        <div class="space-y-3">
+                                            <span class="inline-block rounded bg-emerald-100 px-3 py-2 text-xs font-bold uppercase tracking-widest text-emerald-800">
+                                                Operational Record Created
+                                                <% if (item.aircraft_compliance_status) { %>
+                                                    - <%= item.aircraft_compliance_status %>
+                                                <% } %>
+                                            </span>
+                                            <form method="POST" action="/aircraft/<%= aircraft.id %>/ad-compliance/<%= item.aircraft_compliance_id %>/update-status?_csrf=<%= encodeURIComponent(csrfToken) %>" class="space-y-2">
+                                                <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                                                <label class="block text-[10px] font-bold uppercase tracking-widest text-slate-500" for="ad-compliance-status-<%= item.aircraft_compliance_id %>">
+                                                    AD Status
+                                                </label>
+                                                <select id="ad-compliance-status-<%= item.aircraft_compliance_id %>" name="status" class="w-full rounded border border-slate-300 px-2 py-1 text-xs text-slate-800">
+                                                    <% ['DUE', 'IN_PROGRESS', 'COMPLIANT', 'NOT_APPLICABLE'].forEach((statusOption) => { %>
+                                                        <option value="<%= statusOption %>" <%= item.aircraft_compliance_status === statusOption ? 'selected' : '' %>><%= statusOption %></option>
+                                                    <% }) %>
+                                                </select>
+                                                <input type="text" name="compliance_method" value="<%= item.aircraft_compliance_method || '' %>" placeholder="Compliance method" class="w-full rounded border border-slate-300 px-2 py-1 text-xs text-slate-800">
+                                                <textarea name="notes" rows="2" placeholder="Optional notes" class="w-full rounded border border-slate-300 px-2 py-1 text-xs text-slate-800"><%= item.aircraft_compliance_notes || '' %></textarea>
+                                                <p class="text-[10px] font-semibold text-amber-700">
+                                                    This updates operational AD compliance status only. It does not calculate due dates or create workpack tasks.
+                                                </p>
+                                                <button type="submit" class="rounded bg-blue-700 px-3 py-2 text-xs font-bold uppercase tracking-widest text-white hover:bg-blue-800">
+                                                    Update AD Status
+                                                </button>
+                                            </form>
+                                        </div>
                                     <% } else if (item.compliance_assignment_id) { %>
                                         <form method="POST" action="/aircraft/<%= aircraft.id %>/ad-compliance-assignments/<%= item.compliance_assignment_id %>/create-operational-record?_csrf=<%= encodeURIComponent(csrfToken) %>">
                                             <input type="hidden" name="_csrf" value="<%= csrfToken %>">

@@ -173,7 +173,7 @@ describe('aircraft AD operational compliance record creation', () => {
     const start = source.indexOf(
       'static async createAdOperationalComplianceRecordFromAssignment'
     );
-    const end = source.indexOf('static async markServiceBulletinComplied', start);
+    const end = source.indexOf('static async updateAdOperationalComplianceStatus', start);
     const method = source.slice(start, end);
 
     expect(method).toContain('INSERT INTO aircraft_compliance');

@@ -38,6 +38,12 @@ describe('aircraft AD applicability preview view', () => {
     expect(previewSection).toContain('Create AD Compliance Assignment');
     expect(previewSection).toContain('Create Operational Compliance Record');
     expect(previewSection).toContain('Operational Record Created');
+    expect(previewSection).toContain('Update AD Status');
+    expect(previewSection).toContain('AD Status');
+    expect(previewSection).toContain('DUE');
+    expect(previewSection).toContain('IN_PROGRESS');
+    expect(previewSection).toContain('COMPLIANT');
+    expect(previewSection).toContain('NOT_APPLICABLE');
     expect(previewSection).toContain(
       'This creates an aircraft compliance assignment only. It does not record compliance status or due dates.'
     );
@@ -45,16 +51,27 @@ describe('aircraft AD applicability preview view', () => {
       'This creates operational compliance tracking only. It does not calculate due dates or create workpacks.'
     );
     expect(previewSection).toContain(
+      'This updates operational AD compliance status only. It does not calculate due dates or create workpack tasks.'
+    );
+    expect(previewSection).toContain(
       'action="/aircraft/<%= aircraft.id %>/ad-applicability/<%= item.id %>/create-compliance-assignment?_csrf=<%= encodeURIComponent(csrfToken) %>"'
     );
     expect(previewSection).toContain(
       'action="/aircraft/<%= aircraft.id %>/ad-compliance-assignments/<%= item.compliance_assignment_id %>/create-operational-record?_csrf=<%= encodeURIComponent(csrfToken) %>"'
     );
+    expect(previewSection).toContain(
+      'action="/aircraft/<%= aircraft.id %>/ad-compliance/<%= item.aircraft_compliance_id %>/update-status?_csrf=<%= encodeURIComponent(csrfToken) %>"'
+    );
     expect(previewSection).toContain('if (item.aircraft_compliance_id)');
     expect(previewSection).toContain('else if (item.compliance_assignment_id)');
     expect(previewSection).toContain('name="_csrf" value="<%= csrfToken %>"');
+    expect(previewSection).toContain('name="status"');
+    expect(previewSection).toContain('name="notes"');
+    expect(previewSection).toContain('name="compliance_method"');
     expect(previewSection).not.toContain('next_due');
-    expect(previewSection).not.toContain('compliance_status');
+    expect(previewSection).not.toContain('name="compliance_status"');
+    expect(previewSection).not.toContain('recurrence');
+    expect(previewSection).not.toContain('completion');
     expect(previewSection).not.toContain('Workpack');
     expect(previewSection).not.toContain('DueStatus');
   });
@@ -83,5 +100,18 @@ describe('aircraft AD applicability preview view', () => {
     expect(routeBlock).toContain("requirePermission('AD_COMPLIANCE_RECORD_CREATE')");
     expect(routeBlock).toContain('csrfProtection');
     expect(routeBlock).toContain('AircraftController.createAdOperationalComplianceRecord');
+  });
+
+  it('protects the AD operational compliance status route with the dedicated permission and CSRF', () => {
+    const routeStart = routes.indexOf(
+      "'/:id/ad-compliance/:complianceId/update-status'"
+    );
+    const routeEnd = routes.indexOf("router.post('/:id/utilisation/preview'", routeStart);
+    const routeBlock = routes.slice(routeStart, routeEnd);
+
+    expect(routeBlock).toContain('requireAuth');
+    expect(routeBlock).toContain("requirePermission('AD_COMPLIANCE_STATUS_UPDATE')");
+    expect(routeBlock).toContain('csrfProtection');
+    expect(routeBlock).toContain('AircraftController.updateAdOperationalComplianceStatus');
   });
 });

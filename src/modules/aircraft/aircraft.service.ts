@@ -54,6 +54,18 @@ export class AircraftService {
     'COMPLIED',
     'NOT_APPLICABLE'
   ]);
+  private static readonly adComplianceStatuses = new Set([
+    'DUE',
+    'IN_PROGRESS',
+    'COMPLIANT',
+    'NOT_APPLICABLE',
+  ]);
+  private static readonly adComplianceStatusTransitions: Record<string, string[]> = {
+    DUE: ['IN_PROGRESS', 'COMPLIANT', 'NOT_APPLICABLE'],
+    IN_PROGRESS: ['COMPLIANT', 'NOT_APPLICABLE'],
+    COMPLIANT: [],
+    NOT_APPLICABLE: [],
+  };
   private static readonly serviceBulletinPriority: Record<string, number> = {
     MANDATORY: 0,
     REQUIRED: 1,
@@ -757,13 +769,19 @@ export class AircraftService {
           compliance_item_id: string;
           compliance_assignment_id: string | null;
           aircraft_compliance_id: string | null;
+          aircraft_compliance_status: string | null;
+          aircraft_compliance_notes: string | null;
+          aircraft_compliance_method: string | null;
         }>(
           `
           SELECT
             ci.source_id::text AS directive_id,
             ci.id::text AS compliance_item_id,
             ca.id::text AS compliance_assignment_id,
-            ac.id::text AS aircraft_compliance_id
+            ac.id::text AS aircraft_compliance_id,
+            ac.status AS aircraft_compliance_status,
+            ac.notes AS aircraft_compliance_notes,
+            ac.compliance_method AS aircraft_compliance_method
           FROM compliance_items ci
           LEFT JOIN compliance_assignments ca
             ON ca.compliance_item_id = ci.id
@@ -831,6 +849,9 @@ export class AircraftService {
         compliance_item_id: operationalRow?.compliance_item_id || null,
         compliance_assignment_id: operationalRow?.compliance_assignment_id || null,
         aircraft_compliance_id: operationalRow?.aircraft_compliance_id || null,
+        aircraft_compliance_status: operationalRow?.aircraft_compliance_status || null,
+        aircraft_compliance_notes: operationalRow?.aircraft_compliance_notes || null,
+        aircraft_compliance_method: operationalRow?.aircraft_compliance_method || null,
       };
     });
   }
@@ -1154,6 +1175,159 @@ export class AircraftService {
         complianceItem,
         assignment,
         created: true,
+      };
+    });
+  }
+
+  static async updateAdOperationalComplianceStatus(params: {
+    aircraftId: string;
+    complianceId: string;
+    status: string;
+    actorUserId?: string | null;
+    notes?: string | null;
+    complianceMethod?: string | null;
+  }) {
+    const aircraft = await Aircraft.findByPk(params.aircraftId, {
+      attributes: ['id'],
+    });
+
+    if (!aircraft) {
+      throw new Error('AIRCRAFT_NOT_FOUND');
+    }
+
+    const targetStatus = String(params.status || '').trim().toUpperCase();
+
+    if (!this.adComplianceStatuses.has(targetStatus)) {
+      throw new Error('INVALID_AD_COMPLIANCE_STATUS');
+    }
+
+    const notesProvided = Object.prototype.hasOwnProperty.call(params, 'notes');
+    const complianceMethodProvided = Object.prototype.hasOwnProperty.call(
+      params,
+      'complianceMethod'
+    );
+
+    return sequelize.transaction(async (transaction) => {
+      const rows = await sequelize.query<{
+        id: string;
+        aircraft_id: string;
+        compliance_item_id: string;
+        status: string;
+        notes: string | null;
+        compliance_method: string | null;
+        item_type: string | null;
+        source_type: string | null;
+      }>(
+        `
+        SELECT
+          ac.id::text,
+          ac.aircraft_id::text,
+          ac.compliance_item_id::text,
+          ac.status,
+          ac.notes,
+          ac.compliance_method,
+          ci.item_type,
+          ci.source_type
+        FROM aircraft_compliance ac
+        LEFT JOIN compliance_items ci
+          ON ci.id = ac.compliance_item_id
+        WHERE ac.id = :complianceId
+        LIMIT 1
+        FOR UPDATE OF ac
+        `,
+        {
+          replacements: {
+            complianceId: params.complianceId,
+          },
+          type: QueryTypes.SELECT,
+          transaction,
+        }
+      );
+      const row = rows[0];
+
+      if (!row) {
+        throw new Error('AIRCRAFT_COMPLIANCE_NOT_FOUND');
+      }
+
+      if (row.aircraft_id !== params.aircraftId) {
+        throw new Error('AIRCRAFT_COMPLIANCE_AIRCRAFT_MISMATCH');
+      }
+
+      if (!row.item_type && !row.source_type) {
+        throw new Error('COMPLIANCE_ITEM_NOT_FOUND');
+      }
+
+      if (row.item_type !== 'AD' && row.source_type !== 'AD') {
+        throw new Error('COMPLIANCE_ITEM_NOT_AD');
+      }
+
+      if (
+        row.status !== targetStatus &&
+        !this.adComplianceStatusTransitions[row.status]?.includes(targetStatus)
+      ) {
+        throw new Error('INVALID_AD_COMPLIANCE_STATUS_TRANSITION');
+      }
+
+      const normalizedNotes = notesProvided
+        ? (params.notes?.trim() || null)
+        : row.notes;
+      const normalizedComplianceMethod = complianceMethodProvided
+        ? (params.complianceMethod?.trim() || null)
+        : row.compliance_method;
+
+      await sequelize.query(
+        `
+        UPDATE aircraft_compliance
+        SET
+          status = :status,
+          notes = :notes,
+          compliance_method = :complianceMethod,
+          updated_at = CURRENT_TIMESTAMP
+        WHERE id = :complianceId
+        `,
+        {
+          replacements: {
+            complianceId: params.complianceId,
+            status: targetStatus,
+            notes: normalizedNotes,
+            complianceMethod: normalizedComplianceMethod,
+          },
+          transaction,
+        }
+      );
+
+      await AuditService.log(
+        {
+          table_name: 'aircraft_compliance',
+          row_id: params.complianceId,
+          action: 'AD_COMPLIANCE_STATUS_UPDATE',
+          actor_id: params.actorUserId || null,
+          reason: normalizedNotes,
+          old_values: {
+            aircraft_id: row.aircraft_id,
+            compliance_item_id: row.compliance_item_id,
+            status: row.status,
+            notes: row.notes,
+            compliance_method: row.compliance_method,
+          },
+          new_values: {
+            aircraft_id: row.aircraft_id,
+            compliance_item_id: row.compliance_item_id,
+            status: targetStatus,
+            notes: normalizedNotes,
+            compliance_method: normalizedComplianceMethod,
+          },
+        },
+        transaction
+      );
+
+      return {
+        aircraftComplianceId: params.complianceId,
+        complianceItemId: row.compliance_item_id,
+        previousStatus: row.status,
+        status: targetStatus,
+        notes: normalizedNotes,
+        complianceMethod: normalizedComplianceMethod,
       };
     });
   }
