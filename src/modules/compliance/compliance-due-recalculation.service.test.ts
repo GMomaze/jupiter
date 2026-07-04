@@ -215,6 +215,38 @@ describe('ComplianceDueRecalculationService', () => {
     expect(result.governing_limit?.tracking_basis).toBe('CALENDAR');
   });
 
+  it('calculates AD mixed due by hours and date', async () => {
+    const { aircraft, model, suffix } = await createAircraftContext({ hours: 100 });
+    const ad = await AirworthinessDirective.create({
+      ad_number: `AD-M-${suffix}`,
+      status: 'ACTIVE',
+      is_active: true,
+    });
+    const item = await createProjectedCompliance({
+      modelId: model.id,
+      sourceType: 'AD',
+      sourceId: ad.id,
+      code: ad.ad_number,
+      title: 'AD mixed due',
+    });
+    await createAircraftCompliance({
+      aircraftId: aircraft.id,
+      complianceItemId: item.id,
+      nextDueHours: 150,
+      nextDueAt: addDays(5),
+    });
+
+    const [result] = await ComplianceDueRecalculationService.recalculateManually(aircraft.id);
+
+    expect(result.item_type).toBe('AD');
+    expect(result.status).toBe('DUE_SOON');
+    expect(result.governing_limit?.tracking_basis).toBe('CALENDAR');
+    expect(result.due_status.evaluated_limits.map((limit) => limit.tracking_basis)).toEqual([
+      'AIRCRAFT_HOURS',
+      'CALENDAR',
+    ]);
+  });
+
   it('calculates SB mixed due by hours and date', async () => {
     const { aircraft, model, suffix } = await createAircraftContext({ hours: 100 });
     const bulletinId = randomUUID();
@@ -356,6 +388,33 @@ describe('ComplianceDueRecalculationService', () => {
 
     expect(result.status).toBe('UNKNOWN');
     expect(result.unknown_reason).toContain('No aircraft compliance record');
+  });
+
+  it('returns UNKNOWN when an AD aircraft_compliance row has no due data', async () => {
+    const { aircraft, model, suffix } = await createAircraftContext();
+    const ad = await AirworthinessDirective.create({
+      ad_number: `AD-U-ROW-${suffix}`,
+      status: 'ACTIVE',
+      is_active: true,
+    });
+    const item = await createProjectedCompliance({
+      modelId: model.id,
+      sourceType: 'AD',
+      sourceId: ad.id,
+      code: ad.ad_number,
+      title: 'AD unknown due row',
+    });
+    await createAircraftCompliance({
+      aircraftId: aircraft.id,
+      complianceItemId: item.id,
+    });
+
+    const [result] = await ComplianceDueRecalculationService.recalculateManually(aircraft.id);
+
+    expect(result.item_type).toBe('AD');
+    expect(result.status).toBe('UNKNOWN');
+    expect(result.next_due.source).toBe('aircraft_compliance');
+    expect(result.unknown_reason).toContain('has no next due hours, cycles, or date');
   });
 
   it('returns the required explanation contract fields', async () => {
