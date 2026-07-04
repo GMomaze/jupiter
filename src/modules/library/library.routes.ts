@@ -195,6 +195,12 @@ router.get(
   LibraryController.renderAdList
 );
 
+router.get(
+  '/ads/:id',
+  requirePermission('LIBRARY_EDIT'),
+  LibraryController.renderAdDetail
+);
+
 router.post(
   '/ads',
   requirePermission('LIBRARY_EDIT'),
@@ -207,16 +213,22 @@ router.get(
   LibraryController.renderSbList
 );
 
-router.post(
-  '/sbs',
-  requirePermission('LIBRARY_EDIT'),
-  LibraryController.createLibraryServiceBulletin
-);
-
 router.get(
   '/sbs/import-issues/unallocated-models',
   requirePermission('LIBRARY_EDIT'),
   LibraryController.renderSbModelAllocationIssues
+);
+
+router.get(
+  '/sbs/:id',
+  requirePermission('LIBRARY_EDIT'),
+  LibraryController.renderSbDetail
+);
+
+router.post(
+  '/sbs',
+  requirePermission('LIBRARY_EDIT'),
+  LibraryController.createLibraryServiceBulletin
 );
 
 router.post(

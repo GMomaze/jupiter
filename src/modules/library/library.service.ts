@@ -867,6 +867,53 @@ export class LibraryService {
     return directives;
   }
 
+  static async getAirworthinessDirectiveByIdWithServiceBulletinReferences(id: string) {
+    const directive = await AirworthinessDirective.findByPk(id, {
+      attributes: [
+        'id',
+        'ad_number',
+        'revision',
+        'subject_heading',
+        'subject',
+        'summary',
+        'comments',
+        'status',
+        'effective_date',
+        'authority',
+        'make',
+        'model',
+        'product_type',
+        'product_subtype',
+        'citation',
+        'is_active',
+        'created_at',
+      ],
+    });
+
+    if (!directive) {
+      return null;
+    }
+
+    const references = await AdServiceBulletinReference.findAll({
+      where: {
+        airworthiness_directive_id: directive.id,
+      },
+      include: [
+        {
+          model: ServiceBulletin,
+          as: 'MatchedServiceBulletin',
+          attributes: ['id', 'sb_number', 'reference', 'title', 'revision', 'status'],
+          required: false,
+        },
+      ],
+      order: [['match_status', 'ASC'], ['normalized_reference_text', 'ASC']],
+    });
+
+    directive.setDataValue('ServiceBulletinReferences', references);
+
+    return directive;
+  }
+
   static async getAdApplicabilityReviewAllocations() {
     return AdApplicabilityAllocation.findAll({
       include: [
@@ -1401,6 +1448,50 @@ export class LibraryService {
     }
 
     return bulletins;
+  }
+
+  static async getServiceBulletinByIdWithAirworthinessDirectiveReferences(id: string) {
+    const bulletin = await ServiceBulletin.findByPk(id, {
+      attributes: [
+        'id',
+        'manufacturer',
+        'sb_number',
+        'reference',
+        'title',
+        'issued_on',
+        'revision',
+        'status',
+        'category',
+        'applicability_make',
+        'applicability_model',
+        'description',
+        'is_active',
+        'created_at',
+      ],
+    });
+
+    if (!bulletin) {
+      return null;
+    }
+
+    const references = await AdServiceBulletinReference.findAll({
+      where: {
+        matched_service_bulletin_id: bulletin.id,
+      },
+      include: [
+        {
+          model: AirworthinessDirective,
+          as: 'AirworthinessDirective',
+          attributes: ['id', 'ad_number', 'revision', 'subject_heading', 'subject', 'status'],
+          required: false,
+        },
+      ],
+      order: [['normalized_reference_text', 'ASC']],
+    });
+
+    bulletin.setDataValue('AirworthinessDirectiveReferences', references);
+
+    return bulletin;
   }
 
   static async createLibraryServiceBulletin(data: {

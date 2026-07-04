@@ -79,7 +79,9 @@
             <% directives.forEach((directive) => { %>
               <tr>
                 <td class="px-3 py-3 align-top text-sm font-semibold text-slate-900">
-                  <%= directive.ad_number || '-' %>
+                  <a href="/library/ads/<%= directive.id %>" class="text-blue-700 hover:underline">
+                    <%= directive.ad_number || '-' %>
+                  </a>
                 </td>
                 <td class="px-3 py-3 align-top text-xs text-slate-700">
                   <%= directive.revision || '-' %>

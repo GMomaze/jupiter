@@ -1,0 +1,129 @@
+<%- include('../../partials/header') %>
+
+<%
+  const references = directive.ServiceBulletinReferences || directive.getDataValue?.('ServiceBulletinReferences') || [];
+%>
+
+<main class="max-w-7xl mx-auto py-10 px-6 space-y-8">
+  <div>
+    <a href="/library/ads" class="text-sm text-blue-600 hover:underline">Back to Airworthiness Directives</a>
+    <h1 class="mt-3 text-3xl font-bold text-slate-900"><%= directive.ad_number || 'Airworthiness Directive' %></h1>
+    <p class="mt-2 text-sm text-slate-500">
+      Read-only AD source record and extracted service bulletin references.
+    </p>
+  </div>
+
+  <section class="rounded-xl border bg-white p-6 shadow-sm">
+    <div class="grid gap-4 md:grid-cols-3">
+      <div>
+        <p class="text-xs font-bold uppercase tracking-widest text-slate-500">Revision</p>
+        <p class="mt-1 text-sm text-slate-900"><%= directive.revision || '-' %></p>
+      </div>
+      <div>
+        <p class="text-xs font-bold uppercase tracking-widest text-slate-500">Status</p>
+        <p class="mt-1 text-sm text-slate-900"><%= directive.status || '-' %></p>
+      </div>
+      <div>
+        <p class="text-xs font-bold uppercase tracking-widest text-slate-500">Effective Date</p>
+        <p class="mt-1 text-sm text-slate-900"><%= directive.effective_date || '-' %></p>
+      </div>
+      <div>
+        <p class="text-xs font-bold uppercase tracking-widest text-slate-500">Authority</p>
+        <p class="mt-1 text-sm text-slate-900"><%= directive.authority || '-' %></p>
+      </div>
+      <div>
+        <p class="text-xs font-bold uppercase tracking-widest text-slate-500">Make</p>
+        <p class="mt-1 text-sm text-slate-900"><%= directive.make || '-' %></p>
+      </div>
+      <div>
+        <p class="text-xs font-bold uppercase tracking-widest text-slate-500">Model</p>
+        <p class="mt-1 text-sm text-slate-900"><%= directive.model || '-' %></p>
+      </div>
+      <div>
+        <p class="text-xs font-bold uppercase tracking-widest text-slate-500">Product Type</p>
+        <p class="mt-1 text-sm text-slate-900"><%= directive.product_type || '-' %></p>
+      </div>
+      <div>
+        <p class="text-xs font-bold uppercase tracking-widest text-slate-500">Product Subtype</p>
+        <p class="mt-1 text-sm text-slate-900"><%= directive.product_subtype || '-' %></p>
+      </div>
+      <div>
+        <p class="text-xs font-bold uppercase tracking-widest text-slate-500">Active</p>
+        <p class="mt-1 text-sm text-slate-900"><%= directive.is_active ? 'Yes' : 'No' %></p>
+      </div>
+    </div>
+
+    <div class="mt-6 border-t pt-6">
+      <p class="text-xs font-bold uppercase tracking-widest text-slate-500">Subject Heading</p>
+      <p class="mt-1 text-sm text-slate-900"><%= directive.subject_heading || '-' %></p>
+    </div>
+
+    <div class="mt-4">
+      <p class="text-xs font-bold uppercase tracking-widest text-slate-500">Subject</p>
+      <p class="mt-1 whitespace-pre-wrap text-sm text-slate-700"><%= directive.subject || '-' %></p>
+    </div>
+
+    <div class="mt-4">
+      <p class="text-xs font-bold uppercase tracking-widest text-slate-500">Summary</p>
+      <p class="mt-1 whitespace-pre-wrap text-sm text-slate-700"><%= directive.summary || '-' %></p>
+    </div>
+  </section>
+
+  <section class="rounded-xl border bg-white p-6 shadow-sm">
+    <div class="flex items-center justify-between gap-4">
+      <div>
+        <h2 class="text-lg font-bold text-slate-900">Referenced Service Bulletins</h2>
+        <p class="mt-1 text-sm text-slate-500">
+          Informational AD-to-SB source references only. These rows do not establish compliance equivalence.
+        </p>
+      </div>
+      <div class="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-xs font-bold uppercase tracking-widest text-slate-700">
+        <%= references.length %> References
+      </div>
+    </div>
+
+    <% if (!references.length) { %>
+      <div class="mt-6 rounded-xl border border-slate-200 bg-slate-50 px-6 py-10 text-center">
+        <p class="text-sm font-semibold text-slate-700">No service bulletin references have been extracted for this AD.</p>
+      </div>
+    <% } else { %>
+      <div class="mt-6 overflow-x-auto rounded-lg border">
+        <table class="min-w-full divide-y divide-slate-200">
+          <thead class="bg-slate-50">
+            <tr>
+              <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Raw Reference</th>
+              <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Normalized</th>
+              <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Status</th>
+              <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Reason</th>
+              <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Source Context</th>
+              <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Matched SB</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-100 bg-white">
+            <% references.forEach((reference) => { %>
+              <tr>
+                <td class="px-3 py-3 align-top text-sm font-semibold text-slate-900"><%= reference.raw_reference_text || '-' %></td>
+                <td class="px-3 py-3 align-top text-sm text-slate-700"><%= reference.normalized_reference_text || '-' %></td>
+                <td class="px-3 py-3 align-top text-xs text-slate-700"><%= reference.match_status || '-' %></td>
+                <td class="px-3 py-3 align-top text-xs text-slate-700"><%= reference.match_reason || '-' %></td>
+                <td class="px-3 py-3 align-top text-xs text-slate-700"><%= reference.source_context || '-' %></td>
+                <td class="px-3 py-3 align-top text-sm text-slate-700">
+                  <% if (reference.MatchedServiceBulletin) { %>
+                    <a href="/library/sbs/<%= reference.MatchedServiceBulletin.id %>" class="font-semibold text-blue-700 hover:underline">
+                      <%= reference.MatchedServiceBulletin.sb_number || reference.MatchedServiceBulletin.reference || '-' %>
+                    </a>
+                    <div class="mt-1 text-xs text-slate-500"><%= reference.MatchedServiceBulletin.title || '-' %></div>
+                  <% } else { %>
+                    -
+                  <% } %>
+                </td>
+              </tr>
+            <% }) %>
+          </tbody>
+        </table>
+      </div>
+    <% } %>
+  </section>
+</main>
+
+<%- include('../../partials/footer') %>

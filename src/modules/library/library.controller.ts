@@ -53,6 +53,22 @@ export class LibraryController {
     });
   }
 
+  static async renderAdDetail(req: Request, res: Response): Promise<void> {
+    const directive = await LibraryService.getAirworthinessDirectiveByIdWithServiceBulletinReferences(
+      getParam(req.params.id)
+    );
+
+    if (!directive) {
+      res.status(404).send('Airworthiness Directive not found.');
+      return;
+    }
+
+    res.render('library/ads/detail', {
+      title: `${directive.ad_number} - Airworthiness Directive`,
+      directive,
+    });
+  }
+
   static async renderAdApplicabilityReview(_req: Request, res: Response): Promise<void> {
     const [allocations, componentModels, manufacturers] = await Promise.all([
       LibraryService.getAdApplicabilityReviewAllocations(),
@@ -219,6 +235,22 @@ export class LibraryController {
     res.render('library/sbs/index', {
       title: 'Service Bulletins',
       bulletins,
+    });
+  }
+
+  static async renderSbDetail(req: Request, res: Response): Promise<void> {
+    const bulletin = await LibraryService.getServiceBulletinByIdWithAirworthinessDirectiveReferences(
+      getParam(req.params.id)
+    );
+
+    if (!bulletin) {
+      res.status(404).send('Service Bulletin not found.');
+      return;
+    }
+
+    res.render('library/sbs/detail', {
+      title: `${bulletin.sb_number} - Service Bulletin`,
+      bulletin,
     });
   }
 
