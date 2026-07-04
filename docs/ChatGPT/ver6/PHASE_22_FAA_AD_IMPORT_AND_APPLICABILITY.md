@@ -1098,6 +1098,14 @@
 
 ## Phase 22B.1A - Manual AD Compliance Assignment
 
+### 22B.1A Completion Status
+
+- [x] Defined.
+- [x] Implemented.
+- [x] Verified.
+- [x] Tested.
+- [x] Committed: `764ec2d`.
+
 ### 22B.1A Purpose
 
 - [ ] Define the first safe manual AD compliance creation slice.
@@ -1232,6 +1240,134 @@
 - [ ] Stop gate: no implementation until duplicate behavior is verified against existing unique constraints.
 - [ ] Stop gate: no implementation until tests prove no `aircraft_compliance` row is created.
 - [ ] Stop gate: no implementation until tests prove no due, task, workpack, SB, SID, or AD import behavior changes.
+
+## Phase 22B.1B - Aircraft Operational Compliance Record
+
+### 22B.1B Completion Status
+
+- [x] Defined.
+- [x] RBAC seeded: `0ecade6`.
+- [x] Implemented.
+- [x] Verified.
+- [x] Tested.
+- [x] Committed: `5eb704b`.
+
+### 22B.1B Completed Scope
+
+- [x] Creates an explicit `aircraft_compliance` operational record only after an active aircraft-level AD `ComplianceAssignment` exists.
+- [x] Uses dedicated permission `AD_COMPLIANCE_RECORD_CREATE`.
+- [x] Creates the record with initial `status = DUE`.
+- [x] Does not calculate due dates.
+- [x] Does not create workpacks.
+- [x] Does not create tasks.
+- [x] Does not alter SB, SID, AD import, applicability review, or aircraft applicability resolver behavior.
+
+## Phase 22B.2 - Manual AD Compliance Status Update
+
+### 22B.2 Completion Status
+
+- [x] RBAC seeded: `3d38c60`.
+- [x] Implemented.
+- [x] Verified.
+- [x] Tested.
+- [x] Committed: `959c85b`.
+
+### 22B.2 Completed Scope
+
+- [x] Allows authorized manual status updates for existing AD `aircraft_compliance` rows.
+- [x] Uses dedicated permission `AD_COMPLIANCE_STATUS_UPDATE`.
+- [x] Restricts status values to existing valid statuses: `DUE`, `IN_PROGRESS`, `COMPLIANT`, `NOT_APPLICABLE`.
+- [x] Audits status updates through the existing audit service.
+- [x] Does not update due fields, workpack references, recurrence fields, AMOC fields, or terminating-action fields.
+- [x] Does not alter due calculation, workpack/task generation, SB, SID, AD import, applicability review, or aircraft applicability resolver behavior.
+
+## Phase 22B.3 - Manual AD Due Data Update
+
+### 22B.3 Completion Status
+
+- [x] RBAC seeded: `216afff`.
+- [x] Implemented.
+- [x] Verified.
+- [x] Tested.
+- [x] Committed: `b74126b`.
+
+### 22B.3 Completed Scope
+
+- [x] Allows narrow manual due data updates for existing AD `aircraft_compliance` rows.
+- [x] Uses dedicated permission `AD_COMPLIANCE_DUE_UPDATE`.
+- [x] Updates only existing fields: `next_due_at`, `next_due_hours`, `last_complied_at`, `last_complied_hours`, `compliance_method`, `notes`, and `updated_at`.
+- [x] Treats manual `next_due_*` values as intentional operational due data that existing due services may display.
+- [x] Does not update status, workpack links, cycle fields, recurrence fields, AMOC fields, or terminating-action fields.
+- [x] Does not trigger due calculation, workpack/task generation, SB, SID, AD import, applicability review, or aircraft applicability resolver changes.
+
+## Phase 22B.4 - Due Calculation Service Reuse
+
+### 22B.4 Completion Status
+
+- [x] Existing Jupiter due services reused.
+- [x] No parallel AD due engine created.
+- [x] Verified.
+- [x] Test coverage committed: `ea3c387`.
+
+### 22B.4 Completed Scope
+
+- [x] Reuses `ComplianceDueRecalculationService`.
+- [x] Reuses `DueStatusService`.
+- [x] Reuses `CalendarDueMonitorService`.
+- [x] Reuses `ComplianceService`.
+- [x] Verifies AD aircraft compliance rows with manual due data are handled by existing due behavior.
+- [x] Keeps cycle due support out of scope until schema support exists.
+- [x] Does not change schema, workpack/task generation, SB, SID, AD import, or applicability review behavior.
+
+## Phase 22B.5 - Recurring AD Compliance
+
+### 22B.5 Completion Status
+
+- [x] Satisfied by existing functionality.
+- [x] No new implementation required.
+- [x] No separate recurring AD engine required.
+
+### 22B.5 Existing Functionality
+
+- [x] `AirworthinessDirective` already supports recurrence fields: `is_recurring`, `interval_hours`, and `interval_months`.
+- [x] `ComplianceDueRecalculationService` already derives due hours/date from last complied data plus AD intervals.
+- [x] `DueStatusService` already evaluates due status for the derived due values.
+- [x] Manual `next_due_*` values override derived values.
+- [x] Cycle recurrence remains out of scope until cycle fields are added.
+
+## Phase 22B.6 - Structured Terminating Action
+
+### 22B.6 Deferred Status
+
+- [x] Deferred as structured future work, not incomplete implementation.
+- [x] Current due logic infers terminating action from `compliance_method` or `notes`.
+- [x] Structured terminating-action fields require a later schema and workflow slice.
+- [x] Future work should add explicit fields, UI, RBAC, and audit before replacing text inference.
+
+## Phase 22B.7 - Structured AMOC
+
+### 22B.7 Deferred Status
+
+- [x] Deferred as structured future work, not incomplete implementation.
+- [x] Current schema does not provide first-class AMOC fields.
+- [x] Do not overload `notes` or `compliance_method` for structured AMOC unless explicitly approved.
+- [x] Future work should define AMOC fields or table, attachment/reference handling, UI, RBAC, and audit.
+
+## Phase 22B.8 - Superseded/Revised AD Operational Review
+
+### 22B.8 Deferred Status
+
+- [x] Deferred as structured future work, not incomplete implementation.
+- [x] Existing AD relationship and revision data is source context only.
+- [x] Do not auto-close, auto-cancel, auto-replace, or destructively mutate compliance records from superseded/revised AD data.
+- [x] Future work should define explicit review UI, RBAC, audit, and operational decisions for superseded or revised ADs.
+
+## Phase 22B Deferred Operational Capabilities
+
+- [x] Structured terminating action is deferred.
+- [x] Structured AMOC is deferred.
+- [x] Superseded/revised AD operational review is deferred.
+- [x] Cycle-based AD due support is deferred until schema support exists.
 
 ## Phase 22.9 - Aircraft Inheritance From Make And Model
 
