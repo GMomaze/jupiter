@@ -788,7 +788,7 @@ export class LibraryService {
   }
 
   static async getAirworthinessDirectives() {
-    return AirworthinessDirective.findAll({
+    const directives = await AirworthinessDirective.findAll({
       attributes: [
         'id',
         'ad_number',
@@ -806,6 +806,65 @@ export class LibraryService {
       ],
       order: [['created_at', 'DESC'], ['ad_number', 'ASC']],
     });
+
+    const directiveIds = directives.map((directive) => directive.id).filter(Boolean);
+
+    if (directiveIds.length === 0) {
+      return directives;
+    }
+
+    const references = await AdServiceBulletinReference.findAll({
+      where: {
+        airworthiness_directive_id: {
+          [Op.in]: directiveIds,
+        },
+      },
+      attributes: ['airworthiness_directive_id', 'match_status'],
+    });
+    const countsByDirective = new Map<string, {
+      total: number;
+      matched: number;
+      unresolved: number;
+      ignored: number;
+    }>();
+
+    for (const reference of references) {
+      const directiveId = reference.airworthiness_directive_id;
+      const counts = countsByDirective.get(directiveId) || {
+        total: 0,
+        matched: 0,
+        unresolved: 0,
+        ignored: 0,
+      };
+
+      counts.total += 1;
+
+      if (reference.match_status === 'MATCHED') {
+        counts.matched += 1;
+      } else if (reference.match_status === 'UNRESOLVED') {
+        counts.unresolved += 1;
+      } else if (reference.match_status === 'IGNORED') {
+        counts.ignored += 1;
+      }
+
+      countsByDirective.set(directiveId, counts);
+    }
+
+    for (const directive of directives) {
+      const counts = countsByDirective.get(directive.id) || {
+        total: 0,
+        matched: 0,
+        unresolved: 0,
+        ignored: 0,
+      };
+
+      directive.setDataValue('sb_reference_count', counts.total);
+      directive.setDataValue('sb_reference_matched_count', counts.matched);
+      directive.setDataValue('sb_reference_unresolved_count', counts.unresolved);
+      directive.setDataValue('sb_reference_ignored_count', counts.ignored);
+    }
+
+    return directives;
   }
 
   static async getAdApplicabilityReviewAllocations() {
@@ -1287,7 +1346,7 @@ export class LibraryService {
   }
 
   static async getServiceBulletins() {
-    return ServiceBulletin.findAll({
+    const bulletins = await ServiceBulletin.findAll({
       attributes: [
         'id',
         'manufacturer',
@@ -1304,6 +1363,44 @@ export class LibraryService {
       ],
       order: [['created_at', 'DESC'], ['manufacturer', 'ASC'], ['sb_number', 'ASC']],
     });
+
+    const bulletinIds = bulletins.map((bulletin) => bulletin.id).filter(Boolean);
+
+    if (bulletinIds.length === 0) {
+      return bulletins;
+    }
+
+    const references = await AdServiceBulletinReference.findAll({
+      where: {
+        matched_service_bulletin_id: {
+          [Op.in]: bulletinIds,
+        },
+      },
+      attributes: ['airworthiness_directive_id', 'matched_service_bulletin_id'],
+    });
+    const adIdsByBulletin = new Map<string, Set<string>>();
+
+    for (const reference of references) {
+      const bulletinId = reference.matched_service_bulletin_id;
+
+      if (!bulletinId) {
+        continue;
+      }
+
+      const adIds = adIdsByBulletin.get(bulletinId) || new Set<string>();
+
+      adIds.add(reference.airworthiness_directive_id);
+      adIdsByBulletin.set(bulletinId, adIds);
+    }
+
+    for (const bulletin of bulletins) {
+      bulletin.setDataValue(
+        'referenced_by_ad_count',
+        adIdsByBulletin.get(bulletin.id)?.size || 0
+      );
+    }
+
+    return bulletins;
   }
 
   static async createLibraryServiceBulletin(data: {

@@ -66,6 +66,7 @@
               <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Category</th>
               <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Applicability Make</th>
               <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Applicability Model</th>
+              <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Referenced by ADs</th>
               <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Active</th>
               <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Created</th>
             </tr>
@@ -99,6 +100,9 @@
                 </td>
                 <td class="px-3 py-3 align-top text-xs text-slate-700">
                   <%= bulletin.applicability_model || '-' %>
+                </td>
+                <td class="px-3 py-3 align-top text-xs font-semibold text-slate-900">
+                  <%= bulletin.referenced_by_ad_count || 0 %>
                 </td>
                 <td class="px-3 py-3 align-top">
                   <% if (bulletin.is_active) { %>

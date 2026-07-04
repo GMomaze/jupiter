@@ -67,6 +67,10 @@
               <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Model</th>
               <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Product Type</th>
               <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Product Subtype</th>
+              <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">SB References</th>
+              <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Matched</th>
+              <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Unresolved</th>
+              <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Ignored</th>
               <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Active</th>
               <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Created</th>
             </tr>
@@ -103,6 +107,18 @@
                 </td>
                 <td class="px-3 py-3 align-top text-xs text-slate-700">
                   <%= directive.product_subtype || '-' %>
+                </td>
+                <td class="px-3 py-3 align-top text-xs font-semibold text-slate-900">
+                  <%= directive.sb_reference_count || 0 %>
+                </td>
+                <td class="px-3 py-3 align-top text-xs text-slate-700">
+                  <%= directive.sb_reference_matched_count || 0 %>
+                </td>
+                <td class="px-3 py-3 align-top text-xs text-slate-700">
+                  <%= directive.sb_reference_unresolved_count || 0 %>
+                </td>
+                <td class="px-3 py-3 align-top text-xs text-slate-700">
+                  <%= directive.sb_reference_ignored_count || 0 %>
                 </td>
                 <td class="px-3 py-3 align-top">
                   <% if (directive.is_active) { %>
