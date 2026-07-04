@@ -10,6 +10,7 @@ import sequelize from '../config/database.js';
 export { AirworthinessDirective } from './AirworthinessDirective.js';
 export { AdApplicabilityAllocation } from './AdApplicabilityAllocation.js';
 export { AdRelationship } from './AdRelationship.js';
+export { AdServiceBulletinReference } from './AdServiceBulletinReference.js';
 export { AssetType } from './AssetType.js';
 export { Manufacturer } from './Manufacturer.js';
 export { ComponentModel } from './ComponentModel.js';

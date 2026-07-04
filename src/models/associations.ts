@@ -1,6 +1,7 @@
 import { AirworthinessDirective } from './AirworthinessDirective.js';
 import { AdApplicabilityAllocation } from './AdApplicabilityAllocation.js';
 import { AdRelationship } from './AdRelationship.js';
+import { AdServiceBulletinReference } from './AdServiceBulletinReference.js';
 import { AssetType } from './AssetType.js';
 import { Manufacturer } from './Manufacturer.js';
 import { ComponentModel } from './ComponentModel.js';
@@ -75,6 +76,14 @@ AdApplicabilityAllocation.belongsTo(AirworthinessDirective, {
   foreignKey: 'airworthiness_directive_id',
   as: 'AirworthinessDirective',
 });
+AirworthinessDirective.hasMany(AdServiceBulletinReference, {
+  foreignKey: 'airworthiness_directive_id',
+  as: 'ServiceBulletinReferences',
+});
+AdServiceBulletinReference.belongsTo(AirworthinessDirective, {
+  foreignKey: 'airworthiness_directive_id',
+  as: 'AirworthinessDirective',
+});
 
 AssetType.hasMany(ComponentModel, { foreignKey: 'asset_type_id' });
 ComponentModel.belongsTo(AssetType, { foreignKey: 'asset_type_id' });
@@ -112,6 +121,14 @@ ComponentModel.belongsToMany(ServiceBulletin, {
 ServiceBulletin.hasMany(SbModelApplicabilityAllocation, {
   foreignKey: 'service_bulletin_id',
   as: 'ModelApplicabilityAllocations',
+});
+ServiceBulletin.hasMany(AdServiceBulletinReference, {
+  foreignKey: 'matched_service_bulletin_id',
+  as: 'AirworthinessDirectiveReferences',
+});
+AdServiceBulletinReference.belongsTo(ServiceBulletin, {
+  foreignKey: 'matched_service_bulletin_id',
+  as: 'MatchedServiceBulletin',
 });
 SbModelApplicabilityAllocation.belongsTo(ServiceBulletin, {
   foreignKey: 'service_bulletin_id',
