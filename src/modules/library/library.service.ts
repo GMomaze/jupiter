@@ -23,6 +23,7 @@ import {
   ComplianceAssignment,
   User,
   AdApplicabilityAllocation,
+  AdServiceBulletinReference,
 } from '../../models/index.js';
 import { Op, QueryTypes } from 'sequelize';
 import sequelize from '../../config/database.js';
@@ -36,6 +37,17 @@ import { AdRelevanceService, type AdRelevanceDirective } from './ad-relevance.se
 import { AdApplicabilityAllocationService } from './ad-applicability-allocation.service.js';
 
 export class LibraryService {
+  private static readonly adServiceBulletinReferenceFields = [
+    'subject_heading',
+    'subject',
+    'summary',
+    'comments',
+    'citation',
+  ] as const;
+
+  private static readonly explicitServiceBulletinReferencePattern =
+    /\b(?:SERVICE\s+BULLETIN|SB)\s*(?:NO\.?\s*)?[-\s]*([A-Z0-9]+(?:[-/][A-Z0-9]+)?)\b/gi;
+
   static readonly sbModelAllocationStatuses = [
     'MATCHED',
     'NEEDS_REVIEW',
@@ -905,6 +917,241 @@ export class LibraryService {
       totals.skippedAccepted += result.skippedAccepted;
       totals.skippedIgnored += result.skippedIgnored;
       totals.unchanged += result.unchanged;
+    }
+
+    return totals;
+  }
+
+  private static normalizeServiceBulletinReference(value: unknown) {
+    return String(value ?? '')
+      .trim()
+      .toUpperCase()
+      .replace(/\bSERVICE\s+BULLETIN\b/g, 'SB')
+      .replace(/\bSB\s+NO\.?\s*/g, 'SB ')
+      .replace(/\bSB[-\s]*/g, 'SB ')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  private static extractServiceBulletinReferencesFromDirective(
+    directive: AirworthinessDirective
+  ) {
+    const references = new Map<string, {
+      raw_reference_text: string;
+      normalized_reference_text: string;
+      source_context: string;
+    }>();
+
+    for (const field of this.adServiceBulletinReferenceFields) {
+      const sourceText = String((directive as any)[field] ?? '');
+
+      if (!sourceText.trim()) {
+        continue;
+      }
+
+      for (const match of sourceText.matchAll(this.explicitServiceBulletinReferencePattern)) {
+        const rawReferenceText = match[0].trim();
+        const suffix = String(match[1] || '').trim();
+
+        if (!suffix) {
+          continue;
+        }
+
+        if (!/\d/.test(suffix)) {
+          continue;
+        }
+
+        const normalizedReferenceText = this.normalizeServiceBulletinReference(rawReferenceText);
+
+        if (!normalizedReferenceText) {
+          continue;
+        }
+
+        if (!references.has(normalizedReferenceText)) {
+          references.set(normalizedReferenceText, {
+            raw_reference_text: rawReferenceText,
+            normalized_reference_text: normalizedReferenceText,
+            source_context: field,
+          });
+        }
+      }
+    }
+
+    return Array.from(references.values());
+  }
+
+  private static buildServiceBulletinReferenceMatches(bulletins: ServiceBulletin[]) {
+    const matches = new Map<string, ServiceBulletin[]>();
+
+    for (const bulletin of bulletins) {
+      const candidateValues = [bulletin.sb_number, bulletin.reference];
+
+      for (const value of candidateValues) {
+        const normalized = this.normalizeServiceBulletinReference(value);
+
+        if (!normalized) {
+          continue;
+        }
+
+        const existing = matches.get(normalized) || [];
+
+        if (!existing.some((match) => match.id === bulletin.id)) {
+          existing.push(bulletin);
+        }
+
+        matches.set(normalized, existing);
+      }
+    }
+
+    return matches;
+  }
+
+  private static getAdServiceBulletinReferenceMatch(
+    normalizedReferenceText: string,
+    matches: Map<string, ServiceBulletin[]>
+  ) {
+    const candidates = matches.get(normalizedReferenceText) || [];
+
+    if (candidates.length === 1) {
+      const candidate = candidates[0];
+
+      if (!candidate) {
+        return {
+          match_status: 'UNRESOLVED' as const,
+          matched_service_bulletin_id: null,
+          match_reason: 'No exact SB number/reference match.',
+        };
+      }
+
+      return {
+        match_status: 'MATCHED' as const,
+        matched_service_bulletin_id: candidate.id,
+        match_reason: 'Exact match on service_bulletins.sb_number or service_bulletins.reference.',
+      };
+    }
+
+    if (candidates.length > 1) {
+      return {
+        match_status: 'UNRESOLVED' as const,
+        matched_service_bulletin_id: null,
+        match_reason: 'Multiple exact SB matches; manual review required.',
+      };
+    }
+
+    return {
+      match_status: 'UNRESOLVED' as const,
+      matched_service_bulletin_id: null,
+      match_reason: 'No exact SB number/reference match.',
+    };
+  }
+
+  static async refreshAdServiceBulletinReferences() {
+    const [directives, bulletins] = await Promise.all([
+      AirworthinessDirective.findAll({
+        attributes: [
+          'id',
+          'subject_heading',
+          'subject',
+          'summary',
+          'comments',
+          'citation',
+        ],
+        order: [['ad_number', 'ASC'], ['created_at', 'ASC']],
+      }),
+      ServiceBulletin.findAll({
+        attributes: ['id', 'sb_number', 'reference'],
+        order: [['reference', 'ASC'], ['sb_number', 'ASC']],
+      }),
+    ]);
+    const matches = this.buildServiceBulletinReferenceMatches(bulletins);
+    const totals = {
+      adsScanned: directives.length,
+      referencesFound: 0,
+      created: 0,
+      upgradedMatched: 0,
+      updatedUnresolved: 0,
+      skippedIgnored: 0,
+      skippedMatched: 0,
+      unchanged: 0,
+    };
+
+    for (const directive of directives) {
+      const extractedReferences = this.extractServiceBulletinReferencesFromDirective(directive);
+      totals.referencesFound += extractedReferences.length;
+
+      if (extractedReferences.length === 0) {
+        continue;
+      }
+
+      const existingRows = await AdServiceBulletinReference.findAll({
+        where: {
+          airworthiness_directive_id: directive.id,
+          normalized_reference_text: {
+            [Op.in]: extractedReferences.map((reference) => reference.normalized_reference_text),
+          },
+        },
+      });
+      const existingByNormalized = new Map(
+        existingRows.map((row) => [row.normalized_reference_text, row])
+      );
+
+      for (const extractedReference of extractedReferences) {
+        const match = this.getAdServiceBulletinReferenceMatch(
+          extractedReference.normalized_reference_text,
+          matches
+        );
+        const existing = existingByNormalized.get(extractedReference.normalized_reference_text);
+
+        if (!existing) {
+          await AdServiceBulletinReference.create({
+            airworthiness_directive_id: directive.id,
+            ...extractedReference,
+            ...match,
+          } as any);
+          totals.created += 1;
+          continue;
+        }
+
+        if (existing.match_status === 'IGNORED') {
+          totals.skippedIgnored += 1;
+          continue;
+        }
+
+        if (existing.match_status === 'MATCHED') {
+          totals.skippedMatched += 1;
+          continue;
+        }
+
+        const shouldUpgradeToMatched = match.match_status === 'MATCHED';
+        const shouldUpdateUnresolved =
+          existing.match_status === 'UNRESOLVED' &&
+          match.match_status === 'UNRESOLVED' &&
+          (
+            existing.match_reason !== match.match_reason ||
+            existing.raw_reference_text !== extractedReference.raw_reference_text ||
+            existing.source_context !== extractedReference.source_context
+          );
+
+        if (shouldUpgradeToMatched || shouldUpdateUnresolved) {
+          await existing.update({
+            raw_reference_text: extractedReference.raw_reference_text,
+            source_context: extractedReference.source_context,
+            match_status: match.match_status,
+            matched_service_bulletin_id: match.matched_service_bulletin_id,
+            match_reason: match.match_reason,
+          });
+
+          if (shouldUpgradeToMatched) {
+            totals.upgradedMatched += 1;
+          } else {
+            totals.updatedUnresolved += 1;
+          }
+
+          continue;
+        }
+
+        totals.unchanged += 1;
+      }
     }
 
     return totals;

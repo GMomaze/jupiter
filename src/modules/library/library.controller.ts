@@ -92,6 +92,21 @@ export class LibraryController {
     res.redirect('/library/ads/applicability-review');
   }
 
+  static async refreshAdServiceBulletinReferences(req: Request, res: Response): Promise<void> {
+    try {
+      const result = await LibraryService.refreshAdServiceBulletinReferences();
+
+      req.flash(
+        'success',
+        `AD-to-SB reference refresh complete: ${result.adsScanned} AD(s) scanned, ${result.referencesFound} explicit SB reference(s) found, ${result.created} created, ${result.upgradedMatched} upgraded to matched, ${result.updatedUnresolved} unresolved updated, ${result.skippedIgnored} ignored skipped, ${result.skippedMatched} matched skipped, ${result.unchanged} unchanged.`
+      );
+    } catch (error: any) {
+      req.flash('error', error?.message || 'Unable to refresh AD-to-SB references.');
+    }
+
+    res.redirect('/library/ads');
+  }
+
   static async acceptAdApplicabilityAllocation(req: Request, res: Response): Promise<void> {
     try {
       await LibraryService.reviewAdApplicabilityAllocation(

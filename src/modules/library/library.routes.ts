@@ -124,6 +124,13 @@ router.post(
 );
 
 router.post(
+  '/ads/service-bulletin-references/refresh',
+  requirePermission('LIBRARY_EDIT'),
+  csrfProtection,
+  LibraryController.refreshAdServiceBulletinReferences
+);
+
+router.post(
   '/ads/applicability-review/allocations/:id/accept',
   requirePermission('AD_APPLICABILITY_REVIEW_ACCEPT'),
   csrfProtection,
