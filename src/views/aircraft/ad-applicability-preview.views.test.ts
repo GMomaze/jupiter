@@ -39,7 +39,12 @@ describe('aircraft AD applicability preview view', () => {
     expect(previewSection).toContain('Create Operational Compliance Record');
     expect(previewSection).toContain('Operational Record Created');
     expect(previewSection).toContain('Update AD Status');
+    expect(previewSection).toContain('Update Manual Due Data');
     expect(previewSection).toContain('AD Status');
+    expect(previewSection).toContain('Manual Due Date');
+    expect(previewSection).toContain('Manual Due Hours');
+    expect(previewSection).toContain('Last Complied Date');
+    expect(previewSection).toContain('Last Complied Hours');
     expect(previewSection).toContain('DUE');
     expect(previewSection).toContain('IN_PROGRESS');
     expect(previewSection).toContain('COMPLIANT');
@@ -54,6 +59,9 @@ describe('aircraft AD applicability preview view', () => {
       'This updates operational AD compliance status only. It does not calculate due dates or create workpack tasks.'
     );
     expect(previewSection).toContain(
+      'This records manual AD due data. It does not calculate recurring due requirements or create workpack tasks.'
+    );
+    expect(previewSection).toContain(
       'action="/aircraft/<%= aircraft.id %>/ad-applicability/<%= item.id %>/create-compliance-assignment?_csrf=<%= encodeURIComponent(csrfToken) %>"'
     );
     expect(previewSection).toContain(
@@ -62,15 +70,26 @@ describe('aircraft AD applicability preview view', () => {
     expect(previewSection).toContain(
       'action="/aircraft/<%= aircraft.id %>/ad-compliance/<%= item.aircraft_compliance_id %>/update-status?_csrf=<%= encodeURIComponent(csrfToken) %>"'
     );
+    expect(previewSection).toContain(
+      'action="/aircraft/<%= aircraft.id %>/ad-compliance/<%= item.aircraft_compliance_id %>/update-due-data?_csrf=<%= encodeURIComponent(csrfToken) %>"'
+    );
     expect(previewSection).toContain('if (item.aircraft_compliance_id)');
     expect(previewSection).toContain('else if (item.compliance_assignment_id)');
     expect(previewSection).toContain('name="_csrf" value="<%= csrfToken %>"');
     expect(previewSection).toContain('name="status"');
     expect(previewSection).toContain('name="notes"');
     expect(previewSection).toContain('name="compliance_method"');
-    expect(previewSection).not.toContain('next_due');
+    expect(previewSection).toContain('name="next_due_at"');
+    expect(previewSection).toContain('name="next_due_hours"');
+    expect(previewSection).toContain('name="last_complied_at"');
+    expect(previewSection).toContain('name="last_complied_hours"');
+    expect(previewSection).not.toContain('next_due_cycles');
+    expect(previewSection).not.toContain('last_complied_cycles');
     expect(previewSection).not.toContain('name="compliance_status"');
     expect(previewSection).not.toContain('recurrence');
+    expect(previewSection).not.toContain('AMOC');
+    expect(previewSection).not.toContain('terminating');
+    expect(previewSection).not.toContain('workpack_id');
     expect(previewSection).not.toContain('completion');
     expect(previewSection).not.toContain('Workpack');
     expect(previewSection).not.toContain('DueStatus');
@@ -113,5 +132,18 @@ describe('aircraft AD applicability preview view', () => {
     expect(routeBlock).toContain("requirePermission('AD_COMPLIANCE_STATUS_UPDATE')");
     expect(routeBlock).toContain('csrfProtection');
     expect(routeBlock).toContain('AircraftController.updateAdOperationalComplianceStatus');
+  });
+
+  it('protects the AD manual due data route with the dedicated permission and CSRF', () => {
+    const routeStart = routes.indexOf(
+      "'/:id/ad-compliance/:complianceId/update-due-data'"
+    );
+    const routeEnd = routes.indexOf("router.post('/:id/utilisation/preview'", routeStart);
+    const routeBlock = routes.slice(routeStart, routeEnd);
+
+    expect(routeBlock).toContain('requireAuth');
+    expect(routeBlock).toContain("requirePermission('AD_COMPLIANCE_DUE_UPDATE')");
+    expect(routeBlock).toContain('csrfProtection');
+    expect(routeBlock).toContain('AircraftController.updateAdOperationalComplianceDueData');
   });
 });

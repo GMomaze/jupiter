@@ -153,6 +153,50 @@ export class AircraftService {
     return cycles;
   }
 
+  private static normalizeOptionalDate(value: unknown, errorCode: string) {
+    if (value === null || value === undefined || value === '') {
+      return null;
+    }
+
+    const text = String(value).trim();
+
+    if (!text) {
+      return null;
+    }
+
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(text)) {
+      throw new Error(errorCode);
+    }
+
+    const parsed = new Date(`${text}T00:00:00.000Z`);
+
+    if (Number.isNaN(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== text) {
+      throw new Error(errorCode);
+    }
+
+    return text;
+  }
+
+  private static normalizeOptionalNonNegativeNumber(value: unknown, errorCode: string) {
+    if (value === null || value === undefined || value === '') {
+      return null;
+    }
+
+    const text = String(value).trim();
+
+    if (!text) {
+      return null;
+    }
+
+    const parsed = Number(text);
+
+    if (!Number.isFinite(parsed) || parsed < 0) {
+      throw new Error(errorCode);
+    }
+
+    return parsed;
+  }
+
   private static utilizationFieldChanged(
     currentValue: number | string | null | undefined,
     submittedValue: number | string | null | undefined,
@@ -772,6 +816,10 @@ export class AircraftService {
           aircraft_compliance_status: string | null;
           aircraft_compliance_notes: string | null;
           aircraft_compliance_method: string | null;
+          aircraft_compliance_next_due_at: string | null;
+          aircraft_compliance_next_due_hours: string | number | null;
+          aircraft_compliance_last_complied_at: string | null;
+          aircraft_compliance_last_complied_hours: string | number | null;
         }>(
           `
           SELECT
@@ -781,7 +829,11 @@ export class AircraftService {
             ac.id::text AS aircraft_compliance_id,
             ac.status AS aircraft_compliance_status,
             ac.notes AS aircraft_compliance_notes,
-            ac.compliance_method AS aircraft_compliance_method
+            ac.compliance_method AS aircraft_compliance_method,
+            ac.next_due_at::date::text AS aircraft_compliance_next_due_at,
+            ac.next_due_hours AS aircraft_compliance_next_due_hours,
+            ac.last_complied_at::date::text AS aircraft_compliance_last_complied_at,
+            ac.last_complied_hours AS aircraft_compliance_last_complied_hours
           FROM compliance_items ci
           LEFT JOIN compliance_assignments ca
             ON ca.compliance_item_id = ci.id
@@ -852,6 +904,10 @@ export class AircraftService {
         aircraft_compliance_status: operationalRow?.aircraft_compliance_status || null,
         aircraft_compliance_notes: operationalRow?.aircraft_compliance_notes || null,
         aircraft_compliance_method: operationalRow?.aircraft_compliance_method || null,
+        aircraft_compliance_next_due_at: operationalRow?.aircraft_compliance_next_due_at || null,
+        aircraft_compliance_next_due_hours: operationalRow?.aircraft_compliance_next_due_hours || null,
+        aircraft_compliance_last_complied_at: operationalRow?.aircraft_compliance_last_complied_at || null,
+        aircraft_compliance_last_complied_hours: operationalRow?.aircraft_compliance_last_complied_hours || null,
       };
     });
   }
@@ -1328,6 +1384,175 @@ export class AircraftService {
         status: targetStatus,
         notes: normalizedNotes,
         complianceMethod: normalizedComplianceMethod,
+      };
+    });
+  }
+
+  static async updateAdOperationalComplianceDueData(params: {
+    aircraftId: string;
+    complianceId: string;
+    actorUserId?: string | null;
+    nextDueAt?: string | null;
+    nextDueHours?: string | number | null;
+    lastCompliedAt?: string | null;
+    lastCompliedHours?: string | number | null;
+    complianceMethod?: string | null;
+    notes?: string | null;
+  }) {
+    const aircraft = await Aircraft.findByPk(params.aircraftId, {
+      attributes: ['id'],
+    });
+
+    if (!aircraft) {
+      throw new Error('AIRCRAFT_NOT_FOUND');
+    }
+
+    const normalizedNextDueAt = this.normalizeOptionalDate(
+      params.nextDueAt,
+      'INVALID_NEXT_DUE_AT'
+    );
+    const normalizedLastCompliedAt = this.normalizeOptionalDate(
+      params.lastCompliedAt,
+      'INVALID_LAST_COMPLIED_AT'
+    );
+    const normalizedNextDueHours = this.normalizeOptionalNonNegativeNumber(
+      params.nextDueHours,
+      'INVALID_NEXT_DUE_HOURS'
+    );
+    const normalizedLastCompliedHours = this.normalizeOptionalNonNegativeNumber(
+      params.lastCompliedHours,
+      'INVALID_LAST_COMPLIED_HOURS'
+    );
+    const normalizedComplianceMethod = params.complianceMethod?.trim() || null;
+    const normalizedNotes = params.notes?.trim() || null;
+
+    return sequelize.transaction(async (transaction) => {
+      const rows = await sequelize.query<{
+        id: string;
+        aircraft_id: string;
+        compliance_item_id: string;
+        next_due_at: string | null;
+        next_due_hours: string | number | null;
+        last_complied_at: string | null;
+        last_complied_hours: string | number | null;
+        compliance_method: string | null;
+        notes: string | null;
+        item_type: string | null;
+        source_type: string | null;
+      }>(
+        `
+        SELECT
+          ac.id::text,
+          ac.aircraft_id::text,
+          ac.compliance_item_id::text,
+          ac.next_due_at::date::text AS next_due_at,
+          ac.next_due_hours,
+          ac.last_complied_at::date::text AS last_complied_at,
+          ac.last_complied_hours,
+          ac.compliance_method,
+          ac.notes,
+          ci.item_type,
+          ci.source_type
+        FROM aircraft_compliance ac
+        LEFT JOIN compliance_items ci
+          ON ci.id = ac.compliance_item_id
+        WHERE ac.id = :complianceId
+        LIMIT 1
+        FOR UPDATE OF ac
+        `,
+        {
+          replacements: {
+            complianceId: params.complianceId,
+          },
+          type: QueryTypes.SELECT,
+          transaction,
+        }
+      );
+      const row = rows[0];
+
+      if (!row) {
+        throw new Error('AIRCRAFT_COMPLIANCE_NOT_FOUND');
+      }
+
+      if (row.aircraft_id !== params.aircraftId) {
+        throw new Error('AIRCRAFT_COMPLIANCE_AIRCRAFT_MISMATCH');
+      }
+
+      if (!row.item_type && !row.source_type) {
+        throw new Error('COMPLIANCE_ITEM_NOT_FOUND');
+      }
+
+      if (row.item_type !== 'AD' && row.source_type !== 'AD') {
+        throw new Error('COMPLIANCE_ITEM_NOT_AD');
+      }
+
+      await sequelize.query(
+        `
+        UPDATE aircraft_compliance
+        SET
+          next_due_at = :nextDueAt,
+          next_due_hours = :nextDueHours,
+          last_complied_at = :lastCompliedAt,
+          last_complied_hours = :lastCompliedHours,
+          compliance_method = :complianceMethod,
+          notes = :notes,
+          updated_at = CURRENT_TIMESTAMP
+        WHERE id = :complianceId
+        `,
+        {
+          replacements: {
+            complianceId: params.complianceId,
+            nextDueAt: normalizedNextDueAt,
+            nextDueHours: normalizedNextDueHours,
+            lastCompliedAt: normalizedLastCompliedAt,
+            lastCompliedHours: normalizedLastCompliedHours,
+            complianceMethod: normalizedComplianceMethod,
+            notes: normalizedNotes,
+          },
+          transaction,
+        }
+      );
+
+      await AuditService.log(
+        {
+          table_name: 'aircraft_compliance',
+          row_id: params.complianceId,
+          action: 'AD_COMPLIANCE_DUE_UPDATE',
+          actor_id: params.actorUserId || null,
+          reason: normalizedNotes,
+          old_values: {
+            aircraft_id: row.aircraft_id,
+            compliance_item_id: row.compliance_item_id,
+            next_due_at: row.next_due_at,
+            next_due_hours: row.next_due_hours,
+            last_complied_at: row.last_complied_at,
+            last_complied_hours: row.last_complied_hours,
+            compliance_method: row.compliance_method,
+            notes: row.notes,
+          },
+          new_values: {
+            aircraft_id: row.aircraft_id,
+            compliance_item_id: row.compliance_item_id,
+            next_due_at: normalizedNextDueAt,
+            next_due_hours: normalizedNextDueHours,
+            last_complied_at: normalizedLastCompliedAt,
+            last_complied_hours: normalizedLastCompliedHours,
+            compliance_method: normalizedComplianceMethod,
+            notes: normalizedNotes,
+          },
+        },
+        transaction
+      );
+
+      return {
+        aircraftComplianceId: params.complianceId,
+        complianceItemId: row.compliance_item_id,
+        nextDueAt: normalizedNextDueAt,
+        nextDueHours: normalizedNextDueHours,
+        lastCompliedAt: normalizedLastCompliedAt,
+        lastCompliedHours: normalizedLastCompliedHours,
+        complianceMethod: normalizedComplianceMethod,
+        notes: normalizedNotes,
       };
     });
   }

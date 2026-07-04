@@ -947,6 +947,64 @@ export class AircraftController {
     }
   }
 
+  static async updateAdOperationalComplianceDueData(req: Request, res: Response) {
+    try {
+      const aircraftId = AircraftController.getParam(req.params.id);
+      const complianceId = AircraftController.getParam(req.params.complianceId);
+
+      await AircraftService.updateAdOperationalComplianceDueData({
+        aircraftId,
+        complianceId,
+        actorUserId: (req.user as any)?.id || null,
+        nextDueAt: typeof req.body.next_due_at === 'string' ? req.body.next_due_at : null,
+        nextDueHours:
+          typeof req.body.next_due_hours === 'string'
+            ? req.body.next_due_hours
+            : null,
+        lastCompliedAt:
+          typeof req.body.last_complied_at === 'string'
+            ? req.body.last_complied_at
+            : null,
+        lastCompliedHours:
+          typeof req.body.last_complied_hours === 'string'
+            ? req.body.last_complied_hours
+            : null,
+        complianceMethod:
+          typeof req.body.compliance_method === 'string'
+            ? req.body.compliance_method
+            : null,
+        notes: typeof req.body.notes === 'string' ? req.body.notes : null,
+      });
+
+      res.redirect(`/aircraft/${aircraftId}/applicability`);
+    } catch (err: any) {
+      if (
+        [
+          'AIRCRAFT_NOT_FOUND',
+          'AIRCRAFT_COMPLIANCE_NOT_FOUND',
+          'COMPLIANCE_ITEM_NOT_FOUND',
+        ].includes(err.message)
+      ) {
+        return res.status(404).send(err.message);
+      }
+
+      if (
+        [
+          'AIRCRAFT_COMPLIANCE_AIRCRAFT_MISMATCH',
+          'COMPLIANCE_ITEM_NOT_AD',
+          'INVALID_NEXT_DUE_AT',
+          'INVALID_LAST_COMPLIED_AT',
+          'INVALID_NEXT_DUE_HOURS',
+          'INVALID_LAST_COMPLIED_HOURS',
+        ].includes(err.message)
+      ) {
+        return res.status(400).send(err.message);
+      }
+
+      res.status(500).send(err.message);
+    }
+  }
+
   static async showByRegistration(req: Request, res: Response) {
     try {
       const registration = AircraftController.getParam(req.params.registration);

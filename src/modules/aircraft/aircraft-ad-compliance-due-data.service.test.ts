@@ -25,9 +25,12 @@ function aircraftComplianceRow(overrides: Record<string, any> = {}) {
     id: complianceId,
     aircraft_id: aircraftId,
     compliance_item_id: complianceItemId,
-    status: 'DUE',
-    notes: null,
+    next_due_at: null,
+    next_due_hours: null,
+    last_complied_at: null,
+    last_complied_hours: null,
     compliance_method: null,
+    notes: null,
     item_type: 'AD',
     source_type: 'AD',
     ...overrides,
@@ -38,8 +41,8 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-describe('aircraft AD operational compliance status update', () => {
-  it('updates a valid AD aircraft_compliance status and writes audit', async () => {
+describe('aircraft AD manual due data update', () => {
+  it('updates valid manual due data for an AD aircraft_compliance row', async () => {
     mockTransaction();
     mockAircraft();
     vi.spyOn(sequelize, 'query')
@@ -47,28 +50,40 @@ describe('aircraft AD operational compliance status update', () => {
       .mockResolvedValueOnce([] as any);
     vi.spyOn(AuditService, 'log').mockResolvedValue({} as any);
 
-    const result = await AircraftService.updateAdOperationalComplianceStatus({
+    const result = await AircraftService.updateAdOperationalComplianceDueData({
       aircraftId,
       complianceId,
-      status: 'IN_PROGRESS',
       actorUserId: 'user-id',
-      notes: '  reviewed  ',
-      complianceMethod: '  visual inspection  ',
+      nextDueAt: '2026-08-01',
+      nextDueHours: '125.5',
+      lastCompliedAt: '2026-07-01',
+      lastCompliedHours: '100',
+      complianceMethod: '  manual review  ',
+      notes: '  entered from AD text  ',
     });
 
-    expect(result.previousStatus).toBe('DUE');
-    expect(result.status).toBe('IN_PROGRESS');
-    expect(result.notes).toBe('reviewed');
-    expect(result.complianceMethod).toBe('visual inspection');
+    expect(result).toMatchObject({
+      aircraftComplianceId: complianceId,
+      complianceItemId,
+      nextDueAt: '2026-08-01',
+      nextDueHours: 125.5,
+      lastCompliedAt: '2026-07-01',
+      lastCompliedHours: 100,
+      complianceMethod: 'manual review',
+      notes: 'entered from AD text',
+    });
     expect(sequelize.query).toHaveBeenNthCalledWith(
       2,
       expect.stringContaining('UPDATE aircraft_compliance'),
       expect.objectContaining({
         replacements: expect.objectContaining({
           complianceId,
-          status: 'IN_PROGRESS',
-          notes: 'reviewed',
-          complianceMethod: 'visual inspection',
+          nextDueAt: '2026-08-01',
+          nextDueHours: 125.5,
+          lastCompliedAt: '2026-07-01',
+          lastCompliedHours: 100,
+          complianceMethod: 'manual review',
+          notes: 'entered from AD text',
         }),
       })
     );
@@ -76,64 +91,85 @@ describe('aircraft AD operational compliance status update', () => {
       expect.objectContaining({
         table_name: 'aircraft_compliance',
         row_id: complianceId,
-        action: 'AD_COMPLIANCE_STATUS_UPDATE',
+        action: 'AD_COMPLIANCE_DUE_UPDATE',
         actor_id: 'user-id',
-        old_values: expect.objectContaining({ status: 'DUE' }),
-        new_values: expect.objectContaining({ status: 'IN_PROGRESS' }),
+        old_values: expect.objectContaining({
+          aircraft_id: aircraftId,
+          compliance_item_id: complianceItemId,
+        }),
+        new_values: expect.objectContaining({
+          next_due_at: '2026-08-01',
+          next_due_hours: 125.5,
+        }),
       }),
       expect.any(Object)
     );
   });
 
-  it('allows same-status updates as notes or method updates', async () => {
+  it('clears nullable manual due data when blank values are submitted', async () => {
     mockTransaction();
     mockAircraft();
     vi.spyOn(sequelize, 'query')
-      .mockResolvedValueOnce([aircraftComplianceRow({ status: 'DUE' })] as any)
+      .mockResolvedValueOnce([
+        aircraftComplianceRow({
+          next_due_at: '2026-08-01',
+          next_due_hours: '125.5',
+          last_complied_at: '2026-07-01',
+          last_complied_hours: '100',
+          compliance_method: 'manual review',
+          notes: 'entered',
+        }),
+      ] as any)
       .mockResolvedValueOnce([] as any);
     vi.spyOn(AuditService, 'log').mockResolvedValue({} as any);
 
-    const result = await AircraftService.updateAdOperationalComplianceStatus({
+    const result = await AircraftService.updateAdOperationalComplianceDueData({
       aircraftId,
       complianceId,
-      status: 'DUE',
-      notes: 'same status note',
+      nextDueAt: '',
+      nextDueHours: '',
+      lastCompliedAt: '',
+      lastCompliedHours: '',
+      complianceMethod: '',
+      notes: '',
     });
 
-    expect(result.previousStatus).toBe('DUE');
-    expect(result.status).toBe('DUE');
-    expect(result.notes).toBe('same status note');
+    expect(result.nextDueAt).toBeNull();
+    expect(result.nextDueHours).toBeNull();
+    expect(result.lastCompliedAt).toBeNull();
+    expect(result.lastCompliedHours).toBeNull();
+    expect(result.complianceMethod).toBeNull();
+    expect(result.notes).toBeNull();
   });
 
-  it('blocks invalid statuses', async () => {
+  it('blocks invalid dates', async () => {
     mockAircraft();
     vi.spyOn(sequelize, 'transaction');
 
     await expect(
-      AircraftService.updateAdOperationalComplianceStatus({
+      AircraftService.updateAdOperationalComplianceDueData({
         aircraftId,
         complianceId,
-        status: 'OVERDUE',
+        nextDueAt: '2026-02-31',
       })
-    ).rejects.toThrow('INVALID_AD_COMPLIANCE_STATUS');
+    ).rejects.toThrow('INVALID_NEXT_DUE_AT');
 
     expect(sequelize.transaction).not.toHaveBeenCalled();
   });
 
-  it('blocks invalid transitions', async () => {
-    mockTransaction();
+  it('blocks negative hour values', async () => {
     mockAircraft();
-    vi.spyOn(sequelize, 'query').mockResolvedValueOnce([
-      aircraftComplianceRow({ status: 'COMPLIANT' }),
-    ] as any);
+    vi.spyOn(sequelize, 'transaction');
 
     await expect(
-      AircraftService.updateAdOperationalComplianceStatus({
+      AircraftService.updateAdOperationalComplianceDueData({
         aircraftId,
         complianceId,
-        status: 'DUE',
+        nextDueHours: '-1',
       })
-    ).rejects.toThrow('INVALID_AD_COMPLIANCE_STATUS_TRANSITION');
+    ).rejects.toThrow('INVALID_NEXT_DUE_HOURS');
+
+    expect(sequelize.transaction).not.toHaveBeenCalled();
   });
 
   it('blocks missing aircraft', async () => {
@@ -141,10 +177,9 @@ describe('aircraft AD operational compliance status update', () => {
     vi.spyOn(sequelize, 'transaction');
 
     await expect(
-      AircraftService.updateAdOperationalComplianceStatus({
+      AircraftService.updateAdOperationalComplianceDueData({
         aircraftId,
         complianceId,
-        status: 'DUE',
       })
     ).rejects.toThrow('AIRCRAFT_NOT_FOUND');
 
@@ -157,10 +192,9 @@ describe('aircraft AD operational compliance status update', () => {
     vi.spyOn(sequelize, 'query').mockResolvedValueOnce([] as any);
 
     await expect(
-      AircraftService.updateAdOperationalComplianceStatus({
+      AircraftService.updateAdOperationalComplianceDueData({
         aircraftId,
         complianceId,
-        status: 'DUE',
       })
     ).rejects.toThrow('AIRCRAFT_COMPLIANCE_NOT_FOUND');
   });
@@ -173,10 +207,9 @@ describe('aircraft AD operational compliance status update', () => {
     ] as any);
 
     await expect(
-      AircraftService.updateAdOperationalComplianceStatus({
+      AircraftService.updateAdOperationalComplianceDueData({
         aircraftId,
         complianceId,
-        status: 'DUE',
       })
     ).rejects.toThrow('AIRCRAFT_COMPLIANCE_AIRCRAFT_MISMATCH');
   });
@@ -189,30 +222,45 @@ describe('aircraft AD operational compliance status update', () => {
     ] as any);
 
     await expect(
-      AircraftService.updateAdOperationalComplianceStatus({
+      AircraftService.updateAdOperationalComplianceDueData({
         aircraftId,
         complianceId,
-        status: 'IN_PROGRESS',
       })
     ).rejects.toThrow('COMPLIANCE_ITEM_NOT_AD');
   });
 
-  it('does not add due, workpack, task, SB, SID, or import logic', () => {
+  it('updates only approved due fields and no due/workpack/task/SB/SID/import logic', () => {
     const source = readFileSync(
       resolve(process.cwd(), 'src/modules/aircraft/aircraft.service.ts'),
       'utf8'
     );
-    const start = source.indexOf('static async updateAdOperationalComplianceStatus');
-    const end = source.indexOf('static async updateAdOperationalComplianceDueData', start);
+    const start = source.indexOf('static async updateAdOperationalComplianceDueData');
+    const end = source.indexOf('static async markServiceBulletinComplied', start);
     const method = source.slice(start, end);
+    const updateStart = method.indexOf('UPDATE aircraft_compliance');
+    const updateEnd = method.indexOf('WHERE id = :complianceId', updateStart);
+    const updateSql = method.slice(updateStart, updateEnd);
 
     [
       'next_due_at',
       'next_due_hours',
-      'next_due_cycles',
       'last_complied_at',
       'last_complied_hours',
+      'compliance_method',
+      'notes',
+      'updated_at',
+    ].forEach((allowed) => {
+      expect(updateSql).toContain(allowed);
+    });
+
+    [
+      'status',
       'complied_workpack_id',
+      'next_due_cycles',
+      'last_complied_cycles',
+      'recurrence',
+      'AMOC',
+      'terminating',
       'DueStatus',
       'Workpack',
       'TaskTemplate',
@@ -221,6 +269,7 @@ describe('aircraft AD operational compliance status update', () => {
       'SupplementalInspectionDocument',
       'import',
     ].forEach((forbidden) => {
+      expect(updateSql).not.toContain(forbidden);
       expect(method).not.toContain(forbidden);
     });
   });

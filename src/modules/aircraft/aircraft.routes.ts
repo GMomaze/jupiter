@@ -50,6 +50,13 @@ router.post(
   csrfProtection,
   AircraftController.updateAdOperationalComplianceStatus
 );
+router.post(
+  '/:id/ad-compliance/:complianceId/update-due-data',
+  requireAuth,
+  requirePermission('AD_COMPLIANCE_DUE_UPDATE'),
+  csrfProtection,
+  AircraftController.updateAdOperationalComplianceDueData
+);
 router.post('/:id/utilisation/preview', requireAuth, requireRole('ADMIN'), csrfProtection, AircraftController.previewUtilisation);
 router.post('/:id/utilisation', requireAuth, requireRole('ADMIN'), csrfProtection, AircraftController.updateUtilisation);
 router.post('/:id', requireAuth, requireRole('ADMIN'), aircraftPhotoUpload.single('aircraft_photo'), csrfProtection, AircraftController.update);

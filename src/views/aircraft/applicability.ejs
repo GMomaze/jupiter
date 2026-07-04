@@ -130,6 +130,33 @@
                                                     Update AD Status
                                                 </button>
                                             </form>
+                                            <form method="POST" action="/aircraft/<%= aircraft.id %>/ad-compliance/<%= item.aircraft_compliance_id %>/update-due-data?_csrf=<%= encodeURIComponent(csrfToken) %>" class="space-y-2 border-t border-slate-200 pt-3">
+                                                <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                                                <label class="block text-[10px] font-bold uppercase tracking-widest text-slate-500" for="ad-next-due-at-<%= item.aircraft_compliance_id %>">
+                                                    Manual Due Date
+                                                </label>
+                                                <input id="ad-next-due-at-<%= item.aircraft_compliance_id %>" type="date" name="next_due_at" value="<%= item.aircraft_compliance_next_due_at || '' %>" class="w-full rounded border border-slate-300 px-2 py-1 text-xs text-slate-800">
+                                                <label class="block text-[10px] font-bold uppercase tracking-widest text-slate-500" for="ad-next-due-hours-<%= item.aircraft_compliance_id %>">
+                                                    Manual Due Hours
+                                                </label>
+                                                <input id="ad-next-due-hours-<%= item.aircraft_compliance_id %>" type="number" min="0" step="0.01" name="next_due_hours" value="<%= item.aircraft_compliance_next_due_hours ?? '' %>" class="w-full rounded border border-slate-300 px-2 py-1 text-xs text-slate-800">
+                                                <label class="block text-[10px] font-bold uppercase tracking-widest text-slate-500" for="ad-last-complied-at-<%= item.aircraft_compliance_id %>">
+                                                    Last Complied Date
+                                                </label>
+                                                <input id="ad-last-complied-at-<%= item.aircraft_compliance_id %>" type="date" name="last_complied_at" value="<%= item.aircraft_compliance_last_complied_at || '' %>" class="w-full rounded border border-slate-300 px-2 py-1 text-xs text-slate-800">
+                                                <label class="block text-[10px] font-bold uppercase tracking-widest text-slate-500" for="ad-last-complied-hours-<%= item.aircraft_compliance_id %>">
+                                                    Last Complied Hours
+                                                </label>
+                                                <input id="ad-last-complied-hours-<%= item.aircraft_compliance_id %>" type="number" min="0" step="0.01" name="last_complied_hours" value="<%= item.aircraft_compliance_last_complied_hours ?? '' %>" class="w-full rounded border border-slate-300 px-2 py-1 text-xs text-slate-800">
+                                                <input type="text" name="compliance_method" value="<%= item.aircraft_compliance_method || '' %>" placeholder="Compliance method" class="w-full rounded border border-slate-300 px-2 py-1 text-xs text-slate-800">
+                                                <textarea name="notes" rows="2" placeholder="Optional due notes" class="w-full rounded border border-slate-300 px-2 py-1 text-xs text-slate-800"><%= item.aircraft_compliance_notes || '' %></textarea>
+                                                <p class="text-[10px] font-semibold text-amber-700">
+                                                    This records manual AD due data. It does not calculate recurring due requirements or create workpack tasks.
+                                                </p>
+                                                <button type="submit" class="rounded bg-indigo-700 px-3 py-2 text-xs font-bold uppercase tracking-widest text-white hover:bg-indigo-800">
+                                                    Update Manual Due Data
+                                                </button>
+                                            </form>
                                         </div>
                                     <% } else if (item.compliance_assignment_id) { %>
                                         <form method="POST" action="/aircraft/<%= aircraft.id %>/ad-compliance-assignments/<%= item.compliance_assignment_id %>/create-operational-record?_csrf=<%= encodeURIComponent(csrfToken) %>">
