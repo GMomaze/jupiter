@@ -877,7 +877,8 @@ export class AircraftService {
         id: allocation.id,
         ad_number: allocation.ad_number_snapshot || directive.ad_number || '-',
         revision: allocation.ad_revision_snapshot || directive.revision || null,
-        subject: directive.subject_heading || directive.subject || '-',
+        subject_heading: directive.subject_heading || null,
+        subject: directive.subject || directive.subject_heading || '-',
         allocation_type:
           allocation.target_type === 'MANUAL_LINK' &&
           allocation.classification === 'MANUAL_MODEL_LINK'

@@ -140,6 +140,8 @@ describe('aircraft AD applicability preview', () => {
       'Manual manufacturer link',
       'Broad rule',
     ]);
+    expect(preview[0]?.subject_heading).toBe('Inspection of test article');
+    expect(preview[0]?.subject).toBe('Inspection of test article');
     expect(preview[4]?.classification).toBe('BROAD_SERIES');
     expect(preview[4]?.review_reason).toBe('Accepted broad series applicability.');
   });

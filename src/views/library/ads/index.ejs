@@ -59,7 +59,7 @@
             <tr>
               <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">AD Number</th>
               <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Revision</th>
-              <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Subject Heading</th>
+              <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Subject</th>
               <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Status</th>
               <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Effective Date</th>
               <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Authority</th>
@@ -87,7 +87,18 @@
                   <%= directive.revision || '-' %>
                 </td>
                 <td class="px-3 py-3 align-top text-sm text-slate-700">
-                  <%= directive.subject_heading || '-' %>
+                  <% if (directive.subject_heading && directive.subject) { %>
+                    <div>
+                      <span class="font-bold text-slate-500">Subject Heading:</span>
+                      <span class="text-slate-900"><%= directive.subject_heading %></span>
+                    </div>
+                    <div class="mt-1">
+                      <span class="font-bold text-slate-500">Subject:</span>
+                      <span><%= directive.subject %></span>
+                    </div>
+                  <% } else { %>
+                    <%= directive.subject || directive.subject_heading || '-' %>
+                  <% } %>
                 </td>
                 <td class="px-3 py-3 align-top text-xs text-slate-700">
                   <%= directive.status || '-' %>

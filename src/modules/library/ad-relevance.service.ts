@@ -17,6 +17,7 @@ export type AdRelevanceDirective = {
   ad_number: string | null;
   revision: string | null;
   subject_heading: string | null;
+  subject: string | null;
   status: string | null;
   effective_date: string | null;
   make: string | null;
@@ -352,6 +353,7 @@ export class AdRelevanceService {
         'ad_number',
         'revision',
         'subject_heading',
+        'subject',
         'status',
         'effective_date',
         'make',

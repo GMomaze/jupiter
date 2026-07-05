@@ -129,6 +129,12 @@ describe('component model detail tabs', () => {
     expect(template.match(/name="airworthiness_directive_ids"/g)?.length).toBe(1);
   });
 
+  it('renders AD subject fields instead of subject heading only', () => {
+    expect(template).toContain('Subject Heading:');
+    expect(template).toContain('Subject:');
+    expect(template).toContain('directive.subject || directive.subject_heading ||');
+  });
+
   it('preserves existing model planning and service bulletin field names', () => {
     [
       'name="model_name"',

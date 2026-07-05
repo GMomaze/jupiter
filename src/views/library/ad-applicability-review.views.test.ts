@@ -52,7 +52,7 @@ describe('AD applicability review read-only page', () => {
 
   it('removes LIBRARY_EDIT fallback from the AD applicability review route block', () => {
     const reviewBlockStart = routes.indexOf("'/ads/applicability-review'");
-    const reviewBlockEnd = routes.indexOf("'/sbs/import'", reviewBlockStart);
+    const reviewBlockEnd = routes.indexOf("'/ads/service-bulletin-references/refresh'", reviewBlockStart);
     const reviewBlock = routes.slice(reviewBlockStart, reviewBlockEnd);
 
     expect(reviewBlock).not.toContain("requirePermission('LIBRARY_EDIT')");
@@ -66,6 +66,7 @@ describe('AD applicability review read-only page', () => {
       'IGNORED',
       'AD Number',
       'Subject',
+      'Subject Heading:',
       'Source Make',
       'Source Model',
       'Source Product Type/Subtype',
@@ -79,6 +80,7 @@ describe('AD applicability review read-only page', () => {
     ].forEach((expectedContent) => {
       expect(view).toContain(expectedContent);
     });
+    expect(view).toContain('directive.subject || directive.subject_heading ||');
   });
 
   it('adds manual refresh and review action forms with model and manufacturer link actions', () => {
@@ -186,7 +188,7 @@ describe('AD applicability review read-only page', () => {
 
   it('keeps refresh orchestration scoped to relevance and allocation persistence', () => {
     const refreshStart = service.indexOf('static async refreshAdApplicabilityReviewAllocations');
-    const refreshEnd = service.indexOf('static async createAirworthinessDirective');
+    const refreshEnd = service.indexOf('private static normalizeServiceBulletinReference', refreshStart);
     const refreshMethod = service.slice(refreshStart, refreshEnd);
 
     expect(refreshMethod).toContain('ComponentModel.findAll');

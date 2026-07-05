@@ -28,6 +28,8 @@ describe('aircraft AD applicability preview view', () => {
     ].forEach((column) => {
       expect(view).toContain(column);
     });
+    expect(view).toContain('Subject Heading:');
+    expect(view).toContain('item.subject || item.subject_heading ||');
   });
 
   it('adds the approved AD compliance assignment and operational record actions', () => {

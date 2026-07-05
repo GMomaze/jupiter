@@ -135,6 +135,8 @@ describe('AD-to-SB read-only detail pages', () => {
   it('renders AD detail referenced SB fields, unresolved rows, and empty state', () => {
     [
       'Referenced Service Bulletins',
+      'Subject Heading',
+      'directive.subject',
       'raw_reference_text',
       'normalized_reference_text',
       'match_status',
@@ -155,6 +157,8 @@ describe('AD-to-SB read-only detail pages', () => {
       'ad_number',
       'revision',
       'subject_heading',
+      'directive.subject',
+      'Subject:',
       'raw_reference_text',
       'match_reason',
       'match_status',

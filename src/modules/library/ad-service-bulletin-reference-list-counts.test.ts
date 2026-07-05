@@ -39,6 +39,9 @@ afterEach(() => {
 describe('AD-to-SB read-only list counts', () => {
   it('adds AD list count columns without action controls', () => {
     expect(adListView).toContain('SB References');
+    expect(adListView).toContain('Subject Heading:');
+    expect(adListView).toContain('Subject:');
+    expect(adListView).toContain('directive.subject || directive.subject_heading ||');
     expect(adListView).toContain('Matched');
     expect(adListView).toContain('Unresolved');
     expect(adListView).toContain('Ignored');
@@ -59,7 +62,7 @@ describe('AD-to-SB read-only list counts', () => {
     const adOne = row('ad-1');
     const adTwo = row('ad-2');
 
-    vi.spyOn(AirworthinessDirective, 'findAll').mockResolvedValue([adOne, adTwo]);
+    const adFind = vi.spyOn(AirworthinessDirective, 'findAll').mockResolvedValue([adOne, adTwo]);
     vi.spyOn(AdServiceBulletinReference, 'findAll').mockResolvedValue([
       { airworthiness_directive_id: 'ad-1', match_status: 'MATCHED' },
       { airworthiness_directive_id: 'ad-1', match_status: 'UNRESOLVED' },
@@ -69,6 +72,11 @@ describe('AD-to-SB read-only list counts', () => {
 
     await LibraryService.getAirworthinessDirectives();
 
+    expect(adFind).toHaveBeenCalledWith(
+      expect.objectContaining({
+        attributes: expect.arrayContaining(['subject_heading', 'subject']),
+      })
+    );
     expect(adOne.setDataValue).toHaveBeenCalledWith('sb_reference_count', 3);
     expect(adOne.setDataValue).toHaveBeenCalledWith('sb_reference_matched_count', 1);
     expect(adOne.setDataValue).toHaveBeenCalledWith('sb_reference_unresolved_count', 1);
