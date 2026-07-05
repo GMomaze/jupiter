@@ -39,12 +39,34 @@
   </section>
 
   <section class="rounded-xl border bg-white p-6 shadow-sm">
-    <div>
-      <h2 class="text-lg font-bold text-slate-900">Per-Row Results</h2>
-      <p class="mt-1 text-sm text-slate-500">
-        Invalid rows were skipped. Existing duplicates were not overwritten.
-      </p>
+    <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+      <div>
+        <h2 class="text-lg font-bold text-slate-900">Per-Row Results</h2>
+        <p class="mt-1 text-sm text-slate-500">
+          Invalid rows were skipped. Existing duplicates were not overwritten.
+        </p>
+      </div>
+
+      <div class="flex flex-col gap-2 sm:flex-row sm:items-end">
+        <label class="text-xs font-bold uppercase tracking-widest text-slate-500">
+          Find AD number
+          <input
+            id="ad-import-find-input"
+            type="search"
+            placeholder="Find AD number..."
+            class="mt-1 w-full rounded border px-3 py-2 text-sm normal-case tracking-normal text-slate-900 sm:w-64"
+          >
+        </label>
+        <button
+          id="ad-import-find-button"
+          type="button"
+          class="rounded bg-slate-800 px-4 py-2 text-sm font-bold text-white hover:bg-slate-900"
+        >
+          Find
+        </button>
+      </div>
     </div>
+    <p id="ad-import-find-message" class="mt-3 hidden text-sm font-semibold text-rose-700">No matching AD found.</p>
 
     <% if (!result.rows.length) { %>
       <div class="mt-4 rounded-lg border border-slate-200 bg-slate-50 px-4 py-6 text-sm text-slate-500">
@@ -57,6 +79,7 @@
             <tr>
               <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Row</th>
               <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">AD Number</th>
+              <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Subject</th>
               <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Result</th>
               <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Relationship Rows</th>
               <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Reason</th>
@@ -64,9 +87,10 @@
           </thead>
           <tbody class="divide-y divide-slate-100 bg-white">
             <% result.rows.forEach((row) => { %>
-              <tr>
+              <tr id="ad-import-row-<%= row.rowNumber %>" data-ad-number="<%= row.adNumber || '' %>">
                 <td class="px-3 py-3 align-top text-sm font-semibold text-slate-900"><%= row.rowNumber %></td>
                 <td class="px-3 py-3 align-top text-sm font-semibold text-slate-900"><%= row.adNumber || '-' %></td>
+                <td class="px-3 py-3 align-top text-sm text-slate-700"><%= row.subject || '-' %></td>
                 <td class="px-3 py-3 align-top text-xs font-bold">
                   <% if (row.status === 'INSERTED') { %>
                     <span class="text-emerald-700"><%= row.status %></span>
@@ -86,5 +110,59 @@
     <% } %>
   </section>
 </main>
+
+<script>
+  (() => {
+    const input = document.getElementById('ad-import-find-input');
+    const button = document.getElementById('ad-import-find-button');
+    const message = document.getElementById('ad-import-find-message');
+    const rows = Array.from(document.querySelectorAll('[data-ad-number]'));
+
+    if (!input || !button || !message || !rows.length) {
+      return;
+    }
+
+    let highlightedRow = null;
+
+    const clearHighlight = () => {
+      if (!highlightedRow) {
+        return;
+      }
+      highlightedRow.classList.remove('bg-blue-50', 'ring-2', 'ring-blue-300');
+      highlightedRow = null;
+    };
+
+    const findRow = () => {
+      const query = input.value.trim().toLowerCase();
+      clearHighlight();
+      message.classList.add('hidden');
+
+      if (!query) {
+        return;
+      }
+
+      const match = rows.find((row) =>
+        String(row.dataset.adNumber || '').toLowerCase().includes(query)
+      );
+
+      if (!match) {
+        message.classList.remove('hidden');
+        return;
+      }
+
+      highlightedRow = match;
+      highlightedRow.classList.add('bg-blue-50', 'ring-2', 'ring-blue-300');
+      highlightedRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    };
+
+    button.addEventListener('click', findRow);
+    input.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        findRow();
+      }
+    });
+  })();
+</script>
 
 <%- include('../../partials/footer') %>

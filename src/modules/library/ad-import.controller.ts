@@ -90,6 +90,7 @@ type AdCommitRowResult = {
   status: 'INSERTED' | 'SKIPPED - INVALID' | 'SKIPPED - DUPLICATE';
   reason: string;
   adNumber: string;
+  subject: string;
   relationshipRowsInserted: number;
 };
 
@@ -409,6 +410,7 @@ async function commitAdPreview(preview: AdPreviewResult) {
           status: 'SKIPPED - INVALID',
           reason: row.errors.join(' '),
           adNumber: row.values.ad_number,
+          subject: row.values.subject || row.values.subject_heading,
           relationshipRowsInserted: 0,
         });
         continue;
@@ -423,6 +425,7 @@ async function commitAdPreview(preview: AdPreviewResult) {
           status: 'SKIPPED - DUPLICATE',
           reason: 'Duplicate AD detected in this import batch.',
           adNumber: row.values.ad_number,
+          subject: row.values.subject || row.values.subject_heading,
           relationshipRowsInserted: 0,
         });
         continue;
@@ -436,6 +439,7 @@ async function commitAdPreview(preview: AdPreviewResult) {
           status: 'SKIPPED - DUPLICATE',
           reason: 'Duplicate AD already exists in airworthiness_directives.',
           adNumber: row.values.ad_number,
+          subject: row.values.subject || row.values.subject_heading,
           relationshipRowsInserted: 0,
         });
         continue;
@@ -498,6 +502,7 @@ async function commitAdPreview(preview: AdPreviewResult) {
         status: 'INSERTED',
         reason: 'Inserted into airworthiness_directives.',
         adNumber: row.values.ad_number,
+        subject: row.values.subject || row.values.subject_heading,
         relationshipRowsInserted,
       });
     }
