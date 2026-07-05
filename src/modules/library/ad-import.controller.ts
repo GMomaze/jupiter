@@ -10,9 +10,14 @@ const require = createRequire(import.meta.url);
 const yauzl = require('yauzl') as any;
 
 const AD_FIELDS = [
-  { label: 'AD Number', key: 'ad_number', required: true },
-  { label: 'Subject Heading', key: 'subject_heading', required: false },
-  { label: 'Subject', key: 'subject', required: false },
+  {
+    label: 'AD Number',
+    key: 'ad_number',
+    required: true,
+    aliases: ['Airworthiness Directive Number', 'Airworthiness Directive', 'AD No.', 'AD No'],
+  },
+  { label: 'Subject Heading', key: 'subject_heading', required: false, aliases: ['Title'] },
+  { label: 'Subject', key: 'subject', required: false, aliases: [] },
   { label: 'Status', key: 'status', required: true },
   { label: 'CFR Part Reference', key: 'cfr_part_reference', required: false },
   { label: 'Effective Date', key: 'effective_date', required: true },
@@ -23,12 +28,15 @@ const AD_FIELDS = [
     required: false,
   },
   { label: 'Docket Number', key: 'docket_number', required: false },
+  { label: 'Amendment Number', key: 'amendment_number', required: false },
   { label: 'Citation', key: 'citation', required: false },
   {
     label: 'Citation Publish Date',
     key: 'citation_publish_date',
     required: false,
+    aliases: ['Publish Date', 'Publication Date'],
   },
+  { label: 'Issue Date', key: 'issue_date', required: false },
   { label: 'Make', key: 'make', required: false },
   { label: 'Model', key: 'model', required: false },
   { label: 'Product Type', key: 'product_type', required: false },
@@ -53,8 +61,10 @@ type AdPreviewValues = {
   service_office: string;
   office_of_primary_responsibility: string;
   docket_number: string;
+  amendment_number: string;
   citation: string;
   citation_publish_date: string;
+  issue_date: string;
   make: string;
   model: string;
   product_type: string;
@@ -116,7 +126,12 @@ type AdBoundedFieldKey =
   | 'product_subtype';
 
 const FIELD_BY_NORMALIZED_HEADER = new Map(
-  AD_FIELDS.map((field) => [normalizeHeader(field.label), field])
+  AD_FIELDS.flatMap((field) => [
+    [normalizeHeader(field.label), field] as const,
+    ...((field as { aliases?: readonly string[] }).aliases || []).map(
+      (alias) => [normalizeHeader(alias), field] as const
+    ),
+  ])
 );
 const AD_IMPORT_STATE_MAX_AGE_MS = 30 * 60 * 1000;
 const AD_BOUNDED_FIELD_LIMITS: Array<{
@@ -530,8 +545,10 @@ function createEmptyAdValues(): AdPreviewValues {
     service_office: '',
     office_of_primary_responsibility: '',
     docket_number: '',
+    amendment_number: '',
     citation: '',
     citation_publish_date: '',
+    issue_date: '',
     make: '',
     model: '',
     product_type: '',
@@ -742,11 +759,33 @@ async function parseImportMatrix(
   };
 }
 
+function countRecognizedAdHeaders(row: string[]) {
+  return row.filter((header) =>
+    FIELD_BY_NORMALIZED_HEADER.has(normalizeHeader(header))
+  ).length;
+}
+
+function findAdHeaderRowIndex(matrix: string[][]) {
+  let bestIndex = 0;
+  let bestScore = -1;
+
+  matrix.forEach((row, index) => {
+    const score = countRecognizedAdHeaders(row);
+    if (score > bestScore) {
+      bestScore = score;
+      bestIndex = index;
+    }
+  });
+
+  return bestScore >= 2 ? bestIndex : 0;
+}
+
 function previewAdMatrix(
   fileType: 'CSV' | 'XLSX',
   matrix: string[][]
 ): AdPreviewResult {
-  const rawHeaders = matrix[0] || [];
+  const headerRowIndex = findAdHeaderRowIndex(matrix);
+  const rawHeaders = matrix[headerRowIndex] || [];
   const fieldByColumnIndex = rawHeaders.map((header) =>
     FIELD_BY_NORMALIZED_HEADER.get(normalizeHeader(header))
   );
@@ -756,7 +795,7 @@ function previewAdMatrix(
   const rows: AdPreviewRow[] = [];
   const adNumberCounts = new Map<string, number>();
 
-  matrix.slice(1).forEach((rawRow, rowIndex) => {
+  matrix.slice(headerRowIndex + 1).forEach((rawRow, rowIndex) => {
     const denseRow = Array.from({ length: rawHeaders.length }, (_, index) => rawRow[index] ?? '');
     if (isEmptyRow(denseRow)) {
       return;
@@ -791,6 +830,9 @@ function previewAdMatrix(
             false
           );
           break;
+        case 'issue_date':
+          values.issue_date = normalizeDate(rawValue, errors, 'Issue Date', false);
+          break;
         case 'affected_ad':
         case 'superseded_ad':
         case 'affected_by':
@@ -798,14 +840,17 @@ function previewAdMatrix(
           values[field.key] = splitRelationshipValues(rawValue);
           break;
         default:
-          values[field.key as Exclude<AdFieldKey, 'effective_date' | 'citation_publish_date' | 'affected_ad' | 'superseded_ad' | 'affected_by' | 'superseded_by'>] =
+          values[field.key as Exclude<AdFieldKey, 'effective_date' | 'citation_publish_date' | 'issue_date' | 'affected_ad' | 'superseded_ad' | 'affected_by' | 'superseded_by'>] =
             normalizedValue;
           break;
       }
     });
 
     if (!values.ad_number) {
-      errors.push('AD Number is required.');
+      const docketGuidance = values.docket_number
+        ? ' Docket Number is displayed for review but is not used as AD Number.'
+        : '';
+      errors.push(`AD Number is required.${docketGuidance}`);
     }
 
     if (!values.status) {
@@ -831,7 +876,7 @@ function previewAdMatrix(
     }
 
     rows.push({
-      rowNumber: rowIndex + 2,
+      rowNumber: headerRowIndex + rowIndex + 2,
       status: errors.length ? 'INVALID' : 'VALID',
       values,
       errors,

@@ -32,8 +32,10 @@ declare module 'express-session' {
           service_office: string;
           office_of_primary_responsibility: string;
           docket_number: string;
+          amendment_number: string;
           citation: string;
           citation_publish_date: string;
+          issue_date: string;
           make: string;
           model: string;
           product_type: string;

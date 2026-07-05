@@ -32,6 +32,69 @@ describe('AD import preview usability', () => {
     expect(preview.rows[0]?.values.subject).toBe('Aileron Ribs');
   });
 
+  it('displays FAA docket and subject values while keeping rows invalid without a true AD Number', async () => {
+    const csv = [
+      'Docket Number,Amendment Number,Publish Date,Issue Date,Effective Date,Subject',
+      '2000-NM-42-AD,39-11728,05/22/2000,05/08/2000,06/06/2000,Aileron Ribs',
+    ].join('\n');
+
+    const preview = await previewAdImportFile(
+      Buffer.from(csv, 'utf8'),
+      'faa-ad.csv',
+      'text/csv'
+    );
+
+    expect(preview.rows[0]?.status).toBe('INVALID');
+    expect(preview.rows[0]?.values.ad_number).toBe('');
+    expect(preview.rows[0]?.values.docket_number).toBe('2000-NM-42-AD');
+    expect(preview.rows[0]?.values.amendment_number).toBe('39-11728');
+    expect(preview.rows[0]?.values.citation_publish_date).toBe('2000-05-22');
+    expect(preview.rows[0]?.values.issue_date).toBe('2000-05-08');
+    expect(preview.rows[0]?.values.effective_date).toBe('2000-06-06');
+    expect(preview.rows[0]?.values.subject).toBe('Aileron Ribs');
+    expect(preview.rows[0]?.errors).toContain(
+      'AD Number is required. Docket Number is displayed for review but is not used as AD Number.'
+    );
+  });
+
+  it('finds the real header row when FAA exports contain preamble rows', async () => {
+    const csv = [
+      'FAA Airworthiness Directive Export',
+      '',
+      'Docket Number,Amendment Number,Publish Date,Issue Date,Effective Date,Subject',
+      '2000-NM-42-AD,39-11728,05/22/2000,05/08/2000,06/06/2000,Aileron Ribs',
+    ].join('\n');
+
+    const preview = await previewAdImportFile(
+      Buffer.from(csv, 'utf8'),
+      'faa-ad.csv',
+      'text/csv'
+    );
+
+    expect(preview.rows).toHaveLength(1);
+    expect(preview.rows[0]?.rowNumber).toBe(4);
+    expect(preview.rows[0]?.values.docket_number).toBe('2000-NM-42-AD');
+    expect(preview.rows[0]?.values.subject).toBe('Aileron Ribs');
+  });
+
+  it('maps a true AD Number header to the required AD Number preview value', async () => {
+    const csv = [
+      'Airworthiness Directive Number,Status,Effective Date,Subject,Docket Number',
+      '2000-10-01,Active,06/06/2000,Aileron Ribs,2000-NM-42-AD',
+    ].join('\n');
+
+    const preview = await previewAdImportFile(
+      Buffer.from(csv, 'utf8'),
+      'faa-ad.csv',
+      'text/csv'
+    );
+
+    expect(preview.rows[0]?.values.ad_number).toBe('2000-10-01');
+    expect(preview.rows[0]?.values.docket_number).toBe('2000-NM-42-AD');
+    expect(preview.rows[0]?.values.subject).toBe('Aileron Ribs');
+    expect(preview.rows[0]?.errors).not.toContain('AD Number is required.');
+  });
+
   it('renders commit actions at both the top and bottom without changing the commit form payload', () => {
     const action = 'action="/library/ads/import/commit?_csrf=<%= encodeURIComponent(csrfToken) %>"';
 
@@ -56,6 +119,9 @@ describe('AD import preview usability', () => {
     expect(previewView).toContain('row.values.subject_heading && row.values.subject');
     expect(previewView).toContain('<%= row.values.subject %>');
     expect(previewView).toContain('<%= row.values.subject || row.values.subject_heading || \'-\' %>');
+    expect(previewView).toContain('docket_number');
+    expect(previewView).toContain('amendment_number');
+    expect(previewView).toContain('issue_date');
   });
 
   it('renders Subject and AD-number find controls in the post-commit result list', () => {
