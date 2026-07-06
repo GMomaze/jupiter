@@ -44,12 +44,18 @@ export class LibraryController {
     });
   }
 
-  static async renderAdList(_req: Request, res: Response): Promise<void> {
-    const directives = await LibraryService.getAirworthinessDirectives();
+  static async renderAdList(req: Request, res: Response): Promise<void> {
+    const adNumberSearch = getParam(req.query.ad_number as string | string[] | undefined).trim();
+    const directives = await LibraryService.getAirworthinessDirectives({
+      adNumberSearch,
+    });
 
     res.render('library/ads/index', {
       title: 'Airworthiness Directives',
       directives,
+      filters: {
+        ad_number: adNumberSearch,
+      },
     });
   }
 

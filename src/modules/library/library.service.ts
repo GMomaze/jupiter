@@ -789,7 +789,8 @@ export class LibraryService {
     });
   }
 
-  static async getAirworthinessDirectives() {
+  static async getAirworthinessDirectives(filters: { adNumberSearch?: string } = {}) {
+    const adNumberSearch = String(filters.adNumberSearch || '').trim();
     const directives = await AirworthinessDirective.findAll({
       attributes: [
         'id',
@@ -807,6 +808,15 @@ export class LibraryService {
         'is_active',
         'created_at',
       ],
+      ...(adNumberSearch
+        ? {
+            where: {
+              ad_number: {
+                [Op.iLike]: `%${adNumberSearch}%`,
+              },
+            },
+          }
+        : {}),
       order: [['created_at', 'DESC'], ['ad_number', 'ASC']],
     });
 

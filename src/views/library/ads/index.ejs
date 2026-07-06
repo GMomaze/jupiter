@@ -45,12 +45,40 @@
       </div>
     </div>
 
+    <form method="GET" action="/library/ads" class="mt-6 flex flex-wrap items-end gap-3 rounded-lg border border-slate-200 bg-slate-50 p-4">
+      <label class="block min-w-64 flex-1">
+        <span class="text-xs font-bold uppercase tracking-widest text-slate-500">AD Number</span>
+        <input
+          type="search"
+          name="ad_number"
+          value="<%= filters?.ad_number || '' %>"
+          placeholder="Search by AD number, e.g. 2022-05"
+          class="mt-1 w-full rounded border border-slate-300 px-3 py-2 text-sm"
+        >
+      </label>
+      <button type="submit" class="rounded bg-slate-800 px-4 py-2 text-sm font-bold text-white hover:bg-black">
+        Search
+      </button>
+      <% if (filters?.ad_number) { %>
+        <a href="/library/ads" class="rounded border border-slate-300 bg-white px-4 py-2 text-sm font-bold text-slate-800 hover:bg-slate-100">
+          Clear
+        </a>
+      <% } %>
+    </form>
+
     <% if (!directives.length) { %>
       <div class="mt-6 rounded-xl border border-slate-200 bg-slate-50 px-6 py-10 text-center">
-        <p class="text-sm font-semibold text-slate-700">No airworthiness directives exist yet.</p>
-        <p class="mt-2 text-sm text-slate-500">
-          Use manual create or the AD import flow to add directive records.
-        </p>
+        <% if (filters?.ad_number) { %>
+          <p class="text-sm font-semibold text-slate-700">No Airworthiness Directives found.</p>
+          <p class="mt-2 text-sm text-slate-500">
+            No AD Number matches "<%= filters.ad_number %>".
+          </p>
+        <% } else { %>
+          <p class="text-sm font-semibold text-slate-700">No airworthiness directives exist yet.</p>
+          <p class="mt-2 text-sm text-slate-500">
+            Use manual create or the AD import flow to add directive records.
+          </p>
+        <% } %>
       </div>
     <% } else { %>
       <div class="mt-6 overflow-x-auto rounded-lg border">
