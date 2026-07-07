@@ -934,13 +934,16 @@ router.get(
 router.get('/model/:id', async (req, res, next) => {
   try {
     const id = getParam(req.params.id);
+    const adNumberSearch = getParam(req.query.ad_number as string | string[] | undefined).trim();
 
     const model = await LibraryService.getModelById(id);
     const requirements = await LibraryService.getModelRequirements(id);
     const serviceBulletins = await LibraryService.getModelServiceBulletins(id);
     const attachableServiceBulletins = await LibraryService.getAttachableServiceBulletins(id);
     const sids = await LibraryService.getModelSids(id);
-    const applicabilityAssignments = await LibraryService.getModelApplicabilityAssignments(id);
+    const applicabilityAssignments = await LibraryService.getModelApplicabilityAssignments(id, {
+      adNumberSearch,
+    });
     const adRelevance = await AdRelevanceService.getReadOnlyRelevanceForModel(
       id,
       (applicabilityAssignments.assignedAirworthinessDirectives || []) as AdRelevanceDirective[]
@@ -954,6 +957,7 @@ router.get('/model/:id', async (req, res, next) => {
       sids,
       applicabilityAssignments,
       adRelevance,
+      adNumberSearch,
     });
   } catch (error) {
     next(error);
@@ -1285,14 +1289,26 @@ router.post('/model/:id/airworthiness-directives/assign', requirePermission('LIB
       : selected
       ? [selected]
       : [];
+    const hasAdNumberInput = Object.prototype.hasOwnProperty.call(req.body || {}, 'ad_number');
+    const adNumber = String(req.body?.ad_number || '').trim();
 
-    for (const directiveId of directiveIds) {
-      await LibraryService.assignAirworthinessDirectiveToModel(id, String(directiveId));
+    if (hasAdNumberInput) {
+      if (directiveIds.length > 0) {
+        throw new Error('Use either AD number assignment or selected AD rows, not both.');
+      }
+
+      await LibraryService.assignAirworthinessDirectiveToModelByNumber(id, adNumber);
+      req.flash('success', `AD ${adNumber} assigned to this model.`);
+    } else {
+      for (const directiveId of directiveIds) {
+        await LibraryService.assignAirworthinessDirectiveToModel(id, String(directiveId));
+      }
     }
 
     res.redirect(`/library/model/${id}`);
-  } catch (error) {
-    next(error);
+  } catch (error: any) {
+    req.flash('error', error?.message || 'Unable to assign airworthiness directive.');
+    res.redirect(`/library/model/${getParam(req.params.id)}`);
   }
 });
 

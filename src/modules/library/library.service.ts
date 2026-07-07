@@ -550,7 +550,10 @@ export class LibraryService {
     });
   }
 
-  static async getModelApplicabilityAssignments(modelId: string) {
+  static async getModelApplicabilityAssignments(
+    modelId: string,
+    options: { adNumberSearch?: string | null } = {}
+  ) {
     const [
       assignedAirworthinessDirectives,
       assignableAirworthinessDirectives,
@@ -560,7 +563,7 @@ export class LibraryService {
       assignableStandardTasks,
     ] = await Promise.all([
       this.getAssignedAirworthinessDirectives(modelId),
-      this.getAssignableAirworthinessDirectives(modelId),
+      this.getAssignableAirworthinessDirectives(modelId, options.adNumberSearch),
       this.getAssignedSupplementalInspectionDocuments(modelId),
       this.getAssignableSupplementalInspectionDocuments(modelId),
       this.getAssignedStandardTasks(modelId),
@@ -608,7 +611,12 @@ export class LibraryService {
     );
   }
 
-  private static async getAssignableAirworthinessDirectives(modelId: string) {
+  private static async getAssignableAirworthinessDirectives(
+    modelId: string,
+    adNumberSearch?: string | null
+  ) {
+    const normalizedSearch = String(adNumberSearch || '').trim();
+
     return sequelize.query(
       `
       SELECT
@@ -623,6 +631,11 @@ export class LibraryService {
         ad.model
       FROM airworthiness_directives ad
       WHERE COALESCE(ad.is_active, TRUE) = TRUE
+        ${
+          normalizedSearch
+            ? 'AND ad.ad_number ILIKE :adNumberSearch'
+            : ''
+        }
         AND NOT EXISTS (
           SELECT 1
           FROM compliance_assignments ca
@@ -638,7 +651,12 @@ export class LibraryService {
       LIMIT 200
       `,
       {
-        replacements: { modelId },
+        replacements: {
+          modelId,
+          ...(normalizedSearch
+            ? { adNumberSearch: `%${normalizedSearch}%` }
+            : {}),
+        },
         type: QueryTypes.SELECT,
       }
     );
@@ -4931,6 +4949,55 @@ export class LibraryService {
       assignment_source: 'MANUAL',
       is_active: true,
     });
+  }
+
+  static async assignAirworthinessDirectiveToModelByNumber(
+    modelId: string,
+    adNumber: string
+  ) {
+    const normalizedAdNumber = String(adNumber || '').trim();
+
+    if (!normalizedAdNumber) {
+      throw new Error('Enter an AD number to assign.');
+    }
+
+    const model = await ComponentModel.findByPk(modelId, { attributes: ['id'] });
+
+    if (!model) {
+      throw new Error('Model not found.');
+    }
+
+    const matches = await AirworthinessDirective.findAll({
+      where: {
+        ad_number: { [Op.iLike]: normalizedAdNumber },
+        is_active: true,
+      },
+      attributes: ['id', 'ad_number', 'revision'],
+      order: [['revision', 'ASC']],
+      limit: 2,
+    });
+
+    if (matches.length === 0) {
+      throw new Error(`No active AD found for AD number ${normalizedAdNumber}.`);
+    }
+
+    if (matches.length > 1) {
+      throw new Error(
+        `Multiple active AD records match ${normalizedAdNumber}. Assign by selecting the specific row.`
+      );
+    }
+
+    const directive = matches[0]!;
+    const existingRows = await this.getAssignedAirworthinessDirectives(modelId);
+    const alreadyAssigned = existingRows.some(
+      (row: any) => String(row.id) === String(directive.id)
+    );
+
+    if (alreadyAssigned) {
+      throw new Error(`AD ${normalizedAdNumber} is already assigned to this model.`);
+    }
+
+    return this.assignAirworthinessDirectiveToModel(modelId, String(directive.id));
   }
 
   static async assignSupplementalInspectionDocumentToModel(modelId: string, sidId: string) {

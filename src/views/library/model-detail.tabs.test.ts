@@ -110,7 +110,7 @@ describe('component model detail tabs', () => {
     expect(template).toContain('action="/library/model/<%= model.id %>/standard-tasks/assign"');
     expect(template).toContain('action="/library/model/<%= model.id %>/update"');
     expect(template).toContain('action="/library/service-bulletin"');
-    expect(template.match(/name="_csrf" value="<%= csrfToken %>"/g)?.length).toBe(7);
+    expect(template.match(/name="_csrf" value="<%= csrfToken %>"/g)?.length).toBe(8);
   });
 
   it('keeps AD relevance suggestions read-only', () => {
@@ -125,8 +125,17 @@ describe('component model detail tabs', () => {
     expect(suggestionPanel).toContain('directive.relevance_reason');
     expect(suggestionPanel).not.toContain('<form');
     expect(suggestionPanel).not.toContain('type="checkbox"');
-    expect(template.match(/action="\/library\/model\/<%= model.id %>\/airworthiness-directives\/assign"/g)?.length).toBe(1);
+    expect(template.match(/action="\/library\/model\/<%= model.id %>\/airworthiness-directives\/assign"/g)?.length).toBe(2);
     expect(template.match(/name="airworthiness_directive_ids"/g)?.length).toBe(1);
+  });
+
+  it('adds AD number assignment and assignable AD search controls', () => {
+    expect(template).toContain('Assign AD by AD Number');
+    expect(template).toContain('placeholder="Enter exact AD number"');
+    expect(template).toContain('Search assignable ADs');
+    expect(template).toContain('placeholder="Search by AD number"');
+    expect(template).toContain('activeAdNumberSearch');
+    expect(template).toContain('No assignable Airworthiness Directives found');
   });
 
   it('renders AD subject fields instead of subject heading only', () => {

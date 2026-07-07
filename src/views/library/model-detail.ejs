@@ -8,6 +8,7 @@
   <% const applicability = typeof applicabilityAssignments !== 'undefined' ? applicabilityAssignments : {}; %>
   <% const assignedAds = applicability.assignedAirworthinessDirectives || []; %>
   <% const assignableAds = applicability.assignableAirworthinessDirectives || []; %>
+  <% const activeAdNumberSearch = typeof adNumberSearch !== 'undefined' ? adNumberSearch : ''; %>
   <% const relevanceBuckets = typeof adRelevance !== 'undefined' ? adRelevance : {}; %>
   <% const readOnlyAdSuggestionGroups = [
     { label: 'Exact Model Suggestions', rows: relevanceBuckets.EXACT_MODEL_SUGGESTED || [] },
@@ -226,8 +227,64 @@
         <div class="bg-white border rounded-xl p-6 shadow-sm">
           <h2 class="text-lg font-bold text-slate-900 mb-4">Airworthiness Directives</h2>
 
+          <form method="POST" action="/library/model/<%= model.id %>/airworthiness-directives/assign" class="mb-6 rounded-lg border border-slate-200 bg-slate-50 p-4 space-y-3">
+            <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+            <div>
+              <label for="assign-ad-number" class="block text-sm font-bold text-slate-900">Assign AD by AD Number</label>
+              <p class="mt-1 text-sm text-slate-500">
+                Enter an exact active AD number. This uses the existing model AD assignment workflow.
+              </p>
+            </div>
+            <div class="flex flex-col gap-3 sm:flex-row sm:items-end">
+              <input
+                id="assign-ad-number"
+                type="text"
+                name="ad_number"
+                placeholder="Enter exact AD number"
+                class="w-full rounded border px-3 py-2 text-sm sm:max-w-xs"
+              >
+              <button type="submit" class="rounded bg-slate-800 px-4 py-2 text-sm font-bold text-white hover:bg-black">
+                Assign AD
+              </button>
+            </div>
+          </form>
+
+          <form method="GET" action="/library/model/<%= model.id %>" class="mb-6 rounded-lg border border-slate-200 bg-white p-4 space-y-3">
+            <div>
+              <label for="search-assignable-ad-number" class="block text-sm font-bold text-slate-900">Search assignable ADs</label>
+              <p class="mt-1 text-sm text-slate-500">
+                Search active unassigned ADs by AD number before the 200-row display limit is applied.
+              </p>
+            </div>
+            <div class="flex flex-col gap-3 sm:flex-row sm:items-end">
+              <input
+                id="search-assignable-ad-number"
+                type="text"
+                name="ad_number"
+                value="<%= activeAdNumberSearch %>"
+                placeholder="Search by AD number"
+                class="w-full rounded border px-3 py-2 text-sm sm:max-w-xs"
+              >
+              <button type="submit" class="rounded bg-slate-800 px-4 py-2 text-sm font-bold text-white hover:bg-black">
+                Search
+              </button>
+              <% if (activeAdNumberSearch) { %>
+                <a href="/library/model/<%= model.id %>" class="text-sm font-semibold text-blue-600 hover:underline">Clear</a>
+              <% } %>
+            </div>
+            <p class="text-sm text-slate-500">
+              Showing <%= assignableAds.length %> assignable AD<%= assignableAds.length === 1 ? '' : 's' %><% if (activeAdNumberSearch) { %> matching "<%= activeAdNumberSearch %>"<% } %>.
+            </p>
+          </form>
+
           <% if (!assignableAds || assignableAds.length === 0) { %>
-            <p class="mb-6 text-sm text-slate-500 italic">No additional ADs are available to assign to this model.</p>
+            <p class="mb-6 text-sm text-slate-500 italic">
+              <% if (activeAdNumberSearch) { %>
+                No assignable Airworthiness Directives found for "<%= activeAdNumberSearch %>".
+              <% } else { %>
+                No additional ADs are available to assign to this model.
+              <% } %>
+            </p>
           <% } else { %>
             <form method="POST" action="/library/model/<%= model.id %>/airworthiness-directives/assign" class="mb-8 space-y-4">
               <input type="hidden" name="_csrf" value="<%= csrfToken %>">
