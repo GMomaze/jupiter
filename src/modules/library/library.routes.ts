@@ -935,6 +935,12 @@ router.get('/model/:id', async (req, res, next) => {
   try {
     const id = getParam(req.params.id);
     const adNumberSearch = getParam(req.query.ad_number as string | string[] | undefined).trim();
+    const adPage = getParam(req.query.ad_page as string | string[] | undefined).trim();
+    const adPageSize = getParam(req.query.ad_page_size as string | string[] | undefined).trim();
+    const normalizedAdPage = /^\d+$/.test(adPage) && Number(adPage) > 0 ? adPage : '1';
+    const normalizedAdPageSize = ['200', '400', '800', '1000'].includes(adPageSize)
+      ? adPageSize
+      : '200';
 
     const model = await LibraryService.getModelById(id);
     const requirements = await LibraryService.getModelRequirements(id);
@@ -943,6 +949,8 @@ router.get('/model/:id', async (req, res, next) => {
     const sids = await LibraryService.getModelSids(id);
     const applicabilityAssignments = await LibraryService.getModelApplicabilityAssignments(id, {
       adNumberSearch,
+      adPage: normalizedAdPage,
+      adPageSize: normalizedAdPageSize,
     });
     const adRelevance = await AdRelevanceService.getReadOnlyRelevanceForModel(
       id,
@@ -958,6 +966,8 @@ router.get('/model/:id', async (req, res, next) => {
       applicabilityAssignments,
       adRelevance,
       adNumberSearch,
+      adPage: normalizedAdPage,
+      adPageSize: normalizedAdPageSize,
     });
   } catch (error) {
     next(error);

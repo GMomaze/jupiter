@@ -8,7 +8,17 @@
   <% const applicability = typeof applicabilityAssignments !== 'undefined' ? applicabilityAssignments : {}; %>
   <% const assignedAds = applicability.assignedAirworthinessDirectives || []; %>
   <% const assignableAds = applicability.assignableAirworthinessDirectives || []; %>
+  <% const assignableAdPagination = applicability.assignableAirworthinessDirectivesPagination || { total: assignableAds.length, page: 1, pageSize: 200, totalPages: 1, hasPrevious: false, hasNext: false }; %>
   <% const activeAdNumberSearch = typeof adNumberSearch !== 'undefined' ? adNumberSearch : ''; %>
+  <% const assignableAdStart = assignableAdPagination.total > 0 ? ((assignableAdPagination.page - 1) * assignableAdPagination.pageSize) + 1 : 0; %>
+  <% const assignableAdEnd = Math.min(assignableAdPagination.page * assignableAdPagination.pageSize, assignableAdPagination.total); %>
+  <% const assignableAdPageUrl = (page) => {
+    const params = [];
+    if (activeAdNumberSearch) params.push(`ad_number=${encodeURIComponent(activeAdNumberSearch)}`);
+    params.push(`ad_page=${encodeURIComponent(String(page))}`);
+    params.push(`ad_page_size=${encodeURIComponent(String(assignableAdPagination.pageSize))}`);
+    return `/library/model/${model.id}?${params.join('&')}`;
+  }; %>
   <% const relevanceBuckets = typeof adRelevance !== 'undefined' ? adRelevance : {}; %>
   <% const readOnlyAdSuggestionGroups = [
     { label: 'Exact Model Suggestions', rows: relevanceBuckets.EXACT_MODEL_SUGGESTED || [] },
@@ -253,10 +263,11 @@
             <div>
               <label for="search-assignable-ad-number" class="block text-sm font-bold text-slate-900">Search assignable ADs</label>
               <p class="mt-1 text-sm text-slate-500">
-                Search active unassigned ADs by AD number before the 200-row display limit is applied.
+                Search active unassigned ADs by AD number before paging is applied.
               </p>
             </div>
             <div class="flex flex-col gap-3 sm:flex-row sm:items-end">
+              <input type="hidden" name="ad_page" value="1">
               <input
                 id="search-assignable-ad-number"
                 type="text"
@@ -265,16 +276,43 @@
                 placeholder="Search by AD number"
                 class="w-full rounded border px-3 py-2 text-sm sm:max-w-xs"
               >
+              <div>
+                <label for="assignable-ad-page-size" class="block text-xs font-bold uppercase tracking-widest text-slate-500">Rows</label>
+                <select
+                  id="assignable-ad-page-size"
+                  name="ad_page_size"
+                  class="mt-1 rounded border px-3 py-2 text-sm"
+                >
+                  <% [200, 400, 800, 1000].forEach((pageSizeOption) => { %>
+                    <option value="<%= pageSizeOption %>" <%= assignableAdPagination.pageSize === pageSizeOption ? 'selected' : '' %>><%= pageSizeOption %></option>
+                  <% }) %>
+                </select>
+              </div>
               <button type="submit" class="rounded bg-slate-800 px-4 py-2 text-sm font-bold text-white hover:bg-black">
                 Search
               </button>
-              <% if (activeAdNumberSearch) { %>
+              <% if (activeAdNumberSearch || assignableAdPagination.pageSize !== 200 || assignableAdPagination.page !== 1) { %>
                 <a href="/library/model/<%= model.id %>" class="text-sm font-semibold text-blue-600 hover:underline">Clear</a>
               <% } %>
             </div>
             <p class="text-sm text-slate-500">
-              Showing <%= assignableAds.length %> assignable AD<%= assignableAds.length === 1 ? '' : 's' %><% if (activeAdNumberSearch) { %> matching "<%= activeAdNumberSearch %>"<% } %>.
+              Showing <%= assignableAdStart %>-<%= assignableAdEnd %> of <%= assignableAdPagination.total %> assignable AD<%= assignableAdPagination.total === 1 ? '' : 's' %><% if (activeAdNumberSearch) { %> matching "<%= activeAdNumberSearch %>"<% } %>.
             </p>
+            <div class="flex flex-col gap-3 text-sm sm:flex-row sm:items-center sm:justify-between">
+              <span class="font-semibold text-slate-700">Page <%= assignableAdPagination.page %> of <%= assignableAdPagination.totalPages %></span>
+              <div class="flex items-center gap-3">
+                <% if (assignableAdPagination.hasPrevious) { %>
+                  <a href="<%= assignableAdPageUrl(assignableAdPagination.page - 1) %>" class="rounded border px-3 py-1.5 font-semibold text-slate-700 hover:bg-slate-50">Previous</a>
+                <% } else { %>
+                  <span class="rounded border px-3 py-1.5 font-semibold text-slate-400">Previous</span>
+                <% } %>
+                <% if (assignableAdPagination.hasNext) { %>
+                  <a href="<%= assignableAdPageUrl(assignableAdPagination.page + 1) %>" class="rounded border px-3 py-1.5 font-semibold text-slate-700 hover:bg-slate-50">Next</a>
+                <% } else { %>
+                  <span class="rounded border px-3 py-1.5 font-semibold text-slate-400">Next</span>
+                <% } %>
+              </div>
+            </div>
           </form>
 
           <% if (!assignableAds || assignableAds.length === 0) { %>

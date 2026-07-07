@@ -37,7 +37,17 @@ describe('component model AD number assignment repair', () => {
     expect(modelDetailView).toContain('activeAdNumberSearch');
     expect(modelDetailView).toContain('Clear');
     expect(modelDetailView).toContain('No assignable Airworthiness Directives found');
-    expect(modelDetailView).toContain('Showing <%= assignableAds.length %> assignable AD');
+    expect(modelDetailView).toContain('Showing <%= assignableAdStart %>-<%= assignableAdEnd %> of <%= assignableAdPagination.total %> assignable AD');
+  });
+
+  it('renders assignable AD page-size and previous-next controls', () => {
+    expect(modelDetailView).toContain('name="ad_page"');
+    expect(modelDetailView).toContain('name="ad_page_size"');
+    expect(modelDetailView).toContain('Page <%= assignableAdPagination.page %> of <%= assignableAdPagination.totalPages %>');
+    expect(modelDetailView).toContain('Previous');
+    expect(modelDetailView).toContain('Next');
+    expect(modelDetailView).toContain('[200, 400, 800, 1000].forEach');
+    expect(modelDetailView).toContain('assignableAdPageUrl(assignableAdPagination.page + 1)');
   });
 
   it('keeps AD relevance suggestions read-only', () => {
@@ -57,6 +67,8 @@ describe('component model AD number assignment repair', () => {
     );
     expect(libraryRoutes).toContain('LibraryService.getModelApplicabilityAssignments(id, {');
     expect(libraryRoutes).toContain('adNumberSearch,');
+    expect(libraryRoutes).toContain('adPage: normalizedAdPage,');
+    expect(libraryRoutes).toContain('adPageSize: normalizedAdPageSize,');
     expect(libraryRoutes).toContain('adNumberSearch,');
   });
 
@@ -75,15 +87,152 @@ describe('component model AD number assignment repair', () => {
     expect(route).toContain('Use either AD number assignment or selected AD rows, not both.');
   });
 
-  it('filters active unassigned ADs by AD number before the 200 row limit', async () => {
-    const query = vi.spyOn(sequelize, 'query').mockResolvedValue([] as any);
+  it('uses default page one and page size 200 for assignable ADs', async () => {
+    const query = vi
+      .spyOn(sequelize, 'query')
+      .mockResolvedValueOnce([{ total: '450' }] as any)
+      .mockResolvedValueOnce([{ id: 'ad-1' }] as any);
+
+    const result = await (LibraryService as any).getAssignableAirworthinessDirectives('model-1');
+
+    expect(result.pagination).toEqual({
+      total: 450,
+      page: 1,
+      pageSize: 200,
+      totalPages: 3,
+      hasPrevious: false,
+      hasNext: true,
+    });
+    expect(query).toHaveBeenLastCalledWith(
+      expect.stringContaining('LIMIT :adPageSize'),
+      expect.objectContaining({
+        replacements: {
+          modelId: 'model-1',
+          adPageSize: 200,
+          adOffset: 0,
+        },
+      })
+    );
+  });
+
+  it('uses requested next page and allowed page size for assignable ADs', async () => {
+    const query = vi
+      .spyOn(sequelize, 'query')
+      .mockResolvedValueOnce([{ total: '1200' }] as any)
+      .mockResolvedValueOnce([{ id: 'ad-401' }] as any);
+
+    const result = await (LibraryService as any).getAssignableAirworthinessDirectives(
+      'model-1',
+      null,
+      { page: '2', pageSize: '400' }
+    );
+
+    expect(result.pagination).toEqual({
+      total: 1200,
+      page: 2,
+      pageSize: 400,
+      totalPages: 3,
+      hasPrevious: true,
+      hasNext: true,
+    });
+    expect(query).toHaveBeenLastCalledWith(
+      expect.stringMatching(/LIMIT :adPageSize[\s\S]*OFFSET :adOffset/),
+      expect.objectContaining({
+        replacements: {
+          modelId: 'model-1',
+          adPageSize: 400,
+          adOffset: 400,
+        },
+      })
+    );
+  });
+
+  it('falls back for invalid assignable AD page and page size', async () => {
+    const query = vi
+      .spyOn(sequelize, 'query')
+      .mockResolvedValueOnce([{ total: '10' }] as any)
+      .mockResolvedValueOnce([] as any);
+
+    const result = await (LibraryService as any).getAssignableAirworthinessDirectives(
+      'model-1',
+      null,
+      { page: '-2', pageSize: '1200' }
+    );
+
+    expect(result.pagination.page).toBe(1);
+    expect(result.pagination.pageSize).toBe(200);
+    expect(query.mock.calls[1]?.[1]).toEqual(
+      expect.objectContaining({
+        replacements: {
+          modelId: 'model-1',
+          adPageSize: 200,
+          adOffset: 0,
+        },
+      })
+    );
+  });
+
+  it('clamps assignable AD page above total pages', async () => {
+    const query = vi
+      .spyOn(sequelize, 'query')
+      .mockResolvedValueOnce([{ total: '450' }] as any)
+      .mockResolvedValueOnce([] as any);
+
+    const result = await (LibraryService as any).getAssignableAirworthinessDirectives(
+      'model-1',
+      null,
+      { page: '99', pageSize: '200' }
+    );
+
+    expect(result.pagination.page).toBe(3);
+    expect(result.pagination.hasNext).toBe(false);
+    expect(query.mock.calls[1]?.[1]).toEqual(
+      expect.objectContaining({
+        replacements: {
+          modelId: 'model-1',
+          adPageSize: 200,
+          adOffset: 400,
+        },
+      })
+    );
+  });
+
+  it('returns empty assignable AD pagination safely', async () => {
+    vi.spyOn(sequelize, 'query')
+      .mockResolvedValueOnce([{ total: '0' }] as any)
+      .mockResolvedValueOnce([] as any);
+
+    const result = await (LibraryService as any).getAssignableAirworthinessDirectives(
+      'model-1',
+      null,
+      { page: '3', pageSize: '800' }
+    );
+
+    expect(result.rows).toEqual([]);
+    expect(result.pagination).toEqual({
+      total: 0,
+      page: 1,
+      pageSize: 800,
+      totalPages: 1,
+      hasPrevious: false,
+      hasNext: false,
+    });
+  });
+
+  it('filters active unassigned ADs by AD number before pagination', async () => {
+    const query = vi
+      .spyOn(sequelize, 'query')
+      .mockResolvedValueOnce([{ total: '1' }] as any)
+      .mockResolvedValueOnce([{ id: 'ad-1' }] as any);
 
     await (LibraryService as any).getAssignableAirworthinessDirectives(
       'model-1',
-      ' 2022-05 '
+      ' 2022-05 ',
+      { page: '1', pageSize: '1000' }
     );
 
-    expect(query).toHaveBeenCalledWith(
+    expect(query).toHaveBeenNthCalledWith(
+      1,
       expect.stringContaining('AND ad.ad_number ILIKE :adNumberSearch'),
       expect.objectContaining({
         replacements: {
@@ -92,21 +241,30 @@ describe('component model AD number assignment repair', () => {
         },
       })
     );
-    expect(query.mock.calls[0]?.[0]).toMatch(/ad\.ad_number ILIKE :adNumberSearch[\s\S]*LIMIT 200/);
+    expect(query).toHaveBeenNthCalledWith(
+      2,
+      expect.stringMatching(/ad\.ad_number ILIKE :adNumberSearch[\s\S]*LIMIT :adPageSize[\s\S]*OFFSET :adOffset/),
+      expect.objectContaining({
+        replacements: {
+          modelId: 'model-1',
+          adNumberSearch: '%2022-05%',
+          adPageSize: 1000,
+          adOffset: 0,
+        },
+      })
+    );
   });
 
   it('keeps empty assignable AD search as the existing full-list query', async () => {
-    const query = vi.spyOn(sequelize, 'query').mockResolvedValue([] as any);
+    const query = vi
+      .spyOn(sequelize, 'query')
+      .mockResolvedValueOnce([{ total: '0' }] as any)
+      .mockResolvedValueOnce([] as any);
 
     await (LibraryService as any).getAssignableAirworthinessDirectives('model-1', '   ');
 
     expect(String(query.mock.calls[0]?.[0] || '')).not.toContain('ad.ad_number ILIKE');
-    expect(query).toHaveBeenCalledWith(
-      expect.any(String),
-      expect.objectContaining({
-        replacements: { modelId: 'model-1' },
-      })
-    );
+    expect(String(query.mock.calls[1]?.[0] || '')).not.toContain('ad.ad_number ILIKE');
   });
 
   it('rejects blank AD number assignment', async () => {

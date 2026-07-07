@@ -552,18 +552,29 @@ export class LibraryService {
 
   static async getModelApplicabilityAssignments(
     modelId: string,
-    options: { adNumberSearch?: string | null } = {}
+    options: {
+      adNumberSearch?: string | null;
+      adPage?: number | string | null;
+      adPageSize?: number | string | null;
+    } = {}
   ) {
+    const assignableAdResult = await this.getAssignableAirworthinessDirectives(
+      modelId,
+      options.adNumberSearch,
+      {
+        page: options.adPage,
+        pageSize: options.adPageSize,
+      }
+    );
+
     const [
       assignedAirworthinessDirectives,
-      assignableAirworthinessDirectives,
       assignedSupplementalInspectionDocuments,
       assignableSupplementalInspectionDocuments,
       assignedStandardTasks,
       assignableStandardTasks,
     ] = await Promise.all([
       this.getAssignedAirworthinessDirectives(modelId),
-      this.getAssignableAirworthinessDirectives(modelId, options.adNumberSearch),
       this.getAssignedSupplementalInspectionDocuments(modelId),
       this.getAssignableSupplementalInspectionDocuments(modelId),
       this.getAssignedStandardTasks(modelId),
@@ -572,7 +583,8 @@ export class LibraryService {
 
     return {
       assignedAirworthinessDirectives,
-      assignableAirworthinessDirectives,
+      assignableAirworthinessDirectives: assignableAdResult.rows,
+      assignableAirworthinessDirectivesPagination: assignableAdResult.pagination,
       assignedSupplementalInspectionDocuments,
       assignableSupplementalInspectionDocuments,
       assignedStandardTasks,
@@ -613,11 +625,57 @@ export class LibraryService {
 
   private static async getAssignableAirworthinessDirectives(
     modelId: string,
-    adNumberSearch?: string | null
+    adNumberSearch?: string | null,
+    options: {
+      page?: number | string | null | undefined;
+      pageSize?: number | string | null | undefined;
+    } = {}
   ) {
     const normalizedSearch = String(adNumberSearch || '').trim();
+    const allowedPageSizes = new Set([200, 400, 800, 1000]);
+    const parsedPage = Number(String(options.page ?? '').trim());
+    const requestedPage = Number.isInteger(parsedPage) && parsedPage > 0 ? parsedPage : 1;
+    const parsedPageSize = Number(String(options.pageSize ?? '').trim());
+    const pageSize = allowedPageSizes.has(parsedPageSize) ? parsedPageSize : 200;
+    const searchClause = normalizedSearch ? 'AND ad.ad_number ILIKE :adNumberSearch' : '';
+    const assignmentExclusionClause = `
+        AND NOT EXISTS (
+          SELECT 1
+          FROM compliance_assignments ca
+          JOIN compliance_items ci
+            ON ci.id = ca.compliance_item_id
+          WHERE ca.assignment_type = 'MODEL'
+            AND ca.model_id = :modelId
+            AND ca.is_active = TRUE
+            AND ci.source_type = 'AD'
+            AND ci.source_id = ad.id
+        )`;
+    const replacements = {
+      modelId,
+      ...(normalizedSearch
+        ? { adNumberSearch: `%${normalizedSearch}%` }
+        : {}),
+    };
 
-    return sequelize.query(
+    const countRows = await sequelize.query(
+      `
+      SELECT COUNT(*) AS total
+      FROM airworthiness_directives ad
+      WHERE COALESCE(ad.is_active, TRUE) = TRUE
+        ${searchClause}
+        ${assignmentExclusionClause}
+      `,
+      {
+        replacements,
+        type: QueryTypes.SELECT,
+      }
+    );
+    const total = Number((countRows[0] as any)?.total || 0);
+    const totalPages = Math.max(1, Math.ceil(total / pageSize));
+    const page = total === 0 ? 1 : Math.min(requestedPage, totalPages);
+    const offset = (page - 1) * pageSize;
+
+    const rows = await sequelize.query(
       `
       SELECT
         ad.id,
@@ -631,35 +689,33 @@ export class LibraryService {
         ad.model
       FROM airworthiness_directives ad
       WHERE COALESCE(ad.is_active, TRUE) = TRUE
-        ${
-          normalizedSearch
-            ? 'AND ad.ad_number ILIKE :adNumberSearch'
-            : ''
-        }
-        AND NOT EXISTS (
-          SELECT 1
-          FROM compliance_assignments ca
-          JOIN compliance_items ci
-            ON ci.id = ca.compliance_item_id
-          WHERE ca.assignment_type = 'MODEL'
-            AND ca.model_id = :modelId
-            AND ca.is_active = TRUE
-            AND ci.source_type = 'AD'
-            AND ci.source_id = ad.id
-        )
+        ${searchClause}
+        ${assignmentExclusionClause}
       ORDER BY ad.ad_number ASC, ad.revision ASC NULLS LAST
-      LIMIT 200
+      LIMIT :adPageSize
+      OFFSET :adOffset
       `,
       {
         replacements: {
-          modelId,
-          ...(normalizedSearch
-            ? { adNumberSearch: `%${normalizedSearch}%` }
-            : {}),
+          ...replacements,
+          adPageSize: pageSize,
+          adOffset: offset,
         },
         type: QueryTypes.SELECT,
       }
     );
+
+    return {
+      rows,
+      pagination: {
+        total,
+        page,
+        pageSize,
+        totalPages,
+        hasPrevious: page > 1,
+        hasNext: page < totalPages,
+      },
+    };
   }
 
   private static async getAssignedSupplementalInspectionDocuments(modelId: string) {
