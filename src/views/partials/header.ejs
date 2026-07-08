@@ -41,9 +41,38 @@
                     Jupiter
                 </a>
 
-                <div class="space-x-6 text-xs font-bold uppercase tracking-widest">
+                <div class="flex items-center gap-6 text-xs font-bold uppercase tracking-widest">
                     <a href="/library" class="hover:text-slate-300">Library</a>
-                    <a href="/service-bulletins" class="hover:text-slate-300">Service Bulletins</a>
+                    <div class="relative group">
+                        <a
+                            href="/compliance-maintenance-data"
+                            class="uppercase tracking-widest hover:text-slate-300 focus:outline-none focus:text-slate-300"
+                            aria-haspopup="true"
+                        >
+                            Compliance / Maintenance Data
+                        </a>
+                        <div
+                            class="absolute left-0 top-full hidden min-w-72 pt-3 text-left normal-case tracking-normal group-hover:block group-focus-within:block"
+                        >
+                            <div class="rounded border border-slate-700 bg-slate-900 py-2 text-xs font-semibold uppercase tracking-widest shadow-xl">
+                                <a href="/library/ads" class="block px-4 py-2 text-white hover:bg-slate-800 hover:text-slate-200">
+                                    Airworthiness Directives
+                                </a>
+                                <a href="/library/sbs" class="block px-4 py-2 text-white hover:bg-slate-800 hover:text-slate-200">
+                                    Service Bulletins / Letters / Instructions
+                                </a>
+                                <a href="/library/sids" class="block px-4 py-2 text-white hover:bg-slate-800 hover:text-slate-200">
+                                    Supplemental Inspection Documents
+                                </a>
+                                <a href="/library/tasks" class="block px-4 py-2 text-white hover:bg-slate-800 hover:text-slate-200">
+                                    Standard Tasks / Maintenance Requirements
+                                </a>
+                                <a href="/library/sbs/import-issues/unallocated-models" class="block px-4 py-2 text-white hover:bg-slate-800 hover:text-slate-200">
+                                    Applicability / Allocations
+                                </a>
+                            </div>
+                        </div>
+                    </div>
                     <a href="/aircraft" class="hover:text-slate-300">Fleet</a>
                     <a href="/customers" class="hover:text-slate-300">Customers</a>
                     <a href="/workpacks" class="hover:text-slate-300">Workpacks</a>

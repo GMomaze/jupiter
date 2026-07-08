@@ -395,6 +395,12 @@ app.use('/auth/staff', staffRoutes);
 app.use('/customer-auth', customerAuthRoutes);
 app.use('/customer-portal', customerPortalRoutes);
 
+app.get('/compliance-maintenance-data', ensureAuthenticated, (_req, res) => {
+  res.render('compliance-maintenance-data/index', {
+    title: 'Compliance / Maintenance Data',
+  });
+});
+
 app.use('/library', ensureAuthenticated, libraryRoutes);
 app.use('/service-bulletins', ensureAuthenticated, serviceBulletinRoutes);
 app.use('/sb', ensureAuthenticated, serviceBulletinSyncRoutes);
