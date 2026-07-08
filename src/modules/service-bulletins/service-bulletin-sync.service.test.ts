@@ -115,7 +115,7 @@ describe('Phase 8: Service bulletin sync automation', () => {
         sb_number: '1005',
         title: 'Addition of Drain Holes to the Engine Induction Air Inlet Scoops',
         model_id: 'model-1',
-        compliance_type: 'MANUAL',
+        compliance_type: 'REQUIRED',
         document_url: 'C:\\GMO\\Projects\\Documents\\Piper SB-Index-12.pdf',
       },
     ]);

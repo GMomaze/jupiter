@@ -53,7 +53,7 @@ describe('SB import adapters', () => {
       reference: 'SL 2001',
       status: 'SUPERSEDED',
       category: 'SL',
-      compliance_requirement: 'MANUAL',
+      compliance_requirement: 'REQUIRED',
       is_active: false,
     });
     expect(slRow?.values.piper_metadata).toMatchObject({
@@ -123,5 +123,28 @@ describe('SB import adapters', () => {
     expect(() =>
       previewSbImportFile(csvBuffer('reference,title\nCES-1,Cessna row'), 'cessna.csv', 'CESSNA')
     ).toThrow('Cessna adapter is not implemented yet.');
+  });
+
+  it('normalizes generic compliance requirement values to the SB stored set', () => {
+    const preview = previewSbImportFile(
+      csvBuffer(
+        [
+          'manufacturer,reference,title,compliance_requirement',
+          'Piper,SB 1,Legacy manual,MANUAL',
+          'Piper,SB 2,Required service,Required Service',
+          'Piper,SB 3,Mandatory row,MANDATORY',
+          'Piper,SB 4,Optional row,OPTIONAL',
+        ].join('\n')
+      ),
+      'generic-compliance.csv',
+      'GENERIC'
+    );
+
+    expect(preview.rows.map((row) => row.values.compliance_requirement)).toEqual([
+      'REQUIRED',
+      'REQUIRED',
+      'MANDATORY',
+      'OPTIONAL',
+    ]);
   });
 });

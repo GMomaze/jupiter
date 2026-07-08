@@ -66,7 +66,7 @@ describe('LibraryService service bulletin creation', () => {
         manufacturer: 'Bendix',
         sb_number: 'SB-002',
         reference: 'SB-002',
-        compliance_type: 'MANUAL',
+        compliance_type: 'REQUIRED',
         status: 'ACTIVE',
       })
     );
@@ -95,7 +95,7 @@ describe('LibraryService service bulletin creation', () => {
         sb_number: 'PIPER-1005',
         reference: 'PIPER-1005',
         title: 'Drain Hole Inspection',
-        compliance_type: 'MANUAL',
+        compliance_type: 'REQUIRED',
         status: 'ACTIVE',
       })
     );

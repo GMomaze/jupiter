@@ -20,7 +20,7 @@ export type ExternalServiceBulletin = {
   sb_number: string;
   title: string;
   model_id: string;
-  compliance_type: 'MANDATORY' | 'OPTIONAL' | 'MANUAL';
+  compliance_type: 'MANDATORY' | 'OPTIONAL' | 'REQUIRED';
   revision?: string | null;
   document_url?: string | null;
   description?: string | null;

@@ -50,6 +50,32 @@ describe('compliance single-record creation views', () => {
     expect(formTemplate).toContain('Related AD and ATA linkage will be added in a later phase.');
   });
 
+  it('shows uppercase SB compliance options with normalized stored values only', () => {
+    const template = readView('src/views/library/sbs/new.ejs');
+
+    expect(template).toContain('label: \'MANDATORY\'');
+    expect(template).toContain('label: \'REQUIRED\'');
+    expect(template).toContain('label: \'OPTIONAL\'');
+    expect(template).toContain('value: \'MANDATORY\'');
+    expect(template).toContain('value: \'REQUIRED\'');
+    expect(template).toContain('value: \'OPTIONAL\'');
+    expect(template).not.toContain('value: \'MANUAL\'');
+    expect(template).not.toContain('value="MANUAL"');
+    expect(template).not.toContain('Required is stored as MANUAL');
+  });
+
+  it('shows only normalized SB compliance options on the standalone create form', () => {
+    const template = readView('src/views/service-bulletins/index.ejs');
+
+    expect(template).toContain('value="MANDATORY"');
+    expect(template).toContain('>MANDATORY</option>');
+    expect(template).toContain('value="REQUIRED"');
+    expect(template).toContain('>REQUIRED</option>');
+    expect(template).toContain('value="OPTIONAL"');
+    expect(template).toContain('>OPTIONAL</option>');
+    expect(template).not.toContain('value="MANUAL"');
+  });
+
   it('renders the SID create form fields', () => {
     const template = readView('src/views/library/sids/new.ejs');
 

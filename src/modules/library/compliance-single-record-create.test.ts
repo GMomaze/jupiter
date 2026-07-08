@@ -9,6 +9,10 @@ describe('Compliance single-record creation service', () => {
     vi.restoreAllMocks();
   });
 
+  it('uses REQUIRED as the ServiceBulletin model compliance default', () => {
+    expect(ServiceBulletin.getAttributes().compliance_type.defaultValue).toBe('REQUIRED');
+  });
+
   it('validates and creates an Airworthiness Directive', async () => {
     vi.spyOn(AirworthinessDirective, 'findAll').mockResolvedValue([]);
     const createSpy = vi.spyOn(AirworthinessDirective, 'create').mockResolvedValue({
@@ -91,6 +95,26 @@ describe('Compliance single-record creation service', () => {
         document_url: 'piper-sl-1141a.pdf',
         description: 'Inspect the landing gear attach points.',
         source_primary: 'MANUAL',
+      })
+    );
+  });
+
+  it('defaults SB / SL / SI compliance requirement to REQUIRED', async () => {
+    vi.spyOn(ServiceBulletin, 'findAll').mockResolvedValue([]);
+    const createSpy = vi.spyOn(ServiceBulletin, 'create').mockResolvedValue({
+      id: 'sb-required',
+    } as any);
+
+    await LibraryService.createLibraryServiceBulletin({
+      category: 'SB',
+      reference: 'SB 500',
+      title: 'Default compliance',
+      manufacturer: 'Piper',
+    });
+
+    expect(createSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        compliance_type: 'REQUIRED',
       })
     );
   });

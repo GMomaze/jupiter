@@ -263,7 +263,7 @@ export class LibraryController {
   static renderSbCreateForm(_req: Request, res: Response): void {
     res.render('library/sbs/new', {
       title: 'Add New SB / SL / SI',
-      form: getManualCreateForm({ category: 'SB', compliance_type: 'MANUAL', status: 'ACTIVE' }),
+      form: getManualCreateForm({ category: 'SB', compliance_type: 'REQUIRED', status: 'ACTIVE' }),
       errors: [],
     });
   }
