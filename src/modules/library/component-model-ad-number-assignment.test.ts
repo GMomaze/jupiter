@@ -33,9 +33,12 @@ describe('component model AD number assignment repair', () => {
   it('renders assignable AD search and no-results messaging', () => {
     expect(modelDetailView).toContain('Search assignable ADs');
     expect(modelDetailView).toContain('method="GET"');
+    expect(modelDetailView).toContain('name="tab" value="compliance"');
     expect(modelDetailView).toContain('placeholder="Search by AD number"');
     expect(modelDetailView).toContain('activeAdNumberSearch');
     expect(modelDetailView).toContain('Clear');
+    expect(modelDetailView).toContain('action="/library/model/<%= model.id %>#compliance-data"');
+    expect(modelDetailView).toContain('/library/model/<%= model.id %>?tab=compliance#compliance-data');
     expect(modelDetailView).toContain('No assignable Airworthiness Directives found');
     expect(modelDetailView).toContain('Showing <%= assignableAdStart %>-<%= assignableAdEnd %> of <%= assignableAdPagination.total %> assignable AD');
   });
@@ -46,6 +49,8 @@ describe('component model AD number assignment repair', () => {
     expect(modelDetailView).toContain('Page <%= assignableAdPagination.page %> of <%= assignableAdPagination.totalPages %>');
     expect(modelDetailView).toContain('Previous');
     expect(modelDetailView).toContain('Next');
+    expect(modelDetailView).toContain("params.push('tab=compliance');");
+    expect(modelDetailView).toContain("return `/library/model/${model.id}?${params.join('&')}#compliance-data`;");
     expect(modelDetailView).toContain('[200, 400, 800, 1000].forEach');
     expect(modelDetailView).toContain('assignableAdPageUrl(assignableAdPagination.page + 1)');
   });

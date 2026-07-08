@@ -20,6 +20,12 @@ describe('component model detail tabs', () => {
     expect(template).toContain('Standard Tasks');
   });
 
+  it('activates a valid tab query parameter while keeping Identity as the default markup', () => {
+    expect(template).toContain('const requestedTab = new URLSearchParams(window.location.search).get(\'tab\');');
+    expect(template).toContain('tabs.some((tab) => tab.dataset.componentModelTab === requestedTab)');
+    expect(template).toContain('activateTab(requestedTab);');
+  });
+
   it('keeps the existing identity fields in the Identity tab', () => {
     expect(template).toContain('id="component-model-tab-identity"');
     expect(template).toContain('<%= formatModelDisplay(model || {}) %>');
@@ -31,6 +37,7 @@ describe('component model detail tabs', () => {
 
   it('keeps all tab panels present after the section moves', () => {
     expect(template).toContain('id="component-model-tab-planning"');
+    expect(template).toContain('id="compliance-data"');
     expect(template).toContain('id="component-model-tab-compliance"');
     expect(template).toContain('id="component-model-tab-maintenance-requirements"');
     expect(template).toContain('id="component-model-tab-standard-tasks"');

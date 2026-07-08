@@ -14,10 +14,11 @@
   <% const assignableAdEnd = Math.min(assignableAdPagination.page * assignableAdPagination.pageSize, assignableAdPagination.total); %>
   <% const assignableAdPageUrl = (page) => {
     const params = [];
+    params.push('tab=compliance');
     if (activeAdNumberSearch) params.push(`ad_number=${encodeURIComponent(activeAdNumberSearch)}`);
     params.push(`ad_page=${encodeURIComponent(String(page))}`);
     params.push(`ad_page_size=${encodeURIComponent(String(assignableAdPagination.pageSize))}`);
-    return `/library/model/${model.id}?${params.join('&')}`;
+    return `/library/model/${model.id}?${params.join('&')}#compliance-data`;
   }; %>
   <% const relevanceBuckets = typeof adRelevance !== 'undefined' ? adRelevance : {}; %>
   <% const readOnlyAdSuggestionGroups = [
@@ -232,6 +233,7 @@
       </section>
     </div>
 
+    <div id="compliance-data" class="scroll-mt-6"></div>
     <div id="component-model-tab-compliance" class="component-model-tab-panel hidden" data-component-model-tab-panel="compliance">
       <section class="space-y-8">
         <div class="bg-white border rounded-xl p-6 shadow-sm">
@@ -259,7 +261,7 @@
             </div>
           </form>
 
-          <form method="GET" action="/library/model/<%= model.id %>" class="mb-6 rounded-lg border border-slate-200 bg-white p-4 space-y-3">
+          <form method="GET" action="/library/model/<%= model.id %>#compliance-data" class="mb-6 rounded-lg border border-slate-200 bg-white p-4 space-y-3">
             <div>
               <label for="search-assignable-ad-number" class="block text-sm font-bold text-slate-900">Search assignable ADs</label>
               <p class="mt-1 text-sm text-slate-500">
@@ -267,6 +269,7 @@
               </p>
             </div>
             <div class="flex flex-col gap-3 sm:flex-row sm:items-end">
+              <input type="hidden" name="tab" value="compliance">
               <input type="hidden" name="ad_page" value="1">
               <input
                 id="search-assignable-ad-number"
@@ -292,7 +295,7 @@
                 Search
               </button>
               <% if (activeAdNumberSearch || assignableAdPagination.pageSize !== 200 || assignableAdPagination.page !== 1) { %>
-                <a href="/library/model/<%= model.id %>" class="text-sm font-semibold text-blue-600 hover:underline">Clear</a>
+                <a href="/library/model/<%= model.id %>?tab=compliance#compliance-data" class="text-sm font-semibold text-blue-600 hover:underline">Clear</a>
               <% } %>
             </div>
             <p class="text-sm text-slate-500">
@@ -901,6 +904,11 @@
         activateTab(tab.dataset.componentModelTab);
       });
     });
+
+    const requestedTab = new URLSearchParams(window.location.search).get('tab');
+    if (requestedTab && tabs.some((tab) => tab.dataset.componentModelTab === requestedTab)) {
+      activateTab(requestedTab);
+    }
 
     const selectAllAttachableSbsButton = document.getElementById('select-all-attachable-sbs');
     selectAllAttachableSbsButton?.addEventListener('click', function () {
