@@ -95,6 +95,100 @@ describe('AD import preview usability', () => {
     expect(preview.rows[0]?.errors).not.toContain('AD Number is required.');
   });
 
+  it('preserves first non-empty values when later duplicate mapped headers are blank', async () => {
+    const csv = [
+      [
+        'AD Number',
+        'Status',
+        'Effective Date',
+        'Subject',
+        'Docket Number',
+        'AD Number',
+        'Status',
+        'Effective Date',
+      ].join(','),
+      [
+        '96-01-01',
+        'Historical',
+        '01/19/1996',
+        'Blade Taper Bore',
+        '95-ANE-73',
+        '',
+        '',
+        '',
+      ].join(','),
+    ].join('\n');
+
+    const preview = await previewAdImportFile(
+      Buffer.from(csv, 'utf8'),
+      'faa-ad.csv',
+      'text/csv'
+    );
+
+    expect(preview.rows[0]?.status).toBe('VALID');
+    expect(preview.rows[0]?.values.ad_number).toBe('96-01-01');
+    expect(preview.rows[0]?.values.status).toBe('Historical');
+    expect(preview.rows[0]?.values.effective_date).toBe('1996-01-19');
+    expect(preview.rows[0]?.values.subject).toBe('Blade Taper Bore');
+    expect(preview.rows[0]?.values.docket_number).toBe('95-ANE-73');
+    expect(preview.rows[0]?.warnings).toContain(
+      'Duplicate AD Number columns found; first non-empty value was preserved.'
+    );
+    expect(preview.rows[0]?.warnings).toContain(
+      'Duplicate Status columns found; first non-empty value was preserved.'
+    );
+    expect(preview.rows[0]?.warnings).toContain(
+      'Duplicate Effective Date columns found; first non-empty value was preserved.'
+    );
+  });
+
+  it('preserves first non-empty values and warns when later duplicate mapped headers contain values', async () => {
+    const csv = [
+      [
+        'AD Number',
+        'Status',
+        'Effective Date',
+        'Subject',
+        'Docket Number',
+        'AD Number',
+        'Status',
+        'Effective Date',
+      ].join(','),
+      [
+        '96-01-01',
+        'Historical',
+        '01/19/1996',
+        'Blade Taper Bore',
+        '95-ANE-73',
+        '99-99-99',
+        'Active',
+        '02/20/1997',
+      ].join(','),
+    ].join('\n');
+
+    const preview = await previewAdImportFile(
+      Buffer.from(csv, 'utf8'),
+      'faa-ad.csv',
+      'text/csv'
+    );
+
+    expect(preview.rows[0]?.status).toBe('VALID');
+    expect(preview.rows[0]?.values.ad_number).toBe('96-01-01');
+    expect(preview.rows[0]?.values.status).toBe('Historical');
+    expect(preview.rows[0]?.values.effective_date).toBe('1996-01-19');
+    expect(preview.rows[0]?.values.subject).toBe('Blade Taper Bore');
+    expect(preview.rows[0]?.values.docket_number).toBe('95-ANE-73');
+    expect(preview.rows[0]?.warnings).toContain(
+      'Duplicate AD Number column ignored; first non-empty value was preserved.'
+    );
+    expect(preview.rows[0]?.warnings).toContain(
+      'Duplicate Status column ignored; first non-empty value was preserved.'
+    );
+    expect(preview.rows[0]?.warnings).toContain(
+      'Duplicate Effective Date column ignored; first non-empty value was preserved.'
+    );
+  });
+
   it('renders commit actions at both the top and bottom without changing the commit form payload', () => {
     const action = 'action="/library/ads/import/commit?_csrf=<%= encodeURIComponent(csrfToken) %>"';
 

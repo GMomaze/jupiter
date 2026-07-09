@@ -50,6 +50,14 @@ const AD_FIELDS = [
 ] as const;
 
 type AdFieldKey = (typeof AD_FIELDS)[number]['key'];
+type AdField = (typeof AD_FIELDS)[number];
+
+type MappedAdColumn = {
+  field: AdField;
+  columnIndex: number;
+  rawValue: unknown;
+  normalizedValue: string;
+};
 
 type AdPreviewValues = {
   ad_number: string;
@@ -566,6 +574,38 @@ function isEmptyRow(values: unknown[]) {
   return values.every((value) => !normalizeString(value));
 }
 
+function selectMappedAdColumn(
+  columns: MappedAdColumn[],
+  warnings: string[]
+) {
+  const selectedColumn =
+    columns.find((column) => column.normalizedValue) || columns[0];
+
+  if (!selectedColumn) {
+    return null;
+  }
+
+  if (columns.length > 1) {
+    warnings.push(
+      `Duplicate ${selectedColumn.field.label} columns found; first non-empty value was preserved.`
+    );
+
+    columns
+      .filter(
+        (column) =>
+          column.columnIndex > selectedColumn.columnIndex &&
+          column.normalizedValue
+      )
+      .forEach(() => {
+        warnings.push(
+          `Duplicate ${selectedColumn.field.label} column ignored; first non-empty value was preserved.`
+        );
+      });
+  }
+
+  return selectedColumn;
+}
+
 function parseCsvMatrix(buffer: Buffer) {
   return parse(buffer, {
     bom: true,
@@ -805,6 +845,8 @@ function previewAdMatrix(
     const errors: string[] = [];
     const warnings: string[] = [];
 
+    const columnsByField = new Map<AdFieldKey, MappedAdColumn[]>();
+
     fieldByColumnIndex.forEach((field, columnIndex) => {
       if (!field) {
         return;
@@ -812,6 +854,23 @@ function previewAdMatrix(
 
       const rawValue = denseRow[columnIndex];
       const normalizedValue = normalizeString(rawValue);
+      const columns = columnsByField.get(field.key) || [];
+      columns.push({
+        field,
+        columnIndex,
+        rawValue,
+        normalizedValue,
+      });
+      columnsByField.set(field.key, columns);
+    });
+
+    columnsByField.forEach((columns) => {
+      const selectedColumn = selectMappedAdColumn(columns, warnings);
+      if (!selectedColumn) {
+        return;
+      }
+
+      const { field, rawValue, normalizedValue } = selectedColumn;
 
       switch (field.key) {
         case 'effective_date':
