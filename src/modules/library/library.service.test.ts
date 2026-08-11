@@ -2,9 +2,11 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { LibraryService } from './library.service.js';
 import {
   ComponentModel,
-  CessnaSid,
-  ModelSid,
+  SidModelApplicability,
+  SupplementalInspectionDocument,
 } from '../../models/index.js';
+
+const modelId = '11111111-1111-4111-8111-111111111111';
 
 describe('LibraryService SID import', () => {
   afterEach(() => {
@@ -12,26 +14,26 @@ describe('LibraryService SID import', () => {
   });
 
   it('skips duplicate summaries while attaching unique SIDs from CSV', async () => {
-    vi.spyOn(ComponentModel, 'findByPk').mockResolvedValue({ id: 'model-1' } as any);
+    vi.spyOn(ComponentModel, 'findByPk').mockResolvedValue({ id: modelId } as any);
     vi.spyOn(LibraryService, 'getModelSids').mockResolvedValue([
       { id: 'sid-existing', title: 'Inspect Carry Through Spar' },
     ] as any);
-    vi.spyOn(CessnaSid, 'findAll').mockResolvedValue([] as any);
+    vi.spyOn(SupplementalInspectionDocument, 'findAll').mockResolvedValue([] as any);
 
     const createSpy = vi
-      .spyOn(CessnaSid, 'create')
+      .spyOn(SupplementalInspectionDocument, 'create')
       .mockResolvedValueOnce({
-        id: 'sid-1',
-        sid_number: 'SID-001',
+        id: '22222222-2222-4222-8222-222222222222',
+        reference: 'SID-001',
         title: 'Inspect Firewall Structure',
       } as any)
       .mockResolvedValueOnce({
-        id: 'sid-2',
-        sid_number: 'SID-003',
+        id: '33333333-3333-4333-8333-333333333333',
+        reference: 'SID-003',
         title: 'Inspect Empennage Attach Points',
       } as any);
 
-    vi.spyOn(ModelSid, 'findOrCreate').mockResolvedValue([{} as any, true]);
+    vi.spyOn(SidModelApplicability, 'findOrCreate').mockResolvedValue([{} as any, true]);
 
     const csv = Buffer.from(
       [
@@ -43,7 +45,7 @@ describe('LibraryService SID import', () => {
       ].join('\n')
     );
 
-    const result = await LibraryService.importModelSidsFromCsv('model-1', csv);
+    const result = await LibraryService.importModelSidsFromCsv(modelId, csv);
 
     expect(result).toEqual({
       created: 2,
@@ -56,14 +58,14 @@ describe('LibraryService SID import', () => {
     expect(createSpy).toHaveBeenNthCalledWith(
       1,
       expect.objectContaining({
-        sid_number: 'SID-001',
+        reference: 'SID-001',
         title: 'Inspect Firewall Structure',
       })
     );
     expect(createSpy).toHaveBeenNthCalledWith(
       2,
       expect.objectContaining({
-        sid_number: 'SID-003',
+        reference: 'SID-003',
         title: 'Inspect Empennage Attach Points',
       })
     );

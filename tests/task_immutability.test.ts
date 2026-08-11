@@ -1,27 +1,28 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { v4 as uuid } from 'uuid';
 import { TaskService } from '../src/modules/tasks/task.service';
 import { pool } from '../src/config/database.js';
+import { assertTestDatabaseSafety } from '../src/config/testDatabaseSafety.js';
 
 describe('Phase 6: Task Card Immutability', () => {
   let taskId: string;
   let aircraftId: string;
-  const userId = '00000000-0000-0000-0000-000000000000';
+  let categoryId: string;
+  let assetTypeId: string;
+  let manufacturerId: string;
+  let modelId: string;
 
   beforeEach(async () => {
-    // 1. CLEANUP: Delete in order of dependencies (Children first, then Parents)
-    await pool.query("SET app.is_test_mode = 'true'");
-    await pool.query('DELETE FROM audit_log');
-    await pool.query('DELETE FROM task_cards');      // Depends on aircraft
-    await pool.query('DELETE FROM aircraft');        // Depends on models/categories
-    await pool.query('DELETE FROM component_models'); // Depends on manufacturers/asset_types
-    await pool.query('DELETE FROM manufacturers');
-    await pool.query('DELETE FROM rf_asset_type');
-    await pool.query('DELETE FROM rf_aircraft_category');
-    await pool.query("SET app.is_test_mode = 'false'");
+    await assertTestDatabaseSafety(pool);
+    taskId = '';
+    aircraftId = '';
+    categoryId = '';
+    assetTypeId = '';
+    manufacturerId = '';
+    modelId = '';
 
-    // 2. SETUP: Build references
-    const categoryId = (
+    // Build uniquely identified, test-owned references.
+    categoryId = (
       await pool.query(
         `INSERT INTO rf_aircraft_category (id, code, label)
          VALUES ($1, $2, $3)
@@ -30,7 +31,7 @@ describe('Phase 6: Task Card Immutability', () => {
       )
     ).rows[0].id;
 
-    const assetTypeId = (
+    assetTypeId = (
       await pool.query(
         `INSERT INTO rf_asset_type (id, code, label, is_installable_on_aircraft, is_required_for_aircraft, required_quantity)
          VALUES ($1, $2, $3, $4, $5, $6)
@@ -39,7 +40,7 @@ describe('Phase 6: Task Card Immutability', () => {
       )
     ).rows[0].id;
 
-    const manufacturerId = (
+    manufacturerId = (
       await pool.query(
         `INSERT INTO manufacturers (id, name, code, is_active)
          VALUES ($1, $2, $3, $4)
@@ -48,7 +49,7 @@ describe('Phase 6: Task Card Immutability', () => {
       )
     ).rows[0].id;
 
-    const modelId = (
+    modelId = (
       await pool.query(
         `INSERT INTO component_models (id, manufacturer_id, model_name, asset_type_id, is_active)
          VALUES ($1, $2, $3, $4, $5)
@@ -57,7 +58,6 @@ describe('Phase 6: Task Card Immutability', () => {
       )
     ).rows[0].id;
 
-    // 3. Create Aircraft
     const aircraftRes = await pool.query(
       `INSERT INTO aircraft (id, registration, serial_number, category_id, model_id, status) 
        VALUES ($1, $2, $3, $4, $5, $6) 
@@ -66,7 +66,6 @@ describe('Phase 6: Task Card Immutability', () => {
     );
     aircraftId = aircraftRes.rows[0].id;
 
-    // 4. Create Task Card (Fixed column/value mismatch)
     const taskCardNo = `TC-${uuid().slice(0, 8)}`;
     const res = await pool.query(
       `INSERT INTO task_cards (id, task_card_number, title, description, status, aircraft_id) 
@@ -77,13 +76,52 @@ describe('Phase 6: Task Card Immutability', () => {
     taskId = res.rows[0].id;
   });
 
-  it('Requirement: SIGNED tasks become uneditable', async () => {
-    // Transition task to SIGNED state
-    await pool.query("UPDATE task_cards SET status = 'SIGNED' WHERE id = $1", [taskId]);
+  afterEach(async () => {
+    const client = await pool.connect();
+
+    try {
+      await client.query('BEGIN');
+      await client.query("SET LOCAL app.is_test_mode = 'true'");
+
+      if (taskId) {
+        await client.query('DELETE FROM audit_log WHERE row_id = $1', [taskId]);
+        await client.query('DELETE FROM task_cards WHERE id = $1', [taskId]);
+      }
+      if (aircraftId) {
+        await client.query('DELETE FROM aircraft WHERE id = $1', [aircraftId]);
+      }
+      if (modelId) {
+        await client.query('DELETE FROM component_models WHERE id = $1', [modelId]);
+      }
+      if (manufacturerId) {
+        await client.query('DELETE FROM manufacturers WHERE id = $1', [manufacturerId]);
+      }
+      if (assetTypeId) {
+        await client.query('DELETE FROM rf_asset_type WHERE id = $1', [assetTypeId]);
+      }
+      if (categoryId) {
+        await client.query('DELETE FROM rf_aircraft_category WHERE id = $1', [categoryId]);
+      }
+
+      await client.query('COMMIT');
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  });
+
+  it('Requirement: CERTIFIED_BY_ENGINEER tasks become uneditable', async () => {
+    // Transition task to the current certified lifecycle state.
+    await pool.query(
+      "UPDATE task_cards SET status = 'CERTIFIED_BY_ENGINEER' WHERE id = $1",
+      [taskId]
+    );
 
     // Expect service to reject updates
     await expect(
-      TaskService.updateDescription(taskId, 'Attempted New Description', userId)
+      TaskService.updateDescription(taskId, 'Attempted New Description')
     ).rejects.toThrow('TASK_LOCKED');
   });
 
@@ -98,7 +136,7 @@ describe('Phase 6: Task Card Immutability', () => {
 
     // Expect service to reject sign-off on already locked task
     await expect(
-      TaskService.signOff(taskId, userId)
+      TaskService.signOff(taskId)
     ).rejects.toThrow(/SIGN_OFF_FAILED/);
   });
 });

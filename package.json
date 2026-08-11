@@ -10,12 +10,17 @@
   "lint": "eslint . --ext .ts",
   "format:check": "prettier --check \"src/**/*.ts\"",
   "test": "cross-env NODE_ENV=test vitest run",
-  "test:e2e": "playwright test",
+  "test:e2e": "cross-env NODE_ENV=test playwright test",
+  "test:e2e:server": "cross-env NODE_ENV=test PORT=3000 tsx src/server.ts",
   "build": "tsc",
 
   "db:migrate": "npx sequelize-cli db:migrate",
   "db:migrate:undo": "npx sequelize-cli db:migrate:undo",
   "db:seed": "npx sequelize-cli db:seed:all",
+  "db:test:reset": "cross-env NODE_ENV=test tsx src/scripts/testDatabasePreparation.ts reset",
+  "db:test:migrate": "cross-env NODE_ENV=test tsx src/scripts/testDatabasePreparation.ts migrate",
+  "db:test:migrate:undo": "cross-env NODE_ENV=test tsx src/scripts/testDatabasePreparation.ts migrate:undo",
+  "db:test:seed": "cross-env NODE_ENV=test tsx src/scripts/testDatabasePreparation.ts seed",
 
   "ai": "aider",
   "ai:smart": "aider --model gpt-4o",

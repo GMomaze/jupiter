@@ -4,6 +4,7 @@ import app from './app.js';
 import { pool } from './config/database.js';
 import { sequelize } from './models/index.js';
 import { ServiceBulletinSyncService } from './modules/service-bulletins/service-bulletin-sync.service.js';
+import { assertTestDatabaseSafety } from './config/testDatabaseSafety.js';
 
 const PORT = process.env.PORT || 3000;
 
@@ -11,6 +12,11 @@ let server: any;
 
 async function startServer() {
   try {
+    if (process.env.NODE_ENV === 'test') {
+      await assertTestDatabaseSafety(pool);
+      console.log('Test database safety verified');
+    }
+
     console.log('🚀 Starting server...');
 
     // =========================================

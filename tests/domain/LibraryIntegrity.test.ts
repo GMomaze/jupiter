@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { pool } from '../../src/config/database.js';
+import { assertTestDatabaseSafety } from '../../src/config/testDatabaseSafety.js';
 import { 
   createManufacturer, 
   createAssetType, 
@@ -9,6 +10,8 @@ import {
 describe('Library Integrity & Requirements', () => {
 
   beforeEach(async () => {
+    await assertTestDatabaseSafety(pool);
+
     /**
      * 🛡️ ROBUST CLEANUP
      * Using CASCADE ensures that even if new tables are added (like audit logs or snapshots),

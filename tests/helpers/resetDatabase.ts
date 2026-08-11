@@ -1,4 +1,5 @@
 import { pool } from '../../src/config/database.js';
+import { assertTestDatabaseSafety } from '../../src/config/testDatabaseSafety.js';
 
 /**
  * HARD RESET FOR TEST DATABASE
@@ -7,6 +8,8 @@ import { pool } from '../../src/config/database.js';
  */
 
 export async function resetDatabase() {
+  await assertTestDatabaseSafety(pool);
+
   await pool.query(`
     TRUNCATE TABLE
       audit_log,

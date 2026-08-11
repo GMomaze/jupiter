@@ -11,11 +11,14 @@ import {
 } from '../../models/index.js';
 import { pool } from '../../config/database.js';
 import { hashPassword } from '../auth/password.util.js';
+import { assertTestDatabaseSafety } from '../../config/testDatabaseSafety.js';
 
 describe('Phase 8: Service bulletin sync UI', () => {
   let agent: request.SuperAgentTest;
 
   beforeEach(async () => {
+    await assertTestDatabaseSafety(pool);
+
     agent = request.agent(app);
 
     await pool.query("SET app.is_test_mode = 'true'");

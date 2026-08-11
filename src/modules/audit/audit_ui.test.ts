@@ -1,57 +1,37 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import request from 'supertest';
 import app from '../../app.js';
-import { User, Role, Permission } from '../../models/index.js';
+import { User, Role } from '../../models/index.js';
 import { v4 as uuid } from 'uuid';
 import { pool } from '../../config/database.js';
 import { hashPassword } from '../auth/password.util.js';
+import { assertTestDatabaseSafety } from '../../config/testDatabaseSafety.js';
 
 describe('Phase 3.5: Audit UI Integration Tests', () => {
   let agent: request.SuperAgentTest;
+  let userId: string;
 
   beforeEach(async () => {
+    await assertTestDatabaseSafety(pool);
+    userId = '';
+
     agent = request.agent(app);
 
-    // 1. Bypass Immutability & Clear Tables
-    await pool.query("SET app.is_test_mode = 'true'");
-    await pool.query('DELETE FROM user_roles');
-    await pool.query('DELETE FROM sessions');
-    await pool.query('DELETE FROM rf_role_permissions');
-    await pool.query('DELETE FROM rf_permission');
-    await pool.query('DELETE FROM rf_role');
-    await pool.query('DELETE FROM users');
-    await pool.query("SET app.is_test_mode = 'false'");
+    const role = await Role.findOne({ where: { code: 'ADMIN' } });
 
-    const roleId = uuid();
-    const permId = uuid();
-    const userId = uuid();
+    if (!role) {
+      throw new Error('Seeded ADMIN role is required.');
+    }
 
-    // 2. Seed RBAC
-    await Permission.create({
-      id: permId,
-      code: 'AUDIT_VIEW',
-      label: 'View Audit Log',
-      module: 'AUDIT'
-    });
+    userId = uuid();
 
-    await Role.create({
-      id: roleId,
-      code: 'ADMIN',
-      label: 'Admin'
-    });
-
-    await pool.query(
-      'INSERT INTO rf_role_permissions (id, role_id, permission_id) VALUES ($1, $2, $3)',
-      [uuid(), roleId, permId]
-    );
-
-    // 3. Seed User (USING ARGON2)
     const password = 'password123';
     const hash = await hashPassword(password);
+    const email = `audit-admin-${userId}@test.com`;
 
     await User.create({
       id: userId,
-      email: 'audit-admin@test.com',
+      email,
       password_hash: hash,
       full_name: 'Audit Admin',
       is_active: true
@@ -59,16 +39,26 @@ describe('Phase 3.5: Audit UI Integration Tests', () => {
 
     await pool.query(
       'INSERT INTO user_roles (id, user_id, role_id) VALUES ($1, $2, $3)',
-      [uuid(), userId, roleId]
+      [uuid(), userId, role.id]
     );
 
-    // 4. Login
     const loginRes = await agent
       .post('/auth/login')
       .set('Accept', 'application/json')
-      .send({ email: 'audit-admin@test.com', password });
+      .send({ email, password });
 
     expect(loginRes.status).toBe(200);
+  });
+
+  afterEach(async () => {
+    if (!userId) return;
+
+    await pool.query(
+      "DELETE FROM sessions WHERE sess -> 'passport' ->> 'user' = $1",
+      [userId]
+    );
+    await pool.query('DELETE FROM user_roles WHERE user_id = $1', [userId]);
+    await pool.query('DELETE FROM users WHERE id = $1', [userId]);
   });
 
   it('should render the audit log page', async () => {

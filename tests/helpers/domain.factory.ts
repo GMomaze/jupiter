@@ -9,17 +9,16 @@ import {
   TaskCard,
   Workpack
 } from '../../src/models/index.js';
-import { Pool } from 'pg';
-
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-});
+import { pool } from '../../src/config/database.js';
+import { assertTestDatabaseSafety } from '../../src/config/testDatabaseSafety.js';
 
 /**
  * Global Cleanup Utility
  * Deletes data in the correct order to avoid Foreign Key Constraint errors.
  */
 export async function clearDatabase() {
+  await assertTestDatabaseSafety(pool);
+
   await pool.query('DELETE FROM service_bulletin_models');
   await pool.query('DELETE FROM utilisation_events');
   await pool.query('DELETE FROM audit_log');

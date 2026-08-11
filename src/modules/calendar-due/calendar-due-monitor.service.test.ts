@@ -469,20 +469,28 @@ describe('CalendarDueMonitorService', () => {
       title: 'Boundary calendar task',
       intervalMonths: 1,
     });
-    await createCompletedTaskCard({
+    const taskCard = await createCompletedTaskCard({
       aircraftId: aircraft.id,
       taskTemplateId: task.id,
       reference: `CAL-BND-CARD-${suffix}`,
       title: 'Boundary completed calendar task',
       completedAt: addDays(-40),
     });
-    const workpackTaskCountBefore = await WorkpackTask.count();
-    const utilisationEventCountBefore = await UtilisationEvent.count();
+    const workpackTaskCountBefore = await WorkpackTask.count({
+      where: { task_id: taskCard.id },
+    });
+    const utilisationEventCountBefore = await UtilisationEvent.count({
+      where: { aircraft_id: aircraft.id },
+    });
 
     await CalendarDueMonitorService.recalculateForUtilisationUpdate(aircraft.id);
     await CalendarDueMonitorService.recalculateForFutureScheduler({ aircraftId: aircraft.id });
 
-    expect(await WorkpackTask.count()).toBe(workpackTaskCountBefore);
-    expect(await UtilisationEvent.count()).toBe(utilisationEventCountBefore);
+    expect(
+      await WorkpackTask.count({ where: { task_id: taskCard.id } })
+    ).toBe(workpackTaskCountBefore);
+    expect(
+      await UtilisationEvent.count({ where: { aircraft_id: aircraft.id } })
+    ).toBe(utilisationEventCountBefore);
   });
 });

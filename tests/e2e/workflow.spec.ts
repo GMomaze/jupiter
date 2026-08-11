@@ -64,7 +64,9 @@ test.describe('Authenticated workflow', () => {
     await page.getByRole('button', { name: 'Secure Login' }).click();
 
     await expect(page).toHaveURL(/\/$/);
-    await expect(page.getByRole('heading', { name: 'Jupiter Dashboard' })).toBeVisible();
+    await expect(
+      page.getByRole('heading', { level: 1, name: 'Jupiter' })
+    ).toBeVisible();
 
     await page.goto('/workpacks/hangar');
 

@@ -1,6 +1,6 @@
 import pg from 'pg';
 import { Sequelize } from 'sequelize';
-import 'dotenv/config';
+import './environment.js';
 
 const { Pool } = pg;
 

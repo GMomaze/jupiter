@@ -6,11 +6,12 @@ export default defineConfig({
   test: {
     environment: 'node',
 
-    // 🔴 CRITICAL: single threaded execution
-    threads: false,
+    // Database-writing test files share one guarded jupiter_test database.
+    fileParallelism: false,
+    maxWorkers: 1,
     isolate: true,
 
-    // 🔴 CRITICAL: force serial file execution
+    // Keep tests within each file sequential unless explicitly marked concurrent.
     sequence: {
       concurrent: false
     },

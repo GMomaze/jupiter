@@ -1,4 +1,5 @@
 import { pool } from '../src/config/database.js';
+import { assertTestDatabaseSafety } from '../src/config/testDatabaseSafety.js';
 
 /**
  * Deterministic Test Bootstrap
@@ -6,6 +7,8 @@ import { pool } from '../src/config/database.js';
  */
 
 export async function resetAndSeedDatabase(): Promise<void> {
+  await assertTestDatabaseSafety(pool);
+
   const client = await pool.connect();
 
   try {

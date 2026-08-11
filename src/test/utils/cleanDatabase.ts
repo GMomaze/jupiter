@@ -1,13 +1,12 @@
 import { pool } from '../../../src/config/database.js';
+import { assertTestDatabaseSafety } from '../../config/testDatabaseSafety.js';
 
 /**
  * Hard reset of relational test state.
  * Used ONLY in test environment.
  */
 export async function cleanDatabase(): Promise<void> {
-  if (process.env.NODE_ENV !== 'test') {
-    throw new Error('cleanDatabase() can only run in test mode');
-  }
+  await assertTestDatabaseSafety(pool);
 
   await pool.query(`
     TRUNCATE TABLE

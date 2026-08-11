@@ -4,12 +4,16 @@ import bcrypt from 'bcrypt';
 import app from '../../app.js';
 import { User, Role } from '../../models/index.js';
 import { v4 as uuid } from 'uuid';
+import { pool } from '../../config/database.js';
+import { assertTestDatabaseSafety } from '../../config/testDatabaseSafety.js';
 
 describe('Phase 2.5: Authentication & Authorization Tests', () => {
   const email = 'test@example.com';
   const password = 'password123';
 
   beforeEach(async () => {
+    await assertTestDatabaseSafety(pool);
+
     // Clear users before each test to prevent email collisions
     // Cascade ensures related records in user_roles are handled
     await User.destroy({ where: {}, cascade: true });
