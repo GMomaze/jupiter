@@ -273,6 +273,7 @@ TaskCard.belongsTo(User, { foreignKey: 'assigned_to', as: 'Assignee' });
 User.hasMany(TaskCard, { foreignKey: 'assigned_to', as: 'AssignedTasks' });
 TaskCard.belongsTo(User, { foreignKey: 'mechanic_completed_by', as: 'MechanicCompleter' });
 TaskCard.belongsTo(User, { foreignKey: 'engineer_certified_by', as: 'EngineerCertifier' });
+TaskCard.belongsTo(AircraftComponent, { foreignKey: 'component_id', as: 'Component' });
 
 Workpack.hasMany(WorkpackExecution, { foreignKey: 'workpack_id', as: 'Executions' });
 WorkpackExecution.belongsTo(Workpack, { foreignKey: 'workpack_id', as: 'Workpack' });

@@ -943,6 +943,10 @@ router.get('/model/:id', async (req, res, next) => {
       : '200';
 
     const model = await LibraryService.getModelById(id);
+    if (!model) {
+      return res.status(404).send('Component model not found.');
+    }
+
     const requirements = await LibraryService.getModelRequirements(id);
     const serviceBulletins = await LibraryService.getModelServiceBulletins(id);
     const attachableServiceBulletins = await LibraryService.getAttachableServiceBulletins(id);
