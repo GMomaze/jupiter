@@ -962,6 +962,23 @@
                         </div>
                     </div>
 
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">
+                            Tracking Basis
+                        </label>
+                        <select name="tracking_basis"
+                                required
+                                class="mt-1 block w-full border-gray-300 rounded-md shadow-sm">
+                            <option value="">Select Tracking Basis</option>
+                            <option value="AIRCRAFT_HOURS">Aircraft Hours</option>
+                            <option value="AIRCRAFT_CYCLES">Aircraft Cycles</option>
+                            <option value="CALENDAR">Calendar</option>
+                            <option value="ENGINE_METER">Engine Meter</option>
+                            <option value="PROPELLER_METER">Propeller Meter</option>
+                            <option value="MANUAL_AUTHORISED">Manual Authorised</option>
+                        </select>
+                    </div>
+
                     <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
                         <div>
                             <label class="block text-sm font-medium text-gray-700">
@@ -1313,6 +1330,11 @@
     </section>
 
     <section id="installed-components-panel" class="aircraft-tab-panel hidden">
+        <% if (messages && messages.error && messages.error.length) { %>
+            <div class="mb-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800" role="alert">
+                <%= messages.error[0] %>
+            </div>
+        <% } %>
         <div class="bg-white shadow rounded-lg p-6 mb-10">
             <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                 <div>

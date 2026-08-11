@@ -88,6 +88,76 @@ describe('AircraftComponentService serialized tracking basis baselines', () => {
     ).rejects.toThrow(/TRACKING_BASIS_REQUIRED/);
   });
 
+  it('requires tracking basis for baseline capture', async () => {
+    const { aircraft, serializedComponent } = await createSerializedInstallContext();
+
+    await expect(
+      AircraftComponentService.baselineCaptureSerializedComponent({
+        aircraft_id: aircraft.id,
+        serialized_component_id: serializedComponent.id,
+        installed_at: '2026-06-17',
+      })
+    ).rejects.toThrow(/TRACKING_BASIS_REQUIRED/);
+  });
+
+  it('creates exactly one active baseline installation and installs the serialized component', async () => {
+    const { aircraft, serializedComponent } = await createSerializedInstallContext();
+
+    await AircraftComponentService.baselineCaptureSerializedComponent({
+      aircraft_id: aircraft.id,
+      serialized_component_id: serializedComponent.id,
+      installed_at: '2026-06-17',
+      tracking_basis: 'AIRCRAFT_HOURS',
+      install_tsn: '100.25',
+      install_tso: '5.5',
+    });
+
+    const activeInstallations = await AircraftComponentInstallation.findAll({
+      where: {
+        aircraft_id: aircraft.id,
+        serialized_component_id: serializedComponent.id,
+        removed_at: null,
+      },
+    });
+    const refreshedComponent = await SerializedComponent.findByPk(serializedComponent.id);
+
+    expect(activeInstallations).toHaveLength(1);
+    expect(activeInstallations[0]?.installation_context).toBe('BASELINE_CAPTURE');
+    expect(activeInstallations[0]?.tracking_basis).toBe('AIRCRAFT_HOURS');
+    expect(refreshedComponent?.status).toBe('INSTALLED');
+  });
+
+  it('keeps duplicate active baseline installation protection', async () => {
+    const { aircraft, serializedComponent } = await createSerializedInstallContext();
+
+    await AircraftComponentService.baselineCaptureSerializedComponent({
+      aircraft_id: aircraft.id,
+      serialized_component_id: serializedComponent.id,
+      installed_at: '2026-06-17',
+      tracking_basis: 'AIRCRAFT_HOURS',
+    });
+
+    await SerializedComponent.update(
+      { status: 'AVAILABLE' },
+      { where: { id: serializedComponent.id } }
+    );
+
+    await expect(
+      AircraftComponentService.baselineCaptureSerializedComponent({
+        aircraft_id: aircraft.id,
+        serialized_component_id: serializedComponent.id,
+        installed_at: '2026-06-18',
+        tracking_basis: 'AIRCRAFT_HOURS',
+      })
+    ).rejects.toThrow(/SERIALIZED_COMPONENT_ALREADY_INSTALLED/);
+
+    expect(
+      await AircraftComponentInstallation.count({
+        where: { serialized_component_id: serializedComponent.id, removed_at: null },
+      })
+    ).toBe(1);
+  });
+
   it('captures aircraft snapshot and CSN/CSO baselines on serialized install', async () => {
     const { aircraft, serializedComponent } = await createSerializedInstallContext();
 
@@ -268,6 +338,56 @@ describe('AircraftComponentService serialized tracking basis baselines', () => {
       expect(template).toContain('/serialized-components/baseline-capture');
       expect(template).toContain('/serialized-components');
       expect(template).toContain('Allocate to Aircraft');
+    }
+  });
+
+  it('submits the established tracking basis options from every baseline form', () => {
+    const aircraftView = readFileSync('src/views/aircraft/view.ejs', 'utf8');
+    const overviewPartial = readFileSync(
+      'src/views/aircraft/partials/view-overview-panel.ejs',
+      'utf8'
+    );
+    const operationalPartial = readFileSync(
+      'src/views/aircraft/partials/installed-components-operational-ux.ejs',
+      'utf8'
+    );
+    const acceptedOptions = [
+      'AIRCRAFT_HOURS',
+      'AIRCRAFT_CYCLES',
+      'CALENDAR',
+      'ENGINE_METER',
+      'PROPELLER_METER',
+      'MANUAL_AUTHORISED',
+    ];
+
+    for (const template of [aircraftView, overviewPartial, operationalPartial]) {
+      const baselineForm = template.match(
+        /<form action="[^"]*\/serialized-components\/baseline-capture"[\s\S]*?<\/form>/
+      )?.[0];
+
+      expect(baselineForm).toBeTruthy();
+      expect(baselineForm).toContain('name="tracking_basis"');
+      expect(baselineForm).toContain('required');
+      for (const option of acceptedOptions) {
+        expect(baselineForm).toContain(`value="${option}"`);
+      }
+    }
+  });
+
+  it('shows a friendly tracking-basis validation message in installed component workflow', () => {
+    const controller = readFileSync('src/modules/aircraft/aircraft.controller.ts', 'utf8');
+    const aircraftView = readFileSync('src/views/aircraft/view.ejs', 'utf8');
+    const operationalPartial = readFileSync(
+      'src/views/aircraft/partials/installed-components-operational-ux.ejs',
+      'utf8'
+    );
+
+    expect(controller).toContain("err.message === 'TRACKING_BASIS_REQUIRED'");
+    expect(controller).toContain(
+      'Select a tracking basis before capturing the existing installed component.'
+    );
+    for (const template of [aircraftView, operationalPartial]) {
+      expect(template).toMatch(/installed-components-panel[\s\S]*messages\.error/);
     }
   });
 

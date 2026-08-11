@@ -1330,7 +1330,12 @@ export class AircraftController {
 
       req.flash('success', 'Baseline capture recorded for inherited aircraft configuration.');
     } catch (err: any) {
-      req.flash('error', err.message);
+      req.flash(
+        'error',
+        err.message === 'TRACKING_BASIS_REQUIRED'
+          ? 'Select a tracking basis before capturing the existing installed component.'
+          : err.message
+      );
     }
 
     res.redirect(`/aircraft/view/${aircraftId}?tab=installed-components`);
