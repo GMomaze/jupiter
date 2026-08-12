@@ -5,6 +5,7 @@ import {
   APPROVED_ROLE_PERMISSION_MAPPINGS,
   reconcileApprovedRolePermissionMappings,
 } from '../../seeders/025_rbac_permission_mappings.js';
+import { seedLibraryPermissions } from '../../migrations/576_seed_library_permissions.js';
 import sequelize from '../../src/config/database.js';
 
 type IdRow = { id: string };
@@ -33,8 +34,6 @@ const operationalRoleCodes = [
   'VIEWER',
 ];
 const excludedPermissionCodes = [
-  'LIBRARY_VIEW',
-  'LIBRARY_EDIT',
   'AUDIT_VIEW',
   'AUDIT_EXPORT',
 ];
@@ -78,6 +77,7 @@ async function withRollback(
 
   try {
     await ensureMigration150RoleFixtures(transaction);
+    await seedLibraryPermissions(queryInterface, transaction);
     await work(transaction);
   } finally {
     await transaction.rollback();
@@ -155,6 +155,29 @@ async function permissionSnapshot(
 }
 
 describe('RBAC permission mapping seed safety', () => {
+  it('contains the complete 41-pair contract and exactly eight Library mappings', () => {
+    const libraryMappings = APPROVED_ROLE_PERMISSION_MAPPINGS.filter(
+      ({ permissionCode }) => permissionCode.startsWith('LIBRARY_')
+    );
+    const existingMappings = APPROVED_ROLE_PERMISSION_MAPPINGS.filter(
+      ({ permissionCode }) => !permissionCode.startsWith('LIBRARY_')
+    );
+
+    expect(APPROVED_ROLE_PERMISSION_MAPPINGS).toHaveLength(41);
+    expect(existingMappings).toHaveLength(33);
+    expect(libraryMappings).toHaveLength(8);
+    expect(
+      libraryMappings.filter(
+        ({ permissionCode }) => permissionCode === 'LIBRARY_VIEW'
+      )
+    ).toHaveLength(7);
+    expect(
+      libraryMappings.filter(
+        ({ permissionCode }) => permissionCode === 'LIBRARY_EDIT'
+      )
+    ).toEqual([{ roleCode: 'ADMIN', permissionCode: 'LIBRARY_EDIT' }]);
+  });
+
   it('reconciles every approved mapping without broadening the contract', async () => {
     await withRollback(async (transaction) => {
       const allMappingsBefore = await allMappings(transaction);
@@ -271,7 +294,10 @@ describe('RBAC permission mapping seed safety', () => {
 
   it('restores a missing approved mapping exactly once', async () => {
     await withRollback(async (transaction) => {
-      const mapping = APPROVED_ROLE_PERMISSION_MAPPINGS[0];
+      const mapping = APPROVED_ROLE_PERMISSION_MAPPINGS.find(
+        ({ roleCode, permissionCode }) =>
+          roleCode === 'MECHANIC' && permissionCode === 'LIBRARY_VIEW'
+      )!;
       await sequelize.query(
         `
         DELETE FROM rf_role_permissions rp
@@ -395,8 +421,8 @@ describe('RBAC permission mapping seed safety', () => {
   });
 
   it.each([
-    ['role', 'REFERENCE_VIEWER', 'rf_role'],
-    ['permission', 'REFERENCE_DEACTIVATE', 'rf_permission'],
+    ['role', 'MECHANIC', 'rf_role'],
+    ['permission', 'LIBRARY_EDIT', 'rf_permission'],
   ] as const)(
     'fails before inserting anything when a required %s is missing',
     async (_kind, missingCode, table) => {
