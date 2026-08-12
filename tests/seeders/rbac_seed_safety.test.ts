@@ -199,6 +199,12 @@ describe('RBAC seed safety', () => {
         `SELECT id FROM rf_role WHERE code = 'ADMIN';`,
         { type: QueryTypes.SELECT, transaction }
       );
+      await sequelize.query(
+        `INSERT INTO users(id,email,password_hash,full_name,is_active,created_at,updated_at)
+         VALUES(gen_random_uuid(),'viewer@jupiter.aero','viewer-test-hash','Viewer Test Fixture',true,NOW(),NOW())
+         ON CONFLICT (email) DO NOTHING;`,
+        { transaction }
+      );
       const [viewerBefore] = await sequelize.query<UserSnapshotRow>(
         `
         SELECT id, email, password_hash, full_name, is_active

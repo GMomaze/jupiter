@@ -6,6 +6,7 @@ import {
   reconcileApprovedRolePermissionMappings,
 } from '../../seeders/025_rbac_permission_mappings.js';
 import { seedLibraryPermissions } from '../../migrations/576_seed_library_permissions.js';
+import { seedComponentLifeLimitGovernancePermissions } from '../../migrations/577_seed_component_life_limit_governance_permissions.js';
 import sequelize from '../../src/config/database.js';
 
 type IdRow = { id: string };
@@ -78,6 +79,7 @@ async function withRollback(
   try {
     await ensureMigration150RoleFixtures(transaction);
     await seedLibraryPermissions(queryInterface, transaction);
+    await seedComponentLifeLimitGovernancePermissions(queryInterface, transaction);
     await work(transaction);
   } finally {
     await transaction.rollback();
@@ -155,7 +157,7 @@ async function permissionSnapshot(
 }
 
 describe('RBAC permission mapping seed safety', () => {
-  it('contains the complete 41-pair contract and exactly eight Library mappings', () => {
+  it('contains the complete 45-pair contract including four life-governance mappings', () => {
     const libraryMappings = APPROVED_ROLE_PERMISSION_MAPPINGS.filter(
       ({ permissionCode }) => permissionCode.startsWith('LIBRARY_')
     );
@@ -163,8 +165,12 @@ describe('RBAC permission mapping seed safety', () => {
       ({ permissionCode }) => !permissionCode.startsWith('LIBRARY_')
     );
 
-    expect(APPROVED_ROLE_PERMISSION_MAPPINGS).toHaveLength(41);
-    expect(existingMappings).toHaveLength(33);
+    const governanceMappings = APPROVED_ROLE_PERMISSION_MAPPINGS.filter(
+      ({ permissionCode }) => permissionCode.startsWith('COMPONENT_LIFE_LIMIT_')
+    );
+
+    expect(APPROVED_ROLE_PERMISSION_MAPPINGS).toHaveLength(45);
+    expect(existingMappings).toHaveLength(37);
     expect(libraryMappings).toHaveLength(8);
     expect(
       libraryMappings.filter(
@@ -176,6 +182,12 @@ describe('RBAC permission mapping seed safety', () => {
         ({ permissionCode }) => permissionCode === 'LIBRARY_EDIT'
       )
     ).toEqual([{ roleCode: 'ADMIN', permissionCode: 'LIBRARY_EDIT' }]);
+    expect(governanceMappings).toEqual([
+      { roleCode: 'ADMIN', permissionCode: 'COMPONENT_LIFE_LIMIT_PROPOSE' },
+      { roleCode: 'ENGINEER', permissionCode: 'COMPONENT_LIFE_LIMIT_PROPOSE' },
+      { roleCode: 'ADMIN', permissionCode: 'COMPONENT_LIFE_LIMIT_APPROVE' },
+      { roleCode: 'QA', permissionCode: 'COMPONENT_LIFE_LIMIT_APPROVE' },
+    ]);
   });
 
   it('reconciles every approved mapping without broadening the contract', async () => {
@@ -475,14 +487,15 @@ describe('RBAC permission mapping seed safety', () => {
     }
   );
 
-  it('does not introduce excluded or future-governance permissions', async () => {
+  it('does not introduce excluded permissions or broaden life governance', async () => {
     await withRollback(async (transaction) => {
       const excludedBefore = await sequelize.query<{ code: string }>(
         `
         SELECT code
         FROM rf_permission
         WHERE code IN (:excludedCodes)
-           OR code LIKE 'COMPONENT_LIFE_LIMIT_%'
+           OR (code LIKE 'COMPONENT_LIFE_LIMIT_%'
+               AND code NOT IN ('COMPONENT_LIFE_LIMIT_PROPOSE','COMPONENT_LIFE_LIMIT_APPROVE'))
         ORDER BY code;
         `,
         {
@@ -502,7 +515,8 @@ describe('RBAC permission mapping seed safety', () => {
         SELECT code
         FROM rf_permission
         WHERE code IN (:excludedCodes)
-           OR code LIKE 'COMPONENT_LIFE_LIMIT_%'
+           OR (code LIKE 'COMPONENT_LIFE_LIMIT_%'
+               AND code NOT IN ('COMPONENT_LIFE_LIMIT_PROPOSE','COMPONENT_LIFE_LIMIT_APPROVE'))
         ORDER BY code;
         `,
         {

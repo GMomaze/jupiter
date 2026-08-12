@@ -55,6 +55,10 @@ export const APPROVED_ROLE_PERMISSION_MAPPINGS = [
     'VIEWER',
   ].map((roleCode) => ({ roleCode, permissionCode: 'LIBRARY_VIEW' })),
   { roleCode: 'ADMIN', permissionCode: 'LIBRARY_EDIT' },
+  { roleCode: 'ADMIN', permissionCode: 'COMPONENT_LIFE_LIMIT_PROPOSE' },
+  { roleCode: 'ENGINEER', permissionCode: 'COMPONENT_LIFE_LIMIT_PROPOSE' },
+  { roleCode: 'ADMIN', permissionCode: 'COMPONENT_LIFE_LIMIT_APPROVE' },
+  { roleCode: 'QA', permissionCode: 'COMPONENT_LIFE_LIMIT_APPROVE' },
 ] as const;
 
 const REQUIRED_ROLE_CODES = [

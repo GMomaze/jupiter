@@ -9,6 +9,9 @@ import { SerializedComponent } from './SerializedComponent.js';
 import { SerializedComponentLifeState } from './SerializedComponentLifeState.js';
 import { SerializedComponentMaintenanceEvent } from './SerializedComponentMaintenanceEvent.js';
 import { ComponentLifeLimit } from './ComponentLifeLimit.js';
+import { ComponentLifeLimitProposal } from './ComponentLifeLimitProposal.js';
+import { ComponentLifeLimitPublication } from './ComponentLifeLimitPublication.js';
+import { ComponentLifeLimitGovernanceHistory } from './ComponentLifeLimitGovernanceHistory.js';
 import { AircraftComponentInstallation } from './AircraftComponentInstallation.js';
 import { ServiceBulletin } from './ServiceBulletin.js';
 import { ServiceBulletinModel } from './ServiceBulletinModel.js';
@@ -324,6 +327,23 @@ MigrationBatch.hasMany(MigrationBatchRow, {
   foreignKey: 'batch_id',
   as: 'Rows',
 });
+ComponentModel.hasMany(ComponentLifeLimitProposal, { foreignKey: 'component_model_id', as: 'LifeLimitProposals' });
+ComponentLifeLimitProposal.belongsTo(ComponentModel, { foreignKey: 'component_model_id', as: 'ComponentModel' });
+ComponentLifeLimitProposal.belongsTo(User, { foreignKey: 'proposed_by', as: 'Proposer' });
+ComponentLifeLimitProposal.belongsTo(User, { foreignKey: 'decision_by', as: 'DecisionMaker' });
+ComponentLifeLimitProposal.belongsTo(ComponentLifeLimitProposal, { foreignKey: 'target_proposal_id', as: 'TargetProposal' });
+ComponentLifeLimitProposal.hasMany(ComponentLifeLimitProposal, { foreignKey: 'target_proposal_id', as: 'RevisionRequests' });
+ComponentLifeLimitProposal.hasOne(ComponentLifeLimitPublication, { foreignKey: 'proposal_id', as: 'Publication' });
+ComponentLifeLimitPublication.belongsTo(ComponentLifeLimitProposal, { foreignKey: 'proposal_id', as: 'Proposal' });
+ComponentLifeLimit.hasOne(ComponentLifeLimitPublication, { foreignKey: 'component_life_limit_id', as: 'GovernancePublication' });
+ComponentLifeLimitPublication.belongsTo(ComponentLifeLimit, { foreignKey: 'component_life_limit_id', as: 'ComponentLifeLimit' });
+ComponentLifeLimitPublication.belongsTo(User, { foreignKey: 'published_by', as: 'Publisher' });
+ComponentLifeLimitPublication.belongsTo(User, { foreignKey: 'terminal_by', as: 'TerminalActor' });
+ComponentLifeLimitProposal.hasMany(ComponentLifeLimitGovernanceHistory, { foreignKey: 'proposal_id', as: 'GovernanceHistory' });
+ComponentLifeLimitGovernanceHistory.belongsTo(ComponentLifeLimitProposal, { foreignKey: 'proposal_id', as: 'Proposal' });
+ComponentLifeLimitPublication.hasMany(ComponentLifeLimitGovernanceHistory, { foreignKey: 'publication_id', as: 'GovernanceHistory' });
+ComponentLifeLimitGovernanceHistory.belongsTo(ComponentLifeLimitPublication, { foreignKey: 'publication_id', as: 'Publication' });
+ComponentLifeLimitGovernanceHistory.belongsTo(User, { foreignKey: 'actor_id', as: 'Actor' });
 MigrationBatchRow.belongsTo(MigrationBatch, {
   foreignKey: 'batch_id',
   as: 'Batch',
