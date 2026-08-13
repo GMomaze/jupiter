@@ -108,6 +108,7 @@ router.get('/life-limit-governance/proposals/:id/replacement/new', requirePermis
 router.post('/life-limit-governance/proposals/:id/replacement', requirePermission('COMPONENT_LIFE_LIMIT_PROPOSE'), csrfProtection, ComponentLifeLimitGovernanceController.createReplacement);
 router.get('/life-limit-governance/proposals/:id/withdrawal/new', requirePermission('COMPONENT_LIFE_LIMIT_PROPOSE'), ComponentLifeLimitGovernanceController.newWithdrawal);
 router.post('/life-limit-governance/proposals/:id/withdrawal', requirePermission('COMPONENT_LIFE_LIMIT_PROPOSE'), csrfProtection, ComponentLifeLimitGovernanceController.createWithdrawal);
+router.post('/life-limit-governance/publications/:id/activate', requirePermission('COMPONENT_LIFE_LIMIT_ACTIVATE'), csrfProtection, ComponentLifeLimitGovernanceController.activate);
 
 router.get(
   '/tasks/import',

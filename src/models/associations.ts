@@ -338,6 +338,7 @@ ComponentLifeLimitPublication.belongsTo(ComponentLifeLimitProposal, { foreignKey
 ComponentLifeLimit.hasOne(ComponentLifeLimitPublication, { foreignKey: 'component_life_limit_id', as: 'GovernancePublication' });
 ComponentLifeLimitPublication.belongsTo(ComponentLifeLimit, { foreignKey: 'component_life_limit_id', as: 'ComponentLifeLimit' });
 ComponentLifeLimitPublication.belongsTo(User, { foreignKey: 'published_by', as: 'Publisher' });
+ComponentLifeLimitPublication.belongsTo(User, { foreignKey: 'activated_by', as: 'ActivationActor' });
 ComponentLifeLimitPublication.belongsTo(User, { foreignKey: 'terminal_by', as: 'TerminalActor' });
 ComponentLifeLimitProposal.hasMany(ComponentLifeLimitGovernanceHistory, { foreignKey: 'proposal_id', as: 'GovernanceHistory' });
 ComponentLifeLimitGovernanceHistory.belongsTo(ComponentLifeLimitProposal, { foreignKey: 'proposal_id', as: 'Proposal' });

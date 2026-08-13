@@ -10,6 +10,21 @@ const guardedRun = process.env.RUN_GOVERNANCE_ROLLBACK_TEST === 'true';
 describe.skipIf(!guardedRun)('component life-limit governance real rollback guard', () => {
   it('allows empty down, restores up, and refuses non-empty down without partial removal', async () => {
     const queryInterface = sequelize.getQueryInterface();
+    const [phase2] = await sequelize.query<{ present: string | null }>(
+      `SELECT to_regprocedure('public.fn_cllg_activate_publication(uuid,uuid,text)')::text AS present;`,
+      { type: QueryTypes.SELECT }
+    );
+    if (phase2?.present) {
+      await expect(migration.down(queryInterface)).rejects.toThrow('COMPONENT_LIFE_LIMIT_GOVERNANCE_HISTORY_EXISTS');
+      const [preserved] = await sequelize.query<{ table_present: string; function_present: string }>(
+        `SELECT to_regclass('public.component_life_limit_proposals')::text AS table_present,
+                to_regprocedure('public.fn_cllg_decide_proposal(uuid,uuid,character varying,text,boolean)')::text AS function_present;`,
+        { type: QueryTypes.SELECT }
+      );
+      expect(preserved?.table_present).toBe('component_life_limit_proposals');
+      expect(preserved?.function_present).toContain('fn_cllg_decide_proposal');
+      return;
+    }
     await migration.down(queryInterface);
     const absent = await sequelize.query<{ present: string | null }>(
       `SELECT to_regclass('public.component_life_limit_proposals')::text AS present;`,

@@ -78,6 +78,10 @@ const DOMAIN_MESSAGES = new Map<string, string>([
   ['COMPONENT_LIFE_LIMIT_INVALID_REVISION_TARGET', 'The governed target is no longer available for this revision. Reload it and review the current state.'],
   ['COMPONENT_LIFE_LIMIT_EVIDENCE_CONFIRMATION_REQUIRED', 'Confirm the evidence before approving this proposal.'],
   ['COMPONENT_LIFE_LIMIT_PERMISSION_DENIED', 'You do not have permission to perform this governance action.'],
+  ['COMPONENT_LIFE_LIMIT_SELF_ACTIVATION_FORBIDDEN', 'Two-person control prevents proposers from activating their own proposals.'],
+  ['COMPONENT_LIFE_LIMIT_ACTIVATION_CONFIRMATION_REQUIRED', 'Confirm that activation makes this governed limit available to existing due calculations.'],
+  ['COMPONENT_LIFE_LIMIT_INVALID_ACTIVATION_TRANSITION', 'This publication is no longer dormant. Reload it and review the current state.'],
+  ['COMPONENT_LIFE_LIMIT_PUBLICATION_NOT_ELIGIBLE', 'This publication is not eligible for activation. Reload it and review the governed record.'],
 ]);
 
 function friendly(error: any) {
@@ -100,7 +104,7 @@ export class ComponentLifeLimitGovernanceController {
     try { const input = inputFrom(req.body); if (!await ComponentLifeLimitGovernanceService.modelExists(input.component_model_id)) throw new GovernanceInputError('Select an existing active component model.'); const proposal = await ComponentLifeLimitGovernanceService.propose(actorId(req), input); req.flash('success', 'Governed life-limit proposal created for independent review.'); return res.redirect(`/library/life-limit-governance/proposals/${proposal.id}`); }
     catch (error) { return renderForm(res, 422, { form: req.body, errors: [friendly(error)] }); }
   }
-  static async detail(req: Request, res: Response, next: NextFunction) { try { const id=validateUuid(String(req.params.id), 'Proposal not found.', 404); const data = await ComponentLifeLimitGovernanceService.detail(id); return res.render('library/life-limit-governance/detail', { title: 'Life-Limit Proposal', ...data, currentUserId: actorId(req), canPropose: hasPermission(req, 'COMPONENT_LIFE_LIMIT_PROPOSE'), canApprove: hasPermission(req, 'COMPONENT_LIFE_LIMIT_APPROVE') }); } catch(error) { if (error instanceof GovernanceInputError || String((error as any)?.message).includes('PROPOSAL_NOT_FOUND')) return res.status(404).send('Governed life-limit proposal not found.'); return next(error); } }
+  static async detail(req: Request, res: Response, next: NextFunction) { try { const id=validateUuid(String(req.params.id), 'Proposal not found.', 404); const data = await ComponentLifeLimitGovernanceService.detail(id); return res.render('library/life-limit-governance/detail', { title: 'Life-Limit Proposal', ...data, currentUserId: actorId(req), canPropose: hasPermission(req, 'COMPONENT_LIFE_LIMIT_PROPOSE'), canApprove: hasPermission(req, 'COMPONENT_LIFE_LIMIT_APPROVE'), canActivate: hasPermission(req, 'COMPONENT_LIFE_LIMIT_ACTIVATE') }); } catch(error) { if (error instanceof GovernanceInputError || String((error as any)?.message).includes('PROPOSAL_NOT_FOUND')) return res.status(404).send('Governed life-limit proposal not found.'); return next(error); } }
   private static async decide(req: Request, res: Response, action: 'approve' | 'reject') {
     try { if (action === 'approve') await ComponentLifeLimitGovernanceService.approve(actorId(req), String(req.params.id), text(req.body.decision_reason), req.body.evidence_confirmed === 'true'); else await ComponentLifeLimitGovernanceService.reject(actorId(req), String(req.params.id), text(req.body.decision_reason)); req.flash('success', `Proposal ${action === 'approve' ? 'approved' : 'rejected'} with immutable history.`); }
     catch (error) { req.flash('error', friendly(error)); }
@@ -124,4 +128,17 @@ export class ComponentLifeLimitGovernanceController {
   }
   static createReplacement(req: Request, res: Response) { return ComponentLifeLimitGovernanceController.createRevision(req, res, 'REPLACEMENT'); }
   static createWithdrawal(req: Request, res: Response) { return ComponentLifeLimitGovernanceController.createRevision(req, res, 'WITHDRAWAL'); }
+  static async activate(req: Request, res: Response) {
+    const publicationId = String(req.params.id);
+    try {
+      validateUuid(publicationId, 'Publication not found.', 404);
+      const publication = await ComponentLifeLimitGovernanceService.activate(actorId(req), publicationId, text(req.body.activation_reason), req.body.activation_confirmed === 'true');
+      req.flash('success', 'Governed life-limit publication activated with immutable history.');
+      return res.redirect(`/library/life-limit-governance/proposals/${publication.proposal_id}`);
+    } catch (error) {
+      if (error instanceof GovernanceInputError && error.status === 404 || String((error as any)?.message).includes('PUBLICATION_NOT_FOUND')) return res.status(404).send('Governed life-limit publication not found.');
+      req.flash('error', friendly(error));
+      return res.redirect(`/library/life-limit-governance/proposals/${req.body.proposal_id}`);
+    }
+  }
 }

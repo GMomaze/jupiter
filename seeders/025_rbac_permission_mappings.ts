@@ -59,6 +59,8 @@ export const APPROVED_ROLE_PERMISSION_MAPPINGS = [
   { roleCode: 'ENGINEER', permissionCode: 'COMPONENT_LIFE_LIMIT_PROPOSE' },
   { roleCode: 'ADMIN', permissionCode: 'COMPONENT_LIFE_LIMIT_APPROVE' },
   { roleCode: 'QA', permissionCode: 'COMPONENT_LIFE_LIMIT_APPROVE' },
+  { roleCode: 'ADMIN', permissionCode: 'COMPONENT_LIFE_LIMIT_ACTIVATE' },
+  { roleCode: 'QA', permissionCode: 'COMPONENT_LIFE_LIMIT_ACTIVATE' },
 ] as const;
 
 const REQUIRED_ROLE_CODES = [

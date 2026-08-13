@@ -8,6 +8,9 @@ export class ComponentLifeLimitPublication extends Model {
   declare publication_state: 'DORMANT' | 'ACTIVE' | 'WITHDRAWN' | 'SUPERSEDED';
   declare published_by: string;
   declare published_at: Date;
+  declare activated_by: string | null;
+  declare activated_at: Date | null;
+  declare activation_reason: string | null;
   declare terminal_by: string | null;
   declare terminal_at: Date | null;
   declare terminal_reason: string | null;
@@ -21,6 +24,9 @@ ComponentLifeLimitPublication.init(
     publication_state: { type: DataTypes.STRING(20), allowNull: false, defaultValue: 'DORMANT' },
     published_by: { type: DataTypes.UUID, allowNull: false },
     published_at: { type: DataTypes.DATE, allowNull: false, defaultValue: DataTypes.NOW },
+    activated_by: { type: DataTypes.UUID, allowNull: true },
+    activated_at: { type: DataTypes.DATE, allowNull: true },
+    activation_reason: { type: DataTypes.TEXT, allowNull: true },
     terminal_by: { type: DataTypes.UUID, allowNull: true },
     terminal_at: { type: DataTypes.DATE, allowNull: true },
     terminal_reason: { type: DataTypes.TEXT, allowNull: true },

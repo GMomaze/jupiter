@@ -42,10 +42,14 @@ type PublicationRow = {
   proposal_id: string;
   component_life_limit_id: string;
   publication_state: 'DORMANT' | 'ACTIVE' | 'WITHDRAWN' | 'SUPERSEDED';
+  activated_by: string | null;
+  activated_at: Date | null;
+  activation_reason: string | null;
 };
 
 const PROPOSE = 'COMPONENT_LIFE_LIMIT_PROPOSE';
 const APPROVE = 'COMPONENT_LIFE_LIMIT_APPROVE';
+const ACTIVATE = 'COMPONENT_LIFE_LIMIT_ACTIVATE';
 
 export class ComponentLifeLimitGovernanceService {
   static async list() {
@@ -87,6 +91,8 @@ export class ComponentLifeLimitGovernanceService {
       `SELECT p.*, cm.model_name, m.name AS manufacturer_name,
               proposer.full_name AS proposer_name, decision.full_name AS decision_maker_name,
               pub.id AS publication_id, pub.publication_state, pub.published_at,
+              pub.activated_by, pub.activated_at, pub.activation_reason,
+              activator.full_name AS activation_actor_name,
               l.id AS operational_limit_id, l.is_active AS operational_limit_active,
               l.description AS operational_limit_description
        FROM public.component_life_limit_proposals p
@@ -95,6 +101,7 @@ export class ComponentLifeLimitGovernanceService {
        JOIN public.users proposer ON proposer.id=p.proposed_by
        LEFT JOIN public.users decision ON decision.id=p.decision_by
        LEFT JOIN public.component_life_limit_publications pub ON pub.proposal_id=p.id
+       LEFT JOIN public.users activator ON activator.id=pub.activated_by
        LEFT JOIN public.component_life_limits l ON l.id=pub.component_life_limit_id
        WHERE p.id=:id;`,
       { replacements: { id }, type: QueryTypes.SELECT }
@@ -230,6 +237,35 @@ export class ComponentLifeLimitGovernanceService {
         { replacements: { proposalId, actorId, decisionReason }, transaction }
       );
       return this.proposalForUpdate(proposalId, transaction);
+    };
+    if (suppliedTransaction) { await this.requireSerializable(suppliedTransaction); return work(suppliedTransaction); }
+    return sequelize.transaction({ isolationLevel: Transaction.ISOLATION_LEVELS.SERIALIZABLE }, work);
+  }
+
+  static async activate(actorId: string, publicationId: string, activationReason: string, activationConfirmed: boolean, suppliedTransaction?: Transaction) {
+    if (!activationConfirmed) throw new Error('COMPONENT_LIFE_LIMIT_ACTIVATION_CONFIRMATION_REQUIRED');
+    this.requireText(activationReason, 'activation_reason');
+    const work = async (transaction: Transaction) => {
+      await this.requirePermission(actorId, ACTIVATE, transaction);
+      const [publication] = await sequelize.query<PublicationRow & { proposed_by: string; decision_by: string | null }>(
+        `SELECT pub.*, proposal.proposed_by, proposal.decision_by
+         FROM public.component_life_limit_publications pub
+         JOIN public.component_life_limit_proposals proposal ON proposal.id=pub.proposal_id
+         WHERE pub.id=:publicationId FOR UPDATE OF pub,proposal;`,
+        { replacements: { publicationId }, type: QueryTypes.SELECT, transaction }
+      );
+      if (!publication) throw new Error('COMPONENT_LIFE_LIMIT_PUBLICATION_NOT_FOUND');
+      if (publication.publication_state !== 'DORMANT') throw new Error('COMPONENT_LIFE_LIMIT_INVALID_ACTIVATION_TRANSITION');
+      if (publication.proposed_by === actorId) throw new Error('COMPONENT_LIFE_LIMIT_SELF_ACTIVATION_FORBIDDEN');
+      await sequelize.query(
+        `SELECT public.fn_cllg_activate_publication(:publicationId,:actorId,:activationReason);`,
+        { replacements: { publicationId, actorId, activationReason }, transaction }
+      );
+      const [activated] = await sequelize.query<PublicationRow>(
+        `SELECT * FROM public.component_life_limit_publications WHERE id=:publicationId;`,
+        { replacements: { publicationId }, type: QueryTypes.SELECT, transaction }
+      );
+      return activated!;
     };
     if (suppliedTransaction) { await this.requireSerializable(suppliedTransaction); return work(suppliedTransaction); }
     return sequelize.transaction({ isolationLevel: Transaction.ISOLATION_LEVELS.SERIALIZABLE }, work);

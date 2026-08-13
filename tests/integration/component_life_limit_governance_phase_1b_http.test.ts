@@ -5,13 +5,17 @@ import flash from 'connect-flash';
 import csrf from 'csurf';
 import request from 'supertest';
 import { QueryTypes } from 'sequelize';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import sequelize from '../../src/config/database.js';
 import libraryRoutes from '../../src/modules/library/library.routes.js';
+import { ComponentLifeLimitGovernanceService } from '../../src/modules/library/component-life-limit-governance.service.js';
 
 type Actor = { id: string; role: string };
 const actors: Record<string, Actor> = {};
 let modelId = '';
+let manufacturerId = '';
+let assetId = '';
+const ownedUserIds: string[] = [];
 
 function app() {
   const instance = express();
@@ -24,7 +28,7 @@ function app() {
     const actor = actors[String(req.headers['x-test-actor'] || '')];
     if (actor) {
       const permissions = actor.role === 'ENGINEER' ? [{ code: 'COMPONENT_LIFE_LIMIT_PROPOSE' }]
-        : actor.role === 'QA' ? [{ code: 'COMPONENT_LIFE_LIMIT_APPROVE' }] : [];
+        : actor.role === 'QA' ? [{ code: 'COMPONENT_LIFE_LIMIT_APPROVE' }, { code: 'COMPONENT_LIFE_LIMIT_ACTIVATE' }] : [];
       (req as any).user = { id: actor.id, full_name: actor.role, roles: [{ code: actor.role, permissions }] };
       (req as any).isAuthenticated = () => true;
     } else (req as any).isAuthenticated = () => false;
@@ -80,6 +84,12 @@ async function createProposal(agent: request.SuperAgentTest, actor: string, body
 
 beforeAll(async () => {
   const key = randomUUID();
+  await sequelize.query(`
+    INSERT INTO rf_role_permissions(role_id,permission_id)
+    SELECT r.id,p.id FROM rf_role r CROSS JOIN rf_permission p
+    WHERE r.code IN ('QA','ADMIN') AND p.code='COMPONENT_LIFE_LIMIT_ACTIVATE'
+    ON CONFLICT(role_id,permission_id) DO NOTHING;
+  `);
   const [manufacturer] = await sequelize.query<{ id: string }>(
     `INSERT INTO manufacturers(name,code) VALUES(:name,:code) RETURNING id;`,
     { replacements: { name: `Phase 1B HTTP ${key}`, code: `P1B-${key}` }, type: QueryTypes.SELECT }
@@ -93,14 +103,18 @@ beforeAll(async () => {
     { replacements: { manufacturer: manufacturer!.id, asset: asset!.id }, type: QueryTypes.SELECT }
   );
   modelId = model!.id;
-  for (const [name, role] of Object.entries({ engineer: 'ENGINEER', qa: 'QA', admin: 'ADMIN', otherAdmin: 'ADMIN', viewer: 'VIEWER' })) {
+  manufacturerId = manufacturer!.id;
+  assetId = asset!.id;
+  for (const [name, role] of Object.entries({ engineer: 'ENGINEER', qa: 'QA', admin: 'ADMIN', otherAdmin: 'ADMIN', supervisor: 'SUPERVISOR', planner: 'PLANNER', mechanic: 'MECHANIC', viewer: 'VIEWER', referenceAdmin: 'REFERENCE_ADMIN', referenceEditor: 'REFERENCE_EDITOR', referenceViewer: 'REFERENCE_VIEWER' })) {
     const [user] = await sequelize.query<{ id: string }>(
       `INSERT INTO users(email,password_hash,full_name,is_active,created_at,updated_at) VALUES(:email,'test',:name,true,NOW(),NOW()) RETURNING id;`,
       { replacements: { email: `${name}-${key}@test.invalid`, name }, type: QueryTypes.SELECT }
     );
     await sequelize.query(`INSERT INTO user_roles(user_id,role_id) SELECT :user,id FROM rf_role WHERE code=:role;`, { replacements: { user: user!.id, role } });
     actors[name] = { id: user!.id, role };
+    ownedUserIds.push(user!.id);
   }
+  actors.custom = { id: actors.viewer!.id, role: 'CUSTOM_TEST_ROLE' };
 });
 
 describe('Phase 1B real HTTP governance workflow', () => {
@@ -134,6 +148,23 @@ describe('Phase 1B real HTTP governance workflow', () => {
     expect((await qaAgent.post(`/library/life-limit-governance/proposals/${id}/approve`).set('x-test-actor', 'qa').type('form').send({ _csrf: qaToken, decision_reason: 'Independent QA approval', evidence_confirmed: 'true' })).status).toBe(302);
     const [publication] = await sequelize.query<any>(`SELECT p.publication_state,l.is_active FROM component_life_limit_publications p JOIN component_life_limits l ON l.id=p.component_life_limit_id WHERE p.proposal_id=:id;`, { replacements: { id }, type: QueryTypes.SELECT });
     expect(publication).toMatchObject({ publication_state: 'DORMANT', is_active: false });
+    const [publicationId] = await sequelize.query<any>(`SELECT id FROM component_life_limit_publications WHERE proposal_id=:id`, { replacements: { id }, type: QueryTypes.SELECT });
+    const activationToken = await csrfFor(qaAgent, 'qa', `/library/life-limit-governance/proposals/${id}`);
+    const qaDetail = await qaAgent.get(`/library/life-limit-governance/proposals/${id}`).set('x-test-actor', 'qa');
+    expect(qaDetail.text).toContain(`/library/life-limit-governance/publications/${publicationId.id}/activate`);
+    expect(qaDetail.text).toContain('Missing authoritative life-state inputs may still produce');
+    expect(qaDetail.text).toContain('Active legacy limits may coexist');
+    const engineerDetail = await engineerAgent.get(`/library/life-limit-governance/proposals/${id}`).set('x-test-actor', 'engineer');
+    expect(engineerDetail.text).not.toContain(`/library/life-limit-governance/publications/${publicationId.id}/activate`);
+    for (const denied of ['engineer','supervisor','planner','mechanic','viewer','referenceAdmin','referenceEditor','referenceViewer','custom']) {
+      const deniedAgent = request.agent(app());
+      const deniedResponse = await deniedAgent.post(`/library/life-limit-governance/publications/${publicationId.id}/activate`).set('x-test-actor', denied).type('form').send({ _csrf: activationToken, proposal_id: id, activation_reason: 'crafted', activation_confirmed: 'true' });
+      expect(deniedResponse.status, denied).toBe(403);
+    }
+    expect((await qaAgent.post(`/library/life-limit-governance/publications/${publicationId.id}/activate`).set('x-test-actor', 'qa').type('form').send({ proposal_id: id, activation_reason: 'missing csrf', activation_confirmed: 'true' })).status).toBe(403);
+    expect((await qaAgent.post(`/library/life-limit-governance/publications/${publicationId.id}/activate`).set('x-test-actor', 'qa').type('form').send({ _csrf: activationToken, proposal_id: id, activation_reason: 'QA release after approval', activation_confirmed: 'true' })).status).toBe(302);
+    const [activePublication] = await sequelize.query<any>(`SELECT p.publication_state,p.activated_by,l.is_active FROM component_life_limit_publications p JOIN component_life_limits l ON l.id=p.component_life_limit_id WHERE p.id=:id`, { replacements: { id: publicationId.id }, type: QueryTypes.SELECT });
+    expect(activePublication).toMatchObject({ publication_state: 'ACTIVE', activated_by: actors.qa!.id, is_active: true });
 
     const adminProposal = await createProposal(adminAgent, 'admin');
     const adminToken = await csrfFor(adminAgent, 'admin', `/library/life-limit-governance/proposals/${adminProposal}`);
@@ -151,6 +182,19 @@ describe('Phase 1B real HTTP governance workflow', () => {
     await qaAgent.post(`/library/life-limit-governance/proposals/${qaApprovalTarget}/approve`).set('x-test-actor', 'qa').type('form').send({ _csrf: qaApprovalToken, decision_reason: 'QA independently approves ADMIN proposal', evidence_confirmed: 'true' });
     const [qaApproved] = await sequelize.query<any>(`SELECT status FROM component_life_limit_proposals WHERE id=:id;`, { replacements: { id: qaApprovalTarget }, type: QueryTypes.SELECT });
     expect(qaApproved.status).toBe('APPROVED');
+    const [adminPublication] = await sequelize.query<any>(`SELECT id FROM component_life_limit_publications WHERE proposal_id=:id`, { replacements: { id: qaApprovalTarget }, type: QueryTypes.SELECT });
+    const proposerDetail = await adminAgent.get(`/library/life-limit-governance/proposals/${qaApprovalTarget}`).set('x-test-actor', 'admin');
+    expect(proposerDetail.text).not.toContain(`/library/life-limit-governance/publications/${adminPublication.id}/activate`);
+    const proposerToken = token(proposerDetail.text);
+    await adminAgent.post(`/library/life-limit-governance/publications/${adminPublication.id}/activate`).set('x-test-actor', 'admin').type('form').send({ _csrf: proposerToken, proposal_id: qaApprovalTarget, activation_reason: 'ADMIN self bypass attempt', activation_confirmed: 'true' });
+    const [stillDormant] = await sequelize.query<any>(`SELECT publication_state,activated_by FROM component_life_limit_publications WHERE id=:id`, { replacements: { id: adminPublication.id }, type: QueryTypes.SELECT });
+    expect(stillDormant).toMatchObject({ publication_state: 'DORMANT', activated_by: null });
+    const independentDetail = await other.get(`/library/life-limit-governance/proposals/${qaApprovalTarget}`).set('x-test-actor', 'otherAdmin');
+    expect(independentDetail.text).toContain(`/library/life-limit-governance/publications/${adminPublication.id}/activate`);
+    await other.post(`/library/life-limit-governance/publications/${adminPublication.id}/activate`).set('x-test-actor', 'otherAdmin').type('form').send({ _csrf: token(independentDetail.text), proposal_id: qaApprovalTarget, activation_reason: 'Independent ADMIN activation', activation_confirmed: 'true' });
+    const renderedActive = await other.get(`/library/life-limit-governance/proposals/${qaApprovalTarget}`).set('x-test-actor', 'otherAdmin');
+    expect(renderedActive.text).toContain('Independent ADMIN activation');
+    expect(renderedActive.text).toContain('PUBLICATION_ACTIVATED');
   });
 
   it('uses governed replacement and withdrawal proposals and refuses stale decisions', async () => {
@@ -222,6 +266,41 @@ describe('Phase 1B real HTTP governance workflow', () => {
     expect(detail.text).toContain('After snapshot');
     expect(detail.text).toContain('LEGACY_UNREVIEWED');
   });
+
+  it('returns safe activation 404s, friendly stale handling, and redacts unexpected internals', async () => {
+    const qa = request.agent(app());
+    const proposalId = await createProposal(request.agent(app()), 'engineer');
+    const csrfToken = await csrfFor(qa, 'qa', `/library/life-limit-governance/proposals/${proposalId}`);
+    expect((await qa.post('/library/life-limit-governance/publications/not-a-uuid/activate').set('x-test-actor', 'qa').type('form').send({ _csrf: csrfToken, proposal_id: randomUUID(), activation_reason: 'invalid', activation_confirmed: 'true' })).status).toBe(404);
+    expect((await qa.post(`/library/life-limit-governance/publications/${randomUUID()}/activate`).set('x-test-actor', 'qa').type('form').send({ _csrf: csrfToken, proposal_id: randomUUID(), activation_reason: 'missing', activation_confirmed: 'true' })).status).toBe(404);
+    const [stale] = await sequelize.query<any>(`SELECT pub.id,pub.proposal_id FROM component_life_limit_publications pub JOIN component_life_limit_proposals p ON p.id=pub.proposal_id WHERE p.component_model_id=:model AND pub.publication_state='ACTIVE' LIMIT 1`, { replacements: { model: modelId }, type: QueryTypes.SELECT });
+    const staleResponse = await qa.post(`/library/life-limit-governance/publications/${stale.id}/activate`).set('x-test-actor', 'qa').type('form').send({ _csrf: csrfToken, proposal_id: stale.proposal_id, activation_reason: 'stale retry', activation_confirmed: 'true' });
+    expect(staleResponse.status).toBe(302);
+    expect(`${staleResponse.text} ${staleResponse.headers.location}`).not.toMatch(/Sequelize|SQLSTATE|constraint|component_life_limits|stack/i);
+    const spy = vi.spyOn(ComponentLifeLimitGovernanceService, 'activate').mockRejectedValueOnce(new Error('Sequelize SQLSTATE constraint component_life_limits secret stack'));
+    const response = await qa.post(`/library/life-limit-governance/publications/${randomUUID()}/activate`).set('x-test-actor', 'qa').type('form').send({ _csrf: csrfToken, proposal_id: randomUUID(), activation_reason: 'forced failure', activation_confirmed: 'true' });
+    expect(response.status).toBe(302);
+    expect(`${response.text} ${response.headers.location}`).not.toMatch(/Sequelize|SQLSTATE|constraint|component_life_limits|stack/i);
+    spy.mockRestore();
+  });
 });
 
-afterAll(async () => sequelize.close());
+afterAll(async () => {
+  vi.restoreAllMocks();
+  await sequelize.transaction(async (transaction) => {
+    await sequelize.query(`ALTER TABLE public.component_life_limit_governance_history DISABLE TRIGGER tr_cllg_history_protect; ALTER TABLE public.component_life_limit_publications DISABLE TRIGGER tr_cllg_publication_protect; ALTER TABLE public.component_life_limit_proposals DISABLE TRIGGER tr_cllg_proposal_protect;`, { transaction });
+    const proposals = await sequelize.query<{ id: string }>(`SELECT id FROM component_life_limit_proposals WHERE component_model_id=:model`, { replacements: { model: modelId }, type: QueryTypes.SELECT, transaction });
+    const ids = proposals.map(({ id }) => id);
+    if (ids.length) {
+      await sequelize.query(`DELETE FROM component_life_limit_governance_history WHERE proposal_id IN (:ids)`, { replacements: { ids }, transaction });
+      const limits = await sequelize.query<{ id: string }>(`SELECT component_life_limit_id AS id FROM component_life_limit_publications WHERE proposal_id IN (:ids)`, { replacements: { ids }, type: QueryTypes.SELECT, transaction });
+      await sequelize.query(`DELETE FROM component_life_limit_publications WHERE proposal_id IN (:ids); DELETE FROM component_life_limit_proposals WHERE id IN (:ids)`, { replacements: { ids }, transaction });
+      if (limits.length) await sequelize.query(`DELETE FROM component_life_limits WHERE id IN (:ids)`, { replacements: { ids: limits.map(({ id }) => id) }, transaction });
+    }
+    await sequelize.query(`DELETE FROM user_roles WHERE user_id IN (:users); DELETE FROM users WHERE id IN (:users); DELETE FROM component_models WHERE id=:model; DELETE FROM manufacturers WHERE id=:manufacturer; DELETE FROM rf_asset_type WHERE id=:asset`, { replacements: { users: ownedUserIds, model: modelId, manufacturer: manufacturerId, asset: assetId }, transaction });
+    await sequelize.query(`ALTER TABLE public.component_life_limit_governance_history ENABLE TRIGGER tr_cllg_history_protect; ALTER TABLE public.component_life_limit_publications ENABLE TRIGGER tr_cllg_publication_protect; ALTER TABLE public.component_life_limit_proposals ENABLE TRIGGER tr_cllg_proposal_protect;`, { transaction });
+  });
+  const [remaining] = await sequelize.query<{ count: number }>(`SELECT COUNT(*)::int AS count FROM users WHERE id IN (:users)`, { replacements: { users: ownedUserIds }, type: QueryTypes.SELECT });
+  expect(remaining!.count).toBe(0);
+  await sequelize.close();
+});

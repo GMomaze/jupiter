@@ -27,6 +27,7 @@ describe('component life-limit governance Phase 1B UI contract', () => {
       "router.post('/life-limit-governance/proposals/:id/reject', requirePermission('COMPONENT_LIFE_LIMIT_APPROVE'), csrfProtection",
       "router.post('/life-limit-governance/proposals/:id/replacement', requirePermission('COMPONENT_LIFE_LIMIT_PROPOSE'), csrfProtection",
       "router.post('/life-limit-governance/proposals/:id/withdrawal', requirePermission('COMPONENT_LIFE_LIMIT_PROPOSE'), csrfProtection",
+      "router.post('/life-limit-governance/publications/:id/activate', requirePermission('COMPONENT_LIFE_LIMIT_ACTIVATE'), csrfProtection",
     ]) expect(routes).toContain(fragment);
     expect(routes).not.toContain("'/life-limit-governance', requirePermission('LIBRARY_EDIT')");
   });

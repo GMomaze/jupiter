@@ -20,14 +20,14 @@ describe('component life-limit governance permission foundation', () => {
       await seedComponentLifeLimitGovernancePermissions(queryInterface, transaction);
       const first = await sequelize.query(
         `SELECT id, code, label, description, module, is_active, system_locked
-         FROM rf_permission WHERE code LIKE 'COMPONENT_LIFE_LIMIT_%' ORDER BY code;`,
-        { type: QueryTypes.SELECT, transaction }
+         FROM rf_permission WHERE code IN (:codes) ORDER BY code;`,
+        { replacements: { codes: COMPONENT_LIFE_LIMIT_PERMISSION_DEFINITIONS.map(({ code }) => code) }, type: QueryTypes.SELECT, transaction }
       );
       await seedComponentLifeLimitGovernancePermissions(queryInterface, transaction);
       const second = await sequelize.query(
         `SELECT id, code, label, description, module, is_active, system_locked
-         FROM rf_permission WHERE code LIKE 'COMPONENT_LIFE_LIMIT_%' ORDER BY code;`,
-        { type: QueryTypes.SELECT, transaction }
+         FROM rf_permission WHERE code IN (:codes) ORDER BY code;`,
+        { replacements: { codes: COMPONENT_LIFE_LIMIT_PERMISSION_DEFINITIONS.map(({ code }) => code) }, type: QueryTypes.SELECT, transaction }
       );
       expect(second).toEqual(first);
       expect(second).toHaveLength(2);
