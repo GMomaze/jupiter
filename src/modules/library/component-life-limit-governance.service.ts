@@ -48,6 +48,73 @@ const PROPOSE = 'COMPONENT_LIFE_LIMIT_PROPOSE';
 const APPROVE = 'COMPONENT_LIFE_LIMIT_APPROVE';
 
 export class ComponentLifeLimitGovernanceService {
+  static async list() {
+    return sequelize.query(
+      `SELECT p.*, cm.model_name, m.name AS manufacturer_name,
+              proposer.full_name AS proposer_name, decision.full_name AS decision_maker_name,
+              pub.id AS publication_id, pub.publication_state
+       FROM public.component_life_limit_proposals p
+       JOIN public.component_models cm ON cm.id=p.component_model_id
+       JOIN public.manufacturers m ON m.id=cm.manufacturer_id
+       JOIN public.users proposer ON proposer.id=p.proposed_by
+       LEFT JOIN public.users decision ON decision.id=p.decision_by
+       LEFT JOIN public.component_life_limit_publications pub ON pub.proposal_id=p.id
+       ORDER BY p.created_at DESC, p.id DESC;`,
+      { type: QueryTypes.SELECT }
+    );
+  }
+
+  static async modelOptions() {
+    return sequelize.query(
+      `SELECT cm.id, cm.model_name, m.name AS manufacturer_name
+       FROM public.component_models cm
+       JOIN public.manufacturers m ON m.id=cm.manufacturer_id
+       WHERE cm.is_active=true ORDER BY m.name, cm.model_name;`,
+      { type: QueryTypes.SELECT }
+    );
+  }
+
+  static async modelExists(id: string) {
+    const rows = await sequelize.query<{ exists: boolean }>(
+      `SELECT EXISTS(SELECT 1 FROM public.component_models WHERE id=:id AND is_active=true) AS exists;`,
+      { replacements: { id }, type: QueryTypes.SELECT }
+    );
+    return rows[0]?.exists === true;
+  }
+
+  static async detail(id: string) {
+    const proposals = await sequelize.query<any>(
+      `SELECT p.*, cm.model_name, m.name AS manufacturer_name,
+              proposer.full_name AS proposer_name, decision.full_name AS decision_maker_name,
+              pub.id AS publication_id, pub.publication_state, pub.published_at,
+              l.id AS operational_limit_id, l.is_active AS operational_limit_active,
+              l.description AS operational_limit_description
+       FROM public.component_life_limit_proposals p
+       JOIN public.component_models cm ON cm.id=p.component_model_id
+       JOIN public.manufacturers m ON m.id=cm.manufacturer_id
+       JOIN public.users proposer ON proposer.id=p.proposed_by
+       LEFT JOIN public.users decision ON decision.id=p.decision_by
+       LEFT JOIN public.component_life_limit_publications pub ON pub.proposal_id=p.id
+       LEFT JOIN public.component_life_limits l ON l.id=pub.component_life_limit_id
+       WHERE p.id=:id;`,
+      { replacements: { id }, type: QueryTypes.SELECT }
+    );
+    if (!proposals[0]) throw new Error('COMPONENT_LIFE_LIMIT_PROPOSAL_NOT_FOUND');
+    const history = await sequelize.query(
+      `SELECT h.*, u.full_name AS actor_name
+       FROM public.component_life_limit_governance_history h
+       JOIN public.users u ON u.id=h.actor_id
+       WHERE h.proposal_id=:id ORDER BY h.created_at, h.id;`,
+      { replacements: { id }, type: QueryTypes.SELECT }
+    );
+    const legacyLimits = await sequelize.query(
+      `SELECT l.* FROM public.component_life_limits l
+       LEFT JOIN public.component_life_limit_publications p ON p.component_life_limit_id=l.id
+       WHERE l.component_model_id=:modelId AND p.id IS NULL ORDER BY l.created_at, l.id;`,
+      { replacements: { modelId: proposals[0].component_model_id }, type: QueryTypes.SELECT }
+    );
+    return { proposal: proposals[0], history, legacyLimits };
+  }
   static async propose(actorId: string, input: LifeLimitProposalInput, suppliedTransaction?: Transaction) {
     this.validateProposalInput(input);
     const work = async (transaction: Transaction) => {

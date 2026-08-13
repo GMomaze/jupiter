@@ -1,0 +1,13 @@
+<%- include('../../partials/header') %>
+<main class="max-w-7xl mx-auto py-10 px-4">
+  <div class="flex items-center justify-between">
+    <div><h1 class="text-3xl font-black text-slate-900">Component Life-Limit Governance</h1><p class="mt-2 text-sm text-slate-600">Governed model-wide proposals, independent decisions, and dormant publications.</p></div>
+    <% if (canPropose) { %><a href="/library/life-limit-governance/proposals/new" class="rounded bg-indigo-700 px-4 py-2 text-sm font-bold text-white">New proposal</a><% } %>
+  </div>
+  <div class="mt-8 overflow-hidden rounded border border-slate-200 bg-white">
+    <table class="w-full text-left text-sm"><thead class="bg-slate-100"><tr><th class="p-3">Model</th><th>Purpose / revision</th><th>Status</th><th>Proposer</th><th>Publication</th></tr></thead>
+      <tbody><% proposals.forEach((p) => { %><tr class="border-t"><td class="p-3"><a class="font-bold text-indigo-700" href="/library/life-limit-governance/proposals/<%= p.id %>"><%= p.manufacturer_name %> <%= p.model_name %></a></td><td><%= p.proposal_purpose %> / <%= p.revision_number %></td><td><%= p.status %></td><td><%= p.proposer_name %></td><td><%= p.publication_state || 'None' %></td></tr><% }) %></tbody>
+    </table>
+  </div>
+</main>
+<%- include('../../partials/footer') %>

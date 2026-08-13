@@ -33,6 +33,11 @@
       Restore direct visibility for component manufacturers, models, and serialized component records.
     </p>
     <div class="mt-4 flex flex-wrap gap-3">
+      <% if (canLifeLimitGovernance) { %>
+        <a href="/library/life-limit-governance" class="inline-flex rounded border border-indigo-300 bg-indigo-50 px-4 py-2 text-sm font-bold text-indigo-900 hover:bg-indigo-100">
+          Component Life-Limit Governance
+        </a>
+      <% } %>
       <a href="/library/manufacturers" class="inline-flex rounded border border-slate-300 bg-white px-4 py-2 text-sm font-bold text-slate-800 hover:bg-slate-100">
         Component Manufacturers / Models
       </a>

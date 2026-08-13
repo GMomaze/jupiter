@@ -30,8 +30,13 @@ export class LibraryController {
    * Render main library entry point with placeholder sections
    */
   static renderLibrary(req: Request, res: Response): void {
+    const roles = ((req.user as any)?.roles || []);
+    const permissionCodes = roles.flatMap((role: any) => role.permissions || role.Permissions || [])
+      .map((permission: any) => typeof permission === 'string' ? permission : permission?.code);
+    const isAdmin = roles.some((role: any) => (typeof role === 'string' ? role : role?.code) === 'ADMIN');
     res.render('library/index', {
       title: 'Maintenance Library',
+      canLifeLimitGovernance: isAdmin || permissionCodes.includes('COMPONENT_LIFE_LIMIT_PROPOSE') || permissionCodes.includes('COMPONENT_LIFE_LIMIT_APPROVE'),
     });
   }
 

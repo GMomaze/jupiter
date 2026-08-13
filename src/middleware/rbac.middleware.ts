@@ -82,6 +82,24 @@ export const requireRole = (roleCode: string) => {
   };
 };
 
+export const requireAnyPermission = (...permissionCodes: string[]) => {
+  return (req: Request, res: Response, next: NextFunction) => {
+    const roles = (req.user as any)?.roles || [];
+    const roleCodes = roles.map(normalizeRoleCode).filter(Boolean);
+    if (roleCodes.includes('ADMIN')) return next();
+
+    const permissions = roles.flatMap(normalizePermissions);
+    const allowed = permissions.some((permission: any) =>
+      permissionCodes.includes(typeof permission === 'string' ? permission : permission?.code)
+    );
+    if (allowed) return next();
+    if (req.headers.accept?.includes('application/json')) {
+      return res.status(403).json({ error: `Missing one of permissions: ${permissionCodes.join(', ')}` });
+    }
+    return res.status(403).render('errors/403', { message: 'Insufficient Permissions' });
+  };
+};
+
 export const requireAnyRole = (...acceptedRoleCodes: string[]) => {
   return (req: Request, res: Response, next: NextFunction) => {
     const user: any = req.user;
@@ -110,4 +128,4 @@ export const requireAnyRole = (...acceptedRoleCodes: string[]) => {
   };
 };
 
-export default { requireRole, requireAnyRole, requirePermission };
+export default { requireRole, requireAnyRole, requirePermission, requireAnyPermission };

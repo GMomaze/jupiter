@@ -9,8 +9,9 @@ import { AdRelevanceService, type AdRelevanceDirective } from './ad-relevance.se
 import { SbImportController } from './sb-import.controller.js';
 import { PiperModelMasterImportController } from './piper-model-master-import.controller.js';
 import { ensureAuthenticated } from '../../middleware/auth.middleware.js';
-import { requirePermission } from '../../middleware/rbac.middleware.js';
+import { requireAnyPermission, requirePermission } from '../../middleware/rbac.middleware.js';
 import { manufacturerLogoUpload } from '../../middleware/upload.middleware.js';
+import { ComponentLifeLimitGovernanceController } from './component-life-limit-governance.controller.js';
 
 const router = Router();
 const sidCsvUpload = multer({ storage: multer.memoryStorage() });
@@ -91,6 +92,22 @@ function renderAssetTypeCreateForm(
  * Main library page – shows placeholder sections for ADs, SBs, SIDs, Task Templates
  */
 router.get('/', LibraryController.renderLibrary);
+
+const governanceAccess = requireAnyPermission(
+  'COMPONENT_LIFE_LIMIT_PROPOSE',
+  'COMPONENT_LIFE_LIMIT_APPROVE'
+);
+
+router.get('/life-limit-governance', governanceAccess, ComponentLifeLimitGovernanceController.list);
+router.get('/life-limit-governance/proposals/new', requirePermission('COMPONENT_LIFE_LIMIT_PROPOSE'), ComponentLifeLimitGovernanceController.newProposal);
+router.post('/life-limit-governance/proposals', requirePermission('COMPONENT_LIFE_LIMIT_PROPOSE'), csrfProtection, ComponentLifeLimitGovernanceController.create);
+router.get('/life-limit-governance/proposals/:id', governanceAccess, ComponentLifeLimitGovernanceController.detail);
+router.post('/life-limit-governance/proposals/:id/approve', requirePermission('COMPONENT_LIFE_LIMIT_APPROVE'), csrfProtection, ComponentLifeLimitGovernanceController.approve);
+router.post('/life-limit-governance/proposals/:id/reject', requirePermission('COMPONENT_LIFE_LIMIT_APPROVE'), csrfProtection, ComponentLifeLimitGovernanceController.reject);
+router.get('/life-limit-governance/proposals/:id/replacement/new', requirePermission('COMPONENT_LIFE_LIMIT_PROPOSE'), ComponentLifeLimitGovernanceController.newReplacement);
+router.post('/life-limit-governance/proposals/:id/replacement', requirePermission('COMPONENT_LIFE_LIMIT_PROPOSE'), csrfProtection, ComponentLifeLimitGovernanceController.createReplacement);
+router.get('/life-limit-governance/proposals/:id/withdrawal/new', requirePermission('COMPONENT_LIFE_LIMIT_PROPOSE'), ComponentLifeLimitGovernanceController.newWithdrawal);
+router.post('/life-limit-governance/proposals/:id/withdrawal', requirePermission('COMPONENT_LIFE_LIMIT_PROPOSE'), csrfProtection, ComponentLifeLimitGovernanceController.createWithdrawal);
 
 router.get(
   '/tasks/import',
