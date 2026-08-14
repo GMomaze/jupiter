@@ -1,3 +1,113 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer components {
+  .btn,
+  .btn-primary,
+  .btn-secondary,
+  .btn-success,
+  .btn-warning,
+  .btn-danger {
+    display: inline-flex;
+    min-height: 44px;
+    max-width: 100%;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid transparent;
+    border-radius: 0.375rem;
+    padding: 0.625rem 1rem;
+    text-align: center;
+    font-weight: 700;
+    line-height: 1.25;
+    white-space: normal;
+    transition:
+      background-color 150ms ease,
+      border-color 150ms ease,
+      color 150ms ease,
+      box-shadow 150ms ease;
+  }
+
+  .btn-primary {
+    border-color: #1e40af;
+    background-color: #1d4ed8;
+    color: #ffffff;
+  }
+
+  .btn-primary:hover {
+    background-color: #1e40af;
+  }
+
+  .btn-secondary {
+    border-color: #94a3b8;
+    background-color: #ffffff;
+    color: #1e293b;
+  }
+
+  .btn-secondary:hover {
+    background-color: #e2e8f0;
+  }
+
+  .btn-success {
+    border-color: #065f46;
+    background-color: #047857;
+    color: #ffffff;
+  }
+
+  .btn-success:hover {
+    background-color: #065f46;
+  }
+
+  .btn-warning {
+    border-color: #78350f;
+    background-color: #92400e;
+    color: #ffffff;
+  }
+
+  .btn-warning:hover {
+    background-color: #78350f;
+  }
+
+  .btn-danger {
+    border-color: #9f1239;
+    background-color: #be123c;
+    color: #ffffff;
+  }
+
+  .btn-danger:hover {
+    background-color: #9f1239;
+  }
+
+  .btn:focus-visible,
+  .btn-primary:focus-visible,
+  .btn-secondary:focus-visible,
+  .btn-success:focus-visible,
+  .btn-warning:focus-visible,
+  .btn-danger:focus-visible {
+    outline: 3px solid #0ea5e9;
+    outline-offset: 3px;
+  }
+
+  button.btn:disabled,
+  input.btn:disabled,
+  button.btn-primary:disabled,
+  input.btn-primary:disabled,
+  button.btn-secondary:disabled,
+  input.btn-secondary:disabled,
+  button.btn-success:disabled,
+  input.btn-success:disabled,
+  button.btn-warning:disabled,
+  input.btn-warning:disabled,
+  button.btn-danger:disabled,
+  input.btn-danger:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+  }
+
+  .btn-action-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.75rem;
+  }
+}

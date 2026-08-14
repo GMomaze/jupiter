@@ -14,6 +14,9 @@
     <label class="block text-sm font-bold">Source document reference<input name="source_document_reference" required value="<%= form.source_document_reference || '' %>" class="mt-1 w-full rounded border p-2"></label>
     <label class="block text-sm font-bold">Evidence summary<textarea name="evidence_summary" required class="mt-1 w-full rounded border p-2"><%= form.evidence_summary || '' %></textarea></label>
     <label class="block text-sm font-bold">Proposal reason / justification<textarea name="proposal_reason" required class="mt-1 w-full rounded border p-2"><%= form.proposal_reason || '' %></textarea></label>
-    <button class="rounded bg-indigo-700 px-4 py-2 font-bold text-white">Submit for independent review</button>
+    <div class="btn-action-bar pt-2">
+      <a href="/library/life-limit-governance" class="btn btn-secondary">Cancel / Back</a>
+      <button type="submit" class="btn btn-primary">Submit for independent review</button>
+    </div>
   </form>
 </main><%- include('../../partials/footer') %>
