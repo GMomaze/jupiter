@@ -1,0 +1,10 @@
+<% if (messages?.success?.length || messages?.error?.length) { %>
+  <section class="mb-6 space-y-3" aria-label="Status messages">
+    <% (messages?.success || []).forEach((message) => { %>
+      <div role="status" class="rounded border border-emerald-300 bg-emerald-50 p-4 font-semibold text-emerald-950"><%= message %></div>
+    <% }) %>
+    <% (messages?.error || []).forEach((message) => { %>
+      <div role="alert" class="rounded border border-red-300 bg-red-50 p-4 font-semibold text-red-950"><%= message %></div>
+    <% }) %>
+  </section>
+<% } %>

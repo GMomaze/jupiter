@@ -1,5 +1,8 @@
 const path = require('path');
 const dotenv = require('dotenv');
+const {
+  buildGovernanceRepairConfig,
+} = require('./sequelize-governance-repair-config.cjs');
 
 const databaseEnvironmentKeys = [
   'DB_HOST',
@@ -43,8 +46,17 @@ const databaseConfig = {
   },
 };
 
-module.exports = {
+const configurations = {
   development: { ...databaseConfig },
   test: { ...databaseConfig },
   production: { ...databaseConfig },
 };
+
+Object.defineProperty(configurations, 'production-governance-repair', {
+  enumerable: true,
+  get() {
+    return buildGovernanceRepairConfig(process.env, databaseConfig);
+  },
+});
+
+module.exports = configurations;

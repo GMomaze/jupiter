@@ -1,5 +1,6 @@
 <%- include('../../partials/header') %>
 <main class="max-w-3xl mx-auto py-10 px-4">
+  <%- include('../../partials/flash-messages') %>
   <h1 class="text-3xl font-black"><%= title %></h1>
   <div class="mt-4 rounded border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">Phase 1 permits <strong>ALL_SERIALS_OF_MODEL</strong> only. Serial, configuration, modification, suffix, range, and other narrower effectivity are not allowed. Planning defaults are not authoritative and are never copied into this form.</div>
   <% if (errors.length) { %><div class="mt-4 rounded border border-rose-300 bg-rose-50 p-4 text-sm text-rose-800"><% errors.forEach((error) => { %><p><%= error %></p><% }) %></div><% } %>

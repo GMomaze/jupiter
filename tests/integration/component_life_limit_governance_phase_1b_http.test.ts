@@ -34,7 +34,7 @@ function app() {
     } else (req as any).isAuthenticated = () => false;
     res.locals.user = (req as any).user || null;
     res.locals.remoteTestMode = false;
-    res.locals.messages = {};
+    res.locals.messages = req.flash();
     next();
   });
   instance.use(csrf());
@@ -145,7 +145,11 @@ describe('Phase 1B real HTTP governance workflow', () => {
     const detailToken = await csrfFor(engineerAgent, 'engineer', `/library/life-limit-governance/proposals/${id}`);
     expect((await engineerAgent.post(`/library/life-limit-governance/proposals/${id}/approve`).set('x-test-actor', 'engineer').type('form').send({ _csrf: detailToken, decision_reason: 'crafted', evidence_confirmed: 'true' })).status).toBe(403);
     const qaToken = await csrfFor(qaAgent, 'qa', `/library/life-limit-governance/proposals/${id}`);
-    expect((await qaAgent.post(`/library/life-limit-governance/proposals/${id}/approve`).set('x-test-actor', 'qa').type('form').send({ _csrf: qaToken, decision_reason: 'Independent QA approval', evidence_confirmed: 'true' })).status).toBe(302);
+    const approvalResponse = await qaAgent.post(`/library/life-limit-governance/proposals/${id}/approve`).set('x-test-actor', 'qa').type('form').send({ _csrf: qaToken, decision_reason: 'Independent QA approval', evidence_confirmed: 'true' });
+    expect(approvalResponse.status).toBe(302);
+    const approvalDetail = await qaAgent.get(approvalResponse.headers.location).set('x-test-actor', 'qa');
+    expect(approvalDetail.text).toContain('role="status"');
+    expect(approvalDetail.text).toContain('Proposal approved. Dormant publication created.');
     const [publication] = await sequelize.query<any>(`SELECT p.publication_state,l.is_active FROM component_life_limit_publications p JOIN component_life_limits l ON l.id=p.component_life_limit_id WHERE p.proposal_id=:id;`, { replacements: { id }, type: QueryTypes.SELECT });
     expect(publication).toMatchObject({ publication_state: 'DORMANT', is_active: false });
     const [publicationId] = await sequelize.query<any>(`SELECT id FROM component_life_limit_publications WHERE proposal_id=:id`, { replacements: { id }, type: QueryTypes.SELECT });
@@ -169,6 +173,10 @@ describe('Phase 1B real HTTP governance workflow', () => {
     const adminProposal = await createProposal(adminAgent, 'admin');
     const adminToken = await csrfFor(adminAgent, 'admin', `/library/life-limit-governance/proposals/${adminProposal}`);
     await adminAgent.post(`/library/life-limit-governance/proposals/${adminProposal}/approve`).set('x-test-actor', 'admin').type('form').send({ _csrf: adminToken, decision_reason: 'self', evidence_confirmed: 'true' });
+    const selfDecisionDetail = await adminAgent.get(`/library/life-limit-governance/proposals/${adminProposal}`).set('x-test-actor', 'admin');
+    expect(selfDecisionDetail.text).toContain('role="alert"');
+    expect(selfDecisionDetail.text).toContain('Independent approval is mandatory; proposers cannot decide their own proposals.');
+    expect(selfDecisionDetail.text).not.toMatch(/permission denied|transition_gate|Sequelize|SQLSTATE/i);
     const [stillProposed] = await sequelize.query<any>(`SELECT status FROM component_life_limit_proposals WHERE id=:id;`, { replacements: { id: adminProposal }, type: QueryTypes.SELECT });
     expect(stillProposed.status).toBe('PROPOSED');
     const other = request.agent(app());

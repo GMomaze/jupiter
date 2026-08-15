@@ -1,5 +1,6 @@
 <%- include('../../partials/header') %>
 <main class="max-w-7xl mx-auto py-10 px-4">
+  <%- include('../../partials/flash-messages') %>
   <div class="flex items-center justify-between">
     <div><h1 class="text-3xl font-black text-slate-900">Component Life-Limit Governance</h1><p class="mt-2 text-sm text-slate-600">Governed model-wide proposals, independent decisions, and dormant publications.</p></div>
     <% if (canPropose) { %><div class="btn-action-bar"><a href="/library/life-limit-governance/proposals/new" class="btn btn-primary">New proposal</a></div><% } %>

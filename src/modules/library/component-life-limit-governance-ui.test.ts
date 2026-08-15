@@ -12,6 +12,7 @@ const detail = read('src/views/library/life-limit-governance/detail.ejs');
 const index = read('src/views/library/life-limit-governance/index.ejs');
 const buttonStyles = read('src/tailwind/input.css');
 const compiledButtonStyles = read('public/css/styles.css');
+const flashMessages = read('src/views/partials/flash-messages.ejs');
 
 function renderGovernanceIndex(canPropose: boolean): string {
   return ejs.render(
@@ -116,6 +117,11 @@ describe('component life-limit governance Phase 1B UI contract', () => {
     expect(detail).toContain('LEGACY_UNREVIEWED');
     expect(detail).toContain('operational limit active');
     expect(index).toContain('canPropose');
+    for (const view of [index, form, detail]) expect(view).toContain("include('../../partials/flash-messages')");
+    expect(flashMessages).toContain('role="status"');
+    expect(flashMessages).toContain('role="alert"');
+    expect(flashMessages).toContain('<%= message %>');
+    expect(controller).toContain('Proposal approved. Dormant publication created.');
   });
 
   it('renders the established visible primary action only for authorised proposers', () => {

@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import request from 'supertest';
 import bcrypt from 'bcrypt';
 import app from '../../app.js';
@@ -17,6 +17,11 @@ describe('Phase 2.5: Authentication & Authorization Tests', () => {
     // Clear users before each test to prevent email collisions
     // Cascade ensures related records in user_roles are handled
     await User.destroy({ where: {}, cascade: true });
+  });
+
+  afterEach(async () => {
+    await User.destroy({ where: { email } });
+    await Role.destroy({ where: { code: 'admin' } });
   });
 
   it('should login successfully with valid credentials', async () => {
