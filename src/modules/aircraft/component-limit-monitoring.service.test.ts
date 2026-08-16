@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import {
   Aircraft,
   AircraftCategory,
@@ -10,12 +10,33 @@ import {
   Manufacturer,
   SerializedComponent,
   SerializedComponentLifeState,
+  sequelize,
 } from '../../models/index.js';
-import { UtilisationService } from '../utilisation/utilisation.service.js';
 import { ComponentLimitMonitoringService } from './component-limit-monitoring.service.js';
 
 const testRunSuffix = Date.now().toString(36).toUpperCase();
 let aircraftRegistrationCounter = 0;
+type MonitoringFixtureIds = Partial<Record<
+  'manufacturer' | 'assetType' | 'category' | 'model' | 'aircraft'
+  | 'serializedComponent' | 'lifeLimit' | 'lifeState' | 'installation', string
+>>;
+let currentFixture: MonitoringFixtureIds = {};
+
+afterEach(async () => {
+  const fixture = currentFixture;
+  currentFixture = {};
+  await sequelize.transaction(async transaction => {
+    if (fixture.installation) await sequelize.query('DELETE FROM public.aircraft_component_installations WHERE id=:id', { replacements: { id: fixture.installation }, transaction });
+    if (fixture.lifeState) await sequelize.query('DELETE FROM public.serialized_component_life_states WHERE id=:id', { replacements: { id: fixture.lifeState }, transaction });
+    if (fixture.lifeLimit) await sequelize.query('DELETE FROM public.component_life_limits WHERE id=:id', { replacements: { id: fixture.lifeLimit }, transaction });
+    if (fixture.serializedComponent) await sequelize.query('DELETE FROM public.serialized_components WHERE id=:id', { replacements: { id: fixture.serializedComponent }, transaction });
+    if (fixture.aircraft) await sequelize.query('DELETE FROM public.aircraft WHERE id=:id', { replacements: { id: fixture.aircraft }, transaction });
+    if (fixture.model) await sequelize.query('DELETE FROM public.component_models WHERE id=:id', { replacements: { id: fixture.model }, transaction });
+    if (fixture.manufacturer) await sequelize.query('DELETE FROM public.manufacturers WHERE id=:id', { replacements: { id: fixture.manufacturer }, transaction });
+    if (fixture.assetType) await sequelize.query('DELETE FROM public.rf_asset_type WHERE id=:id', { replacements: { id: fixture.assetType }, transaction });
+    if (fixture.category) await sequelize.query('DELETE FROM public.rf_aircraft_category WHERE id=:id', { replacements: { id: fixture.category }, transaction });
+  });
+});
 
 async function createMonitoringContext(options: {
   trackingBasis: string;
@@ -55,6 +76,7 @@ async function createMonitoringContext(options: {
     name: `Monitor Manufacturer ${suffix}`,
     is_active: true,
   });
+  currentFixture.manufacturer = manufacturer.id;
   const assetType = await AssetType.create({
     code: `MON_ASSET_${suffix}`,
     label: `Monitor Asset ${suffix}`,
@@ -64,12 +86,14 @@ async function createMonitoringContext(options: {
     is_active: true,
     system_locked: false,
   });
+  currentFixture.assetType = assetType.id;
   const category = await AircraftCategory.create({
     code: `MON_CAT_${suffix}`,
     label: `Monitor Category ${suffix}`,
     is_active: true,
     system_locked: false,
   });
+  currentFixture.category = category.id;
   const model = await ComponentModel.create({
     model_name: `Monitor Model ${suffix}`,
     model_code: `MON_MODEL_${suffix}`,
@@ -77,21 +101,24 @@ async function createMonitoringContext(options: {
     asset_type_id: assetType.id,
     is_active: true,
   });
+  currentFixture.model = model.id;
   const aircraft = await Aircraft.create({
     registration: `ZS-MON-${testRunSuffix}-${registrationSequence}`,
     serial_number: `MON-AIR-${suffix}`,
     model_id: model.id,
     category_id: category.id,
     status: 'ACTIVE',
-    total_time_hours: 0,
-    total_time_cycles: 0,
+    total_time_hours: options.aircraftHours ?? 0,
+    total_time_cycles: options.aircraftCycles ?? 0,
     version: 0,
   });
+  currentFixture.aircraft = aircraft.id;
   const serializedComponent = await SerializedComponent.create({
     component_model_id: model.id,
     serial_number: `MON-SC-${suffix}`,
     status: 'INSTALLED',
   });
+  currentFixture.serializedComponent = serializedComponent.id;
   const lifeLimit = await ComponentLifeLimit.create({
     component_model_id: model.id,
     limit_type: options.limit.limit_type,
@@ -102,9 +129,10 @@ async function createMonitoringContext(options: {
     description: options.limit.description ?? null,
     is_active: true,
   });
+  currentFixture.lifeLimit = lifeLimit.id;
 
   if (options.lifeState) {
-    await SerializedComponentLifeState.create({
+    const lifeState = await SerializedComponentLifeState.create({
       serialized_component_id: serializedComponent.id,
       tsn_hours: options.lifeState.tsn_hours ?? null,
       tso_hours: options.lifeState.tso_hours ?? null,
@@ -113,20 +141,7 @@ async function createMonitoringContext(options: {
       overhaul_reference_date: options.lifeState.overhaul_reference_date ?? null,
       calendar_reference_date: options.lifeState.calendar_reference_date ?? null,
     });
-  }
-
-  const aircraftHours = options.aircraftHours ?? 0;
-  const aircraftCycles = options.aircraftCycles ?? 0;
-
-  if (aircraftHours > 0 || aircraftCycles > 0) {
-    await UtilisationService.recordUtilisation({
-      aircraftId: aircraft.id,
-      newTotalTimeHours: aircraftHours,
-      newTotalTimeCycles: aircraftCycles,
-      sourceType: 'MANUAL_ENTRY',
-      effectiveDate: '2026-06-17',
-      reason: 'Seed component limit monitoring aircraft snapshot',
-    });
+    currentFixture.lifeState = lifeState.id;
   }
 
   const installation = await AircraftComponentInstallation.create({
@@ -143,6 +158,7 @@ async function createMonitoringContext(options: {
     install_cso: options.installCso,
     position: 'LH',
   });
+  currentFixture.installation = installation.id;
 
   return { aircraft, installation, lifeLimit, model, serializedComponent };
 }
