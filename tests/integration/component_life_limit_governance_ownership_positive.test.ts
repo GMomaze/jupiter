@@ -1,15 +1,22 @@
 import { spawn } from 'node:child_process';
-import { resolve } from 'node:path';
-import dotenv from 'dotenv';
 import { Pool } from 'pg';
 import { QueryTypes, Sequelize } from 'sequelize';
 import { describe, expect, it } from 'vitest';
 import ownershipRepair from '../../migrations/582_repair_component_life_limit_governance_ownership.js';
+import gateAclRepair from '../../migrations/583_repair_component_life_limit_governance_gate_acl.js';
+import activationGateWriteRepair from '../../migrations/584_repair_component_life_limit_governance_activation_gate_write.js';
 import { assertTestDatabaseSafety } from '../../src/config/testDatabaseSafety.js';
+import {
+  applyGuardedTestEnvironment,
+  validateGuardedOwnershipEnvironment,
+} from '../support/governanceOwnershipPositiveEnvironment.js';
 
-dotenv.config({ path: resolve(process.cwd(), '.env.test.local'), override: false, quiet: true });
+applyGuardedTestEnvironment(process.env);
 
 const MIGRATION_582 = '582_repair_component_life_limit_governance_ownership.ts';
+const MIGRATION_583 = '583_repair_component_life_limit_governance_gate_acl.ts';
+const MIGRATION_584 = '584_repair_component_life_limit_governance_activation_gate_write.ts';
+const ADMIN_MIGRATIONS = [MIGRATION_582, MIGRATION_583, MIGRATION_584] as const;
 const ENTRY_FUNCTIONS = [
   'public.fn_cllg_decide_proposal(uuid,uuid,character varying,text,boolean)',
   'public.fn_cllg_activate_publication(uuid,uuid,text)',
@@ -23,27 +30,6 @@ const TRIGGER_FUNCTIONS = [
 ] as const;
 const GOVERNANCE_FUNCTIONS = [...ENTRY_FUNCTIONS, ...TRIGGER_FUNCTIONS] as const;
 type LiveIdentity = { database_name: string; user_name: string; server_address: string; server_port: number };
-
-function requiredEnvironment(): { host: string; port: number; adminPassword: string } {
-  const required = (key: string): string => {
-    const value = process.env[key];
-    if (typeof value !== 'string' || value.trim().length === 0) throw new Error(`GUARDED_OWNERSHIP_TEST: ${key} is required`);
-    return value.trim();
-  };
-  if (process.env.NODE_ENV !== 'test') throw new Error('GUARDED_OWNERSHIP_TEST: NODE_ENV must be exactly test');
-  if (process.env.DB_NAME !== 'jupiter_test') throw new Error('GUARDED_OWNERSHIP_TEST: DB_NAME must be exactly jupiter_test');
-  if (process.env.DB_USER !== 'jupiter_test') throw new Error('GUARDED_OWNERSHIP_TEST: DB_USER must be exactly jupiter_test');
-  if (process.env.ALLOW_TEST_DATABASE_RESET !== 'YES') throw new Error('GUARDED_OWNERSHIP_TEST: ALLOW_TEST_DATABASE_RESET must be exactly YES');
-  if (process.env.ALLOW_GOVERNANCE_OWNERSHIP_TEST !== 'YES') throw new Error('GUARDED_OWNERSHIP_TEST: ALLOW_GOVERNANCE_OWNERSHIP_TEST must be exactly YES');
-  if (process.env.RUN_GOVERNANCE_OWNERSHIP_POSITIVE_TEST !== 'YES') throw new Error('GUARDED_OWNERSHIP_TEST: RUN_GOVERNANCE_OWNERSHIP_POSITIVE_TEST must be exactly YES');
-  if (process.env.DB_ADMIN_USER !== 'postgres') throw new Error('GUARDED_OWNERSHIP_TEST: DB_ADMIN_USER must be exactly postgres');
-  const host = required('DB_HOST');
-  const portValue = required('DB_PORT');
-  if (!/^\d+$/.test(portValue)) throw new Error('GUARDED_OWNERSHIP_TEST: DB_PORT must be an explicit valid port');
-  const port = Number(portValue);
-  if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error('GUARDED_OWNERSHIP_TEST: DB_PORT must be an explicit valid port');
-  return { host, port, adminPassword: required('DB_ADMIN_PASSWORD') };
-}
 
 const positiveTest = process.env.ALLOW_GOVERNANCE_OWNERSHIP_TEST === 'YES'
   && process.env.RUN_GOVERNANCE_OWNERSHIP_POSITIVE_TEST === 'YES' ? it : it.skip;
@@ -75,13 +61,15 @@ async function verifyLiveIdentities(runtime: Pool, admin: Sequelize, configuredP
   expect(adminIdentity.server_address).toBe(runtimeIdentity.server_address);
 }
 
-async function mark582ForSeparateAdministration(runtime: Pool): Promise<void> {
+async function markAdministratorMigrationsForSeparateExecution(runtime: Pool): Promise<void> {
   await runtime.query(`CREATE TABLE IF NOT EXISTS public."SequelizeMeta" (name varchar(255) NOT NULL UNIQUE PRIMARY KEY)`);
-  await runtime.query(`INSERT INTO public."SequelizeMeta" (name) VALUES ($1) ON CONFLICT (name) DO NOTHING`, [MIGRATION_582]);
+  for (const migration of ADMIN_MIGRATIONS) {
+    await runtime.query(`INSERT INTO public."SequelizeMeta" (name) VALUES ($1) ON CONFLICT (name) DO NOTHING`, [migration]);
+  }
 }
 
 async function runOrdinaryPreparation(runtime: Pool): Promise<void> {
-  await mark582ForSeparateAdministration(runtime);
+  await markAdministratorMigrationsForSeparateExecution(runtime);
   await run('npm.cmd', ['run', 'db:test:migrate']);
   await run('npm.cmd', ['run', 'db:test:seed']);
 }
@@ -112,6 +100,25 @@ async function grantTestEntryExecution(admin: Sequelize): Promise<void> {
   for (const signature of ENTRY_FUNCTIONS) await admin.query(`GRANT EXECUTE ON FUNCTION ${signature} TO jupiter_test`);
 }
 
+async function reproduceProductionEmptyGateAcl(runtime: Pool): Promise<void> {
+  await runtime.query(`REVOKE ALL ON TABLE public.component_life_limit_governance_transition_gate FROM jupiter_test`);
+}
+
+async function verifyMigration582LeavesProductionAclBroken(admin: Sequelize): Promise<void> {
+  const [gate] = await admin.query<Record<string, unknown>>(
+    `SELECT r.rolname AS owner,c.relacl,
+      has_table_privilege('jupiter_governance_owner',c.oid,'SELECT') AS owner_select,
+      has_table_privilege('jupiter_governance_owner',c.oid,'INSERT') AS owner_insert,
+      has_table_privilege('jupiter_governance_owner',c.oid,'DELETE') AS owner_delete
+      FROM pg_catalog.pg_class c JOIN pg_catalog.pg_namespace n ON n.oid=c.relnamespace
+      JOIN pg_catalog.pg_roles r ON r.oid=c.relowner WHERE n.nspname='public'
+      AND c.relname='component_life_limit_governance_transition_gate'`,
+    { type: QueryTypes.SELECT }
+  );
+  expect(gate).toMatchObject({ owner: 'jupiter_governance_owner', relacl: '{}',
+    owner_select: false, owner_insert: false, owner_delete: false });
+}
+
 async function verifyGovernanceBoundary(admin: Sequelize): Promise<void> {
   const [schemaAcl] = await admin.query<{ owner_usage: boolean; owner_create: boolean }>(
     `SELECT has_schema_privilege('jupiter_governance_owner','public','USAGE') AS owner_usage,
@@ -121,14 +128,29 @@ async function verifyGovernanceBoundary(admin: Sequelize): Promise<void> {
   expect(schemaAcl).toEqual({ owner_usage: true, owner_create: false });
   const [gate] = await admin.query<Record<string, unknown>>(
     `SELECT r.rolname AS owner,
+      has_table_privilege('jupiter_governance_owner',c.oid,'SELECT') AS owner_select,
+      has_table_privilege('jupiter_governance_owner',c.oid,'INSERT') AS owner_insert,
+      has_table_privilege('jupiter_governance_owner',c.oid,'DELETE') AS owner_delete,
+      has_table_privilege('jupiter_governance_owner',c.oid,'UPDATE') AS owner_update,
+      has_table_privilege('jupiter_governance_owner',c.oid,'TRUNCATE') AS owner_truncate,
+      has_table_privilege('jupiter_governance_owner',c.oid,'REFERENCES') AS owner_references,
+      has_table_privilege('jupiter_governance_owner',c.oid,'TRIGGER') AS owner_trigger,
       EXISTS (SELECT 1 FROM pg_catalog.aclexplode(COALESCE(c.relacl,pg_catalog.acldefault('r',c.relowner))) a
        WHERE a.grantee=0 AND a.privilege_type IN ('SELECT','INSERT','UPDATE','DELETE','TRUNCATE','REFERENCES','TRIGGER')) AS public_access,
-      has_table_privilege('jupiter_app',c.oid,'SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER') AS app_access,
-      has_table_privilege('jupiter_test',c.oid,'SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER') AS test_access
+      (has_table_privilege('jupiter_app',c.oid,'SELECT') OR has_table_privilege('jupiter_app',c.oid,'INSERT')
+       OR has_table_privilege('jupiter_app',c.oid,'UPDATE') OR has_table_privilege('jupiter_app',c.oid,'DELETE')
+       OR has_table_privilege('jupiter_app',c.oid,'TRUNCATE') OR has_table_privilege('jupiter_app',c.oid,'REFERENCES')
+       OR has_table_privilege('jupiter_app',c.oid,'TRIGGER')) AS app_access,
+      (has_table_privilege('jupiter_test',c.oid,'SELECT') OR has_table_privilege('jupiter_test',c.oid,'INSERT')
+       OR has_table_privilege('jupiter_test',c.oid,'UPDATE') OR has_table_privilege('jupiter_test',c.oid,'DELETE')
+       OR has_table_privilege('jupiter_test',c.oid,'TRUNCATE') OR has_table_privilege('jupiter_test',c.oid,'REFERENCES')
+       OR has_table_privilege('jupiter_test',c.oid,'TRIGGER')) AS test_access
       FROM pg_catalog.pg_class c JOIN pg_catalog.pg_namespace n ON n.oid=c.relnamespace
       JOIN pg_catalog.pg_roles r ON r.oid=c.relowner WHERE n.nspname='public'
       AND c.relname='component_life_limit_governance_transition_gate'`, { type: QueryTypes.SELECT });
-  expect(gate).toEqual({ owner: 'jupiter_governance_owner', public_access: false, app_access: false, test_access: false });
+  expect(gate).toEqual({ owner: 'jupiter_governance_owner', owner_select: true, owner_insert: true,
+    owner_delete: true, owner_update: false, owner_truncate: false, owner_references: false,
+    owner_trigger: false, public_access: false, app_access: false, test_access: false });
   for (const signature of GOVERNANCE_FUNCTIONS) {
     const isEntry = (ENTRY_FUNCTIONS as readonly string[]).includes(signature);
     const [fn] = await admin.query<Record<string, unknown>>(
@@ -146,8 +168,12 @@ async function verifyGovernanceBoundary(admin: Sequelize): Promise<void> {
 }
 
 async function verifyLedgerSeedsAndNoFixtures(runtime: Pool): Promise<void> {
-  const ledger = await runtime.query<{ count: number }>(`SELECT count(*)::int AS count FROM public."SequelizeMeta" WHERE name=$1`, [MIGRATION_582]);
-  expect(ledger.rows[0].count).toBe(1);
+  const ledger = await runtime.query<{ name: string; count: number }>(
+    `SELECT expected.name,count(meta.name)::int AS count
+       FROM unnest($1::text[]) expected(name)
+       LEFT JOIN public."SequelizeMeta" meta ON meta.name=expected.name
+      GROUP BY expected.name ORDER BY expected.name`, [[...ADMIN_MIGRATIONS]]);
+  expect(ledger.rows).toEqual(ADMIN_MIGRATIONS.map(name => ({ name, count: 1 })));
   const seed = await runtime.query<{ roles: number; permissions: number }>(
     `SELECT (SELECT count(*)::int FROM public.rf_role) AS roles,(SELECT count(*)::int FROM public.rf_permission) AS permissions`);
   expect(seed.rows[0].roles).toBeGreaterThan(0);
@@ -159,9 +185,13 @@ async function verifyLedgerSeedsAndNoFixtures(runtime: Pool): Promise<void> {
   expect(Number(fixtures.rows[0].count)).toBe(0);
 }
 
-async function applyOwnershipBoundary(admin: Sequelize): Promise<void> {
+async function applyOwnershipBoundary(admin: Sequelize, runtime: Pool): Promise<void> {
   await verifyOwnerRole(admin);
+  await reproduceProductionEmptyGateAcl(runtime);
   await ownershipRepair.up(admin.getQueryInterface());
+  await verifyMigration582LeavesProductionAclBroken(admin);
+  await gateAclRepair.up(admin.getQueryInterface());
+  await activationGateWriteRepair.up(admin.getQueryInterface());
   await grantTestEntryExecution(admin);
   await verifyGovernanceBoundary(admin);
 }
@@ -173,27 +203,33 @@ async function returnGovernanceOwnershipForReset(admin: Sequelize): Promise<void
   });
 }
 
+async function prepareFreshGuardedTestDatabase(admin: Sequelize, runtime: Pool): Promise<void> {
+  await returnGovernanceOwnershipForReset(admin);
+  await run('npm.cmd', ['run', 'db:test:reset']);
+  await runOrdinaryPreparation(runtime);
+  await verifyOrdinaryOwnership(admin);
+}
+
 async function restoreGuardedTestDatabase(admin: Sequelize, runtime: Pool): Promise<void> {
   await returnGovernanceOwnershipForReset(admin);
   await run('npm.cmd', ['run', 'db:test:reset']);
   await runOrdinaryPreparation(runtime);
   await verifyOrdinaryOwnership(admin);
-  await applyOwnershipBoundary(admin);
+  await applyOwnershipBoundary(admin, runtime);
   await verifyLedgerSeedsAndNoFixtures(runtime);
 }
 
 describe('guarded positive governance ownership production-parity test', () => {
   positiveTest('prepares, verifies and unconditionally restores guarded jupiter_test ownership', async () => {
-    const config = requiredEnvironment();
-    const runtime = new Pool({ host: config.host, port: config.port, database: 'jupiter_test', user: 'jupiter_test', password: process.env.DB_PASSWORD });
+    const config = validateGuardedOwnershipEnvironment(process.env);
+    const runtime = new Pool({ host: config.host, port: config.port, database: 'jupiter_test', user: 'jupiter_test', password: config.runtimePassword });
     const admin = new Sequelize({ dialect: 'postgres', host: config.host, port: config.port, database: 'jupiter_test', username: 'postgres', password: config.adminPassword, logging: false });
     let primaryFailure: unknown;
     let restorationFailure: unknown;
     try {
       await verifyLiveIdentities(runtime, admin, config.port);
-      await runOrdinaryPreparation(runtime);
-      await verifyOrdinaryOwnership(admin);
-      await applyOwnershipBoundary(admin);
+      await prepareFreshGuardedTestDatabase(admin, runtime);
+      await applyOwnershipBoundary(admin, runtime);
       await expect(runtime.query('INSERT INTO public.component_life_limit_governance_transition_gate DEFAULT VALUES')).rejects.toThrow();
       await run('npx.cmd', ['vitest', 'run',
         'tests/integration/component_life_limit_governance_phase_1b_http.test.ts',

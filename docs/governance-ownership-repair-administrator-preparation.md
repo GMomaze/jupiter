@@ -1,6 +1,6 @@
 # Governance ownership repair administrator preparation
 
-Migration 582 never creates, alters, or drops PostgreSQL cluster roles. A database owner must prepare the dedicated role separately after reviewing the commands.
+Migrations 582, 583 and 584 never create, alter, or drop PostgreSQL cluster roles. A database owner must prepare the dedicated role separately after reviewing the commands.
 
 ## First-time preparation (do not run automatically)
 
@@ -66,17 +66,20 @@ The dedicated npm command supplies `RUN_GOVERNANCE_OWNERSHIP_POSITIVE_TEST=YES` 
 
 The owner must separately approve the initial guarded `jupiter_test` schema reset and the reset performed by the harness's unconditional restoration. The harness never targets `jupiter_db` and never creates, alters, or drops a PostgreSQL role.
 
-After the approved initial reset, the harness:
+During its approved initial-reset boundary, the harness first returns only the gate and seven functions to `jupiter_test`, runs the guarded schema reset, and recreates ordinary objects as `jupiter_test`. It then:
 
 1. requires both exact ownership-test flags, including the process-scoped invocation flag, the exact test safety flags, `DB_ADMIN_USER=postgres`, a nonblank administrator password, and explicit host/port;
 2. verifies runtime `jupiter_test` and administrator `postgres` reach the same server address and configured port, with both connected to `jupiter_test`;
-3. internally records migration 582 for separate execution, runs ordinary migrations and seeds as `jupiter_test`, and verifies ordinary ownership;
-4. runs migration 582 directly as `postgres`;
-5. verifies that migration 582 grants the governance owner schema `USAGE` required by its security-definer functions and explicitly withholds schema `CREATE`;
-6. grants `jupiter_test` test-only `EXECUTE` on only the proposal-decision and publication-activation entry functions;
-7. verifies gate denial, trigger-function denial, function ownership, fixed search paths, and entry-function ACLs;
-8. runs real approval, activation, and gate-forgery regression workflows through `jupiter_test`.
+3. internally records migrations 582, 583 and 584 for separate administrator execution, runs ordinary migrations and seeds as `jupiter_test`, and verifies ordinary ownership;
+4. recreates production's explicitly empty transition-gate ACL as `jupiter_test` before administrator migration execution;
+5. runs migration 582 directly as `postgres` and proves that ownership transfer alone leaves the reproduced empty ACL unusable by the governance owner;
+6. runs migration 583 directly as `postgres`, granting the governance owner exactly `SELECT`, `INSERT`, and `DELETE` on the gate while withholding `UPDATE`, `TRUNCATE`, `REFERENCES`, and `TRIGGER`;
+7. runs migration 584 directly as `postgres`, replacing only the activation function's gate write with `DELETE` followed by `INSERT` while retaining the narrow gate ACL;
+8. verifies schema `USAGE` remains present, schema `CREATE` remains absent, and PUBLIC, `jupiter_app`, and `jupiter_test` retain no direct gate privileges;
+9. grants `jupiter_test` test-only `EXECUTE` on only the proposal-decision and publication-activation entry functions;
+10. verifies trigger-function denial, function ownership, fixed search paths, and entry-function ACLs;
+11. runs real approval, activation, and gate-forgery regression workflows through `jupiter_test`.
 
-In an unconditional `finally`, the harness narrowly returns the gate and seven functions to `jupiter_test` so the guarded reset can run, resets the public schema as `jupiter_test`, reruns ordinary migrations and seeds as `jupiter_test`, reapplies migration 582 as `postgres` (including governance-owner `USAGE` and no `CREATE`), reapplies only the two test entry-function grants, and verifies the ledger, seeds, ownership, ACLs, and zero governance workflow fixtures.
+In an unconditional `finally`, the harness narrowly returns the gate and seven functions to `jupiter_test` so the guarded reset can run, resets the public schema as `jupiter_test`, reruns ordinary migrations and seeds as `jupiter_test`, recreates the production empty-ACL precondition, reapplies migrations 582, 583 and 584 as `postgres`, reapplies only the two test entry-function grants, and verifies all three ledger entries, seeds, ownership, exact gate ACLs, function ACLs, and zero governance workflow fixtures.
 
-If both the workflow and restoration fail, the harness reports both errors while preserving the original workflow failure. The final guarded test state keeps ordinary objects owned by `jupiter_test`, the transition gate and seven governed functions owned by `jupiter_governance_owner`, and test-only execution for `jupiter_test` on the two entry functions. It grants no gate access, trigger execution, owner-role membership, or broad table/schema privileges.
+If both the workflow and restoration fail, the harness reports both errors while preserving the original workflow failure. The final guarded test state keeps ordinary objects owned by `jupiter_test`, the transition gate and seven governed functions owned by `jupiter_governance_owner`, exact governance-owner gate `SELECT`/`INSERT`/`DELETE`, and test-only execution for `jupiter_test` on the two entry functions. It grants runtime identities no direct gate access, trigger execution, owner-role membership, or broad table/schema privileges.

@@ -4,6 +4,7 @@ import { QueryTypes } from 'sequelize';
 import { describe, expect, it } from 'vitest';
 import sequelize from '../../src/config/database.js';
 import ownershipRepair from '../../migrations/582_repair_component_life_limit_governance_ownership.js';
+import gateAclRepair from '../../migrations/583_repair_component_life_limit_governance_gate_acl.js';
 
 const migration = readFileSync(
   resolve(process.cwd(), 'migrations/582_repair_component_life_limit_governance_ownership.ts'),
@@ -82,5 +83,22 @@ describe('component life-limit governance ownership repair contract', () => {
       { type: QueryTypes.SELECT }
     );
     expect(after).toEqual(before);
+  });
+
+  it('fails the gate ACL repair closed under jupiter_test without changing the ACL', async () => {
+    const gateAcl = async () => {
+      const [row] = await sequelize.query<{ acl: string }>(
+        `SELECT COALESCE(c.relacl::text,'NULL') AS acl
+           FROM pg_catalog.pg_class c
+          WHERE c.oid='public.component_life_limit_governance_transition_gate'::regclass`,
+        { type: QueryTypes.SELECT }
+      );
+      return row.acl;
+    };
+    const before = await gateAcl();
+    await expect(gateAclRepair.up(sequelize.getQueryInterface())).rejects.toThrow(
+      'COMPONENT_LIFE_LIMIT_GATE_ACL_MIGRATION_AUTHORITY_REQUIRED'
+    );
+    expect(await gateAcl()).toBe(before);
   });
 });
