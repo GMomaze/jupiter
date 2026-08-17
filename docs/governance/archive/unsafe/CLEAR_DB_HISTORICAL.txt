@@ -1,0 +1,21 @@
+UNSAFE HISTORICAL MATERIAL — DO NOT EXECUTE
+
+This file preserves the contents formerly stored at docs/CLEAR DB.txt for
+historical evidence. It is not an operating procedure. The commands below are
+destructive, do not verify a live target, and must not be run.
+
+Canonical policy:
+docs/governance/DATABASE_AND_MIGRATION_SAFETY.md
+
+--- BEGIN PRESERVED HISTORICAL CONTENT ---
+
+DROP SCHEMA public CASCADE;
+CREATE SCHEMA public;
+
+GRANT ALL ON SCHEMA public TO postgres;
+GRANT ALL ON SCHEMA public TO public;
+
+npm.cmd run db:migrate
+npm.cmd run db:seed
+
+--- END PRESERVED HISTORICAL CONTENT ---

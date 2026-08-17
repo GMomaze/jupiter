@@ -1,0 +1,14 @@
+UNSAFE HISTORICAL NOTE — DO NOT EXECUTE
+
+The former contents of this file included unguarded destructive database SQL
+and are not a current Jupiter procedure.
+
+Use the canonical policy:
+
+docs/governance/DATABASE_AND_MIGRATION_SAFETY.md
+
+Historical contents are preserved only for audit evidence at:
+
+docs/governance/archive/unsafe/CLEAR_DB_HISTORICAL.txt
+
+No database reset, migration, seed, undo, or restore is authorized by this file.
