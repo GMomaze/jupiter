@@ -2,62 +2,116 @@
 
 **Document ID:** JUPITER-ACTIVE-WORK
 
-**Revision:** 1.0
+**Revision:** 1.1
 
 **Status:** Canonical
 
-**Reviewed:** 2026-08-17
+**Reviewed:** 2026-08-18
 
-This is the single canonical registry for active and paused programme work. It
-records authorization state; it does not itself authorize the next phase.
+This is the lightweight canonical registry for current, paused, and next
+programme work.
 
-## Active work
+It records programme state and authorization boundaries. Historical programme
+detail belongs in the roadmap and programme records and is not loaded through
+this registry by default.
+
+## Completed governance baseline
 
 ### Governance Modernisation
 
-- G1 — `COMPLETE / APPROVED`
-- G2 — `IMPLEMENTED`
-- Original G3 — `FAILED VERIFICATION` due to narrow documentation inconsistencies
-- G3R — `IMPLEMENTED`
-- Repeat G3 — `FAILED VERIFICATION` because the canonical current-state
-  documents had not advanced after G3R
-- G3R2 — `IMPLEMENTED`
-- G3R2 focused VERIFY — `FAILED VERIFICATION` because canonical state still
-  described G3R2 implementation as active
-- G3R3 — `STATE-MODEL REPAIR IMPLEMENTED`
-- Last completed governance step: `G3R3 — IMPLEMENT`
-- Governance verification status: `NOT YET VERIFIED`
-- Commit readiness: `NOT YET COMMIT READY`
-- Next authorized gate: focused independent `G3R3 — VERIFY`
-- Completion of G3R3 authorizes no development work. The only authorized next
-  operation is focused `G3R3 — VERIFY`.
-- If verification passes, Governance Modernisation scoped commit preparation is
-  the next operation requiring separate Project Owner authorization; commit is
-  not currently authorized.
+Status: `COMPLETE / VERIFIED / COMMITTED`
+
+Canonical baseline commit:
+
+`8b5cd409e8f50c3b9dbf112729983b7726d53231`
+
+No Governance Modernisation phase remains active.
+
+## Next priority
+
+### Jupiter SaaS / Multi-Tenant Foundation
+
+Status: `PLANNING NEXT — NOT IMPLEMENTED`
+
+The objective is to evolve the existing working Jupiter system into a
+multi-tenant SaaS AMMS while preserving its existing functionality and data.
+
+Locked programme boundaries:
+
+- Existing working Jupiter functionality must remain operational and must not be
+  damaged by the SaaS conversion.
+- Existing Jupiter data, IDs, relationships, history, and audit evidence must be
+  preserved through controlled migration.
+- Tenants and their private data must ultimately be invisible and
+  non-discoverable to other tenants.
+- Tenant isolation must be enforced beyond UI visibility.
+- Jupiter Platform Administrator authority must remain separate from tenant
+  administrator authority.
+- The Platform Administrator must ultimately be able to suspend and reinstate a
+  tenant without deleting, corrupting, transferring, resetting, or recreating
+  that tenant's data.
+- Suspension is an access/lifecycle control, not deletion.
+- Jupiter's multi-tenant architecture must be established from Jupiter's own
+  requirements and evidence. QA-MAN and SAFETYMAN are not architectural
+  authorities for this programme.
+- No blind `tenant_id` conversion is authorized.
+- PostgreSQL RLS is not pre-authorized; its use requires an approved Jupiter
+  architecture decision.
+- No tenant-isolation claim may be made before applicable adversarial isolation
+  and regression verification passes.
+
+Next authorized programme step:
+
+`MT-P0 — CREATE JUPITER SAAS / MULTI-TENANT FOUNDATION PHASED TASK PLAN`
+
+MT-P0 is documentation/planning only.
+
+It does not authorize:
+
+- application implementation;
+- schema changes;
+- migrations;
+- `tenant_id` additions;
+- RLS;
+- tenant-context middleware;
+- membership implementation;
+- Platform Administrator implementation;
+- data conversion.
+
+After the MT-P0 plan is created and approved, investigation must proceed through
+the approved MT-0 investigation slices before architecture or implementation is
+authorized.
 
 ## Paused approved work
 
 ### Component Management Unified Workspace
 
-- Plan: [`../JUPITER_COMPONENT_MANAGEMENT_UNIFIED_WORKSPACE_PHASED_TASK_PLAN.md`](../JUPITER_COMPONENT_MANAGEMENT_UNIFIED_WORKSPACE_PHASED_TASK_PLAN.md)
+Plan:
+
+[`../JUPITER_COMPONENT_MANAGEMENT_UNIFIED_WORKSPACE_PHASED_TASK_PLAN.md`](../JUPITER_COMPONENT_MANAGEMENT_UNIFIED_WORKSPACE_PHASED_TASK_PLAN.md)
+
+Status:
+
 - Phase 1 — approved
 - Phase 2 — approved
 - Phase 3 — approved
-- Investigation/definition through Phase 3 — approved
-- Implementation — paused pending completion and verification of Governance Modernisation
-- No implementation slice is currently authorised
+- Implementation — `PAUSED`
+- No implementation slice is currently authorized
 
-## Deferred programme work
+Component Management remains paused while the Jupiter SaaS / Multi-Tenant
+Foundation is prioritized.
 
-- Jupiter SaaS / Multi-Tenant Foundation: `FUTURE / NEXT PRIORITY`; not yet
-  started or authorized for implementation. It must begin with a separately
-  owner-authorized `MT-0 — INVESTIGATE` after Governance Modernisation is
-  verified and committed, followed by its own approved lifecycle.
-- CI and release workflow hardening: evidence exists, but DEFINE/IMPLEMENT/VERIFY
-  authorization has not been granted.
-- Component lifecycle-intake initialization: domain authority is unresolved and
-  remains deferred.
-- Component install/baseline/remove permission hardening: role grants remain
-  unresolved and no implementation is authorized.
-- Jupiter multi-tenant productisation and isolation work not already
-  independently authorized remains deferred.
+## Deferred work
+
+- CI and release workflow hardening
+- Component lifecycle-intake initialization
+- Component install/baseline/remove permission hardening
+- Other programme work not explicitly activated by the Project Owner
+
+## Context rule
+
+For ordinary work, read only the active plan and evidence required for the
+authorized phase or slice.
+
+Do not load historical governance, historical `docs/ChatGPT/ver*` directories,
+unrelated feature plans, or unrelated application domains by default.

@@ -13,6 +13,8 @@ Non-negotiable rules:
   overwrite, stage, or absorb them without explicit authority.
 - Do not infer current authority from `docs/ChatGPT/ver*` or other historical
   version directories.
+- Do not read historical or unrelated programme documentation by default.
+  Read it only when the active task or canonical governance explicitly requires it.
 - Do not invent architecture, schema, permissions, ownership, or operational
   facts.
 - Do not perform destructive filesystem or database actions without explicit,

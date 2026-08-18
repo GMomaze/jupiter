@@ -2,14 +2,18 @@
 
 **Document ID:** JUPITER-SUPERSESSION-REGISTER
 
-**Revision:** 1.0
+**Revision:** 1.1
 
 **Status:** Canonical
 
-**Effective date:** 2026-08-17
+**Effective date:** 2026-08-18
 
-Directory version numbers do not establish authority. Supersession occurs only
-through this register and Project Owner approval.
+Directory version numbers do not establish authority.
+
+Supersession occurs only through this register and Project Owner approval.
+
+This register classifies historical material. Reading this register does not
+require opening the documents or collections it lists.
 
 ## Canonical replacements
 
@@ -25,9 +29,9 @@ through this register and Project Owner approval.
 | `docs/ChatGPT/ver3/MASTER-EXECUTION-PLAN.md` | Duplicate historical programme plan | Historical only |
 | `docs/ChatGPT/ver5/SESSION_BOOT_VER5.md` | Incomplete historical boot | Canonical Session Boot |
 | `docs/ChatGPT/ver5/Session_restart.md` | Historical boot pointer | Canonical Session Boot |
-| `docs/ChatGPT/ver7/JUPITER_AI_SESSION_BOOT_CONSTITUTION V7.md` | Untracked draft lineage incorporated | Canonical Constitution; ver7 does not become active authority |
-| `docs/ChatGPT/ver7/Session_boot_7.md` | Untracked draft lineage incorporated | Canonical Session Boot |
-| `docs/summary/00_AI_SESSION_PROTOCOL.md` | Historical; “read all docs” retired | Governance Index and Session Boot |
+| `docs/ChatGPT/ver7/JUPITER_AI_SESSION_BOOT_CONSTITUTION V7.md` | Draft lineage incorporated | Canonical Constitution; ver7 is not active authority |
+| `docs/ChatGPT/ver7/Session_boot_7.md` | Draft lineage incorporated | Canonical Session Boot |
+| `docs/summary/00_AI_SESSION_PROTOCOL.md` | Historical; `read all docs` rule retired | Governance Index and Session Boot |
 | `docs/summary/AI CODE RESPONSE CONTRACT.txt` | Historical tool-era contract | Constitution; global full-file rule retired |
 | `ADocument/AI_BOOTSTRAP.md` | Historical obsolete stack guidance | Canonical chain plus current source evidence |
 | `docs/CLEAR DB.txt` | Unsafe historical operating note | Canonical Database and Migration Safety policy |
@@ -46,26 +50,48 @@ through this register and Project Owner approval.
 | `ADocument` | Early project context with obsolete architecture assumptions |
 
 Historical documents remain available for domain evidence and audit history.
+
 They must not independently select active work or override canonical governance.
+
+Historical collections are not part of the default session boot.
+
+Do not recursively inspect a historical collection merely because one document
+within it is relevant.
+
+Load only the specific historical evidence required by the authorized task.
 
 ## Feature-specific authority retained
 
 Feature plans under `docs/phase-*`, historical phase collections, and approved
-named plans remain evidence and may become active only through current owner
-authorization and `ACTIVE_WORK.md` registration.
+named plans remain evidence and may become active only through current Project
+Owner authorization and `ACTIVE_WORK.md` registration.
 
 The Component Management plan is approved feature authority through Phase 3 and
 is registered as implementation-paused. It is not superseded.
 
 Phase 22, component-life-governance, utilisation, due-status, serialized
 component, workpack, and other domain plans retain their historical design and
-verification value. Their global boot or process language does not override the
-canonical chain.
+verification value.
+
+Their global boot or process language does not override the canonical chain.
+
+Reading one feature plan does not authorize or require loading adjacent
+historical feature plans.
 
 ## Compatibility pointers
 
 Authorized compatibility entries should contain only a pointer to root
-`AGENTS.md` and the canonical governance document. They must not preserve a
-second independent instruction set.
+`AGENTS.md` and the applicable canonical governance document.
 
-Bulk-moving, deleting, or editing historical collections is not part of G2.
+They must not preserve a second independent instruction set.
+
+## Historical-material change boundary
+
+Historical collections are retained as evidence unless a separately authorized
+task explicitly requires their modification, relocation, archival, or removal.
+
+Do not bulk-move, bulk-delete, bulk-rewrite, or reorganize historical
+collections merely for context efficiency.
+
+Context efficiency is achieved by not loading irrelevant historical material,
+not by destroying or hiding repository history.

@@ -2,14 +2,21 @@
 
 **Document ID:** JUPITER-CURRENT-SYSTEM-ROADMAP
 
-**Revision:** 1.0
+**Revision:** 1.1
 
 **Status:** Canonical evidence-based implementation map
 
-**Evidence review date:** 2026-08-17
+**Evidence review date:** 2026-08-18
 
-**Evidence basis:** current source, active migrations through 584, focused tests,
-tracked documentation, and completed read-only governance/component audits
+**Evidence basis:** current source, migrations, focused verification evidence,
+and approved programme records available at the last evidence review.
+
+This document describes proven Jupiter capability and maturity.
+
+It does not authorize current work.
+
+Current and paused work authorization is recorded only in
+[`ACTIVE_WORK.md`](ACTIVE_WORK.md).
 
 ## Status vocabulary
 
@@ -17,41 +24,78 @@ tracked documentation, and completed read-only governance/component audits
 - `IMPLEMENTED` — present and operational, but not declared globally locked.
 - `PARTIALLY_IMPLEMENTED` — useful implementation exists with proven gaps.
 - `DEFINE ONLY` — approved definition exists; implementation is absent or paused.
-- `FUTURE` — programme intent without current implementation authority.
+- `FUTURE` — programme intent without implementation authority.
 - `UNKNOWN` — evidence is insufficient; investigation is required.
 
-Status describes evidence, not permission to change a capability.
+Status describes evidence, not permission to modify a capability.
 
-## Current programme position
+## Programme evidence summary
 
-| Programme | State | Current authority |
-|---|---|---|
-| Governance Modernisation | `AWAITING G3R3 FOCUSED VERIFICATION / NOT COMMIT READY` | G1 complete; G2 implemented; original G3 failed; G3R implemented; repeat G3 failed; G3R2 implemented; G3R2 focused verification failed on stale execution-state modelling; G3R3 state-model repair implemented |
-| Component Management Unified Workspace | `DEFINE ONLY / PAUSED` | Investigation, definition, and technical design through Phase 3 approved; no implementation slice authorized |
-| CI/release hardening | `FUTURE` | Deficiencies proven; separate phase required |
-| Jupiter SaaS / Multi-Tenant Foundation | `FUTURE / NEXT PRIORITY` | Intended after Governance Modernisation; not authorized for implementation and requires its own approved lifecycle |
+### Governance Modernisation
 
-See [`ACTIVE_WORK.md`](ACTIVE_WORK.md) for the exact active phase.
+**Status:** `COMPLETE + VERIFIED + COMMITTED`
+
+Canonical governance baseline:
+
+`8b5cd409e8f50c3b9dbf112729983b7726d53231`
+
+Current programme authorization must be read from `ACTIVE_WORK.md`.
+
+### Component Management Unified Workspace
+
+**Status:** `DEFINE ONLY / PAUSED`
+
+Evidence establishes:
+
+- Phase 1 investigation approved;
+- Phase 2 functional/UX definition approved;
+- Phase 3 technical design approved;
+- implementation has not started.
+
+The active plan remains:
+
+`docs/JUPITER_COMPONENT_MANAGEMENT_UNIFIED_WORKSPACE_PHASED_TASK_PLAN.md`
+
+### Jupiter SaaS / Multi-Tenant Foundation
+
+**Status:** `FUTURE / NEXT PROGRAMME PRIORITY`
+
+The intended programme objective is to evolve existing Jupiter into a
+multi-tenant SaaS AMMS while preserving existing working functionality and data.
+
+No tenant architecture, schema conversion, RLS, tenant context, membership
+model, or isolation implementation is proven by this roadmap.
+
+The programme requires its own approved investigation and definition before
+implementation.
+
+### CI / release hardening
+
+**Status:** `FUTURE`
+
+Known engineering deficiencies exist, but implementation authority is separate.
 
 ## Operational authority map
 
 ### Workpacks and task execution
 
-**Status:** `COMPLETE + LOCKED` with specific documented gaps outside the locked
-authority.
+**Status:** `COMPLETE + LOCKED` with separately documented gaps outside the
+locked authority.
 
-Current source implements workpack planning/generation, task execution, status
-transitions, certification/close gates, snags, audit history, and printed
-workpack/CRS/CRMA flows. Workpacks remain operational snapshots/records; they do
-not replace master maintenance content authority.
+Current implementation includes workpack planning/generation, task execution,
+status transitions, certification/close gates, snags, audit history, and printed
+workpack/CRS/CRMA flows.
+
+Workpacks remain operational snapshots/records and do not replace maintenance
+content authority.
 
 Do not recreate workpack lifecycle, task lifecycle, certification, close, snag,
-or workpack audit authority. Investigate any current UI/service mismatch before
-repair.
+or workpack audit authority.
 
 ### Serialized components
 
-**Status:** `COMPLETE + LOCKED` foundation; workspace UX remains `DEFINE ONLY`.
+**Status:** `COMPLETE + LOCKED` foundation; unified workspace remains
+`DEFINE ONLY`.
 
 Implemented authority includes:
 
@@ -60,54 +104,53 @@ Implemented authority includes:
 - per-component life state;
 - tracking bases and installation/removal baselines;
 - life-limit evaluation with safe `UNKNOWN` outcomes;
-- LIFE_ADJUSTMENT, OVERHAUL, and generic maintenance-event history;
-- serialized life dashboard, reconciliation, dry-run, workpack visibility, and
-  compliance visibility.
+- LIFE_ADJUSTMENT, OVERHAUL, and maintenance-event history;
+- serialized life dashboard and operational visibility.
 
-The legacy `aircraft_components` path remains operationally active alongside
-serialized records. Do not remove either path without an approved transition.
+Legacy `aircraft_components` functionality still coexists with serialized
+component functionality.
 
-Known gaps:
+Known gaps include:
 
 - no unified Component Management workspace;
-- serialized lookup is not tenant/company scoped;
-- ordinary serialized creation lacks strong orchestration and duplicate warning;
-- no truthful dedicated opening-lifecycle-intake event authority;
-- some aircraft meter snapshot normalization can convert missing/invalid values
-  to zero and must not be copied into new workflows;
-- install/baseline/remove route permission hardening is unresolved.
+- current serialized lookup is not proven tenant/company isolated;
+- ordinary serialized creation has orchestration/duplicate-handling gaps;
+- no dedicated truthful opening-lifecycle-intake authority;
+- some legacy meter normalization paths can convert missing values to zero;
+- install/baseline/remove permission hardening remains unresolved.
 
 ### Component life-limit governance
 
-**Status:** `IMPLEMENTED`; security and operational authority locked pending only
-separately approved repair.
+**Status:** `IMPLEMENTED`
 
-Migrations 577–584 establish proposal, independent decision, publication,
-activation, immutable history, dedicated ownership, transition-gate ACLs, and
-activation gate-write repair. Current source and tests cover approval,
-activation, rollback, permissions, ownership, and due-engine consumption.
+Migrations 577–584 establish controlled proposal, independent decision,
+publication, activation, immutable history, ownership, and transition controls.
 
-Governance remains attached to `ComponentModel` and dynamically consumed. Do not
-copy rules into serialized components or bypass proposal/decision/activation.
+Governance remains associated with `ComponentModel` and dynamically consumed.
+
+Do not copy governance rules into serialized components or bypass the controlled
+governance lifecycle.
 
 ### Aircraft and utilisation
 
-**Status:** `PARTIALLY_IMPLEMENTED`.
+**Status:** `PARTIALLY_IMPLEMENTED`
 
-Aircraft CRUD, technical views, utilisation update services, component
-installation/removal compatibility, hours, cycles, and utilisation-event
-architecture exist. Authority and propagation are not uniformly mature across
-all legacy and serialized paths.
+Aircraft CRUD, technical views, utilisation services, hours/cycles,
+utilisation-event architecture, and component installation/removal compatibility
+exist.
 
-Unknown operational values must not be assumed zero. Do not introduce hidden
-component-life propagation or frontend-owned calculations.
+Authority and propagation are not uniformly mature across all legacy and
+serialized paths.
+
+Unknown operational values must not be assumed zero.
 
 ### Library master data
 
-**Status:** `PARTIALLY_IMPLEMENTED`.
+**Status:** `PARTIALLY_IMPLEMENTED`
 
-Manufacturers, component models, asset/reference data, ADs, SBs, SIDs, standard
-tasks, templates, imports, assignments, and serialized library functions exist.
+Manufacturers, component models, reference data, ADs, SBs, SIDs, tasks,
+templates, imports, assignments, and serialized library functions exist.
+
 Manufacturer and component-model data currently behave as global master data.
 
 Known gaps include uneven validation/audit behavior, intentionally compatible
@@ -117,74 +160,85 @@ duplicate model names, and incomplete workspace orchestration.
 
 **Status:** `IMPLEMENTED` with deferred advanced automation.
 
-Current source includes compliance items/assignments, applicability services,
-AD/SB/SID relationships, due calculation/recalculation services, manual AD
-compliance creation/status/due actions, and read-only projections.
+Current implementation includes compliance assignments, applicability services,
+AD/SB/SID relationships, due calculations, manual compliance actions, and
+read-only projections.
 
-Do not create a parallel applicability or due engine. Structured AMOC,
-terminating-action, supersedure automation, and other Phase 22 deferrals remain
-unimplemented unless later evidence proves otherwise.
+Do not create a parallel applicability or due engine.
 
 ### Authentication, RBAC, and customers
 
-**Status:** `PARTIALLY_IMPLEMENTED`.
+**Status:** `PARTIALLY_IMPLEMENTED`
 
-Staff authentication, PostgreSQL-backed sessions, roles/permissions, customer
-records, customer users, customer-aircraft links, and customer portal visibility
-exist. Enforcement remains route-dependent.
+Staff authentication, PostgreSQL-backed sessions, roles/permissions, customers,
+customer users, customer-aircraft relationships, and portal visibility exist.
 
-Do not describe current component/library data as tenant-safe. UI visibility is
-not authorization; server-side guards remain authoritative.
+Enforcement remains route-dependent.
+
+Current Jupiter must not be described as tenant-isolated merely because
+authorization controls exist.
 
 ### Audit and document authority
 
-**Status:** `IMPLEMENTED` across multiple specialized authorities.
+**Status:** `IMPLEMENTED` across specialised authorities.
 
 General audit, workpack audit, snag audit, component maintenance history, and
-governance immutable history coexist. They are not interchangeable. PDF/document
-generation remains downstream of operational records and must not mutate
-lifecycle state.
+governance history coexist.
 
-### Inventory, standalone tasks, projection, and maintenance triggers
+These authorities are not interchangeable.
 
-**Status:** `PARTIALLY_IMPLEMENTED / BOUNDARY REQUIRES INVESTIGATION`.
+Generated documents and PDFs remain downstream of operational authority and
+must not mutate lifecycle state.
 
-These modules exist but are not universally authoritative for serialized
-inventory, task execution, or lifecycle change. Do not extend or retire them
-without an approved investigation.
+### Inventory, standalone tasks, projections, and maintenance triggers
 
-## Database and migration state
+**Status:** `PARTIALLY_IMPLEMENTED / REQUIRES INVESTIGATION`
+
+These capabilities exist but are not universally authoritative for serialized
+inventory, task execution, or lifecycle changes.
+
+Do not extend or retire them without applicable investigation.
+
+## Database and migration evidence
 
 - PostgreSQL with Sequelize and direct `pg` usage is the current database stack.
-- `migrations/` is the active migration filesystem; historical migration folders
-  are archival evidence.
-- Active migration files extend through migration 584.
-- Executed migrations are immutable; repairs require additive migrations.
-- Test reset/migration/seed paths have fail-closed `jupiter_test` identity guards.
-- Generic migration/undo/seed scripts remain hazardous without an approved
-  target-verified procedure.
+- `migrations/` is the active migration filesystem.
+- Current migration lineage extends through migration 584 at the last evidence
+  review.
+- Executed migrations are immutable.
+- Corrections require additive repair migrations.
+- Guarded test-database paths enforce `jupiter_test` safety requirements.
+- Generic migration/undo/seed commands are not inherently safe without
+  target-specific authority and safeguards.
 
-## Governance and documentation state
+For current database operations, use the canonical database safety policy
+rather than this roadmap.
 
-Canonical governance now resides in `docs/governance` with root `AGENTS.md` as
-the deterministic entry. Historical version directories are classified by the
-supersession register.
+## Existing-functionality preservation
 
-The prior tracked roadmap remains historical compatibility evidence. This
-roadmap must be updated only from verified implementation evidence and must use
-`UNKNOWN` where evidence is insufficient.
+Jupiter is an existing working operational system.
 
-## Correct next work
+Future development, including SaaS / Multi-Tenant conversion, must preserve
+existing approved functionality, data, IDs, relationships, operational history,
+audit evidence, and authority boundaries unless a specific change is separately
+investigated, defined, approved, implemented, and verified.
 
-1. Perform focused independent `G3R3 — VERIFY`; no development work is
-   authorized by completion of the state-model repair.
-2. Keep Governance Modernisation `NOT YET VERIFIED`, `NOT YET COMMIT READY`, and
-   `NOT YET COMMITTED` until G3R3 verification passes.
-3. If verification passes, scoped Governance Modernisation commit preparation
-   remains a separately authorized operation.
-4. Keep Component Management implementation paused with no authorized slice.
-5. Treat Jupiter SaaS / Multi-Tenant Foundation only as the intended next major
-   priority. It is not started or implementation-authorized and must begin with
-   a separately owner-authorized `MT-0 — INVESTIGATE` after governance is
-   verified and committed.
-6. Define CI/release hardening separately.
+Tenant isolation is an additional security boundary around existing Jupiter
+functionality. It is not authority to replace or weaken that functionality.
+
+A conversion slice must not be considered successful merely because tenant
+isolation works if existing Jupiter functionality regresses.
+
+## Roadmap maintenance rule
+
+Update this roadmap only when evidence materially changes a capability or
+maturity classification.
+
+Do not use this roadmap to record short-lived execution steps, current Codex
+prompts, or the next authorized phase.
+
+Those belong only in `ACTIVE_WORK.md`.
+
+Do not load historical evidence merely because this roadmap references a
+capability. Inspect historical material only when required by the authorized
+task.
