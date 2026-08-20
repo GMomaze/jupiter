@@ -17,14 +17,23 @@
         
         <div class="grid grid-cols-2 gap-2">
             <div>
-                <label class="block text-[10px] font-black uppercase text-slate-500 mb-1">TBO Hours</label>
+                <label class="block text-[10px] font-black uppercase text-slate-500 mb-1">Service Hours</label>
+                <input type="number" name="service_interval_hours" class="w-full p-2 border rounded text-sm" placeholder="Hours">
+            </div>
+            <div>
+                <label class="block text-[10px] font-black uppercase text-slate-500 mb-1">Service Months</label>
+                <input type="number" name="service_interval_months" class="w-full p-2 border rounded text-sm" placeholder="Months">
+            </div>
+            <div>
+                <label class="block text-[10px] font-black uppercase text-slate-500 mb-1">Overhaul Hours (TBO)</label>
                 <input type="number" name="default_tbo_hours" class="w-full p-2 border rounded text-sm" placeholder="2000">
             </div>
             <div>
-                <label class="block text-[10px] font-black uppercase text-slate-500 mb-1">TBO Months</label>
+                <label class="block text-[10px] font-black uppercase text-slate-500 mb-1">Overhaul Months (TBO)</label>
                 <input type="number" name="default_tbo_months" class="w-full p-2 border rounded text-sm" placeholder="144">
             </div>
         </div>
+        <p class="text-[10px] text-slate-500">Service is the routine planning interval. Overhaul is the model-level interval between overhauls; TBO means Time Between Overhaul. Controlled Component Life Limits are managed separately.</p>
 
         <div class="flex items-center gap-2">
             <input type="checkbox" id="is_life_limited" name="is_life_limited" class="w-4 h-4">

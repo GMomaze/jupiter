@@ -15,14 +15,23 @@
 
         <div class="grid grid-cols-2 gap-2">
             <div>
-                <label class="block text-[10px] font-bold text-slate-400">Hours TBO</label>
-                <input type="number" name="default_tbo_hours" value="<%= model.default_tbo_hours %>" class="w-full p-2 border rounded text-sm" placeholder="Hours">
+                <label class="block text-[10px] font-bold text-slate-400">Service Hours</label>
+                <input type="number" name="service_interval_hours" value="<%= model.service_interval_hours ?? '' %>" class="w-full p-2 border rounded text-sm" placeholder="Hours">
             </div>
             <div>
-                <label class="block text-[10px] font-bold text-slate-400">Months TBO</label>
-                <input type="number" name="default_tbo_months" value="<%= model.default_tbo_months %>" class="w-full p-2 border rounded text-sm" placeholder="Months">
+                <label class="block text-[10px] font-bold text-slate-400">Service Months</label>
+                <input type="number" name="service_interval_months" value="<%= model.service_interval_months ?? '' %>" class="w-full p-2 border rounded text-sm" placeholder="Months">
+            </div>
+            <div>
+                <label class="block text-[10px] font-bold text-slate-400">Overhaul Hours (TBO)</label>
+                <input type="number" name="default_tbo_hours" value="<%= model.default_tbo_hours ?? '' %>" class="w-full p-2 border rounded text-sm" placeholder="Hours">
+            </div>
+            <div>
+                <label class="block text-[10px] font-bold text-slate-400">Overhaul Months (TBO)</label>
+                <input type="number" name="default_tbo_months" value="<%= model.default_tbo_months ?? '' %>" class="w-full p-2 border rounded text-sm" placeholder="Months">
             </div>
         </div>
+        <p class="text-[10px] text-slate-500">Service is the routine planning interval. Overhaul is the model-level interval between overhauls; TBO means Time Between Overhaul. Controlled Component Life Limits are managed separately.</p>
 
         <div class="flex items-center gap-2">
             <input type="checkbox" id="edit_is_life_limited" name="is_life_limited" <%= model.is_life_limited ? 'checked' : '' %> class="w-4 h-4">

@@ -151,14 +151,12 @@ describe('component model detail tabs', () => {
     expect(template).toContain('directive.subject || directive.subject_heading ||');
   });
 
-  it('preserves existing model planning and service bulletin field names', () => {
+  it('uses the consolidated model planning fields and preserves service bulletin fields', () => {
     [
       'name="model_name"',
       'name="model_code"',
       'name="service_interval_hours"',
       'name="service_interval_months"',
-      'name="overhaul_interval_hours"',
-      'name="overhaul_interval_months"',
       'name="default_tbo_hours"',
       'name="default_tbo_months"',
       'name="is_life_limited"',
@@ -174,6 +172,13 @@ describe('component model detail tabs', () => {
     ].forEach((fieldName) => {
       expect(template).toContain(fieldName);
     });
+
+    expect(template).not.toContain('name="overhaul_interval_hours"');
+    expect(template).not.toContain('name="overhaul_interval_months"');
+    expect(template).not.toContain('Default TBO');
+    expect(template).toContain('Overhaul Interval (TBO)');
+    expect(template).toContain('placeholder="Overhaul Hours (TBO)"');
+    expect(template).toContain('placeholder="Overhaul Months (TBO)"');
   });
 
   it('preserves existing assignment field names and required sections', () => {

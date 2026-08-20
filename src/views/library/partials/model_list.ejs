@@ -48,11 +48,11 @@
         </h3>
         
         <div class="flex gap-2 mt-2">
-          <span class="tbo-badge px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-slate-100 text-slate-600 transition-colors">
-            TBO: <%= model.default_tbo_hours %>h
+          <span class="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-slate-100 text-slate-600">
+            Service: <%= model.service_interval_hours ?? '-' %>h / <%= model.service_interval_months ?? '-' %>m
           </span>
           <span class="tbo-badge px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-slate-100 text-slate-600 transition-colors">
-            <%= model.default_tbo_months %>m
+            Overhaul (TBO): <%= model.default_tbo_hours ?? '-' %>h / <%= model.default_tbo_months ?? '-' %>m
           </span>
         </div>
       </div>

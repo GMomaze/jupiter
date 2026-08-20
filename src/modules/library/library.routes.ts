@@ -1050,8 +1050,6 @@ router.post('/model', requirePermission('LIBRARY_EDIT'), async (req, res, next) 
       default_tbo_months,
       service_interval_hours,
       service_interval_months,
-      overhaul_interval_hours,
-      overhaul_interval_months,
       maintenance_notes,
       is_life_limited,
     } = req.body;
@@ -1072,12 +1070,6 @@ router.post('/model', requirePermission('LIBRARY_EDIT'), async (req, res, next) 
         : undefined,
       service_interval_months: service_interval_months
         ? Number(service_interval_months)
-        : undefined,
-      overhaul_interval_hours: overhaul_interval_hours
-        ? Number(overhaul_interval_hours)
-        : undefined,
-      overhaul_interval_months: overhaul_interval_months
-        ? Number(overhaul_interval_months)
         : undefined,
       maintenance_notes,
       is_life_limited: is_life_limited === 'true' || is_life_limited === 'on',
@@ -1103,8 +1095,6 @@ router.post('/model/:id/update', requirePermission('LIBRARY_EDIT'), async (req, 
       default_tbo_months,
       service_interval_hours,
       service_interval_months,
-      overhaul_interval_hours,
-      overhaul_interval_months,
       maintenance_notes,
       is_life_limited,
     } = req.body;
@@ -1123,12 +1113,6 @@ router.post('/model/:id/update', requirePermission('LIBRARY_EDIT'), async (req, 
         : undefined,
       service_interval_months: service_interval_months
         ? Number(service_interval_months)
-        : undefined,
-      overhaul_interval_hours: overhaul_interval_hours
-        ? Number(overhaul_interval_hours)
-        : undefined,
-      overhaul_interval_months: overhaul_interval_months
-        ? Number(overhaul_interval_months)
         : undefined,
       maintenance_notes,
       is_life_limited: is_life_limited === 'true' || is_life_limited === 'on',

@@ -198,8 +198,6 @@ export class LibraryService {
     'default_tbo_months',
     'service_interval_hours',
     'service_interval_months',
-    'overhaul_interval_hours',
-    'overhaul_interval_months',
     'maintenance_notes',
     'is_life_limited',
     'is_active',
@@ -482,8 +480,6 @@ export class LibraryService {
         'default_tbo_months',
         'service_interval_hours',
         'service_interval_months',
-        'overhaul_interval_hours',
-        'overhaul_interval_months',
         'maintenance_notes',
         'is_life_limited',
         'is_active',
@@ -4494,8 +4490,6 @@ export class LibraryService {
             'default_tbo_months',
             'service_interval_hours',
             'service_interval_months',
-            'overhaul_interval_hours',
-            'overhaul_interval_months',
             'maintenance_notes',
             'is_life_limited',
             'is_active',
@@ -4619,8 +4613,6 @@ export class LibraryService {
     default_tbo_months?: number | undefined;
     service_interval_hours?: number | undefined;
     service_interval_months?: number | undefined;
-    overhaul_interval_hours?: number | undefined;
-    overhaul_interval_months?: number | undefined;
     maintenance_notes?: string | undefined;
     is_life_limited?: boolean | undefined;
   }) {
@@ -4633,8 +4625,6 @@ export class LibraryService {
       default_tbo_months: data.default_tbo_months ?? null,
       service_interval_hours: data.service_interval_hours ?? null,
       service_interval_months: data.service_interval_months ?? null,
-      overhaul_interval_hours: data.overhaul_interval_hours ?? null,
-      overhaul_interval_months: data.overhaul_interval_months ?? null,
       maintenance_notes: data.maintenance_notes?.trim() || null,
       is_life_limited: data.is_life_limited ?? false,
     });
@@ -4652,8 +4642,6 @@ export class LibraryService {
       default_tbo_months?: number | undefined;
       service_interval_hours?: number | undefined;
       service_interval_months?: number | undefined;
-      overhaul_interval_hours?: number | undefined;
-      overhaul_interval_months?: number | undefined;
       maintenance_notes?: string | undefined;
       is_life_limited?: boolean | undefined;
     }
@@ -4666,8 +4654,6 @@ export class LibraryService {
         default_tbo_months: data.default_tbo_months ?? null,
         service_interval_hours: data.service_interval_hours ?? null,
         service_interval_months: data.service_interval_months ?? null,
-        overhaul_interval_hours: data.overhaul_interval_hours ?? null,
-        overhaul_interval_months: data.overhaul_interval_months ?? null,
         maintenance_notes: data.maintenance_notes?.trim() || null,
         is_life_limited: data.is_life_limited ?? false,
       },

@@ -11,8 +11,6 @@ export class ComponentModel extends Model {
   declare default_tbo_months: number | null;
   declare service_interval_hours: number | null;
   declare service_interval_months: number | null;
-  declare overhaul_interval_hours: number | null;
-  declare overhaul_interval_months: number | null;
   declare maintenance_notes: string | null;
   declare is_life_limited: boolean;
   declare is_active: boolean;
@@ -50,14 +48,6 @@ ComponentModel.init(
       allowNull: true,
     },
     service_interval_months: {
-      type: DataTypes.INTEGER,
-      allowNull: true,
-    },
-    overhaul_interval_hours: {
-      type: DataTypes.DECIMAL(10, 2),
-      allowNull: true,
-    },
-    overhaul_interval_months: {
       type: DataTypes.INTEGER,
       allowNull: true,
     },
