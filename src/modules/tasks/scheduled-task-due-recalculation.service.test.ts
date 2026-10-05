@@ -10,18 +10,29 @@ import {
   MaintenanceTemplateItem,
   TaskCard,
   TaskTemplate,
+  Workpack,
+  WorkpackStatus,
   WorkpackTask,
+  Tenant,
+  User,
 } from '../../models/index.js';
 import { ScheduledTaskDueRecalculationService } from './scheduled-task-due-recalculation.service.js';
+import { createTenantQueryAuthority } from '../tenancy/tenant-query-authority.js';
+import { withTenantTransaction } from '../tenancy/tenant-transaction.js';
 
 const testRunSuffix = Date.now().toString(36).toUpperCase();
 let aircraftRegistrationCounter = 0;
+const authorities = new Map<string, ReturnType<typeof createTenantQueryAuthority>>();
+const authorityFor = (aircraftId: string) => authorities.get(aircraftId)!;
 
 async function createAircraftContext(options?: {
   hours?: number;
   cycles?: number;
 }) {
   const suffix = randomUUID().slice(0, 8).toUpperCase();
+  const owner = await User.create({ email: `scheduled-${suffix}@example.test`, password_hash: 'test', full_name: 'Scheduled Owner', is_active: true });
+  const tenant = await Tenant.create({ code: `SKD_${suffix}`, display_name: `Scheduled ${suffix}`, status: 'ACTIVE', created_by_user_id: owner.id, updated_by_user_id: owner.id });
+  const authority = createTenantQueryAuthority({ state: 'VALID_ACTIVE_TENANT', tenant: { id: tenant.id, code: tenant.code, displayName: tenant.display_name, status: 'ACTIVE' }, membership: { id: randomUUID(), tenantId: tenant.id, userId: owner.id, role: 'OWNER', status: 'ACTIVE' } });
   const registrationSequence = (++aircraftRegistrationCounter)
     .toString(36)
     .toUpperCase()
@@ -53,7 +64,8 @@ async function createAircraftContext(options?: {
     asset_type_id: assetType.id,
     is_active: true,
   });
-  const aircraft = await Aircraft.create({
+  const aircraft = await withTenantTransaction(authority, (transaction) => Aircraft.create({
+    tenant_id: tenant.id,
     registration: `ZS-SKD-${testRunSuffix}-${registrationSequence}`,
     serial_number: `SKD-AIR-${suffix}`,
     model_id: model.id,
@@ -62,9 +74,10 @@ async function createAircraftContext(options?: {
     total_time_hours: options?.hours ?? 100,
     total_time_cycles: options?.cycles ?? 50,
     version: 0,
-  });
+  }, { transaction }));
+  authorities.set(aircraft.id, authority);
 
-  return { aircraft, model, suffix };
+  return { aircraft, model, suffix, authority };
 }
 
 async function createTaskTemplate(params: {
@@ -105,23 +118,38 @@ async function createCompletedTaskCard(params: {
   title: string;
   completedAt: string;
 }) {
-  return TaskCard.create({
-    task_card_number: params.reference,
-    title: params.title,
-    description: `${params.title} work card`,
-    status: 'CERTIFIED_BY_ENGINEER',
-    work_performed: 'Completed for due recalculation test.',
-    template_source_id: params.taskTemplateId ?? null,
-    service_bulletin_id: null,
-    compliance_item_id: null,
-    assigned_to: null,
-    mechanic_completed_by: null,
-    mechanic_completed_at: new Date(`${params.completedAt}T00:00:00.000Z`),
-    engineer_certified_by: null,
-    engineer_certified_at: new Date(`${params.completedAt}T00:00:00.000Z`),
-    aircraft_id: params.aircraftId,
-    component_id: null,
-    version: 0,
+  const authority = authorities.get(params.aircraftId)!;
+  return withTenantTransaction(authority, async (transaction) => {
+    const draftStatus = await WorkpackStatus.findOne({ where: { code: 'DRAFT' }, transaction });
+    if (!draftStatus) throw new Error('DRAFT_WORKPACK_STATUS_REQUIRED');
+    const workpack = await Workpack.create({
+      tenant_id: authority.tenantId,
+      aircraft_id: params.aircraftId,
+      status_id: draftStatus.id,
+      work_order_number: `WP-SKD-${randomUUID().slice(0, 8).toUpperCase()}`,
+      version: 0,
+    }, { transaction });
+    const taskCard = await TaskCard.create({
+      task_card_number: params.reference,
+      title: params.title,
+      description: `${params.title} work card`,
+      status: 'CERTIFIED_BY_ENGINEER',
+      work_performed: 'Completed for due recalculation test.',
+      template_source_id: params.taskTemplateId ?? null,
+      service_bulletin_id: null,
+      compliance_item_id: null,
+      assigned_to: null,
+      mechanic_completed_by: null,
+      mechanic_completed_at: new Date(`${params.completedAt}T00:00:00.000Z`),
+      engineer_certified_by: null,
+      engineer_certified_at: new Date(`${params.completedAt}T00:00:00.000Z`),
+      aircraft_id: params.aircraftId,
+      tenant_id: authority.tenantId,
+      component_id: null,
+      version: 0,
+    }, { transaction });
+    await WorkpackTask.create({ workpack_id: workpack.id, task_id: taskCard.id }, { transaction });
+    return taskCard;
   });
 }
 
@@ -147,6 +175,7 @@ describe('ScheduledTaskDueRecalculationService', () => {
     });
 
     const results = await ScheduledTaskDueRecalculationService.recalculateForBaselineImport(
+      authorityFor(aircraft.id),
       aircraft.id,
       [{
         source_type: 'TASK_TEMPLATE',
@@ -179,6 +208,7 @@ describe('ScheduledTaskDueRecalculationService', () => {
     });
 
     const results = await ScheduledTaskDueRecalculationService.recalculateForTaskCompletion(
+      authorityFor(aircraft.id),
       aircraft.id
     );
     const result = results.find((row) => row.task_identity.reference === task.task_card_number);
@@ -198,6 +228,7 @@ describe('ScheduledTaskDueRecalculationService', () => {
     });
 
     const results = await ScheduledTaskDueRecalculationService.recalculateForBaselineImport(
+      authorityFor(aircraft.id),
       aircraft.id,
       [{
         source_type: 'TASK_TEMPLATE',
@@ -221,7 +252,7 @@ describe('ScheduledTaskDueRecalculationService', () => {
       title: 'Cycle interval unavailable task',
     });
 
-    const results = await ScheduledTaskDueRecalculationService.recalculateManually(aircraft.id);
+    const results = await ScheduledTaskDueRecalculationService.recalculateManually(authorityFor(aircraft.id), aircraft.id);
     const result = results.find((row) => row.task_identity.reference === task.task_card_number);
 
     expect(result?.status).toBe('UNKNOWN');
@@ -238,6 +269,7 @@ describe('ScheduledTaskDueRecalculationService', () => {
     });
 
     const results = await ScheduledTaskDueRecalculationService.recalculateForUtilisationEvent(
+      authorityFor(aircraft.id),
       aircraft.id
     );
     const result = results.find((row) => row.task_identity.reference === task.task_card_number);
@@ -256,6 +288,7 @@ describe('ScheduledTaskDueRecalculationService', () => {
     });
 
     const results = await ScheduledTaskDueRecalculationService.recalculateForTaskCompletion(
+      authorityFor(aircraft.id),
       aircraft.id
     );
     const result = results.find((row) => row.task_identity.task_card_id === taskCard.id);
@@ -276,6 +309,7 @@ describe('ScheduledTaskDueRecalculationService', () => {
     });
 
     const results = await ScheduledTaskDueRecalculationService.recalculateForApplicabilityChange(
+      authorityFor(aircraft.id),
       aircraft.id
     );
     const result = results.find((row) => row.task_identity.reference === task.task_card_number);
@@ -312,6 +346,7 @@ describe('ScheduledTaskDueRecalculationService', () => {
     });
 
     const results = await ScheduledTaskDueRecalculationService.recalculateForBaselineImport(
+      authorityFor(aircraft.id),
       aircraft.id,
       [{
         source_type: 'MAINTENANCE_TEMPLATE_ITEM',
@@ -346,7 +381,7 @@ describe('ScheduledTaskDueRecalculationService', () => {
     });
     const before = await WorkpackTask.count();
 
-    await ScheduledTaskDueRecalculationService.recalculateForBaselineImport(aircraft.id, [{
+    await ScheduledTaskDueRecalculationService.recalculateForBaselineImport(authorityFor(aircraft.id), aircraft.id, [{
       source_type: 'TASK_TEMPLATE',
       source_id: task.id,
       last_complied_hours: 80,

@@ -6,7 +6,11 @@
   <% const editLifeLimitErrors = typeof lifeLimitEditErrors !== 'undefined' ? lifeLimitEditErrors : {}; %>
   <% const editLifeLimitFormData = typeof lifeLimitEditFormData !== 'undefined' ? lifeLimitEditFormData : {}; %>
   <% const applicability = typeof applicabilityAssignments !== 'undefined' ? applicabilityAssignments : {}; %>
-  <% const assignedAds = applicability.assignedAirworthinessDirectives || []; %>
+  <% const complianceScope = typeof modelAdApplicabilityScope !== 'undefined' ? modelAdApplicabilityScope : {}; %>
+  <% const assignedAds = complianceScope.assignedOrAccepted || applicability.assignedAirworthinessDirectives || []; %>
+  <% const strongModelSuggestions = complianceScope.strongModelSuggestions || []; %>
+  <% const manufacturerReview = complianceScope.manufacturerReview || []; %>
+  <% const broadReview = complianceScope.broadReview || []; %>
   <% const assignableAds = applicability.assignableAirworthinessDirectives || []; %>
   <% const assignableAdPagination = applicability.assignableAirworthinessDirectivesPagination || { total: assignableAds.length, page: 1, pageSize: 200, totalPages: 1, hasPrevious: false, hasNext: false }; %>
   <% const activeAdNumberSearch = typeof adNumberSearch !== 'undefined' ? adNumberSearch : ''; %>
@@ -20,11 +24,10 @@
     params.push(`ad_page_size=${encodeURIComponent(String(assignableAdPagination.pageSize))}`);
     return `/library/model/${model.id}?${params.join('&')}#compliance-data`;
   }; %>
-  <% const relevanceBuckets = typeof adRelevance !== 'undefined' ? adRelevance : {}; %>
-  <% const readOnlyAdSuggestionGroups = [
-    { label: 'Exact Model Suggestions', rows: relevanceBuckets.EXACT_MODEL_SUGGESTED || [] },
-    { label: 'Manufacturer Suggestions', rows: relevanceBuckets.MANUFACTURER_SUGGESTED || [] },
-    { label: 'Broad Review', rows: relevanceBuckets.BROAD_REVIEW || [] },
+  <% const scopedAdSuggestionGroups = [
+    { label: 'Strong Model Suggestions', rows: strongModelSuggestions, notice: 'Unconfirmed exact model-code or model-name suggestions for this model.' },
+    { label: 'Manufacturer-Level Review', rows: manufacturerReview, notice: 'Manufacturer-level records are not confirmed applicability for this model.' },
+    { label: 'Broad / Ambiguous Review', rows: broadReview, notice: 'Broad, series, all-model, or multi-model records require review.' },
   ]; %>
   <% const assignedStandardTasks = applicability.assignedStandardTasks || []; %>
   <% const assignableStandardTasks = applicability.assignableStandardTasks || []; %>
@@ -222,231 +225,86 @@
     <div id="compliance-data" class="scroll-mt-6"></div>
     <div id="component-model-tab-compliance" class="component-model-tab-panel hidden" data-component-model-tab-panel="compliance">
       <section class="space-y-8">
-        <div class="bg-white border rounded-xl p-6 shadow-sm">
-          <h2 class="text-lg font-bold text-slate-900 mb-4">Airworthiness Directives</h2>
-
-          <form method="POST" action="/library/model/<%= model.id %>/airworthiness-directives/assign" class="mb-6 rounded-lg border border-slate-200 bg-slate-50 p-4 space-y-3">
-            <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-            <div>
-              <label for="assign-ad-number" class="block text-sm font-bold text-slate-900">Assign AD by AD Number</label>
-              <p class="mt-1 text-sm text-slate-500">
-                Enter an exact active AD number. This uses the existing model AD assignment workflow.
-              </p>
-            </div>
-            <div class="flex flex-col gap-3 sm:flex-row sm:items-end">
-              <input
-                id="assign-ad-number"
-                type="text"
-                name="ad_number"
-                placeholder="Enter exact AD number"
-                class="w-full rounded border px-3 py-2 text-sm sm:max-w-xs"
-              >
-              <button type="submit" class="rounded bg-slate-800 px-4 py-2 text-sm font-bold text-white hover:bg-black">
-                Assign AD
-              </button>
-            </div>
-          </form>
-
-          <form method="GET" action="/library/model/<%= model.id %>#compliance-data" class="mb-6 rounded-lg border border-slate-200 bg-white p-4 space-y-3">
-            <div>
-              <label for="search-assignable-ad-number" class="block text-sm font-bold text-slate-900">Search assignable ADs</label>
-              <p class="mt-1 text-sm text-slate-500">
-                Search active unassigned ADs by AD number before paging is applied.
-              </p>
-            </div>
-            <div class="flex flex-col gap-3 sm:flex-row sm:items-end">
-              <input type="hidden" name="tab" value="compliance">
-              <input type="hidden" name="ad_page" value="1">
-              <input
-                id="search-assignable-ad-number"
-                type="text"
-                name="ad_number"
-                value="<%= activeAdNumberSearch %>"
-                placeholder="Search by AD number"
-                class="w-full rounded border px-3 py-2 text-sm sm:max-w-xs"
-              >
-              <div>
-                <label for="assignable-ad-page-size" class="block text-xs font-bold uppercase tracking-widest text-slate-500">Rows</label>
-                <select
-                  id="assignable-ad-page-size"
-                  name="ad_page_size"
-                  class="mt-1 rounded border px-3 py-2 text-sm"
-                >
-                  <% [200, 400, 800, 1000].forEach((pageSizeOption) => { %>
-                    <option value="<%= pageSizeOption %>" <%= assignableAdPagination.pageSize === pageSizeOption ? 'selected' : '' %>><%= pageSizeOption %></option>
-                  <% }) %>
-                </select>
-              </div>
-              <button type="submit" class="rounded bg-slate-800 px-4 py-2 text-sm font-bold text-white hover:bg-black">
-                Search
-              </button>
-              <% if (activeAdNumberSearch || assignableAdPagination.pageSize !== 200 || assignableAdPagination.page !== 1) { %>
-                <a href="/library/model/<%= model.id %>?tab=compliance#compliance-data" class="text-sm font-semibold text-blue-600 hover:underline">Clear</a>
-              <% } %>
-            </div>
-            <p class="text-sm text-slate-500">
-              Showing <%= assignableAdStart %>-<%= assignableAdEnd %> of <%= assignableAdPagination.total %> assignable AD<%= assignableAdPagination.total === 1 ? '' : 's' %><% if (activeAdNumberSearch) { %> matching "<%= activeAdNumberSearch %>"<% } %>.
+        <div class="bg-white border rounded-xl p-6 shadow-sm space-y-8">
+          <header>
+            <h2 class="text-xl font-bold text-slate-900">Compliance Data — <%= model?.Manufacturer?.name || '-' %> <%= model?.model_code || model?.model_name || '-' %></h2>
+            <p class="mt-2 text-sm text-slate-600">
+              Manufacturer: <span class="font-semibold"><%= model?.Manufacturer?.name || '-' %></span>
+              | Model: <span class="font-semibold"><%= model?.model_code || model?.model_name || '-' %></span>
+              | Asset Type: <span class="font-semibold"><%= model?.AssetType?.code || '-' %></span>
             </p>
-            <div class="flex flex-col gap-3 text-sm sm:flex-row sm:items-center sm:justify-between">
-              <span class="font-semibold text-slate-700">Page <%= assignableAdPagination.page %> of <%= assignableAdPagination.totalPages %></span>
-              <div class="flex items-center gap-3">
-                <% if (assignableAdPagination.hasPrevious) { %>
-                  <a href="<%= assignableAdPageUrl(assignableAdPagination.page - 1) %>" class="rounded border px-3 py-1.5 font-semibold text-slate-700 hover:bg-slate-50">Previous</a>
-                <% } else { %>
-                  <span class="rounded border px-3 py-1.5 font-semibold text-slate-400">Previous</span>
-                <% } %>
-                <% if (assignableAdPagination.hasNext) { %>
-                  <a href="<%= assignableAdPageUrl(assignableAdPagination.page + 1) %>" class="rounded border px-3 py-1.5 font-semibold text-slate-700 hover:bg-slate-50">Next</a>
-                <% } else { %>
-                  <span class="rounded border px-3 py-1.5 font-semibold text-slate-400">Next</span>
-                <% } %>
-              </div>
-            </div>
-          </form>
-
-          <% if (!assignableAds || assignableAds.length === 0) { %>
-            <p class="mb-6 text-sm text-slate-500 italic">
-              <% if (activeAdNumberSearch) { %>
-                No assignable Airworthiness Directives found for "<%= activeAdNumberSearch %>".
-              <% } else { %>
-                No additional ADs are available to assign to this model.
-              <% } %>
+            <p class="mt-2 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+              Suggestions and review candidates are not confirmed applicability for this model.
             </p>
-          <% } else { %>
-            <form method="POST" action="/library/model/<%= model.id %>/airworthiness-directives/assign" class="mb-8 space-y-4">
-              <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+          </header>
 
-              <div class="max-h-80 overflow-y-auto rounded-lg border">
+          <section>
+            <h3 class="text-base font-bold text-slate-900">Assigned / Accepted for This Model</h3>
+            <% if (!assignedAds.length) { %>
+              <p class="mt-2 text-sm text-slate-500 italic">No ADs are assigned or accepted specifically for this model.</p>
+            <% } else { %>
+              <div class="mt-3 overflow-x-auto rounded-lg border">
                 <table class="min-w-full divide-y divide-slate-200">
-                  <thead class="bg-slate-50">
-                    <tr>
-                      <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Use</th>
-                      <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">AD Number</th>
-                      <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Subject</th>
-                      <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Status</th>
-                      <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Effective</th>
-                    </tr>
-                  </thead>
+                  <thead class="bg-slate-50"><tr><th class="px-3 py-2 text-left text-xs font-bold uppercase text-slate-500">AD Number</th><th class="px-3 py-2 text-left text-xs font-bold uppercase text-slate-500">Relationship</th><th class="px-3 py-2 text-left text-xs font-bold uppercase text-slate-500">Subject</th><th class="px-3 py-2 text-left text-xs font-bold uppercase text-slate-500">Make</th><th class="px-3 py-2 text-left text-xs font-bold uppercase text-slate-500">Model</th></tr></thead>
                   <tbody class="divide-y divide-slate-100 bg-white">
-                    <% assignableAds.forEach((directive) => { %>
-                      <tr>
-                        <td class="px-3 py-3 align-top">
-                          <input type="checkbox" name="airworthiness_directive_ids" value="<%= directive.id %>" class="rounded border-slate-300">
-                        </td>
-                        <td class="px-3 py-3 align-top text-sm font-semibold text-slate-900"><%= directive.ad_number || '-' %></td>
-                        <td class="px-3 py-3 align-top text-sm text-slate-700">
-                          <% if (directive.subject_heading && directive.subject) { %>
-                            <div><span class="font-bold text-slate-500">Subject Heading:</span> <span class="text-slate-900"><%= directive.subject_heading %></span></div>
-                            <div class="mt-1"><span class="font-bold text-slate-500">Subject:</span> <span><%= directive.subject %></span></div>
-                          <% } else { %>
-                            <%= directive.subject || directive.subject_heading || '-' %>
-                          <% } %>
-                        </td>
-                        <td class="px-3 py-3 align-top text-xs text-slate-700"><%= directive.status || '-' %></td>
-                        <td class="px-3 py-3 align-top text-xs text-slate-700"><%= directive.effective_date || '-' %></td>
-                      </tr>
+                    <% assignedAds.forEach((directive) => { %>
+                      <tr><td class="px-3 py-3 text-sm font-semibold"><%= directive.ad_number || '-' %></td><td class="px-3 py-3 text-xs"><%= directive.relationship_status === 'ACCEPTED_MODEL' ? 'Accepted for model' : 'Assigned' %></td><td class="px-3 py-3 text-sm"><%= directive.subject || directive.subject_heading || '-' %></td><td class="px-3 py-3 text-xs"><%= directive.make || '-' %></td><td class="px-3 py-3 text-xs"><%= directive.model || '-' %></td></tr>
                     <% }) %>
                   </tbody>
                 </table>
               </div>
+            <% } %>
+          </section>
 
-              <button type="submit" class="rounded bg-slate-800 px-4 py-2 text-sm font-bold text-white hover:bg-black">
-                Assign Selected ADs
-              </button>
+          <% scopedAdSuggestionGroups.forEach((group) => { %>
+            <section class="rounded-lg border border-slate-200 bg-slate-50 p-4">
+              <div class="flex items-center justify-between gap-3"><h3 class="text-base font-bold text-slate-900"><%= group.label %></h3><span class="rounded-full bg-white px-2 py-0.5 text-xs font-semibold text-slate-500"><%= group.rows.length %></span></div>
+              <p class="mt-1 text-sm text-slate-600"><%= group.notice %></p>
+              <% if (!group.rows.length) { %>
+                <p class="mt-3 text-sm text-slate-500 italic">No persisted ADs in this scope.</p>
+              <% } else { %>
+                <div class="mt-3 overflow-x-auto rounded-lg border bg-white">
+                  <table class="min-w-full divide-y divide-slate-200">
+                    <thead><tr><th class="px-3 py-2 text-left text-xs font-bold uppercase text-slate-500">AD Number</th><th class="px-3 py-2 text-left text-xs font-bold uppercase text-slate-500">Source Make</th><th class="px-3 py-2 text-left text-xs font-bold uppercase text-slate-500">Source Model</th><th class="px-3 py-2 text-left text-xs font-bold uppercase text-slate-500">Review State</th><th class="px-3 py-2 text-left text-xs font-bold uppercase text-slate-500">Reason</th></tr></thead>
+                    <tbody class="divide-y divide-slate-100">
+                      <% group.rows.forEach((directive) => { %>
+                        <tr><td class="px-3 py-3 text-sm font-semibold"><%= directive.ad_number || '-' %></td><td class="px-3 py-3 text-xs"><%= directive.make || '-' %></td><td class="px-3 py-3 text-xs"><%= directive.model || '-' %></td><td class="px-3 py-3 text-xs"><%= directive.allocation_status || '-' %></td><td class="px-3 py-3 text-xs"><%= directive.relevance_reason || '-' %></td></tr>
+                      <% }) %>
+                    </tbody>
+                  </table>
+                </div>
+              <% } %>
+            </section>
+          <% }) %>
+
+          <section class="rounded-lg border border-slate-300 p-4 space-y-5">
+            <div><h3 class="text-base font-bold text-slate-900">Search and Add from Full AD Library</h3><p class="mt-1 text-sm text-slate-600">Library search results are not evidence of applicability. No full-library records load until an AD-number search is submitted.</p></div>
+            <form method="POST" action="/library/model/<%= model.id %>/airworthiness-directives/assign" class="rounded-lg border border-slate-200 bg-slate-50 p-4 space-y-3">
+              <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+              <label for="assign-ad-number" class="block text-sm font-bold text-slate-900">Assign AD by AD Number</label>
+              <p class="text-sm text-slate-500">Enter an exact active AD number. This uses the existing model AD assignment workflow.</p>
+              <div class="flex flex-col gap-3 sm:flex-row"><input id="assign-ad-number" type="text" name="ad_number" placeholder="Enter exact AD number" class="w-full rounded border px-3 py-2 text-sm sm:max-w-xs"><button type="submit" class="rounded bg-slate-800 px-4 py-2 text-sm font-bold text-white">Assign AD</button></div>
             </form>
-          <% } %>
-
-          <% if (!assignedAds || assignedAds.length === 0) { %>
-            <p class="text-sm text-slate-500 italic">No ADs assigned to this model.</p>
-          <% } else { %>
-            <div class="overflow-x-auto rounded-lg border">
-              <table class="min-w-full divide-y divide-slate-200">
-                <thead class="bg-slate-50">
-                  <tr>
-                    <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">AD Number</th>
-                    <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Subject</th>
-                    <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Make</th>
-                    <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Model</th>
-                  </tr>
-                </thead>
-                <tbody class="divide-y divide-slate-100 bg-white">
-                  <% assignedAds.forEach((directive) => { %>
-                    <tr>
-                      <td class="px-3 py-3 align-top text-sm font-semibold text-slate-900"><%= directive.ad_number || '-' %></td>
-                      <td class="px-3 py-3 align-top text-sm text-slate-700">
-                        <% if (directive.subject_heading && directive.subject) { %>
-                          <div><span class="font-bold text-slate-500">Subject Heading:</span> <span class="text-slate-900"><%= directive.subject_heading %></span></div>
-                          <div class="mt-1"><span class="font-bold text-slate-500">Subject:</span> <span><%= directive.subject %></span></div>
-                        <% } else { %>
-                          <%= directive.subject || directive.subject_heading || '-' %>
-                        <% } %>
-                      </td>
-                      <td class="px-3 py-3 align-top text-xs text-slate-700"><%= directive.make || '-' %></td>
-                      <td class="px-3 py-3 align-top text-xs text-slate-700"><%= directive.model || '-' %></td>
-                    </tr>
-                  <% }) %>
-                </tbody>
-              </table>
-            </div>
-          <% } %>
-
-          <div class="mt-8 rounded-lg border border-slate-200 bg-slate-50 p-4">
-            <div class="mb-4">
-              <h3 class="text-sm font-bold uppercase tracking-widest text-slate-700">Read-only AD Relevance Suggestions</h3>
-              <p class="mt-1 text-sm text-slate-500">
-                Suggestions use imported FAA Make, Model, and Product Type fields. Accepting an AD still uses the existing Assign Selected ADs workflow above.
-              </p>
-            </div>
-
-            <div class="space-y-5">
-              <% readOnlyAdSuggestionGroups.forEach((group) => { %>
-                <section>
-                  <div class="mb-2 flex items-center justify-between gap-3">
-                    <h4 class="text-sm font-semibold text-slate-900"><%= group.label %></h4>
-                    <span class="rounded-full bg-white px-2 py-0.5 text-xs font-semibold text-slate-500"><%= group.rows.length %></span>
-                  </div>
-
-                  <% if (!group.rows.length) { %>
-                    <p class="text-sm text-slate-500 italic">No ADs in this bucket.</p>
-                  <% } else { %>
-                    <div class="overflow-x-auto rounded-lg border bg-white">
-                      <table class="min-w-full divide-y divide-slate-200">
-                        <thead class="bg-white">
-                          <tr>
-                            <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">AD Number</th>
-                            <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Subject</th>
-                            <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Make</th>
-                            <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Model</th>
-                            <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Product</th>
-                            <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500">Reason</th>
-                          </tr>
-                        </thead>
-                        <tbody class="divide-y divide-slate-100 bg-white">
-                          <% group.rows.forEach((directive) => { %>
-                            <tr>
-                              <td class="px-3 py-3 align-top text-sm font-semibold text-slate-900"><%= directive.ad_number || '-' %></td>
-                              <td class="px-3 py-3 align-top text-sm text-slate-700">
-                                <% if (directive.subject_heading && directive.subject) { %>
-                                  <div><span class="font-bold text-slate-500">Subject Heading:</span> <span class="text-slate-900"><%= directive.subject_heading %></span></div>
-                                  <div class="mt-1"><span class="font-bold text-slate-500">Subject:</span> <span><%= directive.subject %></span></div>
-                                <% } else { %>
-                                  <%= directive.subject || directive.subject_heading || '-' %>
-                                <% } %>
-                              </td>
-                              <td class="px-3 py-3 align-top text-xs text-slate-700"><%= directive.make || '-' %></td>
-                              <td class="px-3 py-3 align-top text-xs text-slate-700"><%= directive.model || '-' %></td>
-                              <td class="px-3 py-3 align-top text-xs text-slate-700"><%= directive.product_type || '-' %></td>
-                              <td class="px-3 py-3 align-top text-xs text-slate-600"><%= directive.relevance_reason || '-' %></td>
-                            </tr>
-                          <% }) %>
-                        </tbody>
-                      </table>
-                    </div>
-                  <% } %>
-                </section>
-              <% }) %>
-            </div>
-          </div>
+            <form method="GET" action="/library/model/<%= model.id %>#compliance-data" class="space-y-3">
+              <label for="search-assignable-ad-number" class="block text-sm font-bold text-slate-900">Search assignable ADs</label>
+              <div class="flex flex-col gap-3 sm:flex-row sm:items-end">
+                <input type="hidden" name="tab" value="compliance"><input type="hidden" name="ad_page" value="1">
+                <input id="search-assignable-ad-number" type="text" name="ad_number" value="<%= activeAdNumberSearch %>" placeholder="Search by AD number" class="w-full rounded border px-3 py-2 text-sm sm:max-w-xs">
+                <div><label for="assignable-ad-page-size" class="block text-xs font-bold uppercase text-slate-500">Rows</label><select id="assignable-ad-page-size" name="ad_page_size" class="mt-1 rounded border px-3 py-2 text-sm"><% [200, 400, 800, 1000].forEach((pageSizeOption) => { %><option value="<%= pageSizeOption %>" <%= assignableAdPagination.pageSize === pageSizeOption ? 'selected' : '' %>><%= pageSizeOption %></option><% }) %></select></div>
+                <button type="submit" class="rounded bg-slate-800 px-4 py-2 text-sm font-bold text-white">Search</button>
+                <% if (activeAdNumberSearch) { %><a href="/library/model/<%= model.id %>?tab=compliance#compliance-data" class="text-sm font-semibold text-blue-600 hover:underline">Clear</a><% } %>
+              </div>
+            </form>
+            <% if (!activeAdNumberSearch) { %>
+              <p class="text-sm text-slate-500 italic">Enter an AD number to search the full active AD library.</p>
+            <% } else { %>
+              <p class="text-sm text-slate-500">Showing <%= assignableAdStart %>-<%= assignableAdEnd %> of <%= assignableAdPagination.total %> assignable AD<%= assignableAdPagination.total === 1 ? '' : 's' %> matching "<%= activeAdNumberSearch %>".</p>
+              <div class="flex items-center justify-between text-sm"><span class="font-semibold">Page <%= assignableAdPagination.page %> of <%= assignableAdPagination.totalPages %></span><div class="flex gap-3"><% if (assignableAdPagination.hasPrevious) { %><a href="<%= assignableAdPageUrl(assignableAdPagination.page - 1) %>">Previous</a><% } %><% if (assignableAdPagination.hasNext) { %><a href="<%= assignableAdPageUrl(assignableAdPagination.page + 1) %>">Next</a><% } %></div></div>
+              <% if (!assignableAds.length) { %><p class="text-sm text-slate-500 italic">No assignable Airworthiness Directives found for "<%= activeAdNumberSearch %>".</p><% } else { %>
+                <form method="POST" action="/library/model/<%= model.id %>/airworthiness-directives/assign" class="space-y-4"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><div class="max-h-80 overflow-y-auto rounded-lg border"><table class="min-w-full divide-y divide-slate-200"><thead class="bg-slate-50"><tr><th class="px-3 py-2 text-left text-xs font-bold uppercase text-slate-500">Use</th><th class="px-3 py-2 text-left text-xs font-bold uppercase text-slate-500">AD Number</th><th class="px-3 py-2 text-left text-xs font-bold uppercase text-slate-500">Subject</th><th class="px-3 py-2 text-left text-xs font-bold uppercase text-slate-500">Status</th></tr></thead><tbody><% assignableAds.forEach((directive) => { %><tr><td class="px-3 py-3"><input type="checkbox" name="airworthiness_directive_ids" value="<%= directive.id %>"></td><td class="px-3 py-3 text-sm font-semibold"><%= directive.ad_number || '-' %></td><td class="px-3 py-3 text-sm"><%= directive.subject || directive.subject_heading || '-' %></td><td class="px-3 py-3 text-xs"><%= directive.status || '-' %></td></tr><% }) %></tbody></table></div><button type="submit" class="rounded bg-slate-800 px-4 py-2 text-sm font-bold text-white">Assign Selected ADs</button></form>
+              <% } %>
+            <% } %>
+          </section>
         </div>
 
         <div class="bg-white border rounded-xl p-6 shadow-sm">

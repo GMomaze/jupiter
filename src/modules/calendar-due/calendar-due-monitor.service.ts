@@ -1,4 +1,5 @@
-import { Aircraft } from '../../models/index.js';
+import { assertTenantQueryAuthority, type TenantQueryAuthority } from '../tenancy/tenant-query-authority.js';
+import { aircraftTenantRepository } from '../aircraft/aircraft-tenant.repository.live.js';
 import {
   ComponentLimitMonitoringResult,
   ComponentLimitMonitoringService,
@@ -79,64 +80,73 @@ type TriggerSource =
 
 export class CalendarDueMonitorService {
   static async recalculateManually(
+    authority: TenantQueryAuthority,
     params: CalendarDueMonitorParams = {}
   ): Promise<CalendarDueMonitorReport> {
-    return this.recalculate(params, 'MANUAL_RECALCULATION');
+    return this.recalculate(authority, params, 'MANUAL_RECALCULATION');
   }
 
   static async recalculateForComplianceUpdate(
+    authority: TenantQueryAuthority,
     aircraftId: string,
     params: CalendarDueMonitorParams = {}
   ): Promise<CalendarDueMonitorReport> {
-    return this.recalculate({ ...params, aircraftId }, 'COMPLIANCE_UPDATE');
+    return this.recalculate(authority, { ...params, aircraftId }, 'COMPLIANCE_UPDATE');
   }
 
   static async recalculateForUtilisationUpdate(
+    authority: TenantQueryAuthority,
     aircraftId: string,
     params: CalendarDueMonitorParams = {}
   ): Promise<CalendarDueMonitorReport> {
-    return this.recalculate({ ...params, aircraftId }, 'UTILISATION_UPDATE');
+    return this.recalculate(authority, { ...params, aircraftId }, 'UTILISATION_UPDATE');
   }
 
   static async recalculateForApplicabilityChange(
+    authority: TenantQueryAuthority,
     aircraftId: string,
     params: CalendarDueMonitorParams = {}
   ): Promise<CalendarDueMonitorReport> {
-    return this.recalculate({ ...params, aircraftId }, 'APPLICABILITY_CHANGE');
+    return this.recalculate(authority, { ...params, aircraftId }, 'APPLICABILITY_CHANGE');
   }
 
   static async recalculateForFutureScheduler(
+    authority: TenantQueryAuthority,
     params: CalendarDueMonitorParams = {}
   ): Promise<CalendarDueMonitorReport> {
-    return this.recalculate(params, 'SCHEDULER_PLACEHOLDER', [
+    return this.recalculate(authority, params, 'SCHEDULER_PLACEHOLDER', [
       'Scheduler/background execution is a placeholder only in Phase 10.',
     ]);
   }
 
   static async recalculateForAircraft(
+    authority: TenantQueryAuthority,
     aircraftId: string,
     params: CalendarDueMonitorParams = {}
   ): Promise<CalendarDueMonitorReport> {
-    return this.recalculate({ ...params, aircraftId }, 'MANUAL_RECALCULATION');
+    return this.recalculate(authority, { ...params, aircraftId }, 'MANUAL_RECALCULATION');
   }
 
   static async recalculateAll(
+    authority: TenantQueryAuthority,
     params: CalendarDueMonitorParams = {}
   ): Promise<CalendarDueMonitorReport> {
-    return this.recalculate(params, 'MANUAL_RECALCULATION');
+    return this.recalculate(authority, params, 'MANUAL_RECALCULATION');
   }
 
   private static async recalculate(
+    authority: TenantQueryAuthority,
     params: CalendarDueMonitorParams,
     triggerSource: TriggerSource,
     initialWarnings: string[] = []
   ): Promise<CalendarDueMonitorReport> {
+    assertTenantQueryAuthority(authority);
     const currentDate = this.dateOnly(params.evaluationDate || new Date());
     const aircraftIds = params.aircraftId
       ? [params.aircraftId]
-      : await this.getAllAircraftIds();
+      : await this.getAllAircraftIds(authority);
     const resultSets = await Promise.all(
-      aircraftIds.map((aircraftId) => this.recalculateAircraft(aircraftId, currentDate, triggerSource))
+      aircraftIds.map((aircraftId) => this.recalculateAircraft(authority, aircraftId, currentDate, triggerSource))
     );
     const results = resultSets.flat();
     const warnings = [...initialWarnings];
@@ -156,14 +166,15 @@ export class CalendarDueMonitorService {
   }
 
   private static async recalculateAircraft(
+    authority: TenantQueryAuthority,
     aircraftId: string,
     currentDate: string,
     triggerSource: TriggerSource
   ) {
     const [componentResults, complianceResults, scheduledTaskResults] = await Promise.all([
-      ComponentLimitMonitoringService.monitorAircraft(aircraftId),
-      this.complianceResultsForTrigger(aircraftId, triggerSource),
-      this.scheduledTaskResultsForTrigger(aircraftId, triggerSource),
+      ComponentLimitMonitoringService.monitorAircraft(authority, aircraftId),
+      this.complianceResultsForTrigger(authority, aircraftId, triggerSource),
+      this.scheduledTaskResultsForTrigger(authority, aircraftId, triggerSource),
     ]);
 
     return [
@@ -173,36 +184,36 @@ export class CalendarDueMonitorService {
     ];
   }
 
-  private static complianceResultsForTrigger(aircraftId: string, triggerSource: TriggerSource) {
+  private static complianceResultsForTrigger(authority: TenantQueryAuthority, aircraftId: string, triggerSource: TriggerSource) {
     if (triggerSource === 'COMPLIANCE_UPDATE') {
-      return ComplianceDueRecalculationService.recalculateForComplianceEntry(aircraftId);
+      return ComplianceDueRecalculationService.recalculateForComplianceEntry(authority, aircraftId);
     }
 
     if (triggerSource === 'APPLICABILITY_CHANGE') {
-      return ComplianceDueRecalculationService.recalculateForApplicabilityChange(aircraftId);
+      return ComplianceDueRecalculationService.recalculateForApplicabilityChange(authority, aircraftId);
     }
 
     if (triggerSource === 'UTILISATION_UPDATE') {
-      return ComplianceDueRecalculationService.recalculateForUtilisationEvent(aircraftId);
+      return ComplianceDueRecalculationService.recalculateForUtilisationEvent(authority, aircraftId);
     }
 
-    return ComplianceDueRecalculationService.recalculateManually(aircraftId);
+    return ComplianceDueRecalculationService.recalculateManually(authority, aircraftId);
   }
 
-  private static scheduledTaskResultsForTrigger(aircraftId: string, triggerSource: TriggerSource) {
+  private static scheduledTaskResultsForTrigger(authority: TenantQueryAuthority, aircraftId: string, triggerSource: TriggerSource) {
     if (triggerSource === 'APPLICABILITY_CHANGE') {
-      return ScheduledTaskDueRecalculationService.recalculateForApplicabilityChange(aircraftId);
+      return ScheduledTaskDueRecalculationService.recalculateForApplicabilityChange(authority, aircraftId);
     }
 
     if (triggerSource === 'UTILISATION_UPDATE') {
-      return ScheduledTaskDueRecalculationService.recalculateForUtilisationEvent(aircraftId);
+      return ScheduledTaskDueRecalculationService.recalculateForUtilisationEvent(authority, aircraftId);
     }
 
     if (triggerSource === 'COMPLIANCE_UPDATE') {
-      return ScheduledTaskDueRecalculationService.recalculateManually(aircraftId);
+      return ScheduledTaskDueRecalculationService.recalculateManually(authority, aircraftId);
     }
 
-    return ScheduledTaskDueRecalculationService.recalculateManually(aircraftId);
+    return ScheduledTaskDueRecalculationService.recalculateManually(authority, aircraftId);
   }
 
   private static fromComponentResult(
@@ -439,11 +450,8 @@ export class CalendarDueMonitorService {
     return itemType;
   }
 
-  private static async getAllAircraftIds() {
-    const aircraft = await Aircraft.findAll({
-      attributes: ['id'],
-      order: [['registration', 'ASC']],
-    });
+  private static async getAllAircraftIds(authority: TenantQueryAuthority) {
+    const aircraft = await aircraftTenantRepository.list(authority);
 
     return aircraft.map((row) => row.id);
   }

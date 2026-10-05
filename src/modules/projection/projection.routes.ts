@@ -1,11 +1,15 @@
-import { Router } from 'express';
+import { Router, type RequestHandler } from 'express';
 import { ProjectionController } from './projection.controller.js';
+import { fleetProjectionService } from './projection.service.live.js';
 
-const router = Router();
+export function createProjectionRouter(requireValidActiveTenantContext: RequestHandler) {
+  const router = Router();
+  const controller = new ProjectionController(fleetProjectionService);
 
-// This maps the URL path '/' (which will be /projection/fleet-health) 
-// to the controller method.
-router.get('/fleet-health', ProjectionController.renderFleetStatus);
-router.get('/summary', ProjectionController.getSummary);
+  router.get('/fleet-health', requireValidActiveTenantContext, controller.renderFleetStatus);
+  router.get('/summary', requireValidActiveTenantContext, controller.getSummary);
 
-export default router;
+  return router;
+}
+
+export default createProjectionRouter;

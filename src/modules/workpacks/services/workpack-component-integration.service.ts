@@ -1,15 +1,15 @@
-import { Op } from 'sequelize';
 import {
-  AircraftComponent,
-  AircraftComponentInstallation,
-  AssetType,
-  ComponentLifeLimit,
-  ComponentModel,
-  Manufacturer,
-  SerializedComponent,
-  SerializedComponentLifeState,
+  TaskCard,
+  WorkpackSnag,
+  WorkpackTask,
 } from '../../../models/index.js';
 import { LibraryService } from '../../library/library.service.js';
+import type { TenantQueryAuthority } from '../../tenancy/tenant-query-authority.js';
+import { assertTenantQueryAuthority } from '../../tenancy/tenant-query-authority.js';
+import { aircraftComponentInstallationTenantRepository } from '../../aircraft/aircraft-component-installation-tenant.repository.live.js';
+import { aircraftComponentTenantRepository } from '../../aircraft/aircraft-component-tenant.repository.live.js';
+import { workpackTenantRepository } from '../workpack-tenant.repository.js';
+import { withTenantTransaction } from '../../tenancy/tenant-transaction.js';
 
 type SourceType = 'TASK' | 'SNAG';
 type MatchBasis = 'POSITION' | 'SERIAL_NUMBER' | 'UNMATCHED_COMPONENT_REFERENCE';
@@ -91,18 +91,27 @@ export interface WorkpackComponentIntegrationViewModel {
 }
 
 type BuildParams = {
-  aircraftId?: string | null;
-  tasks?: any[];
-  snags?: any[];
+  authority: TenantQueryAuthority;
+  workpackId: string;
 };
 
 export class WorkpackComponentIntegrationService {
   static async buildForWorkpack(
     params: BuildParams
   ): Promise<WorkpackComponentIntegrationViewModel> {
-    const aircraftId = this.normalize(params.aircraftId);
-    const tasks = Array.isArray(params.tasks) ? params.tasks : [];
-    const snags = Array.isArray(params.snags) ? params.snags : [];
+    assertTenantQueryAuthority(params.authority);
+    const workpack = await workpackTenantRepository.getById(params.authority, params.workpackId);
+    if (!workpack) return this.buildEmptyResult('Workpack unavailable.');
+
+    const aircraftId = this.normalize(workpack.aircraft_id);
+    const { tasks, snags } = await withTenantTransaction(params.authority, async (transaction) => {
+      const taskLinks = await WorkpackTask.findAll({ where: { workpack_id: workpack.id }, transaction });
+      const tasks = taskLinks.length
+        ? await TaskCard.findAll({ where: { id: taskLinks.map(link => link.task_id) }, transaction })
+        : [];
+      const snags = await WorkpackSnag.findAll({ where: { workpack_id: workpack.id }, transaction });
+      return { tasks, snags };
+    });
 
     if (!aircraftId) {
       return this.buildEmptyResult(
@@ -110,47 +119,8 @@ export class WorkpackComponentIntegrationService {
       );
     }
 
-    const activeInstallations = await AircraftComponentInstallation.findAll({
-      where: {
-        aircraft_id: aircraftId,
-        removed_at: null,
-      },
-      include: [
-        {
-          model: SerializedComponent,
-          as: 'SerializedComponent',
-          required: true,
-          include: [
-            {
-              model: ComponentModel,
-              as: 'ComponentModel',
-              required: false,
-              include: [
-                {
-                  model: Manufacturer,
-                  required: false,
-                },
-                {
-                  model: AssetType,
-                  required: false,
-                },
-                {
-                  model: ComponentLifeLimit,
-                  as: 'LifeLimits',
-                  required: false,
-                },
-              ],
-            },
-            {
-              model: SerializedComponentLifeState,
-              as: 'LifeState',
-              required: false,
-            },
-          ],
-        },
-      ],
-      order: [['installed_at', 'DESC']],
-    });
+    const activeInstallations = await aircraftComponentInstallationTenantRepository
+      .listActiveWorkflowForAircraft(params.authority, aircraftId);
 
     const normalizedInstallations = activeInstallations.map((installation: any) =>
       typeof installation?.toJSON === 'function' ? installation.toJSON() : installation
@@ -161,18 +131,20 @@ export class WorkpackComponentIntegrationService {
       .filter(Boolean);
 
     const latestRemovalBySerializedId = serializedIds.length > 0
-      ? await this.getLatestRemovalBySerializedId(serializedIds)
+      ? await this.getLatestRemovalBySerializedId(params.authority, serializedIds)
       : new Map<string, { removed_at: string | null; position: string | null }>();
 
     const referencedLegacyComponentIds = Array.from(
       new Set(
         [...tasks, ...snags]
-          .map((item) => this.normalize(item?.component_id || item?.Component?.id))
+          .map((item) => this.normalize((item as any)?.component_id || (item as any)?.Component?.id))
           .filter(Boolean)
       )
     );
 
-    const legacyComponentLookup = await this.getLegacyComponentLookup(referencedLegacyComponentIds);
+    const legacyComponentLookup = await this.getLegacyComponentLookup(
+      params.authority, aircraftId, referencedLegacyComponentIds
+    );
 
     const references = [
       ...tasks.map((task) => this.buildReference('TASK', task, legacyComponentLookup, normalizedInstallations)),
@@ -280,18 +252,12 @@ export class WorkpackComponentIntegrationService {
     };
   }
 
-  private static async getLatestRemovalBySerializedId(serializedIds: string[]) {
-    const removals = await AircraftComponentInstallation.findAll({
-      where: {
-        serialized_component_id: {
-          [Op.in]: serializedIds,
-        },
-        removed_at: {
-          [Op.ne]: null,
-        },
-      },
-      order: [['removed_at', 'DESC']],
-    });
+  private static async getLatestRemovalBySerializedId(
+    authority: TenantQueryAuthority,
+    serializedIds: string[],
+  ) {
+    const removals = await aircraftComponentInstallationTenantRepository
+      .listWorkflowHistoryForSerializedComponents(authority, serializedIds);
 
     const lookup = new Map<string, { removed_at: string | null; position: string | null }>();
 
@@ -311,19 +277,18 @@ export class WorkpackComponentIntegrationService {
     return lookup;
   }
 
-  private static async getLegacyComponentLookup(componentIds: string[]) {
+  private static async getLegacyComponentLookup(
+    authority: TenantQueryAuthority,
+    aircraftId: string,
+    componentIds: string[],
+  ) {
     if (componentIds.length === 0) {
       return new Map<string, any>();
     }
 
-    const components = await AircraftComponent.findAll({
-      where: {
-        id: {
-          [Op.in]: componentIds,
-        },
-      },
-      attributes: ['id', 'serial_number', 'position_code', 'model_id'],
-    });
+    const components = (await aircraftComponentTenantRepository.listForAircraft(
+      authority, aircraftId
+    )).filter(component => componentIds.includes(String(component.id)));
 
     return new Map(
       (components as any[]).map((component: any) => {

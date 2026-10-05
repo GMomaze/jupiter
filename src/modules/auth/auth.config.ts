@@ -18,7 +18,7 @@ export function setupAuth() {
             where: { email: email.toLowerCase().trim() },
           });
 
-          if (!user || !user.is_active) {
+          if (!user || !user.is_active || user.retired_at) {
             return done(null, false, { message: 'Invalid credentials.' });
           }
 
@@ -68,7 +68,7 @@ export function setupAuth() {
         ],
       });
 
-      if (!user || !user.is_active) {
+      if (!user || !user.is_active || user.retired_at) {
         return done(null, false);
       }
 

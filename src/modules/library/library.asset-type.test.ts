@@ -1,4 +1,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+vi.mock('../platform-authority/authoritative-platform-mutation.js', async importOriginal => ({
+  ...(await importOriginal<any>()),
+  requirePlatformMutationOperations: (evidence: unknown) => evidence,
+  executeAuthoritativePlatformMutation: async (_evidence: unknown, work: (tx: any, audit: any) => Promise<unknown>) => work({ LOCK: { UPDATE: 'UPDATE' } }, { setBefore: vi.fn() }),
+}));
 import request from 'supertest';
 import { v4 as uuid } from 'uuid';
 import app from '../../app.js';
@@ -9,6 +14,7 @@ import {
   User,
 } from '../../models/index.js';
 import { hashPassword } from '../auth/password.util.js';
+const evidence = {} as any;
 
 describe('LibraryService asset type creation', () => {
   afterEach(() => {
@@ -23,7 +29,7 @@ describe('LibraryService asset type creation', () => {
       label: 'Engine',
     } as any);
 
-    await LibraryService.createAssetType({
+    await LibraryService.createAssetType(evidence, {
       code: ' engine ',
       label: ' Engine ',
       description: ' Powerplant ',
@@ -43,7 +49,8 @@ describe('LibraryService asset type creation', () => {
         required_quantity: 2,
         is_active: true,
         system_locked: false,
-      })
+      }),
+      expect.objectContaining({ transaction: expect.anything() })
     );
   });
 
@@ -51,10 +58,11 @@ describe('LibraryService asset type creation', () => {
     vi.spyOn(AssetType, 'findOne').mockResolvedValue({ id: 'existing' } as any);
 
     await expect(
-      LibraryService.createAssetType({
+      LibraryService.createAssetType(evidence, {
         code: 'ENGINE',
         label: 'Engine',
-      })
+      }),
+      expect.objectContaining({ transaction: expect.anything() })
     ).rejects.toThrow(/Asset type code already exists/);
   });
 
@@ -62,7 +70,7 @@ describe('LibraryService asset type creation', () => {
     vi.spyOn(AssetType, 'findOne').mockResolvedValue(null);
 
     await expect(
-      LibraryService.createAssetType({
+      LibraryService.createAssetType(evidence, {
         code: 'PROP',
         label: 'Propeller',
         required_quantity: '-1',
@@ -70,7 +78,7 @@ describe('LibraryService asset type creation', () => {
     ).rejects.toThrow(/Required quantity must be a non-negative whole number/);
 
     await expect(
-      LibraryService.createAssetType({
+      LibraryService.createAssetType(evidence, {
         code: 'APU',
         label: 'APU',
         required_quantity: '1.5',
@@ -82,7 +90,7 @@ describe('LibraryService asset type creation', () => {
     vi.spyOn(AssetType, 'findOne').mockResolvedValue(null);
 
     await expect(
-      LibraryService.createAssetType({
+      LibraryService.createAssetType(evidence, {
         code: 'WHEEL',
         label: 'Wheel',
         is_installable_on_aircraft: 'on',
@@ -100,7 +108,7 @@ describe('LibraryService asset type creation', () => {
       label: 'Tool',
     } as any);
 
-    await LibraryService.createAssetType({
+    await LibraryService.createAssetType(evidence, {
       code: 'TOOL',
       label: 'Tool',
       is_installable_on_aircraft: 'false',
@@ -113,7 +121,8 @@ describe('LibraryService asset type creation', () => {
         is_installable_on_aircraft: false,
         is_required_for_aircraft: false,
         required_quantity: 0,
-      })
+      }),
+      expect.objectContaining({ transaction: expect.anything() })
     );
   });
 });
@@ -161,7 +170,7 @@ describe('Library asset type routes', () => {
     expect(response.text).toContain('name="_csrf"');
   });
 
-  it('creates an asset type from the POST route', async () => {
+  it('denies tenant ADMIN before real platform bootstrap', async () => {
     const agent = await createLoggedInAdminAgent();
     const code = `route_${uuid().slice(0, 8)}`;
 
@@ -177,22 +186,12 @@ describe('Library asset type routes', () => {
         is_active: 'true',
       });
 
-    expect(response.status).toBe(302);
-    expect(response.headers.location).toBe('/library');
+    expect(response.status).toBe(403);
 
     const stored = await AssetType.findOne({
       where: { code: code.toUpperCase() },
     });
 
-    expect(stored).toEqual(
-      expect.objectContaining({
-        code: code.toUpperCase(),
-        label: 'Route Asset',
-        is_installable_on_aircraft: true,
-        is_required_for_aircraft: true,
-        required_quantity: 1,
-        is_active: true,
-      })
-    );
+    expect(stored).toBeNull();
   });
 });

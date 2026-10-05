@@ -6,8 +6,12 @@ import {
   AssetType,
   ComponentModel,
   Manufacturer,
+  Tenant,
+  User,
   UtilisationEvent,
 } from '../../models/index.js';
+import { createTenantQueryAuthority } from '../tenancy/tenant-query-authority.js';
+import { withTenantTransaction } from '../tenancy/tenant-transaction.js';
 import { AircraftController } from '../aircraft/aircraft.controller.js';
 import { AircraftService } from '../aircraft/aircraft.service.js';
 import { UtilisationService } from './utilisation.service.js';
@@ -18,10 +22,14 @@ async function createTestAircraft() {
   let aircraft;
   let category;
   let model;
+  let authority: ReturnType<typeof createTenantQueryAuthority> | undefined;
 
   for (let attempt = 0; attempt < 20; attempt += 1) {
     aircraftSequence += 1;
     const suffix = `${Date.now().toString(36)}_${aircraftSequence}_${randomUUID().replace(/-/g, '').slice(0, 10)}`.toUpperCase();
+    const owner = await User.create({ email: `util-${suffix}@example.test`, password_hash: 'test', full_name: 'Utilisation Test Owner', is_active: true });
+    const tenant = await Tenant.create({ code: `UTIL_${suffix}`, display_name: `Utilisation Tenant ${suffix}`, status: 'ACTIVE', created_by_user_id: owner.id, updated_by_user_id: owner.id });
+    authority = createTenantQueryAuthority({ state: 'VALID_ACTIVE_TENANT', tenant: { id: tenant.id, publicId: tenant.public_id, code: tenant.code, displayName: tenant.display_name, status: 'ACTIVE' }, membership: { id: randomUUID(), tenantId: tenant.id, userId: owner.id, status: 'ACTIVE' }, validatedAt: Date.now() });
     const registrationSuffix = [
       String.fromCharCode(65 + Math.floor((aircraftSequence + attempt) / (26 * 26)) % 26),
       String.fromCharCode(65 + Math.floor((aircraftSequence + attempt) / 26) % 26),
@@ -55,7 +63,7 @@ async function createTestAircraft() {
       is_active: true,
     });
     try {
-      aircraft = await Aircraft.create({
+      aircraft = await withTenantTransaction(authority!, (transaction) => Aircraft.create({
         registration: `ZS-${registrationSuffix}`,
         serial_number: `SN-${suffix}`,
         model_id: model.id,
@@ -64,7 +72,8 @@ async function createTestAircraft() {
         total_time_hours: 0,
         total_time_cycles: 0,
         version: 0,
-      });
+        tenant_id: tenant.id,
+      }, { transaction }));
       break;
     } catch (error: any) {
       if (error?.name !== 'SequelizeUniqueConstraintError') {
@@ -73,18 +82,18 @@ async function createTestAircraft() {
     }
   }
 
-  if (!aircraft || !category || !model) {
+  if (!aircraft || !category || !model || !authority) {
     throw new Error('UNABLE_TO_CREATE_UNIQUE_TEST_AIRCRAFT');
   }
 
-  return { aircraft, category, model };
+  return { aircraft, category, model, authority };
 }
 
 describe('UtilisationService', () => {
   it('creates an event for an hour increase and updates the aircraft snapshot', async () => {
-    const { aircraft } = await createTestAircraft();
+    const { aircraft, authority } = await createTestAircraft();
 
-    const result = await UtilisationService.recordUtilisation({
+    const result = await UtilisationService.recordUtilisation(authority, {
       aircraftId: aircraft.id,
       newTotalTimeHours: 12.5,
       newTotalTimeCycles: 0,
@@ -96,15 +105,15 @@ describe('UtilisationService', () => {
     expect(Number(result.event.delta_hours)).toBe(12.5);
     expect(Number(result.aircraft.total_time_hours)).toBe(12.5);
 
-    const storedEvent = await UtilisationEvent.findByPk(result.event.id);
+    const storedEvent = await withTenantTransaction(authority, (transaction) => UtilisationEvent.findByPk(result.event.id, { transaction }));
     expect(storedEvent?.aircraft_id).toBe(aircraft.id);
     expect(Number(storedEvent?.new_total_time_hours)).toBe(12.5);
   });
 
   it('creates an event for a cycle increase and updates the aircraft snapshot', async () => {
-    const { aircraft } = await createTestAircraft();
+    const { aircraft, authority } = await createTestAircraft();
 
-    const result = await UtilisationService.recordUtilisation({
+    const result = await UtilisationService.recordUtilisation(authority, {
       aircraftId: aircraft.id,
       newTotalTimeHours: 0,
       newTotalTimeCycles: 3,
@@ -118,9 +127,9 @@ describe('UtilisationService', () => {
   });
 
   it('creates one event for a combined hour and cycle increase', async () => {
-    const { aircraft } = await createTestAircraft();
+    const { aircraft, authority } = await createTestAircraft();
 
-    const result = await UtilisationService.recordUtilisation({
+    const result = await UtilisationService.recordUtilisation(authority, {
       aircraftId: aircraft.id,
       newTotalTimeHours: 7.25,
       newTotalTimeCycles: 2,
@@ -136,7 +145,7 @@ describe('UtilisationService', () => {
   });
 
   it('records utilisation through the aircraft controller update action', async () => {
-    const { aircraft } = await createTestAircraft();
+    const { aircraft, authority } = await createTestAircraft();
     const flashMessages: Record<string, string[]> = {};
     let redirectPath = '';
 
@@ -151,6 +160,7 @@ describe('UtilisationService', () => {
           reason: 'Controller cycle-only update',
         },
         user: null,
+        tenantAuthority: authority,
         flash(type: string, message: string) {
           flashMessages[type] = [...(flashMessages[type] || []), message];
         },
@@ -162,11 +172,12 @@ describe('UtilisationService', () => {
       } as any
     );
 
-    const updated = await Aircraft.findByPk(aircraft.id);
-    const storedEvent = await UtilisationEvent.findOne({
+    const updated = await withTenantTransaction(authority, (transaction) => Aircraft.findByPk(aircraft.id, { transaction }));
+    const storedEvent = await withTenantTransaction(authority, (transaction) => UtilisationEvent.findOne({
       where: { aircraft_id: aircraft.id },
       order: [['created_at', 'DESC']],
-    });
+      transaction,
+    }));
     const utilisationSummary = JSON.parse(flashMessages.utilisationSummary?.[0] || '{}');
 
     expect(redirectPath).toBe(`/aircraft/view/${aircraft.id}`);
@@ -188,8 +199,8 @@ describe('UtilisationService', () => {
   });
 
   it('records a decrease as a correction event when source reference is supplied', async () => {
-    const { aircraft } = await createTestAircraft();
-    const increase = await UtilisationService.recordUtilisation({
+    const { aircraft, authority } = await createTestAircraft();
+    const increase = await UtilisationService.recordUtilisation(authority, {
       aircraftId: aircraft.id,
       newTotalTimeHours: 20,
       newTotalTimeCycles: 4,
@@ -198,7 +209,7 @@ describe('UtilisationService', () => {
       reason: 'Initial log entry',
     });
 
-    const correction = await UtilisationService.recordUtilisation({
+    const correction = await UtilisationService.recordUtilisation(authority, {
       aircraftId: aircraft.id,
       newTotalTimeHours: 18,
       newTotalTimeCycles: 3,
@@ -216,10 +227,10 @@ describe('UtilisationService', () => {
   });
 
   it('blocks negative aircraft hours and cycles', async () => {
-    const { aircraft } = await createTestAircraft();
+    const { aircraft, authority } = await createTestAircraft();
 
     await expect(
-      UtilisationService.recordUtilisation({
+      UtilisationService.recordUtilisation(authority, {
         aircraftId: aircraft.id,
         newTotalTimeHours: -1,
         sourceType: 'MANUAL_ENTRY',
@@ -229,7 +240,7 @@ describe('UtilisationService', () => {
     ).rejects.toThrow(/INVALID_TOTAL_TIME_HOURS/);
 
     await expect(
-      UtilisationService.recordUtilisation({
+      UtilisationService.recordUtilisation(authority, {
         aircraftId: aircraft.id,
         newTotalTimeHours: 0,
         newTotalTimeCycles: -1,
@@ -241,10 +252,10 @@ describe('UtilisationService', () => {
   });
 
   it('blocks fractional cycles and zero-change events', async () => {
-    const { aircraft } = await createTestAircraft();
+    const { aircraft, authority } = await createTestAircraft();
 
     await expect(
-      UtilisationService.recordUtilisation({
+      UtilisationService.recordUtilisation(authority, {
         aircraftId: aircraft.id,
         newTotalTimeHours: 0,
         newTotalTimeCycles: 1.5,
@@ -255,7 +266,7 @@ describe('UtilisationService', () => {
     ).rejects.toThrow(/INVALID_TOTAL_TIME_CYCLES/);
 
     await expect(
-      UtilisationService.recordUtilisation({
+      UtilisationService.recordUtilisation(authority, {
         aircraftId: aircraft.id,
         newTotalTimeHours: 0,
         newTotalTimeCycles: 0,
@@ -267,8 +278,8 @@ describe('UtilisationService', () => {
   });
 
   it('protects event immutability through the model layer', async () => {
-    const { aircraft } = await createTestAircraft();
-    const result = await UtilisationService.recordUtilisation({
+    const { aircraft, authority } = await createTestAircraft();
+    const result = await UtilisationService.recordUtilisation(authority, {
       aircraftId: aircraft.id,
       newTotalTimeHours: 1,
       sourceType: 'MANUAL_ENTRY',
@@ -282,8 +293,8 @@ describe('UtilisationService', () => {
   });
 
   it('allows unrelated aircraft edits without changing utilisation', async () => {
-    const { aircraft, category, model } = await createTestAircraft();
-    await UtilisationService.recordUtilisation({
+    const { aircraft, category, model, authority } = await createTestAircraft();
+    await UtilisationService.recordUtilisation(authority, {
       aircraftId: aircraft.id,
       newTotalTimeHours: 5,
       newTotalTimeCycles: 1,
@@ -291,9 +302,9 @@ describe('UtilisationService', () => {
       effectiveDate: '2026-06-17',
       reason: 'Set utilisation before detail edit',
     });
-    const current = await Aircraft.findByPk(aircraft.id);
+    const current = await withTenantTransaction(authority, (transaction) => Aircraft.findByPk(aircraft.id, { transaction }));
 
-    await AircraftService.updateDetails(aircraft.id, {
+    await AircraftService.updateDetails(authority, aircraft.id, {
       registration: aircraft.registration,
       serial_number: `${aircraft.serial_number}-EDIT`,
       model_id: model.id,
@@ -301,15 +312,15 @@ describe('UtilisationService', () => {
       version: current?.version,
     });
 
-    const updated = await Aircraft.findByPk(aircraft.id);
+    const updated = await withTenantTransaction(authority, (transaction) => Aircraft.findByPk(aircraft.id, { transaction }));
     expect(updated?.serial_number).toBe(`${aircraft.serial_number}-EDIT`);
     expect(Number(updated?.total_time_hours)).toBe(5);
     expect(updated?.total_time_cycles).toBe(1);
   });
 
   it('blocks updateDetails from silently changing utilisation fields', async () => {
-    const { aircraft, category, model } = await createTestAircraft();
-    await UtilisationService.recordUtilisation({
+    const { aircraft, category, model, authority } = await createTestAircraft();
+    await UtilisationService.recordUtilisation(authority, {
       aircraftId: aircraft.id,
       newTotalTimeHours: 5,
       newTotalTimeCycles: 1,
@@ -317,10 +328,10 @@ describe('UtilisationService', () => {
       effectiveDate: '2026-06-17',
       reason: 'Set utilisation before blocked edit',
     });
-    const current = await Aircraft.findByPk(aircraft.id);
+    const current = await withTenantTransaction(authority, (transaction) => Aircraft.findByPk(aircraft.id, { transaction }));
 
     await expect(
-      AircraftService.updateDetails(aircraft.id, {
+      AircraftService.updateDetails(authority, aircraft.id, {
         registration: aircraft.registration,
         serial_number: aircraft.serial_number,
         model_id: model.id,
@@ -331,12 +342,12 @@ describe('UtilisationService', () => {
       })
     ).rejects.toThrow(/UTILISATION_CHANGE_REQUIRES_UTILISATION_SERVICE/);
 
-    const unchanged = await Aircraft.findByPk(aircraft.id);
+    const unchanged = await withTenantTransaction(authority, (transaction) => Aircraft.findByPk(aircraft.id, { transaction }));
     expect(Number(unchanged?.total_time_hours)).toBe(5);
     expect(unchanged?.total_time_cycles).toBe(1);
 
     await expect(
-      AircraftService.updateDetails(aircraft.id, {
+      AircraftService.updateDetails(authority, aircraft.id, {
         registration: aircraft.registration,
         serial_number: aircraft.serial_number,
         model_id: model.id,

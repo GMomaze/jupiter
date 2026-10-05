@@ -125,7 +125,7 @@
 
       <div class="rounded-lg bg-white p-6 shadow">
         <h3 class="text-sm font-bold uppercase tracking-widest text-slate-600">Current Links</h3>
-        <% const currentLinks = customer?.AircraftLinks?.filter((link) => link.is_current) || []; %>
+        <% const currentLinks = links?.filter((link) => link.is_current) || []; %>
         <% if (currentLinks.length === 0) { %>
           <p class="mt-3 text-sm text-slate-500">No aircraft are currently linked to this customer.</p>
         <% } else { %>
@@ -148,7 +148,7 @@
 
       <div class="rounded-lg bg-white p-6 shadow">
         <h3 class="text-sm font-bold uppercase tracking-widest text-slate-600">Historical Links</h3>
-        <% const historicalLinks = customer?.AircraftLinks?.filter((link) => !link.is_current) || []; %>
+        <% const historicalLinks = links?.filter((link) => !link.is_current) || []; %>
         <% if (historicalLinks.length === 0) { %>
           <p class="mt-3 text-sm text-slate-500">No historical aircraft links recorded.</p>
         <% } else { %>

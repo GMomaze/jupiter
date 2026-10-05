@@ -76,12 +76,57 @@
                     <a href="/aircraft" class="hover:text-slate-300">Fleet</a>
                     <a href="/customers" class="hover:text-slate-300">Customers</a>
                     <a href="/workpacks" class="hover:text-slate-300">Workpacks</a>
+                    <% if (typeof canPlatformAdmin !== 'undefined' && canPlatformAdmin) { %>
+                        <a href="/platform" class="hover:text-slate-300">Platform</a>
+                    <% } %>
                 </div>
             </div>
 
             <!-- RIGHT SIDE (User + Logout) -->
             <% if (user) { %>
                 <div class="flex items-center space-x-4 text-xs uppercase tracking-widest">
+
+                    <% if (typeof activeOrganisationUi !== 'undefined' && activeOrganisationUi) { %>
+                        <div class="flex items-center gap-3 normal-case tracking-normal" aria-label="Active organisation">
+                            <span class="text-slate-300">
+                                <span class="block text-[0.65rem] uppercase tracking-widest text-slate-400">Organisation</span>
+                                <span class="font-bold text-white"><%= activeOrganisationUi.current.tenantDisplayName %></span>
+                                <span class="ml-1 text-slate-400">(<%= activeOrganisationUi.current.tenantCode %>)</span>
+                            </span>
+
+                            <% if (activeOrganisationUi.alternatives.length > 0 && activeOrganisationUi.expectedContextToken) { %>
+                                <form
+                                    method="POST"
+                                    action="/organisation/switch"
+                                    hx-post="/organisation/switch"
+                                    class="flex items-center gap-2"
+                                >
+                                    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                                    <input type="hidden" name="expected_context_token" value="<%= activeOrganisationUi.expectedContextToken %>">
+                                    <label for="active-organisation-switch" class="sr-only">Switch organisation</label>
+                                    <select
+                                        id="active-organisation-switch"
+                                        name="tenant_public_id"
+                                        required
+                                        class="rounded bg-slate-700 px-2 py-1 text-white"
+                                    >
+                                        <option value="" selected disabled>Switch organisation</option>
+                                        <% activeOrganisationUi.alternatives.forEach(function(organisation) { %>
+                                            <option value="<%= organisation.tenantPublicId %>">
+                                                <%= organisation.tenantDisplayName %> (<%= organisation.tenantCode %>)
+                                            </option>
+                                        <% }) %>
+                                    </select>
+                                    <button
+                                        type="submit"
+                                        class="rounded bg-slate-700 px-3 py-1 text-white transition duration-200 hover:bg-slate-600"
+                                    >
+                                        Switch
+                                    </button>
+                                </form>
+                            <% } %>
+                        </div>
+                    <% } %>
 
                     <span class="text-slate-300">
                         <%= user.full_name || user.email %>

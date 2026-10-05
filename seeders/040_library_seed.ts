@@ -8,26 +8,31 @@ export default {
     // LOAD ASSET TYPES
     // =========================================
     const assetTypes = await queryInterface.sequelize.query(
-      `SELECT * FROM rf_asset_type WHERE code IN ('AIRFRAME','ENGINE','PROPELLER')`,
+      `SELECT * FROM rf_asset_type WHERE code IN ('AIRFRAME','ENGINE','MAGNETO','PROPELLER')`,
       { type: Sequelize.QueryTypes.SELECT }
     );
 
     const assetTypeMap = Object.fromEntries(assetTypes.map((row) => [row.code, row]));
 
-    if (!assetTypeMap.AIRFRAME || !assetTypeMap.ENGINE || !assetTypeMap.PROPELLER) {
+    if (!assetTypeMap.AIRFRAME || !assetTypeMap.ENGINE || !assetTypeMap.MAGNETO || !assetTypeMap.PROPELLER) {
       throw new Error('Missing required asset types for library seed');
     }
 
     // =========================================
     // MANUFACTURERS
     // =========================================
-    const manufacturers = [
-      ['Cessna', 'CESSNA', 'General aviation airframe manufacturer'],
-      ['Piper', 'PIPER', 'General aviation airframe manufacturer'],
-      ['Lycoming', 'LYCOMING', 'Piston aircraft engine manufacturer'],
+    const manufacturers = [    
+      ['Beechcraft', 'BEECHCRAFT', 'General aviation airframe manufacturer'],
+      ['Bendix', 'BENDIX', 'General aviation components like magnetos, carburetors, and avionics. Honeywell Aerospace today.'],
+      ['Boeing', 'BOEING', 'Boeing is a global aerospace manufacturer'],
+      ['Cessna', 'CESSNA', 'General aviation airframe manufacturer'],  
       ['Continental', 'CONTINENTAL', 'Piston aircraft engine manufacturer'],
+      ['Hamilton Standard', 'HAMILTON', 'Aircraft propeller manufacturer now Collins Aerospace'],      
+      ['Hartzell', 'HARTZELL', 'Aircraft propeller manufacturer'],      
+      ['Lycoming', 'LYCOMING', 'Piston aircraft engine manufacturer'],
       ['McCauley', 'MCCAULEY', 'Aircraft propeller manufacturer'],
-      ['Hartzell', 'HARTZELL', 'Aircraft propeller manufacturer'],
+      ['Piper', 'PIPER', 'General aviation airframe manufacturer'],
+      ['Pratt & Whitney', 'PRATT_AND_WHITNEY', 'Aerospace engine manufacturer']
     ];
 
     for (const m of manufacturers) {
@@ -52,7 +57,7 @@ export default {
     }
 
     const manufacturerRows = await queryInterface.sequelize.query(
-      `SELECT * FROM manufacturers WHERE code IN ('CESSNA','PIPER','LYCOMING','CONTINENTAL','MCCAULEY','HARTZELL')`,
+      `SELECT * FROM manufacturers WHERE code IN ('BENDIX','CESSNA','PIPER','LYCOMING','CONTINENTAL','MCCAULEY','HARTZELL')`,
       { type: Sequelize.QueryTypes.SELECT }
     );
 
@@ -65,6 +70,24 @@ export default {
     // =========================================
     const models = [
       {
+        manufacturerCode: 'BENDIX',
+        assetTypeCode: 'MAGNETO',
+        modelName: '10-163050-9',
+        requirements: [
+          ['Annual Inspection', null, 60, 'Complete annual airframe inspection'],
+          ['400 Hour Inspection', 100, null, 'Recurring inspection for all operations']
+        ]
+      },
+      {
+        manufacturerCode: 'BENDIX',
+        assetTypeCode: 'MAGNETO',
+        modelName: '10-51365-57',
+        requirements: [
+          ['Annual Inspection', null, 60, 'Complete annual airframe inspection'],
+          ['400 Hour Inspection', 100, null, 'Recurring inspection for all operations']
+        ]
+      },
+      {
         manufacturerCode: 'CESSNA',
         assetTypeCode: 'AIRFRAME',
         modelName: 'Cessna 150M',
@@ -74,30 +97,33 @@ export default {
         ]
       },
       {
-        manufacturerCode: 'PIPER',
-        assetTypeCode: 'AIRFRAME',
-        modelName: 'PA-28-181 Archer II',
-        requirements: [
-          ['Annual Inspection', null, 12, 'Complete annual airframe inspection']
-        ]
-      },
-      {
-        manufacturerCode: 'LYCOMING',
-        assetTypeCode: 'ENGINE',
-        modelName: 'O-320-D2J',
-        defaultTboHours: 2000,
-        requirements: [
-          ['50 Hour Oil and Filter Service', 50, null, 'Oil, filter, and engine bay inspection'],
-          ['Top Overhaul Evaluation', 1000, null, 'Compression, borescope, and valve train evaluation']
-        ]
-      },
-      {
         manufacturerCode: 'CONTINENTAL',
         assetTypeCode: 'ENGINE',
         modelName: 'O-200-A',
         defaultTboHours: 1800,
         requirements: [
           ['50 Hour Oil and Filter Service', 50, null, 'Oil, filter, and engine bay inspection']
+        ]
+      },
+      {
+        manufacturerCode: 'HARTZELL',
+        assetTypeCode: 'PROPELLER',
+        modelName: 'HC-C3YF-1RF/F7693F',
+        defaultTboHours: 2400,
+        defaultTboMonths: 72,
+        isLifeLimited: true,
+        requirements: [
+          ['Propeller Inspection', 100, null, 'Blade, spinner, and tracking inspection']
+        ]
+      },
+      {
+        manufacturerCode: 'LYCOMING',
+        assetTypeCode: 'ENGINE',
+        modelName: 'O-540-B4B5',
+        defaultTboHours: 2000,
+        requirements: [
+          ['50 Hour Oil and Filter Service', 50, null, 'Oil, filter, and engine bay inspection'],
+          ['Top Overhaul Evaluation', 1000, null, 'Compression, borescope, and valve train evaluation']
         ]
       },
       {
@@ -112,14 +138,11 @@ export default {
         ]
       },
       {
-        manufacturerCode: 'HARTZELL',
-        assetTypeCode: 'PROPELLER',
-        modelName: 'HC-C2YK-1BF/F7666A-2',
-        defaultTboHours: 2400,
-        defaultTboMonths: 72,
-        isLifeLimited: true,
+        manufacturerCode: 'PIPER',
+        assetTypeCode: 'AIRFRAME',
+        modelName: 'PA-28-235 Pathfinder',
         requirements: [
-          ['Propeller Inspection', 100, null, 'Blade, spinner, and tracking inspection']
+          ['Annual Inspection', null, 12, 'Complete annual airframe inspection']
         ]
       }
     ];

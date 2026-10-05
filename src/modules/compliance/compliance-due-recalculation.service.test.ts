@@ -11,18 +11,26 @@ import {
   Manufacturer,
   SidModelApplicability,
   SupplementalInspectionDocument,
+  Tenant,
+  User,
   sequelize,
 } from '../../models/index.js';
 import { ComplianceDueRecalculationService } from './compliance-due-recalculation.service.js';
+import { createTenantQueryAuthority } from '../tenancy/tenant-query-authority.js';
 
 const testRunSuffix = Date.now().toString(36).toUpperCase();
 let aircraftRegistrationCounter = 0;
+const authorities = new Map<string, ReturnType<typeof createTenantQueryAuthority>>();
+const authorityFor = (aircraftId: string) => authorities.get(aircraftId)!;
 
 async function createAircraftContext(options?: {
   hours?: number;
   cycles?: number;
 }) {
   const suffix = randomUUID().slice(0, 8).toUpperCase();
+  const owner = await User.create({ email: `due-${suffix}@example.test`, password_hash: 'test', full_name: 'Due Owner', is_active: true });
+  const tenant = await Tenant.create({ code: `DUE_${suffix}`, display_name: `Due ${suffix}`, status: 'ACTIVE', created_by_user_id: owner.id, updated_by_user_id: owner.id });
+  const authority = createTenantQueryAuthority({ state: 'VALID_ACTIVE_TENANT', tenant: { id: tenant.id, code: tenant.code, displayName: tenant.display_name, status: 'ACTIVE' }, membership: { id: randomUUID(), tenantId: tenant.id, userId: owner.id, role: 'OWNER', status: 'ACTIVE' } });
   const registrationSequence = (++aircraftRegistrationCounter)
     .toString(36)
     .toUpperCase()
@@ -55,6 +63,7 @@ async function createAircraftContext(options?: {
     is_active: true,
   });
   const aircraft = await Aircraft.create({
+    tenant_id: tenant.id,
     registration: `ZS-DUE-${testRunSuffix}-${registrationSequence}`,
     serial_number: `DUE-AIR-${suffix}`,
     model_id: model.id,
@@ -64,8 +73,9 @@ async function createAircraftContext(options?: {
     total_time_cycles: options?.cycles ?? 50,
     version: 0,
   });
+  authorities.set(aircraft.id, authority);
 
-  return { aircraft, model, suffix };
+  return { aircraft, model, suffix, authority };
 }
 
 async function createProjectedCompliance(params: {
@@ -180,7 +190,7 @@ describe('ComplianceDueRecalculationService', () => {
       nextDueHours: 105,
     });
 
-    const results = await ComplianceDueRecalculationService.recalculateForUtilisationEvent(aircraft.id);
+    const results = await ComplianceDueRecalculationService.recalculateForUtilisationEvent(authorityFor(aircraft.id), aircraft.id);
     const result = results.find((row) => row.reference === ad.ad_number);
 
     expect(result?.item_type).toBe('AD');
@@ -209,7 +219,7 @@ describe('ComplianceDueRecalculationService', () => {
       nextDueAt: addDays(-1),
     });
 
-    const [result] = await ComplianceDueRecalculationService.recalculateForComplianceEntry(aircraft.id);
+    const [result] = await ComplianceDueRecalculationService.recalculateForComplianceEntry(authorityFor(aircraft.id), aircraft.id);
 
     expect(result.status).toBe('OVERDUE');
     expect(result.governing_limit?.tracking_basis).toBe('CALENDAR');
@@ -236,7 +246,7 @@ describe('ComplianceDueRecalculationService', () => {
       nextDueAt: addDays(5),
     });
 
-    const [result] = await ComplianceDueRecalculationService.recalculateManually(aircraft.id);
+    const [result] = await ComplianceDueRecalculationService.recalculateManually(authorityFor(aircraft.id), aircraft.id);
 
     expect(result.item_type).toBe('AD');
     expect(result.status).toBe('DUE_SOON');
@@ -265,7 +275,7 @@ describe('ComplianceDueRecalculationService', () => {
       nextDueAt: addDays(5),
     });
 
-    const [result] = await ComplianceDueRecalculationService.recalculateManually(aircraft.id);
+    const [result] = await ComplianceDueRecalculationService.recalculateManually(authorityFor(aircraft.id), aircraft.id);
 
     expect(result.item_type).toBe('SB');
     expect(result.status).toBe('DUE_SOON');
@@ -290,7 +300,7 @@ describe('ComplianceDueRecalculationService', () => {
       is_active: true,
     });
 
-    const [result] = await ComplianceDueRecalculationService.recalculateForApplicabilityChange(aircraft.id);
+    const [result] = await ComplianceDueRecalculationService.recalculateForApplicabilityChange(authorityFor(aircraft.id), aircraft.id);
 
     expect(result.item_type).toBe('SID');
     expect(result.status).toBe('DUE_SOON');
@@ -319,7 +329,7 @@ describe('ComplianceDueRecalculationService', () => {
       lastCompliedHours: 80,
     });
 
-    const [result] = await ComplianceDueRecalculationService.recalculateManually(aircraft.id);
+    const [result] = await ComplianceDueRecalculationService.recalculateManually(authorityFor(aircraft.id), aircraft.id);
 
     expect(result.next_due.hours).toBe(105);
     expect(result.status).toBe('DUE_SOON');
@@ -350,7 +360,7 @@ describe('ComplianceDueRecalculationService', () => {
       complianceMethod: 'TERMINATING_ACTION',
     });
 
-    const [result] = await ComplianceDueRecalculationService.recalculateForComplianceEntry(aircraft.id);
+    const [result] = await ComplianceDueRecalculationService.recalculateForComplianceEntry(authorityFor(aircraft.id), aircraft.id);
 
     expect(result.status).toBe('NOT_DUE');
     expect(result.recurrence.terminating_action_recorded).toBe(true);
@@ -384,7 +394,7 @@ describe('ComplianceDueRecalculationService', () => {
       title: 'AD unknown due',
     });
 
-    const [result] = await ComplianceDueRecalculationService.recalculateManually(aircraft.id);
+    const [result] = await ComplianceDueRecalculationService.recalculateManually(authorityFor(aircraft.id), aircraft.id);
 
     expect(result.status).toBe('UNKNOWN');
     expect(result.unknown_reason).toContain('No aircraft compliance record');
@@ -409,7 +419,7 @@ describe('ComplianceDueRecalculationService', () => {
       complianceItemId: item.id,
     });
 
-    const [result] = await ComplianceDueRecalculationService.recalculateManually(aircraft.id);
+    const [result] = await ComplianceDueRecalculationService.recalculateManually(authorityFor(aircraft.id), aircraft.id);
 
     expect(result.item_type).toBe('AD');
     expect(result.status).toBe('UNKNOWN');
@@ -438,7 +448,7 @@ describe('ComplianceDueRecalculationService', () => {
       nextDueHours: 105,
     });
 
-    const [result] = await ComplianceDueRecalculationService.recalculateForUtilisationEvent(aircraft.id);
+    const [result] = await ComplianceDueRecalculationService.recalculateForUtilisationEvent(authorityFor(aircraft.id), aircraft.id);
 
     expect(result.item_type).toBe('AD');
     expect(result.reference).toBe(ad.ad_number);

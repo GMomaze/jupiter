@@ -2,6 +2,9 @@ import { Request, Response } from 'express';
 import { LibraryService } from './library.service.js';
 import { MigrationDryRunService } from '../migration/migration-dry-run.service.js';
 import { MigrationLedgerService } from '../migration/migration-ledger.service.js';
+import { serializedComponentReconciliationService } from './serialized-component-reconciliation.service.live.js';
+import { assertTenantQueryAuthority } from '../tenancy/tenant-query-authority.js';
+import { requestPlatformMutationEvidence } from '../platform-authority/authoritative-platform-mutation.js';
 
 function getParam(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] || '' : value || '';
@@ -105,6 +108,7 @@ export class LibraryController {
   static async refreshAdApplicabilityReview(req: Request, res: Response): Promise<void> {
     try {
       const result = await LibraryService.refreshAdApplicabilityReviewAllocations(
+        requestPlatformMutationEvidence(req, ['REGULATORY_RELATIONSHIP_MUTATE'], 'ad_applicability_allocation'),
         (req.user as any)?.id || null
       );
 
@@ -121,7 +125,7 @@ export class LibraryController {
 
   static async refreshAdServiceBulletinReferences(req: Request, res: Response): Promise<void> {
     try {
-      const result = await LibraryService.refreshAdServiceBulletinReferences();
+      const result = await LibraryService.refreshAdServiceBulletinReferences(requestPlatformMutationEvidence(req, ['REGULATORY_RELATIONSHIP_MUTATE'], 'ad_service_bulletin_reference'));
 
       req.flash(
         'success',
@@ -137,6 +141,7 @@ export class LibraryController {
   static async acceptAdApplicabilityAllocation(req: Request, res: Response): Promise<void> {
     try {
       await LibraryService.reviewAdApplicabilityAllocation(
+        requestPlatformMutationEvidence(req, ['REGULATORY_RELATIONSHIP_MUTATE'], 'ad_applicability_allocation', getParam(req.params.id)),
         getParam(req.params.id),
         'ACCEPTED',
         (req.user as any)?.id || null,
@@ -154,6 +159,7 @@ export class LibraryController {
   static async ignoreAdApplicabilityAllocation(req: Request, res: Response): Promise<void> {
     try {
       await LibraryService.reviewAdApplicabilityAllocation(
+        requestPlatformMutationEvidence(req, ['REGULATORY_RELATIONSHIP_MUTATE'], 'ad_applicability_allocation', getParam(req.params.id)),
         getParam(req.params.id),
         'IGNORED',
         (req.user as any)?.id || null,
@@ -171,6 +177,7 @@ export class LibraryController {
   static async restoreAdApplicabilityAllocation(req: Request, res: Response): Promise<void> {
     try {
       await LibraryService.restoreAdApplicabilityAllocation(
+        requestPlatformMutationEvidence(req, ['REGULATORY_RELATIONSHIP_MUTATE'], 'ad_applicability_allocation', getParam(req.params.id)),
         getParam(req.params.id),
         (req.user as any)?.id || null,
         req.body?.review_reason
@@ -187,6 +194,7 @@ export class LibraryController {
   static async linkAdApplicabilityAllocationToModel(req: Request, res: Response): Promise<void> {
     try {
       await LibraryService.linkAdApplicabilityAllocationToModel(
+        requestPlatformMutationEvidence(req, ['REGULATORY_RELATIONSHIP_MUTATE'], 'ad_applicability_allocation', getParam(req.params.id)),
         getParam(req.params.id),
         String(req.body?.component_model_id || ''),
         (req.user as any)?.id || null,
@@ -204,6 +212,7 @@ export class LibraryController {
   static async linkAdApplicabilityAllocationToManufacturer(req: Request, res: Response): Promise<void> {
     try {
       await LibraryService.linkAdApplicabilityAllocationToManufacturer(
+        requestPlatformMutationEvidence(req, ['REGULATORY_RELATIONSHIP_MUTATE'], 'ad_applicability_allocation', getParam(req.params.id)),
         getParam(req.params.id),
         String(req.body?.manufacturer_id || ''),
         (req.user as any)?.id || null,
@@ -228,7 +237,7 @@ export class LibraryController {
 
   static async createAirworthinessDirective(req: Request, res: Response): Promise<void> {
     try {
-      await LibraryService.createAirworthinessDirective(req.body || {});
+      await LibraryService.createAirworthinessDirective(requestPlatformMutationEvidence(req, ['REGULATORY_MASTER_CREATE'], 'airworthiness_directive'), req.body || {});
       req.flash('success', `Airworthiness Directive ${String(req.body?.ad_number || '').trim()} created.`);
       res.redirect('/library/ads');
     } catch (error: any) {
@@ -275,7 +284,7 @@ export class LibraryController {
 
   static async createLibraryServiceBulletin(req: Request, res: Response): Promise<void> {
     try {
-      await LibraryService.createLibraryServiceBulletin(req.body || {});
+      await LibraryService.createLibraryServiceBulletin(requestPlatformMutationEvidence(req, ['REGULATORY_MASTER_CREATE'], 'service_bulletin'), req.body || {});
       req.flash('success', `Service document ${String(req.body?.reference || req.body?.sb_number || '').trim()} created.`);
       res.redirect('/library/sbs');
     } catch (error: any) {
@@ -328,6 +337,7 @@ export class LibraryController {
 
     try {
       const result = await LibraryService.linkSbModelAllocationToModels(
+        requestPlatformMutationEvidence(req, ['REGULATORY_RELATIONSHIP_MUTATE'], 'sb_model_applicability_allocation', allocationId),
         allocationId,
         modelIds.map((id) => String(id)),
         (req.user as any)?.id || null
@@ -349,6 +359,7 @@ export class LibraryController {
 
     try {
       const result = await LibraryService.recheckExactSbModelAllocations(
+        requestPlatformMutationEvidence(req, ['REGULATORY_RELATIONSHIP_MUTATE'], 'sb_model_applicability_allocation'),
         (req.user as any)?.id || null
       );
 
@@ -368,6 +379,7 @@ export class LibraryController {
 
     try {
       const result = await LibraryService.expandSafeSbShorthandAllocations(
+        requestPlatformMutationEvidence(req, ['REGULATORY_RELATIONSHIP_MUTATE'], 'sb_model_applicability_allocation'),
         (req.user as any)?.id || null
       );
 
@@ -388,6 +400,7 @@ export class LibraryController {
 
     try {
       await LibraryService.ignoreSbModelAllocation(
+        requestPlatformMutationEvidence(req, ['REGULATORY_RELATIONSHIP_MUTATE'], 'sb_model_applicability_allocation', allocationId),
         allocationId,
         String(req.body?.ignored_reason || ''),
         (req.user as any)?.id || null
@@ -407,6 +420,7 @@ export class LibraryController {
 
     try {
       const result = await LibraryService.createIncompleteModelFromSbAllocation(
+        requestPlatformMutationEvidence(req, ['COMPONENT_MODEL_CREATE', 'REGULATORY_RELATIONSHIP_MUTATE'], 'component_model'),
         allocationId,
         String(req.body?.model_code || ''),
         String(req.body?.model_name || ''),
@@ -443,7 +457,7 @@ export class LibraryController {
 
   static async createSupplementalInspectionDocument(req: Request, res: Response): Promise<void> {
     try {
-      await LibraryService.createSupplementalInspectionDocument(req.body || {});
+      await LibraryService.createSupplementalInspectionDocument(requestPlatformMutationEvidence(req, ['REGULATORY_MASTER_CREATE'], 'supplemental_inspection_document'), req.body || {});
       req.flash('success', `SID ${String(req.body?.reference || '').trim()} created.`);
       res.redirect('/library/sids');
     } catch (error: any) {
@@ -479,10 +493,11 @@ export class LibraryController {
   }
 
   static async renderSerializedReconciliationReport(
-    _req: Request,
+    req: Request,
     res: Response
   ): Promise<void> {
-    const report = await LibraryService.getSerializedComponentReconciliationReport();
+    assertTenantQueryAuthority(req.tenantAuthority);
+    const report = await serializedComponentReconciliationService.getReport(req.tenantAuthority);
 
     res.render('library/serialized-reconciliation', {
       title: 'Serialized Component Reconciliation',
@@ -495,9 +510,10 @@ export class LibraryController {
     req: Request,
     res: Response
   ): Promise<void> {
+    assertTenantQueryAuthority(req.tenantAuthority);
     const filters = getMigrationDryRunFilters(req.query);
 
-    const report = await MigrationDryRunService.previewLegacyAircraftComponentMigration({
+    const report = await MigrationDryRunService.previewLegacyAircraftComponentMigration(req.tenantAuthority, {
       aircraft_id: filters.aircraft_id || null,
       include_removed: filters.include_removed,
       include_quarantined: filters.include_quarantined,
@@ -544,15 +560,16 @@ export class LibraryController {
     req: Request,
     res: Response
   ): Promise<void> {
+    assertTenantQueryAuthority(req.tenantAuthority);
     const filters = getMigrationDryRunFilters(req.body);
-    const report = await MigrationDryRunService.previewLegacyAircraftComponentMigration({
+    const report = await MigrationDryRunService.previewLegacyAircraftComponentMigration(req.tenantAuthority, {
       aircraft_id: filters.aircraft_id || null,
       include_removed: filters.include_removed,
       include_quarantined: filters.include_quarantined,
       include_historical: filters.include_historical,
     });
 
-    const batch = await MigrationLedgerService.saveLegacyAircraftComponentDryRun({
+    const batch = await MigrationLedgerService.saveLegacyAircraftComponentDryRun(req.tenantAuthority, {
       report,
       filters,
       actor_id: (req.user as any)?.id || null,
@@ -566,7 +583,11 @@ export class LibraryController {
     req: Request,
     res: Response
   ): Promise<void> {
-    const batch = await MigrationLedgerService.getSavedDryRunBatch(getParam(req.params.batchId));
+    assertTenantQueryAuthority(req.tenantAuthority);
+    const batch = await MigrationLedgerService.getSavedDryRunBatch(
+      req.tenantAuthority,
+      getParam(req.params.batchId),
+    );
 
     if (!batch) {
       res.status(404).send('Migration dry-run batch not found.');

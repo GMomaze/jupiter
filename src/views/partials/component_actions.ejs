@@ -1,5 +1,5 @@
 <div class="flex items-center justify-center gap-2">
-  <% if (component.status === 'SERVICEABLE') { %>
+  <% if (component.status === 'REMOVED') { %>
     <form hx-post="/inventory/install/<%= component.id %>" 
           hx-target="closest main" 
           hx-swap="innerHTML"

@@ -16,15 +16,24 @@ import {
 } from '../../models/index.js';
 import { AuditService } from '../audit/audit.service.js';
 import { UtilisationService } from '../utilisation/utilisation.service.js';
-import { Op, QueryTypes } from 'sequelize';
+import {
+  Op,
+  QueryTypes,
+} from 'sequelize';
+import { withTenantTransaction } from '../tenancy/tenant-transaction.js';
+import {
+  assertTenantQueryAuthority,
+  type TenantQueryAuthority,
+} from '../tenancy/tenant-query-authority.js';
+import {
+  aircraftTenantRepository,
+} from './aircraft-tenant.repository.live.js';
+import { aircraftComponentTenantRepository } from './aircraft-component-tenant.repository.live.js';
 
-type AircraftStatus =
-  | 'REGISTERED'
-  | 'ACTIVE'
-  | 'GROUNDED'
-  | 'RETIRED';
+type AircraftStatus = 'REGISTERED' | 'ACTIVE' | 'GROUNDED' | 'RETIRED';
 
 export class AircraftService {
+  private static readonly tenantRepository = aircraftTenantRepository;
   private static readonly mutableAircraftAttributes = [
     'id',
     'status',
@@ -91,16 +100,64 @@ export class AircraftService {
      BASIC READ (REQUIRED BY TESTS)
   ============================================================ */
 
-  static async getById(id: string) {
-    return Aircraft.findByPk(id);
+  static async getById(authority: TenantQueryAuthority, id: string) {
+    assertTenantQueryAuthority(authority);
+    return withTenantTransaction(authority, async (transaction) =>
+      this.tenantRepository.getById(authority, id, { transaction }),
+    );
+  }
+
+  static async getByRegistration(authority: TenantQueryAuthority, registration: string) {
+    assertTenantQueryAuthority(authority);
+    return withTenantTransaction(authority, async (transaction) =>
+      this.tenantRepository.getByRegistration(authority, registration, { transaction }),
+    );
+  }
+
+  static async list(authority: TenantQueryAuthority) {
+    assertTenantQueryAuthority(authority);
+    const aircraft = await withTenantTransaction(authority, async (transaction) =>
+      this.tenantRepository.list(authority, {}, { transaction }),
+    );
+    const modelIds = aircraft
+      .map((item) => item.model_id)
+      .filter((id): id is string => typeof id === 'string');
+    const componentModels = modelIds.length === 0
+      ? []
+      : await ComponentModel.findAll({
+          where: { id: { [Op.in]: modelIds } },
+          include: [{ model: Manufacturer }],
+        });
+    const modelsById = new Map(componentModels.map((model) => [model.id, model]));
+
+    return aircraft.map((item) => ({
+      ...(
+        'toJSON' in item && typeof item.toJSON === 'function'
+          ? item.toJSON()
+          : item
+      ),
+      ComponentModel:
+        typeof item.model_id === 'string' ? modelsById.get(item.model_id) : undefined,
+    }));
   }
 
   /* ============================================================
      VALIDATION
   ============================================================ */
 
-  private static validateTransition(current: AircraftStatus, target: AircraftStatus) {
-    const allowed = this.allowedTransitions[current] || [];
+  private static requireAircraftStatus(status: string): AircraftStatus {
+    switch (status) {
+      case 'REGISTERED': return 'REGISTERED';
+      case 'ACTIVE': return 'ACTIVE';
+      case 'GROUNDED': return 'GROUNDED';
+      case 'RETIRED': return 'RETIRED';
+      default: throw new Error('INVALID_TRANSITION');
+    }
+  }
+
+  private static validateTransition(current: string, target: AircraftStatus) {
+    const currentStatus = this.requireAircraftStatus(current);
+    const allowed = this.allowedTransitions[currentStatus] || [];
     if (!allowed.includes(target)) {
       throw new Error('INVALID_TRANSITION');
     }
@@ -213,7 +270,7 @@ export class AircraftService {
      CREATE
   ============================================================ */
 
-  static async create(data: {
+  static async create(authority: TenantQueryAuthority, data: {
     registration: string;
     serial_number: string;
     model_id: string;
@@ -226,13 +283,14 @@ export class AircraftService {
     tcds_url?: string | null;
     photo_url?: string | null;
   }) {
+    assertTenantQueryAuthority(authority);
 
     if (!data.model_id) throw new Error('MODEL_ID_REQUIRED');
     if (!data.category_id) throw new Error('CATEGORY_ID_REQUIRED');
 
-    return sequelize.transaction(async (transaction) => {
+    return withTenantTransaction(authority, async (transaction) => {
 
-      const aircraft = await Aircraft.create({
+      const aircraft = await this.tenantRepository.create(authority, {
         registration: this.normalizeRegistration(data.registration),
         serial_number: data.serial_number,
         model_id: data.model_id,
@@ -261,7 +319,7 @@ export class AircraftService {
       const initialCycles = this.normalizeCycles(data.total_time_cycles ?? 0);
 
       if (initialHours > 0 || initialCycles > 0) {
-        await UtilisationService.recordUtilisation({
+        await UtilisationService.recordUtilisation(authority, {
           aircraftId: aircraft.id,
           newTotalTimeHours: initialHours,
           newTotalTimeCycles: initialCycles,
@@ -288,24 +346,25 @@ export class AircraftService {
      TRANSITIONS
   ============================================================ */
 
-  static async activate(id: string, reason: string) {
-    return this.returnToService(id, reason);
+  static async activate(authority: TenantQueryAuthority, id: string, reason: string) {
+    assertTenantQueryAuthority(authority);
+    return this.returnToService(authority, id, reason);
   }
 
-  static async ground(id: string, reason: string) {
+  static async ground(authority: TenantQueryAuthority, id: string, reason: string) {
+    assertTenantQueryAuthority(authority);
     this.requireReason(reason);
 
-    return sequelize.transaction(async (transaction) => {
+    return withTenantTransaction(authority, async (transaction) => {
 
-      const aircraft = await Aircraft.findByPk(id, {
-        attributes: this.mutableAircraftAttributes,
+      const aircraft = await this.tenantRepository.getForLifecycleUpdate(authority, id, {
         transaction,
-        lock: transaction.LOCK.UPDATE
+        lock: transaction.LOCK.UPDATE,
       });
 
       if (!aircraft) throw new Error('AIRCRAFT_NOT_FOUND');
 
-      this.validateTransition(aircraft.status as AircraftStatus, 'GROUNDED');
+      this.validateTransition(aircraft.status, 'GROUNDED');
 
       const oldStatus = aircraft.status;
 
@@ -326,20 +385,20 @@ export class AircraftService {
     });
   }
 
-  static async retire(id: string, reason: string) {
+  static async retire(authority: TenantQueryAuthority, id: string, reason: string) {
+    assertTenantQueryAuthority(authority);
     this.requireReason(reason);
 
-    return sequelize.transaction(async (transaction) => {
+    return withTenantTransaction(authority, async (transaction) => {
 
-      const aircraft = await Aircraft.findByPk(id, {
-        attributes: this.mutableAircraftAttributes,
+      const aircraft = await this.tenantRepository.getForLifecycleUpdate(authority, id, {
         transaction,
-        lock: transaction.LOCK.UPDATE
+        lock: transaction.LOCK.UPDATE,
       });
 
       if (!aircraft) throw new Error('AIRCRAFT_NOT_FOUND');
 
-      this.validateTransition(aircraft.status as AircraftStatus, 'RETIRED');
+      this.validateTransition(aircraft.status, 'RETIRED');
 
       const oldStatus = aircraft.status;
 
@@ -360,29 +419,26 @@ export class AircraftService {
     });
   }
 
-  static async returnToService(id: string, reason: string) {
+  static async returnToService(authority: TenantQueryAuthority, id: string, reason: string) {
+    assertTenantQueryAuthority(authority);
     this.requireReason(reason);
 
-    return sequelize.transaction(async (transaction) => {
+    return withTenantTransaction(authority, async (transaction) => {
 
-      const aircraft = await Aircraft.findByPk(id, {
-        attributes: this.mutableAircraftAttributes,
+      const aircraft = await this.tenantRepository.getForLifecycleUpdate(authority, id, {
         transaction,
-        lock: transaction.LOCK.UPDATE
+        lock: transaction.LOCK.UPDATE,
       });
 
       if (!aircraft) throw new Error('AIRCRAFT_NOT_FOUND');
 
-      this.validateTransition(aircraft.status as AircraftStatus, 'ACTIVE');
+      this.validateTransition(aircraft.status, 'ACTIVE');
 
-      const quarantined = await AircraftComponent.findOne({
-        where: {
-          aircraft_id: id,
-          current_status: 'QUARANTINED',
-          removed_at: null
-        },
-        transaction
-      });
+      const quarantined = await aircraftComponentTenantRepository.hasQuarantinedForAircraft(
+        authority,
+        id,
+        { transaction },
+      );
 
       if (quarantined) {
         throw new Error(
@@ -413,8 +469,9 @@ export class AircraftService {
      HOURS UPDATE
   ============================================================ */
 
-  static async updateHours(id: string, newTotalHours: number) {
-    const result = await UtilisationService.recordUtilisation({
+  static async updateHours(authority: TenantQueryAuthority, id: string, newTotalHours: number) {
+    assertTenantQueryAuthority(authority);
+    const result = await UtilisationService.recordUtilisation(authority, {
       aircraftId: id,
       newTotalTimeHours: newTotalHours,
       sourceType: 'MANUAL_ENTRY',
@@ -431,7 +488,7 @@ export class AircraftService {
     return result.aircraft;
   }
 
-  static async updateDetails(id: string, data: {
+  static async updateDetails(authority: TenantQueryAuthority, id: string, data: {
     registration: string;
     serial_number: string;
     model_id: string;
@@ -445,16 +502,16 @@ export class AircraftService {
     photo_url?: string | null | undefined;
     version?: number | string;
   }) {
+    assertTenantQueryAuthority(authority);
     if (!data.registration?.trim()) throw new Error('REGISTRATION_REQUIRED');
     if (!data.serial_number?.trim()) throw new Error('SERIAL_NUMBER_REQUIRED');
     if (!data.model_id) throw new Error('MODEL_ID_REQUIRED');
     if (!data.category_id) throw new Error('CATEGORY_ID_REQUIRED');
 
-    return sequelize.transaction(async (transaction) => {
-      const aircraft = await Aircraft.findByPk(id, {
-        attributes: this.editableAircraftAttributes,
+    return withTenantTransaction(authority, async (transaction) => {
+      const aircraft = await this.tenantRepository.getForRootUpdate(authority, id, {
         transaction,
-        lock: transaction.LOCK.UPDATE
+        lock: transaction.LOCK.UPDATE,
       });
 
       if (!aircraft) throw new Error('AIRCRAFT_NOT_FOUND');
@@ -536,30 +593,26 @@ export class AircraftService {
     });
   }
 
-  static async getServiceBulletinsForAircraft(aircraftId: string, options?: {
+  static async getServiceBulletinsForAircraft(authority: TenantQueryAuthority, aircraftId: string, options?: {
     status?: string;
     critical?: string;
     open_only?: string;
     sort?: string;
   }) {
-    const aircraft = await Aircraft.findByPk(aircraftId, {
-      attributes: ['id', 'model_id'],
-      include: [
-        {
-          model: AircraftComponent,
-          as: 'installed_components',
-          required: false,
-          attributes: ['model_id']
-        }
-      ]
-    });
+    assertTenantQueryAuthority(authority);
+    const aircraft = await withTenantTransaction(authority, async (transaction) =>
+      this.tenantRepository.getById(authority, aircraftId, { transaction }),
+    );
 
     if (!aircraft) throw new Error('AIRCRAFT_NOT_FOUND');
+    const installedComponents = await withTenantTransaction(authority, async (transaction) =>
+      aircraftComponentTenantRepository.listInstalledForAircraft(authority, aircraftId, { transaction }),
+    );
 
     const modelIds = Array.from(
       new Set([
         aircraft.model_id,
-        ...((aircraft as any).installed_components || []).map(
+        ...installedComponents.map(
           (component: any) => component.model_id
         )
       ].filter(Boolean))
@@ -670,10 +723,11 @@ export class AircraftService {
       });
   }
 
-  static async getApplicableStandardTasksForAircraft(aircraftId: string) {
-    const aircraft = await Aircraft.findByPk(aircraftId, {
-      attributes: ['id', 'model_id'],
-    });
+  static async getApplicableStandardTasksForAircraft(authority: TenantQueryAuthority, aircraftId: string) {
+    assertTenantQueryAuthority(authority);
+    const aircraft = await withTenantTransaction(authority, async (transaction) =>
+      this.tenantRepository.getById(authority, aircraftId, { transaction }),
+    );
 
     if (!aircraft) throw new Error('AIRCRAFT_NOT_FOUND');
 
@@ -715,29 +769,20 @@ export class AircraftService {
     });
   }
 
-  static async getAdApplicabilityPreviewForAircraft(aircraftId: string) {
-    const aircraft = await Aircraft.findByPk(aircraftId, {
-      attributes: ['id', 'model_id'],
-      include: [
-        {
-          model: ComponentModel,
-          attributes: ['id', 'model_code', 'model_name', 'manufacturer_id'],
-          required: false,
-          include: [
-            {
-              model: Manufacturer,
-              attributes: ['id', 'name', 'code'],
-              required: false,
-            },
-          ],
-        },
-      ],
-    });
+  static async getAdApplicabilityPreviewForAircraft(authority: TenantQueryAuthority, aircraftId: string) {
+    assertTenantQueryAuthority(authority);
+    const aircraft = await withTenantTransaction(authority, async (transaction) =>
+      this.tenantRepository.getById(authority, aircraftId, { transaction }),
+    );
 
     if (!aircraft) throw new Error('AIRCRAFT_NOT_FOUND');
 
     const modelId = aircraft.model_id || null;
-    const manufacturerId = (aircraft as any).ComponentModel?.manufacturer_id || null;
+    const componentModel = modelId ? await ComponentModel.findByPk(String(modelId), {
+      attributes: ['id', 'model_code', 'model_name', 'manufacturer_id'],
+      include: [{ model: Manufacturer, attributes: ['id', 'name', 'code'], required: false }],
+    }) : null;
+    const manufacturerId = componentModel?.manufacturer_id || null;
     const matchFilters = [
       modelId ? { matched_component_model_id: modelId } : null,
       manufacturerId ? { matched_manufacturer_id: manufacturerId } : null,
@@ -913,17 +958,18 @@ export class AircraftService {
     });
   }
 
-  static async updateServiceBulletinCompliance(data: {
+  static async updateServiceBulletinCompliance(authority: TenantQueryAuthority, data: {
     aircraft_id: string;
     service_bulletin_id: string;
     status: string;
     notes?: string;
   }) {
+    assertTenantQueryAuthority(authority);
     if (!this.serviceBulletinStatuses.has(data.status)) {
       throw new Error('INVALID_SERVICE_BULLETIN_STATUS');
     }
 
-    return sequelize.transaction(async (transaction) => {
+    return withTenantTransaction(authority, async (transaction) => {
       const existing = await AircraftSbCompliance.findOne({
         where: {
           aircraft_id: data.aircraft_id,
@@ -955,29 +1001,26 @@ export class AircraftService {
     });
   }
 
-  static async createAdComplianceAssignmentFromAcceptedAllocation(params: {
+  static async createAdComplianceAssignmentFromAcceptedAllocation(authority: TenantQueryAuthority, params: {
     aircraftId: string;
     allocationId: string;
     actorUserId?: string | null;
   }) {
     void params.actorUserId;
 
-    const aircraft = await Aircraft.findByPk(params.aircraftId, {
-      attributes: ['id', 'model_id'],
-      include: [
-        {
-          model: ComponentModel,
-          attributes: ['id', 'manufacturer_id'],
-          required: false,
-        },
-      ],
-    });
+    assertTenantQueryAuthority(authority);
+    const aircraft = await withTenantTransaction(authority, async (transaction) =>
+      this.tenantRepository.getById(authority, params.aircraftId, { transaction }),
+    );
 
     if (!aircraft) {
       throw new Error('AIRCRAFT_NOT_FOUND');
     }
 
-    if (!aircraft.model_id || !(aircraft as any).ComponentModel?.manufacturer_id) {
+    const componentModel = aircraft.model_id
+      ? await ComponentModel.findByPk(String(aircraft.model_id), { attributes: ['id', 'manufacturer_id'] })
+      : null;
+    if (!aircraft.model_id || !componentModel?.manufacturer_id) {
       throw new Error('AIRCRAFT_MODEL_CONTEXT_REQUIRED');
     }
 
@@ -999,7 +1042,7 @@ export class AircraftService {
       throw new Error('AD_ALLOCATION_NOT_ACCEPTED');
     }
 
-    const applicableAllocations = await this.getAdApplicabilityPreviewForAircraft(
+    const applicableAllocations = await this.getAdApplicabilityPreviewForAircraft(authority,
       params.aircraftId
     );
     const appliesToAircraft = applicableAllocations.some(
@@ -1018,7 +1061,7 @@ export class AircraftService {
       throw new Error('AIRWORTHINESS_DIRECTIVE_NOT_FOUND');
     }
 
-    return sequelize.transaction(async (transaction) => {
+    return withTenantTransaction(authority, async (transaction) => {
       let complianceItem = await ComplianceItem.findOne({
         where: {
           source_type: 'AD',
@@ -1121,7 +1164,7 @@ export class AircraftService {
     });
   }
 
-  static async createAdOperationalComplianceRecordFromAssignment(params: {
+  static async createAdOperationalComplianceRecordFromAssignment(authority: TenantQueryAuthority, params: {
     aircraftId: string;
     assignmentId: string;
     actorUserId?: string | null;
@@ -1129,23 +1172,28 @@ export class AircraftService {
   }) {
     void params.actorUserId;
 
-    const aircraft = await Aircraft.findByPk(params.aircraftId, {
-      attributes: ['id'],
-    });
+    assertTenantQueryAuthority(authority);
+    const aircraft = await withTenantTransaction(authority, async (transaction) =>
+      this.tenantRepository.getById(authority, params.aircraftId, { transaction }),
+    );
 
     if (!aircraft) {
       throw new Error('AIRCRAFT_NOT_FOUND');
     }
 
-    const assignment = await ComplianceAssignment.findByPk(params.assignmentId, {
-      include: [
-        {
-          model: ComplianceItem,
-          as: 'ComplianceItem',
-          required: false,
-        },
-      ],
-    });
+    const assignment = await withTenantTransaction(authority, async (transaction) =>
+      ComplianceAssignment.findOne({
+        where: { id: params.assignmentId, aircraft_id: params.aircraftId },
+        include: [
+          {
+            model: ComplianceItem,
+            as: 'ComplianceItem',
+            required: false,
+          },
+        ],
+        transaction,
+      }),
+    );
 
     if (!assignment) {
       throw new Error('AD_COMPLIANCE_ASSIGNMENT_NOT_FOUND');
@@ -1177,7 +1225,7 @@ export class AircraftService {
 
     const notes = params.notes?.trim() || null;
 
-    return sequelize.transaction(async (transaction) => {
+    return withTenantTransaction(authority, async (transaction) => {
       const existingRows = await sequelize.query<{ id: string }>(
         `
         SELECT id::text
@@ -1236,7 +1284,7 @@ export class AircraftService {
     });
   }
 
-  static async updateAdOperationalComplianceStatus(params: {
+  static async updateAdOperationalComplianceStatus(authority: TenantQueryAuthority, params: {
     aircraftId: string;
     complianceId: string;
     status: string;
@@ -1244,9 +1292,10 @@ export class AircraftService {
     notes?: string | null;
     complianceMethod?: string | null;
   }) {
-    const aircraft = await Aircraft.findByPk(params.aircraftId, {
-      attributes: ['id'],
-    });
+    assertTenantQueryAuthority(authority);
+    const aircraft = await withTenantTransaction(authority, async (transaction) =>
+      this.tenantRepository.getById(authority, params.aircraftId, { transaction }),
+    );
 
     if (!aircraft) {
       throw new Error('AIRCRAFT_NOT_FOUND');
@@ -1264,7 +1313,7 @@ export class AircraftService {
       'complianceMethod'
     );
 
-    return sequelize.transaction(async (transaction) => {
+    return withTenantTransaction(authority, async (transaction) => {
       const rows = await sequelize.query<{
         id: string;
         aircraft_id: string;
@@ -1289,12 +1338,14 @@ export class AircraftService {
         LEFT JOIN compliance_items ci
           ON ci.id = ac.compliance_item_id
         WHERE ac.id = :complianceId
+          AND ac.aircraft_id = :aircraftId
         LIMIT 1
         FOR UPDATE OF ac
         `,
         {
           replacements: {
             complianceId: params.complianceId,
+            aircraftId: params.aircraftId,
           },
           type: QueryTypes.SELECT,
           transaction,
@@ -1304,10 +1355,6 @@ export class AircraftService {
 
       if (!row) {
         throw new Error('AIRCRAFT_COMPLIANCE_NOT_FOUND');
-      }
-
-      if (row.aircraft_id !== params.aircraftId) {
-        throw new Error('AIRCRAFT_COMPLIANCE_AIRCRAFT_MISMATCH');
       }
 
       if (!row.item_type && !row.source_type) {
@@ -1341,10 +1388,12 @@ export class AircraftService {
           compliance_method = :complianceMethod,
           updated_at = CURRENT_TIMESTAMP
         WHERE id = :complianceId
+          AND aircraft_id = :aircraftId
         `,
         {
           replacements: {
             complianceId: params.complianceId,
+            aircraftId: params.aircraftId,
             status: targetStatus,
             notes: normalizedNotes,
             complianceMethod: normalizedComplianceMethod,
@@ -1389,7 +1438,7 @@ export class AircraftService {
     });
   }
 
-  static async updateAdOperationalComplianceDueData(params: {
+  static async updateAdOperationalComplianceDueData(authority: TenantQueryAuthority, params: {
     aircraftId: string;
     complianceId: string;
     actorUserId?: string | null;
@@ -1400,9 +1449,10 @@ export class AircraftService {
     complianceMethod?: string | null;
     notes?: string | null;
   }) {
-    const aircraft = await Aircraft.findByPk(params.aircraftId, {
-      attributes: ['id'],
-    });
+    assertTenantQueryAuthority(authority);
+    const aircraft = await withTenantTransaction(authority, async (transaction) =>
+      this.tenantRepository.getById(authority, params.aircraftId, { transaction }),
+    );
 
     if (!aircraft) {
       throw new Error('AIRCRAFT_NOT_FOUND');
@@ -1427,7 +1477,7 @@ export class AircraftService {
     const normalizedComplianceMethod = params.complianceMethod?.trim() || null;
     const normalizedNotes = params.notes?.trim() || null;
 
-    return sequelize.transaction(async (transaction) => {
+    return withTenantTransaction(authority, async (transaction) => {
       const rows = await sequelize.query<{
         id: string;
         aircraft_id: string;
@@ -1458,12 +1508,14 @@ export class AircraftService {
         LEFT JOIN compliance_items ci
           ON ci.id = ac.compliance_item_id
         WHERE ac.id = :complianceId
+          AND ac.aircraft_id = :aircraftId
         LIMIT 1
         FOR UPDATE OF ac
         `,
         {
           replacements: {
             complianceId: params.complianceId,
+            aircraftId: params.aircraftId,
           },
           type: QueryTypes.SELECT,
           transaction,
@@ -1473,10 +1525,6 @@ export class AircraftService {
 
       if (!row) {
         throw new Error('AIRCRAFT_COMPLIANCE_NOT_FOUND');
-      }
-
-      if (row.aircraft_id !== params.aircraftId) {
-        throw new Error('AIRCRAFT_COMPLIANCE_AIRCRAFT_MISMATCH');
       }
 
       if (!row.item_type && !row.source_type) {
@@ -1499,10 +1547,12 @@ export class AircraftService {
           notes = :notes,
           updated_at = CURRENT_TIMESTAMP
         WHERE id = :complianceId
+          AND aircraft_id = :aircraftId
         `,
         {
           replacements: {
             complianceId: params.complianceId,
+            aircraftId: params.aircraftId,
             nextDueAt: normalizedNextDueAt,
             nextDueHours: normalizedNextDueHours,
             lastCompliedAt: normalizedLastCompliedAt,
@@ -1558,16 +1608,16 @@ export class AircraftService {
     });
   }
 
-  static async markServiceBulletinComplied(aircraftId: string, serviceBulletinId: string) {
-    return this.updateServiceBulletinCompliance({
+  static async markServiceBulletinComplied(authority: TenantQueryAuthority, aircraftId: string, serviceBulletinId: string) {
+    return this.updateServiceBulletinCompliance(authority, {
       aircraft_id: aircraftId,
       service_bulletin_id: serviceBulletinId,
       status: 'COMPLIED'
     });
   }
 
-  static async markServiceBulletinNotApplicable(aircraftId: string, serviceBulletinId: string) {
-    return this.updateServiceBulletinCompliance({
+  static async markServiceBulletinNotApplicable(authority: TenantQueryAuthority, aircraftId: string, serviceBulletinId: string) {
+    return this.updateServiceBulletinCompliance(authority, {
       aircraft_id: aircraftId,
       service_bulletin_id: serviceBulletinId,
       status: 'NOT_APPLICABLE'

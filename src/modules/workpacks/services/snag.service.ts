@@ -1,7 +1,13 @@
+import { withTenantTransaction } from '../../tenancy/tenant-transaction.js';
 import { Op, QueryTypes } from 'sequelize';
 import { sequelize, WorkpackSnag, Workpack, Aircraft, AircraftComponent, User } from '../../../models/index.js';
 import { AuditService } from '../../audit/audit.service.js';
 import { WorkpackAuditService } from './workpack-audit.service.js';
+import type { TenantQueryAuthority } from '../../tenancy/tenant-query-authority.js';
+import { assertTenantQueryAuthority } from '../../tenancy/tenant-query-authority.js';
+import { workpackTenantRepository } from '../workpack-tenant.repository.js';
+import { aircraftTenantRepository } from '../../aircraft/aircraft-tenant.repository.live.js';
+import { aircraftComponentTenantRepository } from '../../aircraft/aircraft-component-tenant.repository.live.js';
 
 type CreateSnagParams = {
   workpack_id?: string | null;
@@ -397,9 +403,11 @@ export class SnagService {
   }
 
   static async createSnag(
+    authority: TenantQueryAuthority,
     params: CreateSnagParams,
     db: any = sequelize
   ) {
+    assertTenantQueryAuthority(authority);
     const defectText = this.normalizeDescription(params.defect_text);
     const workpackId = String(params.workpack_id || '').trim() || null;
     const aircraftId = String(params.aircraft_id || '').trim();
@@ -411,12 +419,14 @@ export class SnagService {
     }
 
     return db.transaction(async (transaction: any) => {
-      const aircraft = await Aircraft.findByPk(aircraftId, {
-        attributes: ['id'],
-        transaction,
-      });
-
-      if (!aircraft) {
+      const authoritativeWorkpack = workpackId
+        ? await workpackTenantRepository.getById(authority, workpackId, { transaction })
+        : undefined;
+      if (workpackId && !authoritativeWorkpack) throw new Error('SNAG_WORKPACK_INVALID');
+      if (authoritativeWorkpack && authoritativeWorkpack.aircraft_id !== aircraftId) {
+        throw new Error('SNAG_WORKPACK_AIRCRAFT_MISMATCH');
+      }
+      if (!workpackId && !await aircraftTenantRepository.getById(authority, aircraftId, { transaction })) {
         throw new Error('SNAG_AIRCRAFT_INVALID');
       }
 
@@ -430,10 +440,9 @@ export class SnagService {
       }
 
       if (componentId) {
-        const component = await AircraftComponent.findByPk(componentId, {
-          attributes: ['id', 'aircraft_id'],
-          transaction,
-        });
+        const component = await aircraftComponentTenantRepository.getById(
+          authority, componentId, { transaction }
+        );
 
         if (!component) {
           throw new Error('SNAG_COMPONENT_INVALID');
@@ -441,21 +450,6 @@ export class SnagService {
 
         if (String((component as any).aircraft_id || '') !== aircraftId) {
           throw new Error('SNAG_COMPONENT_AIRCRAFT_MISMATCH');
-        }
-      }
-
-      if (workpackId) {
-        const workpack = await Workpack.findByPk(workpackId, {
-          attributes: ['id', 'aircraft_id'],
-          transaction,
-        });
-
-        if (!workpack) {
-          throw new Error('SNAG_WORKPACK_INVALID');
-        }
-
-        if (String((workpack as any).aircraft_id || '') !== aircraftId) {
-          throw new Error('SNAG_WORKPACK_AIRCRAFT_MISMATCH');
         }
       }
 
@@ -492,40 +486,40 @@ export class SnagService {
         },
       }, transaction);
 
-      if (snag.workpack_id) {
-        await WorkpackAuditService.appendSnagAuditEntry(
-          {
-            snagId: snag.id,
-            workpackId: snag.workpack_id,
-            userId: createdBy,
-            action: 'SNAG_CREATED',
-            field: null,
-            oldValue: null,
-            newValue: {
-              aircraft_id: snag.aircraft_id,
-              component_id: snag.component_id,
-              defect_text: snag.defect_text,
-              status: snag.status,
-            },
-            metadata: {
-              created_at: snag.created_at?.toISOString?.() || snag.created_at || null,
-            },
+      await WorkpackAuditService.appendSnagAuditEntry(
+        {
+          snagId: snag.id,
+          workpackId: snag.workpack_id,
+          userId: createdBy,
+          action: 'SNAG_CREATED',
+          field: null,
+          oldValue: null,
+          newValue: {
+            aircraft_id: snag.aircraft_id,
+            component_id: snag.component_id,
+            defect_text: snag.defect_text,
+            status: snag.status,
           },
-          transaction
-        );
-      }
+          metadata: {
+            created_at: snag.created_at?.toISOString?.() || snag.created_at || null,
+          },
+        },
+        transaction
+      );
 
       return snag;
     });
   }
 
   static async startSnag(
+    authority: TenantQueryAuthority,
     snagId: string,
     userId?: string,
     actorRoles: string[] = [],
     db: any = sequelize,
     ...rest: any[]
   ) {
+    assertTenantQueryAuthority(authority);
     const resolvedDb = this.resolveDbFromArgs([db, ...rest]);
     const requireAuth =
       this.resolveFunctionArg<(actorId?: string) => void>(rest, (fn) => fn.length <= 1) ||
@@ -537,9 +531,8 @@ export class SnagService {
     requireAuth(userId);
 
     return resolvedDb.transaction(async (transaction: any) => {
-      const snag = await WorkpackSnag.findByPk(snagId, {
-        transaction,
-        lock: transaction.LOCK.UPDATE,
+      const snag = await workpackTenantRepository.getSnagById(authority, snagId, {
+        transaction, lock: transaction.LOCK.UPDATE,
       });
 
       if (!snag) {
@@ -584,6 +577,7 @@ export class SnagService {
   }
 
   static async resolveSnag(
+    authority: TenantQueryAuthority,
     snagId: string,
     data: Record<string, unknown> = {},
     actorId?: string,
@@ -597,6 +591,7 @@ export class SnagService {
     ) => boolean = () => false,
     appendSnagAuditEntry: (params: any, transaction: any) => Promise<void> = async () => {}
   ) {
+    assertTenantQueryAuthority(authority);
     requireAuth(actorId);
     const resolvedDb = this.resolveDbFromArgs([db]);
     const resolutionNotes = this.normalizeDescription(String(data.resolution_notes || ''));
@@ -616,9 +611,8 @@ export class SnagService {
     }
 
     return resolvedDb.transaction(async (transaction: any) => {
-      const snag = await WorkpackSnag.findByPk(snagId, {
-        transaction,
-        lock: transaction.LOCK.UPDATE,
+      const snag = await workpackTenantRepository.getSnagById(authority, snagId, {
+        transaction, lock: transaction.LOCK.UPDATE,
       });
 
       if (!snag) {
@@ -667,6 +661,7 @@ export class SnagService {
   }
 
   static async closeSnag(
+    authority: TenantQueryAuthority,
     snagId: string,
     userId?: string,
     actorRoles: string[] = [],
@@ -675,13 +670,13 @@ export class SnagService {
     canCloseSnag: (actorRoles: string[]) => boolean = () => false,
     appendSnagAuditEntry: (params: any, transaction: any) => Promise<void> = async () => {}
   ) {
+    assertTenantQueryAuthority(authority);
     requireAuth(userId);
     const resolvedDb = this.resolveDbFromArgs([db]);
 
     return resolvedDb.transaction(async (transaction: any) => {
-      const snag = await WorkpackSnag.findByPk(snagId, {
-        transaction,
-        lock: transaction.LOCK.UPDATE,
+      const snag = await workpackTenantRepository.getSnagById(authority, snagId, {
+        transaction, lock: transaction.LOCK.UPDATE,
       });
 
       if (!snag) {

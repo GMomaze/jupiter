@@ -1,15 +1,14 @@
-import { sequelize } from '../../models/index.js';
+import { withTenantTransaction } from '../tenancy/tenant-transaction.js';
 import {
-  Aircraft,
-  AircraftComponent,
-  AircraftComponentInstallation,
   ComponentModel,
   AssetType,
-  SerializedComponent,
-  SerializedComponentLifeState,
-  ComponentLifeLimit,
-  Manufacturer,
 } from '../../models/index.js';
+import { assertTenantQueryAuthority, type TenantQueryAuthority } from '../tenancy/tenant-query-authority.js';
+import { aircraftTenantRepository } from './aircraft-tenant.repository.live.js';
+import { serializedComponentTenantRepository } from '../library/serialized-component-tenant.repository.live.js';
+import { aircraftComponentInstallationTenantRepository } from './aircraft-component-installation-tenant.repository.live.js';
+import { aircraftComponentTenantRepository } from './aircraft-component-tenant.repository.live.js';
+import { aircraftComponentMovementHistoryRepository } from '../inventory/aircraft-component-movement-history.repository.live.js';
 
 export class AircraftComponentService {
   private static readonly serializedInstallStatuses = ['REMOVED', 'AVAILABLE'];
@@ -21,13 +20,6 @@ export class AircraftComponentService {
     'PROPELLER_METER',
     'MANUAL_AUTHORISED',
   ]);
-  private static readonly aircraftAttributes = [
-    'id',
-    'status',
-    'total_time_hours',
-    'total_time_cycles',
-  ];
-
   private static readonly componentModelAttributes = [
     'id',
     'model_name',
@@ -96,197 +88,22 @@ export class AircraftComponentService {
     return Number.isInteger(cycles) && cycles >= 0 ? cycles : 0;
   }
 
-  private static async hasLegacyPositionConflict(params: {
-    aircraftId: string;
-    assetTypeId: string;
-    position: string;
-    transaction: any;
-  }) {
-    const conflict = await AircraftComponent.findOne({
-      where: {
-        aircraft_id: params.aircraftId,
-        position_code: params.position,
-        current_status: 'INSTALLED'
-      },
-      include: [
-        {
-          model: ComponentModel,
-          attributes: ['id', 'asset_type_id'],
-          required: true,
-          where: {
-            asset_type_id: params.assetTypeId,
-          },
-        },
-      ],
-      transaction: params.transaction,
-      lock: params.transaction.LOCK.UPDATE,
-    });
-
-    return Boolean(conflict);
+  static async getAvailableSerializedComponents(authority: TenantQueryAuthority) {
+    assertTenantQueryAuthority(authority);
+    return withTenantTransaction(authority, async (transaction) =>
+      serializedComponentTenantRepository.listAvailable(authority, { transaction }),
+    );
   }
 
-  private static async hasSerializedPositionConflict(params: {
-    aircraftId: string;
-    assetTypeId: string;
-    position: string;
-    transaction: any;
-  }) {
-    const conflict = await AircraftComponentInstallation.findOne({
-      where: {
-        aircraft_id: params.aircraftId,
-        position: params.position,
-        removed_at: null,
-      },
-      include: [
-        {
-          model: SerializedComponent,
-          as: 'SerializedComponent',
-          attributes: ['id', 'component_model_id'],
-          required: true,
-          include: [
-            {
-              model: ComponentModel,
-              as: 'ComponentModel',
-              attributes: ['id', 'asset_type_id'],
-              required: true,
-              where: {
-                asset_type_id: params.assetTypeId,
-              },
-            },
-          ],
-        },
-      ],
-      transaction: params.transaction,
-      lock: params.transaction.LOCK.UPDATE,
-    });
-
-    return Boolean(conflict);
+  static async getActiveSerializedInstallationsForAircraft(authority: TenantQueryAuthority, aircraftId: string) {
+    assertTenantQueryAuthority(authority);
+    return withTenantTransaction(authority, async (transaction) =>
+      aircraftComponentInstallationTenantRepository.listActiveWorkflowForAircraft(authority, aircraftId, { transaction }),
+    );
   }
 
-  static async getAvailableSerializedComponents() {
-    return SerializedComponent.findAll({
-      attributes: [
-        'id',
-        'component_model_id',
-        'serial_number',
-        'part_number',
-        'status',
-        'condition',
-        'notes',
-      ],
-      where: { status: 'AVAILABLE' },
-      include: [
-        {
-          model: ComponentModel,
-          as: 'ComponentModel',
-          attributes: ['id', 'model_name', 'model_code', 'manufacturer_id', 'asset_type_id'],
-          required: true,
-          include: [
-            {
-              model: Manufacturer,
-              attributes: ['id', 'name', 'code'],
-              required: false,
-            },
-            {
-              model: AssetType,
-              attributes: ['id', 'code', 'label', 'is_installable_on_aircraft'],
-              required: true,
-              where: { is_installable_on_aircraft: true },
-            },
-          ],
-        },
-      ],
-      order: [
-        [{ model: ComponentModel, as: 'ComponentModel' }, { model: AssetType, as: 'AssetType' }, 'code', 'ASC'],
-        [{ model: ComponentModel, as: 'ComponentModel' }, { model: Manufacturer, as: 'Manufacturer' }, 'name', 'ASC'],
-        [{ model: ComponentModel, as: 'ComponentModel' }, 'model_name', 'ASC'],
-        ['serial_number', 'ASC'],
-      ],
-    });
-  }
-
-  static async getActiveSerializedInstallationsForAircraft(aircraftId: string) {
-    return AircraftComponentInstallation.findAll({
-      attributes: [
-        'id',
-        'aircraft_id',
-        'serialized_component_id',
-        'installation_context',
-        'installed_at',
-        'removed_at',
-        'position',
-        'tracking_basis',
-        'install_aircraft_hours',
-        'install_aircraft_cycles',
-        'install_tsn',
-        'install_tso',
-        'install_csn',
-        'install_cso',
-        'removal_aircraft_hours',
-        'removal_aircraft_cycles',
-        'removal_csn',
-        'removal_cso',
-        'notes',
-      ],
-      where: {
-        aircraft_id: aircraftId,
-        removed_at: null,
-      },
-      include: [
-        {
-          model: SerializedComponent,
-          as: 'SerializedComponent',
-          attributes: [
-            'id',
-            'component_model_id',
-            'serial_number',
-            'part_number',
-            'status',
-            'condition',
-            'notes',
-          ],
-          required: true,
-          include: [
-            {
-              model: ComponentModel,
-              as: 'ComponentModel',
-              attributes: ['id', 'model_name', 'model_code', 'manufacturer_id', 'asset_type_id'],
-              required: false,
-              include: [
-                {
-                  model: Manufacturer,
-                  attributes: ['id', 'name', 'code'],
-                  required: false,
-                },
-                {
-                  model: AssetType,
-                  attributes: ['id', 'code', 'label', 'is_required_for_aircraft'],
-                  required: false,
-                },
-                {
-                  model: ComponentLifeLimit,
-                  as: 'LifeLimits',
-                  required: false,
-                },
-              ],
-            },
-            {
-              model: SerializedComponentLifeState,
-              as: 'LifeState',
-              required: false,
-            },
-          ],
-        },
-      ],
-      order: [
-        [{ model: SerializedComponent, as: 'SerializedComponent' }, { model: ComponentModel, as: 'ComponentModel' }, { model: AssetType, as: 'AssetType' }, 'code', 'ASC'],
-        ['position', 'ASC'],
-        ['installed_at', 'DESC'],
-      ],
-    });
-  }
-
-  static async getSerializedInstallationHistoryForComponents(serializedComponentIds: string[]) {
+  static async getSerializedInstallationHistoryForComponents(authority: TenantQueryAuthority, serializedComponentIds: string[]) {
+    assertTenantQueryAuthority(authority);
     const ids = Array.from(
       new Set(
         (serializedComponentIds || [])
@@ -299,95 +116,25 @@ export class AircraftComponentService {
       return [];
     }
 
-    return AircraftComponentInstallation.findAll({
-      attributes: [
-        'id',
-        'aircraft_id',
-        'serialized_component_id',
-        'installation_context',
-        'installed_at',
-        'removed_at',
-        'position',
-        'tracking_basis',
-        'install_aircraft_hours',
-        'install_aircraft_cycles',
-        'install_tsn',
-        'install_tso',
-        'install_csn',
-        'install_cso',
-        'removal_aircraft_hours',
-        'removal_aircraft_cycles',
-        'removal_tsn',
-        'removal_tso',
-        'removal_csn',
-        'removal_cso',
-        'notes',
-        'created_at',
-        'updated_at',
-      ],
-      where: {
-        serialized_component_id: ids,
-      },
-      include: [
-        {
-          model: Aircraft,
-          as: 'Aircraft',
-          attributes: ['id', 'registration', 'serial_number'],
-          required: false,
-        },
-      ],
-      order: [['installed_at', 'DESC'], ['created_at', 'DESC']],
-    });
+    return withTenantTransaction(authority, async (transaction) =>
+      aircraftComponentInstallationTenantRepository.listWorkflowHistoryForSerializedComponents(authority, ids, { transaction }),
+    );
   }
 
-  static async getTechnicalStatusInstallableLegacyComponentsForAircraft(aircraftId: string) {
-    return AircraftComponent.findAll({
-      attributes: [
-        'id',
-        'aircraft_id',
-        'model_id',
-        'serial_number',
-        'position_code',
-        'current_status',
-      ],
-      where: {
-        aircraft_id: aircraftId,
-        current_status: 'INSTALLED',
-      },
-      include: [
-        {
-          model: ComponentModel,
-          attributes: AircraftComponentService.componentModelAttributes,
-          required: false,
-          include: [
-            {
-              model: Manufacturer,
-              attributes: ['id', 'name', 'code'],
-              required: false,
-            },
-            {
-              model: AssetType,
-              attributes: ['id', 'code', 'label', 'is_installable_on_aircraft', 'is_required_for_aircraft'],
-              required: false,
-            },
-          ],
-        },
-      ],
-      order: [
-        [{ model: ComponentModel, as: 'ComponentModel' }, { model: AssetType, as: 'AssetType' }, 'code', 'ASC'],
-        ['position_code', 'ASC'],
-      ],
-    });
+  static async getTechnicalStatusInstallableLegacyComponentsForAircraft(authority: TenantQueryAuthority, aircraftId: string) {
+    assertTenantQueryAuthority(authority);
+    return withTenantTransaction(authority, async (transaction) =>
+      aircraftComponentTenantRepository.listInstalledForAircraft(authority, aircraftId, { transaction }),
+    );
   }
 
   /**
    * INSTALL COMPONENT (Concurrency Safe)
    */
-  static async installComponent(data: any) {
+  static async installComponent(authority: TenantQueryAuthority, data: any) {
+    assertTenantQueryAuthority(authority);
 
-    const transaction = await sequelize.transaction();
-
-    try {
+    return withTenantTransaction(authority, async (transaction) => {
 
       const {
         aircraft_id,
@@ -415,16 +162,12 @@ export class AircraftComponentService {
         throw new Error('INVALID_INSTALLATION_DATE');
       }
 
-      const aircraft = await Aircraft.findByPk(
-        aircraft_id,
-        {
-          attributes: AircraftComponentService.aircraftAttributes,
-          transaction,
-          lock: transaction.LOCK.UPDATE
-        }
-      );
+      const aircraft = await aircraftTenantRepository.getForRootUpdate(authority, aircraft_id, {
+        transaction,
+        lock: transaction.LOCK.UPDATE,
+      });
 
-      if (!aircraft) throw new Error('AIRCRAFT_NOT_FOUND');
+      if (!aircraft) throw new Error('TENANT_RESOURCE_UNAVAILABLE');
       if (aircraft.status !== 'ACTIVE')
         throw new Error('INSTALL_NOT_ALLOWED_AIRCRAFT_NOT_ACTIVE');
 
@@ -443,11 +186,14 @@ export class AircraftComponentService {
       if (!componentModel.AssetType?.is_installable_on_aircraft)
         throw new Error('ASSET_TYPE_NOT_INSTALLABLE_ON_AIRCRAFT');
 
-      const serialInUse = await AircraftComponent.findOne({
-        where: { serial_number: normalizedSerialNumber, current_status: 'INSTALLED' },
-        transaction,
-        lock: transaction.LOCK.UPDATE
-      });
+      const serialInUse = await aircraftComponentTenantRepository.hasInstalledSerialConflict(
+        authority,
+        normalizedSerialNumber,
+        {
+          transaction,
+          lock: transaction.LOCK.UPDATE,
+        },
+      );
 
       if (serialInUse)
         throw new Error('SERIAL_ALREADY_INSTALLED_ON_ANOTHER_AIRCRAFT');
@@ -457,18 +203,8 @@ export class AircraftComponentService {
         const hasConflict =
           Boolean(assetTypeId) &&
           (
-            await AircraftComponentService.hasLegacyPositionConflict({
-              aircraftId: aircraft_id,
-              assetTypeId,
-              position: normalizedPositionCode,
-              transaction,
-            }) ||
-            await AircraftComponentService.hasSerializedPositionConflict({
-              aircraftId: aircraft_id,
-              assetTypeId,
-              position: normalizedPositionCode,
-              transaction,
-            })
+            await aircraftComponentTenantRepository.hasActivePositionConflict(authority, aircraft_id, assetTypeId, normalizedPositionCode, { transaction, lock: transaction.LOCK.UPDATE }) ||
+            await aircraftComponentInstallationTenantRepository.hasActivePositionConflict(authority, aircraft_id, assetTypeId, normalizedPositionCode, { transaction, lock: transaction.LOCK.UPDATE })
           );
 
         if (hasConflict)
@@ -487,7 +223,7 @@ export class AircraftComponentService {
           );
       }
 
-      await AircraftComponent.create(
+      await aircraftComponentTenantRepository.create(authority,
         {
           aircraft_id,
           model_id,
@@ -504,116 +240,125 @@ export class AircraftComponentService {
         { transaction }
       );
 
-      await transaction.commit();
-
-    } catch (error) {
-      await transaction.rollback();
-      throw error;
-    }
+    });
   }
 
   /**
    * REMOVE COMPONENT (Fully Concurrency Safe)
    */
-  static async removeComponent(aircraft_component_id: string) {
+  static async removeComponent(
+    authority: TenantQueryAuthority,
+    aircraft_component_id: string,
+    actorId?: string,
+    remarks?: unknown,
+  ) {
+    assertTenantQueryAuthority(authority);
 
-    const transaction = await sequelize.transaction();
+    const normalizedActorId = String(actorId || '').trim();
+    if (!normalizedActorId) throw new Error('AUTHENTICATED_ACTOR_REQUIRED');
 
-    try {
+    return withTenantTransaction(authority, async (transaction) => {
 
-      const record = await AircraftComponent.findOne({
-        where: { id: aircraft_component_id },
+      const record = await aircraftComponentTenantRepository.getCustodyForUpdate(authority, aircraft_component_id, {
         transaction,
-        lock: transaction.LOCK.UPDATE
+        lock: transaction.LOCK.UPDATE,
       });
 
       if (!record)
-        throw new Error('COMPONENT_INSTALL_RECORD_NOT_FOUND');
+        throw new Error('TENANT_RESOURCE_UNAVAILABLE');
 
-      if (record.current_status === 'REMOVED')
-        throw new Error('COMPONENT_ALREADY_REMOVED');
+      if (record.current_status !== 'INSTALLED')
+        throw new Error('ONLY_INSTALLED_COMPONENTS_CAN_BE_REMOVED');
 
-      const { affectedRows } = await AircraftComponent.update(
+      const aircraftId = String(record.aircraft_id || '');
+      const aircraft = await aircraftTenantRepository.getForRootUpdate(authority, aircraftId, {
+        transaction,
+        lock: transaction.LOCK.UPDATE,
+      });
+      if (!aircraft) throw new Error('TENANT_RESOURCE_UNAVAILABLE');
+
+      const occurredAt = new Date();
+      const aircraftHours = AircraftComponentService.normalizeAircraftHours(aircraft.total_time_hours);
+      const accruedHours = Math.max(0, aircraftHours - AircraftComponentService.normalizeAircraftHours(record.install_af_hours));
+      const carriedTsn = Number((AircraftComponentService.normalizeAircraftHours(record.tsn_at_install) + accruedHours).toFixed(2));
+      const carriedTso = Number((AircraftComponentService.normalizeAircraftHours(record.tso_at_install) + accruedHours).toFixed(2));
+
+      const updateResult = await aircraftComponentTenantRepository.updateCustodyByVersion(
+        authority,
+        aircraft_component_id,
+        Number(record.version),
         {
           current_status: 'REMOVED',
-          removed_at: new Date(),
-          version: record.version + 1
+          removed_at: occurredAt,
+          tsn_at_install: carriedTsn,
+          tso_at_install: carriedTso,
+          version: Number(record.version) + 1,
         },
-        {
-          where: {
-            id: aircraft_component_id,
-            version: record.version
-          },
-          transaction
-        }
-      ) as any;
+        { transaction },
+      );
 
-      if (!affectedRows)
+      if (updateResult.outcome !== 'CHANGED')
         throw new Error('CONFLICT: Component modified.');
 
-      await transaction.commit();
+      await aircraftComponentMovementHistoryRepository.append(authority, {
+        aircraft_component_id,
+        action_type: 'REMOVAL',
+        source_aircraft_id: aircraftId,
+        target_aircraft_id: null,
+        actor_id: normalizedActorId,
+        occurred_at: occurredAt,
+        aircraft_hours: aircraftHours,
+        remarks: String(remarks ?? '').trim() || null,
+      }, { transaction });
 
-    } catch (error) {
-      await transaction.rollback();
-      throw error;
-    }
+    });
   }
 
   /**
    * QUARANTINE COMPONENT (Concurrency Safe)
    */
-  static async quarantineComponent(aircraft_component_id: string) {
+  static async quarantineComponent(authority: TenantQueryAuthority, aircraft_component_id: string) {
+    assertTenantQueryAuthority(authority);
 
-    const transaction = await sequelize.transaction();
+    return withTenantTransaction(authority, async (transaction) => {
 
-    try {
-
-      const record = await AircraftComponent.findOne({
-        where: { id: aircraft_component_id },
-        include: [{
-          model: ComponentModel,
-          attributes: AircraftComponentService.componentModelAttributes,
-          include: [AircraftComponentService.assetTypeInclude]
-        }],
+      const record = await aircraftComponentTenantRepository.getForUpdate(authority, aircraft_component_id, {
         transaction,
-        lock: transaction.LOCK.UPDATE
+        lock: transaction.LOCK.UPDATE,
       });
 
       if (!record)
-        throw new Error('COMPONENT_INSTALL_RECORD_NOT_FOUND');
+        throw new Error('TENANT_RESOURCE_UNAVAILABLE');
 
       if (record.current_status !== 'INSTALLED')
         throw new Error('ONLY_INSTALLED_COMPONENTS_CAN_BE_QUARANTINED');
 
-      const { affectedRows } = await AircraftComponent.update(
+      const context = await aircraftComponentTenantRepository.getOperationalContext(authority, aircraft_component_id, { transaction });
+      if (!context) throw new Error('TENANT_RESOURCE_UNAVAILABLE');
+
+      const updateResult = await aircraftComponentTenantRepository.updateByVersion(
+        authority,
+        aircraft_component_id,
+        String(record.aircraft_id || ''),
+        Number(record.version),
         {
           current_status: 'QUARANTINED',
-          version: record.version + 1
+          version: Number(record.version) + 1,
         },
-        {
-          where: {
-            id: aircraft_component_id,
-            version: record.version
-          },
-          transaction
-        }
-      ) as any;
+        { transaction },
+      );
 
-      if (!affectedRows)
+      if (updateResult.outcome !== 'CHANGED')
         throw new Error('CONFLICT: Component modified.');
 
-      const assetType = record.ComponentModel?.AssetType;
+      const assetType = (context as any).ComponentModel?.AssetType;
 
       if (assetType?.is_required_for_aircraft) {
 
-        const aircraft = await Aircraft.findByPk(
-          record.aircraft_id,
-          {
-            attributes: AircraftComponentService.aircraftAttributes,
-            transaction,
-            lock: transaction.LOCK.UPDATE
-          }
-        );
+        const aircraft = await aircraftTenantRepository.getForRootUpdate(authority, String(record.aircraft_id || ''), {
+          transaction,
+          lock: transaction.LOCK.UPDATE,
+        });
 
         if (aircraft?.status === 'ACTIVE') {
           aircraft.status = 'GROUNDED';
@@ -621,50 +366,39 @@ export class AircraftComponentService {
         }
       }
 
-      await transaction.commit();
-
-    } catch (error) {
-      await transaction.rollback();
-      throw error;
-    }
+    });
   }
 
   /**
    * RESTORE COMPONENT (Concurrency Safe)
    */
-  static async restoreComponent(aircraft_component_id: string) {
+  static async restoreComponent(authority: TenantQueryAuthority, aircraft_component_id: string) {
+    assertTenantQueryAuthority(authority);
 
-    const transaction = await sequelize.transaction();
+    return withTenantTransaction(authority, async (transaction) => {
 
-    try {
-
-      const record = await AircraftComponent.findOne({
-        where: { id: aircraft_component_id },
-        include: [{
-          model: ComponentModel,
-          attributes: AircraftComponentService.componentModelAttributes,
-        }],
+      const record = await aircraftComponentTenantRepository.getForUpdate(authority, aircraft_component_id, {
         transaction,
-        lock: transaction.LOCK.UPDATE
+        lock: transaction.LOCK.UPDATE,
       });
 
       if (!record)
-        throw new Error('COMPONENT_INSTALL_RECORD_NOT_FOUND');
+        throw new Error('TENANT_RESOURCE_UNAVAILABLE');
 
       if (record.current_status !== 'QUARANTINED')
         throw new Error('ONLY_QUARANTINED_COMPONENTS_CAN_BE_RESTORED');
 
       if (record.position_code) {
 
-        const conflict = await AircraftComponent.findOne({
-          where: {
-            aircraft_id: record.aircraft_id,
-            position_code: record.position_code,
-            current_status: 'INSTALLED'
+        const conflict = await aircraftComponentTenantRepository.hasInstalledPositionConflict(
+          authority,
+          String(record.aircraft_id || ''),
+          String(record.position_code),
+          {
+            transaction,
+            lock: transaction.LOCK.UPDATE,
           },
-          transaction,
-          lock: transaction.LOCK.UPDATE
-        });
+        );
 
         if (conflict)
           throw new Error(
@@ -672,17 +406,13 @@ export class AircraftComponentService {
           );
       }
 
-      const model = record.ComponentModel;
+      const context = await aircraftComponentTenantRepository.getOperationalContext(authority, aircraft_component_id, { transaction });
+      if (!context) throw new Error('TENANT_RESOURCE_UNAVAILABLE');
+      const model = (context as any).ComponentModel;
 
       if (model?.default_tbo_hours) {
 
-        const aircraft = await Aircraft.findByPk(
-          record.aircraft_id,
-          {
-            attributes: ['id', 'total_time_hours'],
-            transaction
-          }
-        );
+        const aircraft = await aircraftTenantRepository.getById(authority, String(record.aircraft_id || ''), { transaction });
 
         const aircraftHours = Number(aircraft?.total_time_hours || 0);
         const installHours = Number(record.install_af_hours || 0);
@@ -697,36 +427,115 @@ export class AircraftComponentService {
           );
       }
 
-      const { affectedRows } = await AircraftComponent.update(
+      const updateResult = await aircraftComponentTenantRepository.updateByVersion(
+        authority,
+        aircraft_component_id,
+        String(record.aircraft_id || ''),
+        Number(record.version),
         {
           current_status: 'INSTALLED',
           removed_at: null,
-          version: record.version + 1
+          version: Number(record.version) + 1,
         },
-        {
-          where: {
-            id: aircraft_component_id,
-            version: record.version
-          },
-          transaction
-        }
-      ) as any;
+        { transaction },
+      );
 
-      if (!affectedRows)
+      if (updateResult.outcome !== 'CHANGED')
         throw new Error('CONFLICT: Component modified.');
 
-      await transaction.commit();
-
-    } catch (error) {
-      await transaction.rollback();
-      throw error;
-    }
+    });
   }
 
-  static async installSerializedComponent(data: any) {
-    const transaction = await sequelize.transaction();
+  static async reinstallComponent(
+    authority: TenantQueryAuthority,
+    aircraftComponentId: string,
+    targetAircraftId: string,
+    actorId: string,
+    remarks?: unknown,
+  ) {
+    assertTenantQueryAuthority(authority);
+    const normalizedActorId = String(actorId || '').trim();
+    if (!normalizedActorId) throw new Error('AUTHENTICATED_ACTOR_REQUIRED');
 
-    try {
+    return withTenantTransaction(authority, async (transaction) => {
+      const record = await aircraftComponentTenantRepository.getCustodyForUpdate(authority, aircraftComponentId, {
+        transaction,
+        lock: transaction.LOCK.UPDATE,
+      });
+      if (!record) throw new Error('TENANT_RESOURCE_UNAVAILABLE');
+      if (record.current_status !== 'REMOVED') throw new Error('ONLY_REMOVED_COMPONENTS_CAN_BE_REINSTALLED');
+
+      const aircraft = await aircraftTenantRepository.getForRootUpdate(authority, targetAircraftId, {
+        transaction,
+        lock: transaction.LOCK.UPDATE,
+      });
+      if (!aircraft) throw new Error('TENANT_RESOURCE_UNAVAILABLE');
+      if (aircraft.status !== 'ACTIVE') throw new Error('INSTALL_NOT_ALLOWED_AIRCRAFT_NOT_ACTIVE');
+
+      const context = await aircraftComponentTenantRepository.getCustodyOperationalContext(authority, aircraftComponentId, { transaction });
+      if (!context) throw new Error('TENANT_RESOURCE_UNAVAILABLE');
+      const componentModel = (context as any).ComponentModel;
+      if (!componentModel) throw new Error('COMPONENT_MODEL_NOT_FOUND');
+      if (!componentModel.AssetType?.is_installable_on_aircraft) throw new Error('ASSET_TYPE_NOT_INSTALLABLE_ON_AIRCRAFT');
+
+      if (await aircraftComponentTenantRepository.hasInstalledSerialConflict(authority, String(record.serial_number || ''), {
+        transaction,
+        lock: transaction.LOCK.UPDATE,
+      })) throw new Error('SERIAL_ALREADY_INSTALLED_ON_ANOTHER_AIRCRAFT');
+
+      const position = String(record.position_code || '').trim().toUpperCase() || null;
+      if (position) {
+        const assetTypeId = String(componentModel.asset_type_id || '').trim();
+        const conflict = Boolean(assetTypeId) && (
+          await aircraftComponentTenantRepository.hasActivePositionConflict(authority, targetAircraftId, assetTypeId, position, { transaction, lock: transaction.LOCK.UPDATE }) ||
+          await aircraftComponentInstallationTenantRepository.hasActivePositionConflict(authority, targetAircraftId, assetTypeId, position, { transaction, lock: transaction.LOCK.UPDATE })
+        );
+        if (conflict) throw new Error(`POSITION_OCCUPIED: ${position}`);
+      }
+
+      const carriedTsn = AircraftComponentService.normalizeAircraftHours(record.tsn_at_install);
+      const carriedTso = AircraftComponentService.normalizeAircraftHours(record.tso_at_install);
+      if (componentModel.default_tbo_hours && carriedTsn >= Number(componentModel.default_tbo_hours)) {
+        throw new Error(`CANNOT_INSTALL_TBO_EXCEEDED: ${componentModel.model_name}`);
+      }
+
+      const occurredAt = new Date();
+      const aircraftHours = AircraftComponentService.normalizeAircraftHours(aircraft.total_time_hours);
+      const updateResult = await aircraftComponentTenantRepository.updateCustodyByVersion(
+        authority,
+        aircraftComponentId,
+        Number(record.version),
+        {
+          aircraft_id: targetAircraftId,
+          current_status: 'INSTALLED',
+          removed_at: null,
+          installation_date: occurredAt.toISOString().slice(0, 10),
+          install_af_hours: aircraftHours,
+          tsn_at_install: carriedTsn,
+          tso_at_install: carriedTso,
+          version: Number(record.version) + 1,
+        },
+        { transaction },
+      );
+      if (updateResult.outcome !== 'CHANGED') throw new Error('CONFLICT: Component modified.');
+
+      await aircraftComponentMovementHistoryRepository.append(authority, {
+        aircraft_component_id: aircraftComponentId,
+        action_type: 'INSTALLATION',
+        source_aircraft_id: null,
+        target_aircraft_id: targetAircraftId,
+        actor_id: normalizedActorId,
+        occurred_at: occurredAt,
+        aircraft_hours: aircraftHours,
+        remarks: String(remarks ?? '').trim() || null,
+      }, { transaction });
+
+    });
+  }
+
+  static async installSerializedComponent(authority: TenantQueryAuthority, data: any) {
+    assertTenantQueryAuthority(authority);
+    return withTenantTransaction(authority, async (transaction) => {
       const aircraftId = String(data.aircraft_id || '').trim();
       const serializedComponentId = String(data.serialized_component_id || '').trim();
       const trackingBasis = AircraftComponentService.normalizeTrackingBasis(data.tracking_basis);
@@ -756,21 +565,19 @@ export class AircraftComponentService {
         throw new Error('INVALID_INSTALLATION_DATE');
       }
 
-      const aircraft = await Aircraft.findByPk(aircraftId, {
-        attributes: ['id', 'total_time_hours', 'total_time_cycles'],
+      const aircraft = await aircraftTenantRepository.getForRootUpdate(authority, aircraftId, {
         transaction,
         lock: transaction.LOCK.UPDATE,
       });
 
-      if (!aircraft) throw new Error('AIRCRAFT_NOT_FOUND');
+      if (!aircraft) throw new Error('TENANT_RESOURCE_UNAVAILABLE');
 
-      const serializedComponent = await SerializedComponent.findByPk(serializedComponentId, {
-        attributes: ['id', 'status', 'component_model_id'],
+      const serializedComponent = await serializedComponentTenantRepository.getForUpdate(authority, serializedComponentId, {
         transaction,
         lock: transaction.LOCK.UPDATE,
       });
 
-      if (!serializedComponent) throw new Error('SERIALIZED_COMPONENT_NOT_FOUND');
+      if (!serializedComponent) throw new Error('TENANT_RESOURCE_UNAVAILABLE');
       if (serializedComponent.status !== 'AVAILABLE') {
         throw new Error('SERIALIZED_COMPONENT_NOT_AVAILABLE');
       }
@@ -782,11 +589,7 @@ export class AircraftComponentService {
           })
         : null;
 
-      const activeInstallation = await AircraftComponentInstallation.findOne({
-        where: {
-          serialized_component_id: serializedComponentId,
-          removed_at: null,
-        },
+      const activeInstallation = await aircraftComponentInstallationTenantRepository.getActiveForSerializedComponentUpdate(authority, serializedComponentId, {
         transaction,
         lock: transaction.LOCK.UPDATE,
       });
@@ -800,18 +603,8 @@ export class AircraftComponentService {
         const hasConflict =
           Boolean(assetTypeId) &&
           (
-            await AircraftComponentService.hasSerializedPositionConflict({
-              aircraftId,
-              assetTypeId,
-              position,
-              transaction,
-            }) ||
-            await AircraftComponentService.hasLegacyPositionConflict({
-              aircraftId,
-              assetTypeId,
-              position,
-              transaction,
-            })
+            await aircraftComponentInstallationTenantRepository.hasActivePositionConflict(authority, aircraftId, assetTypeId, position, { transaction, lock: transaction.LOCK.UPDATE }) ||
+            await aircraftComponentTenantRepository.hasActivePositionConflict(authority, aircraftId, assetTypeId, position, { transaction, lock: transaction.LOCK.UPDATE })
           );
 
         if (hasConflict) {
@@ -819,7 +612,7 @@ export class AircraftComponentService {
         }
       }
 
-      await AircraftComponentInstallation.create(
+      await aircraftComponentInstallationTenantRepository.create(authority,
         {
           aircraft_id: aircraftId,
           serialized_component_id: serializedComponentId,
@@ -840,22 +633,15 @@ export class AircraftComponentService {
         { transaction }
       );
 
-      await serializedComponent.update(
-        { status: 'INSTALLED' },
-        { transaction }
-      );
+      const statusResult = await serializedComponentTenantRepository.updateInstallationStatus(authority, serializedComponentId, 'INSTALLED', { transaction });
+      if (statusResult.outcome !== 'CHANGED') throw new Error('TENANT_RESOURCE_UNAVAILABLE');
 
-      await transaction.commit();
-    } catch (error) {
-      await transaction.rollback();
-      throw error;
-    }
+    });
   }
 
-  static async baselineCaptureSerializedComponent(data: any) {
-    const transaction = await sequelize.transaction();
-
-    try {
+  static async baselineCaptureSerializedComponent(authority: TenantQueryAuthority, data: any) {
+    assertTenantQueryAuthority(authority);
+    return withTenantTransaction(authority, async (transaction) => {
       const aircraftId = String(data.aircraft_id || '').trim();
       const serializedComponentId = String(data.serialized_component_id || '').trim();
       const trackingBasis = AircraftComponentService.normalizeTrackingBasis(data.tracking_basis);
@@ -887,21 +673,19 @@ export class AircraftComponentService {
         throw new Error('INVALID_INSTALLATION_DATE');
       }
 
-      const aircraft = await Aircraft.findByPk(aircraftId, {
-        attributes: ['id', 'total_time_hours', 'total_time_cycles'],
+      const aircraft = await aircraftTenantRepository.getForRootUpdate(authority, aircraftId, {
         transaction,
         lock: transaction.LOCK.UPDATE,
       });
 
-      if (!aircraft) throw new Error('AIRCRAFT_NOT_FOUND');
+      if (!aircraft) throw new Error('TENANT_RESOURCE_UNAVAILABLE');
 
-      const serializedComponent = await SerializedComponent.findByPk(serializedComponentId, {
-        attributes: ['id', 'status', 'component_model_id'],
+      const serializedComponent = await serializedComponentTenantRepository.getForUpdate(authority, serializedComponentId, {
         transaction,
         lock: transaction.LOCK.UPDATE,
       });
 
-      if (!serializedComponent) throw new Error('SERIALIZED_COMPONENT_NOT_FOUND');
+      if (!serializedComponent) throw new Error('TENANT_RESOURCE_UNAVAILABLE');
       if (serializedComponent.status !== 'AVAILABLE') {
         throw new Error('SERIALIZED_COMPONENT_NOT_AVAILABLE');
       }
@@ -913,11 +697,7 @@ export class AircraftComponentService {
           })
         : null;
 
-      const activeInstallation = await AircraftComponentInstallation.findOne({
-        where: {
-          serialized_component_id: serializedComponentId,
-          removed_at: null,
-        },
+      const activeInstallation = await aircraftComponentInstallationTenantRepository.getActiveForSerializedComponentUpdate(authority, serializedComponentId, {
         transaction,
         lock: transaction.LOCK.UPDATE,
       });
@@ -931,18 +711,8 @@ export class AircraftComponentService {
         const hasConflict =
           Boolean(assetTypeId) &&
           (
-            await AircraftComponentService.hasSerializedPositionConflict({
-              aircraftId,
-              assetTypeId,
-              position,
-              transaction,
-            }) ||
-            await AircraftComponentService.hasLegacyPositionConflict({
-              aircraftId,
-              assetTypeId,
-              position,
-              transaction,
-            })
+            await aircraftComponentInstallationTenantRepository.hasActivePositionConflict(authority, aircraftId, assetTypeId, position, { transaction, lock: transaction.LOCK.UPDATE }) ||
+            await aircraftComponentTenantRepository.hasActivePositionConflict(authority, aircraftId, assetTypeId, position, { transaction, lock: transaction.LOCK.UPDATE })
           );
 
         if (hasConflict) {
@@ -957,7 +727,7 @@ export class AircraftComponentService {
         notes || null,
       ].filter(Boolean).join('\n');
 
-      await AircraftComponentInstallation.create(
+      await aircraftComponentInstallationTenantRepository.create(authority,
         {
           aircraft_id: aircraftId,
           serialized_component_id: serializedComponentId,
@@ -978,22 +748,15 @@ export class AircraftComponentService {
         { transaction }
       );
 
-      await serializedComponent.update(
-        { status: 'INSTALLED' },
-        { transaction }
-      );
+      const statusResult = await serializedComponentTenantRepository.updateInstallationStatus(authority, serializedComponentId, 'INSTALLED', { transaction });
+      if (statusResult.outcome !== 'CHANGED') throw new Error('TENANT_RESOURCE_UNAVAILABLE');
 
-      await transaction.commit();
-    } catch (error) {
-      await transaction.rollback();
-      throw error;
-    }
+    });
   }
 
-  static async removeSerializedComponent(data: any) {
-    const transaction = await sequelize.transaction();
-
-    try {
+  static async removeSerializedComponent(authority: TenantQueryAuthority, data: any) {
+    assertTenantQueryAuthority(authority);
+    return withTenantTransaction(authority, async (transaction) => {
       const aircraftId = String(data.aircraft_id || '').trim();
       const installationId = String(data.installation_id || '').trim();
       const removedAt = String(data.removed_at || '').trim();
@@ -1025,50 +788,41 @@ export class AircraftComponentService {
         throw new Error('INVALID_RESULTING_STATUS');
       }
 
-      const aircraft = await Aircraft.findByPk(aircraftId, {
-        attributes: ['id', 'total_time_hours', 'total_time_cycles'],
+      const aircraft = await aircraftTenantRepository.getForRootUpdate(authority, aircraftId, {
         transaction,
         lock: transaction.LOCK.UPDATE,
       });
 
-      if (!aircraft) throw new Error('AIRCRAFT_NOT_FOUND');
+      if (!aircraft) throw new Error('TENANT_RESOURCE_UNAVAILABLE');
 
-      const installation = await AircraftComponentInstallation.findOne({
-        where: {
-          id: installationId,
-          aircraft_id: aircraftId,
-          removed_at: null,
-        },
+      const installation = await aircraftComponentInstallationTenantRepository.getActiveForUpdate(authority, installationId, aircraftId, {
         transaction,
         lock: transaction.LOCK.UPDATE,
       });
 
       if (!installation) {
-        throw new Error('ACTIVE_SERIALIZED_INSTALLATION_NOT_FOUND');
+        throw new Error('TENANT_RESOURCE_UNAVAILABLE');
       }
 
-      if (new Date(removedAt).getTime() < new Date(installation.installed_at).getTime()) {
+      if (new Date(removedAt).getTime() < new Date(String(installation.installed_at)).getTime()) {
         throw new Error('REMOVAL_BEFORE_INSTALL');
       }
 
-      const serializedComponent = await SerializedComponent.findByPk(
-        installation.serialized_component_id,
-        {
-          attributes: ['id', 'status'],
+      const serializedComponentId = String(installation.serialized_component_id || '');
+      const serializedComponent = await serializedComponentTenantRepository.getForUpdate(authority, serializedComponentId, {
           transaction,
           lock: transaction.LOCK.UPDATE,
-        }
-      );
+      });
 
       if (!serializedComponent) {
-        throw new Error('SERIALIZED_COMPONENT_NOT_FOUND');
+        throw new Error('TENANT_RESOURCE_UNAVAILABLE');
       }
 
       if (serializedComponent.status !== 'INSTALLED') {
         throw new Error('SERIALIZED_COMPONENT_NOT_INSTALLED');
       }
 
-      await installation.update(
+      const removalResult = await aircraftComponentInstallationTenantRepository.removeActiveById(authority, installationId, aircraftId,
         {
           removed_at: removedAt,
           removal_aircraft_hours: AircraftComponentService.normalizeAircraftHours(aircraft.total_time_hours),
@@ -1080,20 +834,15 @@ export class AircraftComponentService {
           removed_by: data.removed_by || null,
           notes: notes
             ? [installation.notes, `Removal: ${notes}`].filter(Boolean).join('\n')
-            : installation.notes,
+            : (installation.notes == null ? null : String(installation.notes)),
         },
         { transaction }
       );
+      if (removalResult.outcome !== 'CHANGED') throw new Error('TENANT_RESOURCE_UNAVAILABLE');
 
-      await serializedComponent.update(
-        { status: resultingStatus },
-        { transaction }
-      );
+      const statusResult = await serializedComponentTenantRepository.updateInstallationStatus(authority, serializedComponentId, resultingStatus as 'REMOVED' | 'AVAILABLE', { transaction });
+      if (statusResult.outcome !== 'CHANGED') throw new Error('TENANT_RESOURCE_UNAVAILABLE');
 
-      await transaction.commit();
-    } catch (error) {
-      await transaction.rollback();
-      throw error;
-    }
+    });
   }
 }

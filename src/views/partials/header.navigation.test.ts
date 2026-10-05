@@ -45,4 +45,17 @@ describe('header compliance maintenance data navigation', () => {
       '<a href="/service-bulletins" class="hover:text-slate-300">Service Bulletins</a>'
     );
   });
+
+  it('shows only the approved active Organisation projection and switch fields', () => {
+    expect(headerTemplate).toContain('activeOrganisationUi.current.tenantDisplayName');
+    expect(headerTemplate).toContain('activeOrganisationUi.current.tenantCode');
+    expect(headerTemplate).toContain('activeOrganisationUi.alternatives.length > 0');
+    expect(headerTemplate).toContain('action="/organisation/switch"');
+    expect(headerTemplate).toContain('hx-post="/organisation/switch"');
+    expect(headerTemplate).toContain('name="tenant_public_id"');
+    expect(headerTemplate).toContain('name="expected_context_token"');
+    expect(headerTemplate).toContain('name="_csrf"');
+    expect(headerTemplate).not.toMatch(/membershipId|membership_id|tenantId|tenant_id/);
+    expect(headerTemplate).not.toMatch(/TENANT_SWITCH_TOKEN_SECRET/);
+  });
 });

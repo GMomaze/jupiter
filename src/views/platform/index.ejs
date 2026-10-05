@@ -1,0 +1,330 @@
+<%- include('../partials/header') %>
+<main class="mx-auto max-w-7xl space-y-6 p-6">
+  <h1 class="text-2xl font-bold">Platform administration</h1>
+  <% if (messages && messages.success && messages.success.length) { %><div class="rounded-md bg-green-50 p-4 text-sm text-green-800 ring-1 ring-green-200"><% messages.success.forEach(function(m){ %><p><%= m %></p><% }) %></div><% } %>
+  <% if (messages && messages.error && messages.error.length) { %><div class="rounded-md bg-red-50 p-4 text-sm text-red-800 ring-1 ring-red-200"><% messages.error.forEach(function(m){ %><p><%= m %></p><% }) %></div><% } %>
+  <nav class="flex gap-1 border-b border-gray-200"><% const tabs = [{key:'companies',label:'Companies'},{key:'authority',label:'Platform Authority'},{key:'grants',label:'Capabilities &amp; Grants'},{key:'audit',label:'Audit'}]; %><% tabs.forEach(function(t){ %><a href="/platform?section=<%= t.key %>" class="px-4 py-2 text-sm font-medium <%= section === t.key ? 'border-b-2 border-blue-600 text-blue-700' : 'text-gray-500 hover:text-gray-700' %>"><%- t.label %></a><% }) %></nav>
+
+<%
+  const capByCode = {};
+  (state.capabilities || []).forEach(function (c) { capByCode[c.code] = c.label; });
+  const principalNameById = {};
+  (state.principals || []).forEach(function (p) { principalNameById[p.id] = p.display_name; });
+  const tenantNameById = {};
+  (tenants || []).forEach(function (t) { tenantNameById[t.id] = t.display_name || t.code; });
+  const capabilityName = function (code) { return capByCode[code] || code; };
+  const actionName = function (a) {
+    var m = {
+      'SYSTEM_OWNER_BOOTSTRAPPED': 'System Owner established',
+      'SYSTEM_OWNER_BOOTSTRAP_TERMINATED': 'System Owner bootstrap terminated',
+      'PLATFORM_PRINCIPAL_CREATED': 'Human platform authority created',
+      'PLATFORM_PRINCIPAL_DISABLED': 'Human platform authority disabled',
+      'CAPABILITY_GRANTED': 'Capability granted',
+      'CAPABILITY_REVOKED': 'Capability revoked',
+      'SB_SYNC_SCHEDULER_PROVISIONED': 'Service scheduler provisioned',
+      'SB_SYNC_SCHEDULER_RECOVERED': 'Service scheduler recovered',
+      'TENANT_PROVISION': 'Company provisioned',
+      'TENANT_ACTIVATE': 'Company activated',
+      'TENANT_SUSPEND': 'Company suspended',
+      'TENANT_REINSTATE': 'Company reinstated',
+      'TENANT_ADMIN_RECOVER': 'Company administrator recovered',
+      'TENANT_EXPORT': 'Company export',
+      'TENANT_INVITATION_REISSUE': 'Administrator invitation reissued',
+      'TENANT_ADMIN_INVITATION_CORRECT': 'Initial administrator changed'
+    };
+    return m[a] || a;
+  };
+  const resourceTypeName = function (t) {
+    var m = { 'platform_principal': 'Human Platform Authority', 'platform_capability_grant': 'Capability grant', 'tenant': 'Company' };
+    return m[t] || t;
+  };
+  const resourcePrimary = function (a) {
+    if (a.resource_type === 'platform_principal' && principalNameById[a.resource_id]) return principalNameById[a.resource_id];
+    if (a.resource_type === 'tenant' && tenantNameById[a.resource_id]) return tenantNameById[a.resource_id];
+    return resourceTypeName(a.resource_type);
+  };
+  const outcomeName = function (o) { return o === 'SUCCESS' ? 'Successful' : o; };
+  const principalKindName = function (t) { return t === 'HUMAN' ? 'Human Platform Authority' : (t === 'SERVICE' ? 'Service' : t); };
+  const humanPrincipals = (state.principals || []).filter(function (p) { return p.principal_type === 'HUMAN'; });
+  const servicePrincipals = (state.principals || []).filter(function (p) { return p.principal_type === 'SERVICE'; });
+  const authoritySub = sub === 'service' ? 'service' : 'human';
+  const grantsSub = sub === 'grant' ? 'grant' : (sub === 'catalogue' ? 'catalogue' : 'current');
+%>
+
+  <% if (section === 'companies') { %>
+  <section class="space-y-6">
+    <h2 class="text-lg font-semibold">Companies</h2>
+    <p class="text-sm text-gray-600">Companies are created here and can later be activated, suspended or reinstated.</p>
+    <% if (canProvisionTenants) { %>
+    <div class="rounded-lg border border-gray-200 p-4 space-y-3">
+      <h3 class="font-medium text-gray-800">Provision a new company</h3>
+      <p class="text-sm text-gray-600">Provisioning creates the company in a "Provisioning" state. It is not yet active — activation is a separate step.</p>
+      <form method="post" action="/platform/tenants" class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <div><label class="block text-sm font-medium text-gray-700">Company name</label><input name="displayName" required placeholder="e.g. Acme Aviation" class="mt-1 w-full rounded border border-gray-300 p-2"></div>
+        <div><label class="block text-sm font-medium text-gray-700">Company code</label><input name="code" required placeholder="e.g. ACME" class="mt-1 w-full rounded border border-gray-300 p-2"><p class="mt-1 text-xs text-gray-500">A short, unique identifier (letters, numbers and underscores; spaces and punctuation are converted automatically). Up to 50 characters. It cannot be changed later.</p></div>
+        <div><label class="block text-sm font-medium text-gray-700">Initial administrator email</label><input name="initialAdminEmail" type="email" required placeholder="administrator@example.com" class="mt-1 w-full rounded border border-gray-300 p-2"></div>
+        <div><label class="block text-sm font-medium text-gray-700">Initial administrator name</label><input name="initialAdminName" required placeholder="Full name" class="mt-1 w-full rounded border border-gray-300 p-2"></div>
+        <div class="sm:col-span-2"><p class="text-xs text-gray-500">The administrator receives a controlled, single-use invitation to set up their company administrator account.</p></div>
+        <div class="sm:col-span-2"><label class="block text-sm font-medium text-gray-700">Reason</label><input name="reason" required placeholder="Reason for provisioning" class="mt-1 w-full rounded border border-gray-300 p-2"><p class="mt-1 text-xs text-gray-500">Recorded in the audit log for governance.</p></div>
+        <div class="sm:col-span-2"><button type="submit" class="rounded bg-blue-600 px-4 py-2 text-white hover:bg-blue-700">Provision company</button></div>
+      </form>
+    </div>
+    <% } %>
+    <div class="rounded-lg border border-gray-200">
+      <div class="border-b border-gray-200 p-3"><label class="text-sm font-medium text-gray-700">Search companies</label><input id="tenant-filter" type="text" placeholder="Filter by code, name or status" class="mt-1 w-full rounded border border-gray-300 p-2" oninput="filterTenants(this.value)"></div>
+      <% if (!tenants || !tenants.length) { %>
+      <p class="p-6 text-sm text-gray-500">No companies have been provisioned yet.</p>
+      <% } else { %>
+      <table class="w-full">
+        <thead class="bg-gray-50 text-left text-xs uppercase text-gray-500"><tr><th class="p-3">Code</th><th class="p-3">Name</th><th class="p-3">Status</th><th class="p-3">Actions</th></tr></thead>
+        <tbody id="tenant-rows">
+          <% tenants.forEach(function(t) { %>
+          <tr class="border-t border-gray-100" data-search="<%= (t.code + ' ' + (t.display_name||'') + ' ' + t.status).toLowerCase() %>">
+            <td class="p-3 font-mono text-sm"><%= t.code %></td>
+            <td class="p-3 text-sm"><%= t.display_name %></td>
+            <td class="p-3"><span class="rounded-full px-2 py-0.5 text-xs font-medium <%= t.status === 'ACTIVE' ? 'bg-green-100 text-green-800' : (t.status === 'SUSPENDED' ? 'bg-red-100 text-red-800' : 'bg-amber-100 text-amber-800') %>"><%= t.status %></span><% if (t.status === 'PROVISIONING') { %><div class="mt-1 text-xs <%= t.admin_onboarded ? 'text-green-700' : 'text-amber-700' %>"><%= t.admin_onboarded ? 'Ready for activation' : 'Awaiting administrator acceptance' %></div><% } %></td>
+            <td class="p-3">
+              <% if (canActivateTenants && t.status === 'PROVISIONING') { %><% if (t.admin_onboarded) { %><form method="post" action="/platform/tenants/<%= t.public_id %>/activate" class="inline"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><input type="hidden" name="reason" value="Platform activation"><button type="submit" class="rounded bg-green-600 px-2 py-1 text-xs text-white">Activate</button></form><% } else { %><span class="rounded bg-gray-200 px-2 py-1 text-xs text-gray-400 cursor-not-allowed" title="Activation requires the initial administrator to complete onboarding first.">Activate</span><% } %><% } %>
+              <% if (canProvisionTenants && t.status === 'PROVISIONING' && !t.admin_onboarded) { %><form method="post" action="/platform/tenants/<%= t.public_id %>/reissue-admin-invitation" class="inline space-x-1" onsubmit="return confirm('Resend the administrator invitation? A new secure link will be sent and the previous link will stop working.');"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><input name="reason" required placeholder="Reason" class="rounded border border-gray-300 p-1 text-xs"><button type="submit" class="rounded bg-blue-600 px-2 py-1 text-xs text-white">Resend administrator invitation</button></form><% } %>
+              <% if (canProvisionTenants && t.status === 'PROVISIONING' && !t.admin_onboarded) { %><button type="button" onclick="var r=document.getElementById('correct-<%= t.public_id %>'); if(r){ r.hidden = !r.hidden; }" class="rounded bg-slate-600 px-2 py-1 text-xs text-white hover:bg-slate-700">Change initial administrator</button><% } %>
+              <% if (canSuspendTenants && t.status === 'ACTIVE') { %><form method="post" action="/platform/tenants/<%= t.public_id %>/suspend" class="inline space-x-1" onsubmit="return confirm('Suspend this company? Access will be denied until reinstated.');"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><input name="reason" required placeholder="Suspension reason" class="rounded border border-gray-300 p-1 text-xs"><button type="submit" class="rounded bg-red-700 px-2 py-1 text-xs text-white">Suspend</button></form><% } %>
+              <% if (canReinstateTenants && t.status === 'SUSPENDED') { %><form method="post" action="/platform/tenants/<%= t.public_id %>/reinstate" class="inline"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><input type="hidden" name="reason" value="Platform reinstatement"><button type="submit" class="rounded bg-blue-600 px-2 py-1 text-xs text-white">Reinstate</button></form><% } %>
+            </td>
+          </tr>
+          <% if (canProvisionTenants && t.status === 'PROVISIONING' && !t.admin_onboarded) { %>
+          <tr id="correct-<%= t.public_id %>" hidden data-search="<%= (t.code + ' ' + (t.display_name || '') + ' ' + t.status).toLowerCase() %>">
+            <td colspan="4" class="border-t border-gray-100 bg-gray-50 p-4">
+              <p class="mb-3 text-sm text-gray-700">
+                <span class="font-medium">Resend administrator invitation</span> — sends a new secure invitation to the same intended administrator.
+                <span class="font-medium">Change initial administrator</span> — replaces or corrects the intended administrator before onboarding is completed.
+                A new secure invitation will be sent to the new address and the previous invitation will stop working.
+              </p>
+              <form method="post" action="/platform/tenants/<%= t.public_id %>/correct-admin-invitation" class="space-y-3" onsubmit="return confirm('Change the initial administrator? A new secure invitation will be sent to the new address and the previous invitation will stop working.');">
+                <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                  <div>
+                    <label for="correct-email-<%= t.public_id %>" class="mb-1 block text-sm font-medium text-gray-700">New administrator email</label>
+                    <input id="correct-email-<%= t.public_id %>" name="email" type="email" required placeholder="administrator@example.com" class="w-full rounded border border-gray-300 p-2 text-sm">
+                  </div>
+                  <div>
+                    <label for="correct-name-<%= t.public_id %>" class="mb-1 block text-sm font-medium text-gray-700">Full name</label>
+                    <input id="correct-name-<%= t.public_id %>" name="fullName" required placeholder="Full name" class="w-full rounded border border-gray-300 p-2 text-sm">
+                  </div>
+                  <div>
+                    <label for="correct-reason-<%= t.public_id %>" class="mb-1 block text-sm font-medium text-gray-700">Reason</label>
+                    <input id="correct-reason-<%= t.public_id %>" name="reason" required placeholder="Reason for changing administrator" class="w-full rounded border border-gray-300 p-2 text-sm">
+                  </div>
+                  <div class="flex items-end gap-2">
+                    <button type="submit" class="rounded bg-slate-600 px-4 py-2 text-sm text-white hover:bg-slate-700">Change administrator</button>
+                    <button type="button" onclick="document.getElementById('correct-<%= t.public_id %>').hidden = true" class="rounded border border-gray-300 bg-white px-4 py-2 text-sm text-gray-700">Cancel</button>
+                  </div>
+                </div>
+              </form>
+            </td>
+          </tr>
+          <% } %>
+          <% }) %>
+        </tbody>
+      </table>
+      <% } %>
+    </div>
+  </section>
+  <% } else if (section === 'authority') { %>
+  <section class="space-y-6">
+    <h2 class="text-lg font-semibold">Platform Authority</h2>
+    <p class="text-sm text-gray-600">Human platform authority represents a real Jupiter user who has been explicitly authorised to perform specified platform-level administration. Being a Jupiter user, company administrator or company staff member does not automatically grant platform authority.</p>
+
+    <nav class="flex gap-1 border-b border-gray-200">
+      <a href="/platform?section=authority&amp;sub=human" class="px-4 py-2 text-sm font-medium <%= authoritySub === 'human' ? 'border-b-2 border-blue-600 text-blue-700' : 'text-gray-500 hover:text-gray-700' %>">Human Authority</a>
+      <a href="/platform?section=authority&amp;sub=service" class="px-4 py-2 text-sm font-medium <%= authoritySub === 'service' ? 'border-b-2 border-blue-600 text-blue-700' : 'text-gray-500 hover:text-gray-700' %>">Service Authority</a>
+    </nav>
+
+    <% if (authoritySub === 'human') { %>
+    <div class="rounded-lg border border-gray-200">
+      <div class="border-b border-gray-200 p-3"><h3 class="font-medium text-gray-800">Human platform authority</h3><p class="text-xs text-gray-500">Technical term: HUMAN principal.</p></div>
+      <% if (!humanPrincipals.length) { %>
+      <p class="p-6 text-sm text-gray-500">No human platform authority has been added yet.</p>
+      <% } else { %>
+      <table class="w-full">
+        <thead class="bg-gray-50 text-left text-xs uppercase text-gray-500"><tr><th class="p-3">Name</th><th class="p-3">User</th><th class="p-3">Type</th><th class="p-3">Status</th><% if (canManage) { %><th class="p-3">Actions</th><% } %></tr></thead>
+        <tbody>
+          <% humanPrincipals.forEach(function(p) { %>
+          <tr class="border-t border-gray-100"><td class="p-3 text-sm"><%= p.display_name %></td><td class="p-3 text-sm"><%= p.user_email || '—' %></td><td class="p-3 text-sm">Person</td><td class="p-3 text-sm"><%= p.status %></td><% if (canManage) { %><td class="p-3"><% if (p.status === 'ACTIVE') { %><form method="post" action="/platform/principals/disable" class="flex items-center gap-1" onsubmit="return confirm('Disable this human platform authority? They will lose all platform authority.');"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><input type="hidden" name="principalId" value="<%= p.id %>"><input name="reason" required placeholder="Reason" class="rounded border border-gray-300 p-1 text-xs"><button type="submit" class="rounded bg-red-600 px-2 py-1 text-xs text-white">Disable</button></form><% } %></td><% } %></tr>
+          <% }) %>
+        </tbody>
+      </table>
+      <% } %>
+    </div>
+
+    <% if (canManage) { %>
+    <div class="rounded-lg border border-gray-200">
+      <div class="border-b border-gray-200 p-3"><h3 class="font-medium text-gray-800">Platform users</h3><p class="text-xs text-gray-500">Invite a platform-only human account. The invitee sets their own password; no tenant membership, principal or capability is created until you grant them separately.</p></div>
+      <div class="p-4 space-y-3">
+        <form method="post" action="/platform/users/invite" class="space-y-2">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+          <input name="email" type="email" required placeholder="Email" class="w-full rounded border border-gray-300 p-2 text-sm">
+          <input name="fullName" required placeholder="Full name" class="w-full rounded border border-gray-300 p-2 text-sm">
+          <input name="reason" required placeholder="Reason" class="w-full rounded border border-gray-300 p-2 text-sm">
+          <button type="submit" class="rounded bg-blue-600 px-3 py-2 text-sm text-white">Invite platform user</button>
+        </form>
+      </div>
+      <% if (pendingInvitations && pendingInvitations.length) { %>
+      <table class="w-full">
+        <thead class="bg-gray-50 text-left text-xs uppercase text-gray-500"><tr><th class="p-3">Email</th><th class="p-3">Name</th><th class="p-3">Expires</th><th class="p-3">Actions</th></tr></thead>
+        <tbody>
+          <% pendingInvitations.forEach(function(inv) { %>
+          <tr class="border-t border-gray-100"><td class="p-3 text-sm"><%= inv.email %></td><td class="p-3 text-sm"><%= inv.fullName %></td><td class="p-3 text-sm"><%= new Date(inv.expiresAt).toLocaleString() %></td>
+            <td class="p-3 flex gap-1">
+              <form method="post" action="/platform/users/resend" class="inline"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><input type="hidden" name="invitationId" value="<%= inv.invitationId %>"><input name="reason" required placeholder="Reason" class="rounded border border-gray-300 p-1 text-xs"><button type="submit" class="rounded bg-blue-600 px-2 py-1 text-xs text-white">Resend</button></form>
+              <form method="post" action="/platform/users/revoke" class="inline" onsubmit="return confirm('Revoke this invitation?');"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><input type="hidden" name="invitationId" value="<%= inv.invitationId %>"><input name="reason" required placeholder="Reason" class="rounded border border-gray-300 p-1 text-xs"><button type="submit" class="rounded bg-red-600 px-2 py-1 text-xs text-white">Revoke</button></form>
+            </td></tr>
+          <% }) %>
+        </tbody>
+      </table>
+      <% } else { %>
+      <p class="p-6 text-sm text-gray-500">No pending platform-user invitations.</p>
+      <% } %>
+    </div>
+    <% } %>
+
+
+
+    <% if (canManage) { %>
+    <div class="rounded-lg border border-gray-200 p-4 space-y-3">
+      <h3 class="font-medium text-gray-800">Add human platform authority</h3>
+      <p class="text-sm text-gray-600">Grant platform administration authority to an existing active Jupiter user.</p>
+      <form method="post" action="/platform/principals" class="space-y-2">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <div><label class="block text-sm font-medium text-gray-700">Active user</label><select name="userId" required class="mt-1 w-full rounded border border-gray-300 p-2"><option value="">Select an active user…</option><% users.forEach(function(u) { %><option value="<%= u.id %>"><%= u.full_name %> — <%= u.email %></option><% }) %></select></div>
+        <div><label class="block text-sm font-medium text-gray-700">Display name</label><input name="displayName" required placeholder="Display name" class="mt-1 w-full rounded border border-gray-300 p-2"></div>
+        <div><label class="block text-sm font-medium text-gray-700">Reason</label><input name="reason" required placeholder="Reason for granting authority" class="mt-1 w-full rounded border border-gray-300 p-2"><p class="mt-1 text-xs text-gray-500">Recorded in the audit log for governance.</p></div>
+        <button type="submit" class="rounded bg-blue-600 px-4 py-2 text-white">Add human platform authority</button>
+      </form>
+    </div>
+    <% } %>
+    <% } else { %>
+
+    <div class="rounded-lg border border-gray-200">
+      <div class="border-b border-gray-200 p-3"><h3 class="font-medium text-gray-800">Service authority</h3><p class="text-xs text-gray-500">Technical term: SERVICE principal.</p></div>
+      <p class="border-b border-gray-200 px-3 pb-3 text-sm text-gray-600">A non-human security identity used by Jupiter for an automated or background process. It cannot be used as a normal user login and receives only explicitly authorised capabilities.</p>
+      <% if (!servicePrincipals.length) { %>
+      <p class="p-6 text-sm text-gray-500">No service authority has been provisioned yet.</p>
+      <% } else { %>
+      <table class="w-full">
+        <thead class="bg-gray-50 text-left text-xs uppercase text-gray-500"><tr><th class="p-3">Name</th><th class="p-3">Type</th><th class="p-3">Status</th></tr></thead>
+        <tbody>
+          <% servicePrincipals.forEach(function(p) { %>
+          <tr class="border-t border-gray-100"><td class="p-3 text-sm"><%= p.display_name %></td><td class="p-3 text-sm">Service</td><td class="p-3 text-sm"><%= p.status %></td></tr>
+          <% }) %>
+        </tbody>
+      </table>
+      <% } %>
+    </div>
+
+    <% if (canManage) { %>
+    <div class="rounded-lg border border-gray-200 p-4 space-y-3">
+      <h3 class="font-medium text-gray-800">Service Bulletin sync scheduler</h3>
+      <p class="text-sm text-gray-600">The Service Bulletin sync scheduler is a background service authority that synchronises Service Bulletin data.</p>
+      <form method="post" action="/platform/scheduler/provision" class="space-y-2">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <div><label class="block text-sm font-medium text-gray-700">Reason</label><input name="reason" required placeholder="Reason for provisioning the scheduler" class="mt-1 w-full rounded border border-gray-300 p-2"></div>
+        <button type="submit" class="rounded bg-blue-600 px-4 py-2 text-white">Provision scheduler</button>
+      </form>
+      <form method="post" action="/platform/scheduler/recover" class="space-y-2">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <div><label class="block text-sm font-medium text-gray-700">Reason</label><input name="reason" required placeholder="Reason for recovering the scheduler" class="mt-1 w-full rounded border border-gray-300 p-2"></div>
+        <button type="submit" class="rounded bg-blue-600 px-4 py-2 text-white">Recover scheduler</button>
+      </form>
+    </div>
+    <% } %>
+    <% } %>
+  </section>
+  <% } else if (section === 'grants') { %>
+  <section class="space-y-6">
+    <h2 class="text-lg font-semibold">Capabilities &amp; Grants</h2>
+    <p class="text-sm text-gray-600">A capability gives a platform authority permission to perform a specific platform-level function. It does not change a person's company role.</p>
+
+    <nav class="flex gap-1 border-b border-gray-200">
+      <a href="/platform?section=grants&amp;sub=current" class="px-4 py-2 text-sm font-medium <%= grantsSub === 'current' ? 'border-b-2 border-blue-600 text-blue-700' : 'text-gray-500 hover:text-gray-700' %>">Current Grants</a>
+      <a href="/platform?section=grants&amp;sub=grant" class="px-4 py-2 text-sm font-medium <%= grantsSub === 'grant' ? 'border-b-2 border-blue-600 text-blue-700' : 'text-gray-500 hover:text-gray-700' %>">Grant Capability</a>
+      <a href="/platform?section=grants&amp;sub=catalogue" class="px-4 py-2 text-sm font-medium <%= grantsSub === 'catalogue' ? 'border-b-2 border-blue-600 text-blue-700' : 'text-gray-500 hover:text-gray-700' %>">Capability Catalogue</a>
+    </nav>
+
+    <% if (grantsSub === 'current') { %>
+    <div class="rounded-lg border border-gray-200">
+      <div class="border-b border-gray-200 p-3"><h3 class="font-medium text-gray-800">Current grants</h3></div>
+      <% if (!state.grants || !state.grants.length) { %>
+      <p class="p-6 text-sm text-gray-500">No capabilities have been granted yet.</p>
+      <% } else { %>
+      <table class="w-full">
+        <thead class="bg-gray-50 text-left text-xs uppercase text-gray-500"><tr><th class="p-3">Person / Service</th><th class="p-3">Authority type</th><th class="p-3">Capability</th><th class="p-3">State</th><% if (canManage) { %><th class="p-3">Actions</th><% } %></tr></thead>
+        <tbody><% state.grants.forEach(function(g) { %><tr class="border-t border-gray-100"><td class="p-3 text-sm"><%= g.principal_display_name || g.principal_id %></td><td class="p-3 text-sm"><%= principalKindName(g.principal_type) %></td><td class="p-3 text-sm"><%= g.capability_label || g.capability_code %></td><td class="p-3 text-sm"><% if (g.revoked_at) { %><span class="text-gray-400">Revoked</span><% } else { %><span class="text-green-700">Active</span><% } %></td><% if (canManage) { %><td class="p-3"><% if (!g.revoked_at) { %><form method="post" action="/platform/grants/revoke" class="flex items-center gap-1" onsubmit="return confirm('Revoke this capability grant?');"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><input type="hidden" name="principalId" value="<%= g.principal_id %>"><input type="hidden" name="capabilityCode" value="<%= g.capability_code %>"><input name="reason" required placeholder="Reason" class="rounded border border-gray-300 p-1 text-xs"><button type="submit" class="rounded bg-red-600 px-2 py-1 text-xs text-white">Revoke</button></form><% } %></td><% } %></tr><% }) %></tbody>
+      </table>
+      <% } %>
+    </div>
+
+    <% } else if (grantsSub === 'grant') { %>
+    <% if (canManage) { %>
+    <div class="rounded-lg border border-gray-200 p-4 space-y-3">
+      <h3 class="font-medium text-gray-800">Grant capability</h3>
+      <p class="text-sm text-gray-600">A capability gives a platform authority permission to perform a specific platform-level function. It does not change the person's company role.</p>
+      <form method="post" action="/platform/grants" class="space-y-2">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <div><label class="block text-sm font-medium text-gray-700">Person or service</label><select name="principalId" required class="mt-1 w-full rounded border border-gray-300 p-2"><option value="">Select a person or service…</option><% state.principals.forEach(function(p) { %><option value="<%= p.id %>"><%= p.display_name %> (<%= principalKindName(p.principal_type) %>)</option><% }) %></select></div>
+        <div><label class="block text-sm font-medium text-gray-700">Capability</label><select name="capabilityCode" required class="mt-1 w-full rounded border border-gray-300 p-2"><option value="">Select a capability…</option><% state.capabilities.forEach(function(c) { %><option value="<%= c.code %>"><%= c.label %></option><% }) %></select></div>
+        <div><label class="block text-sm font-medium text-gray-700">Reason</label><input name="reason" required placeholder="Reason for granting" class="mt-1 w-full rounded border border-gray-300 p-2"><p class="mt-1 text-xs text-gray-500">Recorded in the audit log for governance.</p></div>
+        <button type="submit" class="rounded bg-blue-600 px-4 py-2 text-white">Grant capability</button>
+      </form>
+    </div>
+    <% } else { %>
+    <p class="text-sm text-gray-500">You do not have permission to grant capabilities.</p>
+    <% } %>
+    <% } else { %>
+    <div class="rounded-lg border border-gray-200">
+      <div class="border-b border-gray-200 p-3"><h3 class="font-medium text-gray-800">Capability catalogue</h3></div>
+      <div class="overflow-x-auto">
+      <table class="w-full">
+        <thead class="bg-gray-50 text-left text-xs uppercase text-gray-500"><tr><th class="p-3">Capability</th><th class="p-3">Technical code</th><th class="p-3">Description</th></tr></thead>
+        <tbody><% state.capabilities.forEach(function(c) { %><tr class="border-t border-gray-100"><td class="p-3 text-sm font-medium"><%= c.label %></td><td class="p-3 font-mono text-xs text-gray-400"><%= c.code %></td><td class="p-3 text-sm text-gray-600"><%= c.description || '' %></td></tr><% }) %></tbody>
+      </table>
+      </div>
+    </div>
+    <% } %>
+  </section>
+  <% } else { %>
+  <section class="space-y-6">
+    <h2 class="text-lg font-semibold">Platform audit</h2>
+    <p class="text-sm text-gray-600">A permanent record of platform-level administration actions. Entries cannot be edited or deleted.</p>
+    <div class="rounded-lg border border-gray-200">
+      <% if (!state.audit || !state.audit.length) { %>
+      <p class="p-6 text-sm text-gray-500">No audit entries yet.</p>
+      <% } else { %>
+      <table class="w-full">
+        <thead class="bg-gray-50 text-left text-xs uppercase text-gray-500"><tr><th class="p-3">Time</th><th class="p-3">Action</th><th class="p-3">Capability</th><th class="p-3">Resource</th><th class="p-3">Outcome</th></tr></thead>
+        <tbody>
+          <% state.audit.forEach(function(a) { %>
+          <tr class="border-t border-gray-100 align-top">
+            <td class="p-3 text-xs whitespace-nowrap"><%= a.created_at %></td>
+            <td class="p-3 text-sm"><div><%= actionName(a.action) %></div><div class="font-mono text-xs text-gray-400"><%= a.action %></div></td>
+            <td class="p-3 text-sm"><div><%= capabilityName(a.capability_code) %></div><div class="font-mono text-xs text-gray-400"><%= a.capability_code || '—' %></div></td>
+            <td class="p-3 text-sm"><div><%= resourcePrimary(a) %></div><div class="font-mono text-xs text-gray-400 break-all"><%= a.resource_type %><% if (a.resource_id) { %> · <%= a.resource_id %><% } %></div></td>
+            <td class="p-3 text-sm"><%= outcomeName(a.outcome) %></td>
+          </tr>
+          <% }) %>
+        </tbody>
+      </table>
+      <% } %>
+    </div>
+  </section>
+  <% } %>
+</main>
+<script>
+  function filterTenants(value) {
+    var q = (value || '').toLowerCase();
+    document.querySelectorAll('#tenant-rows tr').forEach(function (row) {
+      row.style.display = row.getAttribute('data-search').indexOf(q) !== -1 ? '' : 'none';
+    });
+  }
+</script>
+</body></html>

@@ -3,6 +3,7 @@ import sequelize from '../config/database.js';
 
 export class PlanningSession extends Model {
   declare id: string;
+  declare readonly tenant_id: string;
   declare user_id: string;
   declare created_by: string | null;
   declare aircraft_id: string;
@@ -24,6 +25,14 @@ PlanningSession.init(
       type: DataTypes.UUID,
       primaryKey: true,
       defaultValue: DataTypes.UUIDV4,
+    },
+    tenant_id: {
+      type: DataTypes.UUID,
+      allowNull: false,
+      field: 'tenant_id',
+      references: { model: 'tenants', key: 'id' },
+      onUpdate: 'RESTRICT',
+      onDelete: 'RESTRICT',
     },
     user_id: {
       type: DataTypes.UUID,
@@ -94,5 +103,23 @@ PlanningSession.init(
       { fields: ['status'] },
       { fields: ['user_id', 'status', 'updated_at'] },
     ],
+    hooks: {
+      beforeUpdate(instance) {
+        if (instance.changed('tenant_id')) {
+          throw new Error('ROOT_OPERATIONAL_TENANT_OWNERSHIP_IMMUTABLE');
+        }
+      },
+      beforeBulkUpdate(options) {
+        const attributes = 'attributes' in options ? options.attributes : undefined;
+        if (
+          (attributes != null &&
+            typeof attributes === 'object' &&
+            Object.prototype.hasOwnProperty.call(attributes, 'tenant_id')) ||
+          options.fields?.includes('tenant_id')
+        ) {
+          throw new Error('ROOT_OPERATIONAL_TENANT_OWNERSHIP_IMMUTABLE');
+        }
+      },
+    },
   }
 );

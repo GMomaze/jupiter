@@ -2,26 +2,38 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import request from 'supertest';
 import bcrypt from 'bcrypt';
 import app from '../../app.js';
-import { User, Role } from '../../models/index.js';
+import { User } from '../../models/index.js';
 import { v4 as uuid } from 'uuid';
 import { pool } from '../../config/database.js';
 import { assertTestDatabaseSafety } from '../../config/testDatabaseSafety.js';
 
 describe('Phase 2.5: Authentication & Authorization Tests', () => {
-  const email = 'test@example.com';
+  const testCategory = 'INTEGRATION SAFE-FIXTURE';
   const password = 'password123';
+  let email: string;
+  let ownedUserId: string | undefined;
 
   beforeEach(async () => {
     await assertTestDatabaseSafety(pool);
-
-    // Clear users before each test to prevent email collisions
-    // Cascade ensures related records in user_roles are handled
-    await User.destroy({ where: {}, cascade: true });
+    const fixtureId = uuid();
+    email = `auth+${fixtureId}@tests.jupiter.invalid`;
+    ownedUserId = undefined;
+    void testCategory;
   });
 
   afterEach(async () => {
-    await User.destroy({ where: { email } });
-    await Role.destroy({ where: { code: 'admin' } });
+    if (!ownedUserId) return;
+    const userId = ownedUserId;
+    ownedUserId = undefined;
+
+    try {
+      await pool.query(
+        "DELETE FROM sessions WHERE sess -> 'passport' ->> 'user' = $1",
+        [userId]
+      );
+    } finally {
+      await User.destroy({ where: { id: userId } });
+    }
   });
 
   it('should login successfully with valid credentials', async () => {
@@ -35,19 +47,9 @@ describe('Phase 2.5: Authentication & Authorization Tests', () => {
       full_name: 'Test User',
       is_active: true
     });
+    ownedUserId = user.id;
 
-    // 2. Seed Role and Role Link
-    const [role] = await Role.findOrCreate({
-      where: { code: 'admin' },
-      defaults: {
-        id: uuid(),
-        label: 'Admin'
-      }
-    });
-    
-    await user.addRole(role);
-
-    // 3. Test Authentication
+    // 2. Test Authentication
     const res = await request(app)
       .post('/auth/login')
       .send({ email, password });

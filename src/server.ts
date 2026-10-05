@@ -5,6 +5,7 @@ import { pool } from './config/database.js';
 import { sequelize } from './models/index.js';
 import { ServiceBulletinSyncService } from './modules/service-bulletins/service-bulletin-sync.service.js';
 import { assertTestDatabaseSafety } from './config/testDatabaseSafety.js';
+import { emitOperationalEvent } from './modules/observability/operational-event.js';
 
 const PORT = process.env.PORT || 3000;
 
@@ -74,10 +75,12 @@ async function startServer() {
 
       // Start background services
       try {
-        ServiceBulletinSyncService.startCronJob();
+        void ServiceBulletinSyncService.startCronJob().catch(err => {
+          emitOperationalEvent({code:'SCHEDULER_START_REFUSED',severity:'ERROR',outcome:'FAILED',operation:'SB_SYNC_SCHEDULER',error:err});
+        });
         console.log('🔄 Service Bulletin sync cron started');
       } catch (err) {
-        console.error('⚠️ Failed to start cron job:', err);
+        emitOperationalEvent({code:'SCHEDULER_START_FAILED',severity:'ERROR',outcome:'FAILED',operation:'SB_SYNC_SCHEDULER',error:err});
       }
     });
 

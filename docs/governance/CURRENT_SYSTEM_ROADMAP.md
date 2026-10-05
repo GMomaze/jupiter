@@ -2,11 +2,11 @@
 
 **Document ID:** JUPITER-CURRENT-SYSTEM-ROADMAP
 
-**Revision:** 1.1
+**Revision:** 1.7
 
 **Status:** Canonical evidence-based implementation map
 
-**Evidence review date:** 2026-08-18
+**Evidence review date:** 2026-09-06
 
 **Evidence basis:** current source, migrations, focused verification evidence,
 and approved programme records available at the last evidence review.
@@ -58,16 +58,132 @@ The active plan remains:
 
 ### Jupiter SaaS / Multi-Tenant Foundation
 
-**Status:** `FUTURE / NEXT PROGRAMME PRIORITY`
+**Status:** `PARTIALLY IMPLEMENTED — MT-4A + MT-4B + MT-4C3A + MT-4C3B + MT-4C3C + MT-4C4 + MT-4C5 + MT-4C6B1 + MT-4C6B2 COMPLETE + VERIFIED`
 
-The intended programme objective is to evolve existing Jupiter into a
-multi-tenant SaaS AMMS while preserving existing working functionality and data.
+Proven MT-3 capability includes tenant and membership foundations, regenerated
+staff sessions, Organisation eligibility decisions, selection, active-context
+resolution, switching, stale-context and concurrency protection, switch audit,
+and customer-session preservation.
 
-No tenant architecture, schema conversion, RLS, tenant context, membership
-model, or isolation implementation is proven by this roadmap.
+MT-4A read-only profiling completed for test and production. Production roots
+were empty at profile time; no ownership backfill was required, and shared
+master/reference data remains outside root operational ownership.
 
-The programme requires its own approved investigation and definition before
-implementation.
+MT-4B establishes verified authoritative root ownership: Aircraft, Customer,
+PlanningSession, and Workpack use `tenant_id`; SerializedComponent uses
+`custodian_tenant_id`. Ownership is UUID `NOT NULL`, Tenant-FK constrained with
+`RESTRICT`/`RESTRICT`, immutable under current authority, and uses normalized
+tenant-scoped uniqueness. Workpack tenant attribution is historical.
+
+Migration `590_add_root_operational_tenant_ownership.ts` and matching model/
+create-authority changes passed DB-free and guarded `jupiter_test` live
+verification, including clean DOWN/reapply, non-empty DOWN refusal, suspension
+persistence, cross-tenant creation rejection, and zero synthetic residue.
+
+Production deployment has not occurred. The observed production lineage ends
+at 581; deployment requires guarded sequential migrations 582–590 and the
+matching application as one maintenance-window release unit after identity,
+ledger, empty-root, backup and recovery preflight. Migration 590 may be undone
+only before root creation while all five roots remain empty. Populated ownership
+columns must never be discarded.
+
+Root ownership is not operational tenant isolation. Tenant-scoped query and
+mutation APIs, joins/children, search/count/dashboard/report/export and
+background/file/cache boundaries, mixed domains, tenant-scoped RBAC,
+Platform/System Owner authority, the operational context gate, and RLS remain
+future work. Global `user_roles` remains authoritative and
+`requireValidActiveTenantContext` remains globally unmounted except for the
+verified route-local dashboard boundary.
+
+MT-4C3B5 establishes verified tenant-authorized aircraft utilisation, local
+serialized-component life calculation and monitoring, and utilisation
+propagation preview. Local life acquisition enforces both the Aircraft tenant
+and SerializedComponent custodian roots. Focused verification passed 52/52
+database-backed tests and 11/11 DB-free tests under marker
+`JUPITER_MT4_SLICE_4C3B5_VERIFY_PASS`. Transaction, locking, audit, utilisation
+event, snapshot, correction, and grounding semantics remain preserved.
+
+MT-4C3B6 is complete and verified across its aircraft view/component workflow
+reads, legacy AircraftComponent mutations, and seven aircraft compliance-child
+operations. MT-4C3B7 static/AST enforcement passed 186/186 tests and rejected
+5/5 negative fixtures. MT-4C3B8 guarded two-tenant live verification passed
+4/4 tests against `jupiter_test`, with B7 reconfirmed at 186/186 PASS. No
+remaining B1–B8 isolation gap was identified within the approved MT-4C3B
+boundary.
+
+MT-4C4 establishes verified tenant-authorized broad due monitoring across all
+seven CalendarDue recalculation entry points, aircraft component monitoring,
+the broad component-life calculation path, and directly affected compliance
+and scheduled-task recalculation callers. Tenant-wide enumeration is confined
+to one tenant; guarded two-tenant monitoring passed within 49/49 `jupiter_test`
+tests, with 20/20 DB-free tests also passing. No schema, migration, production,
+RBAC, RLS, tenant-gate, or scheduler work was performed. The unrelated stale
+direct-model inventory suite remains outside MT-4C4. This does not establish
+system-wide tenant isolation.
+
+MT-4C5 establishes verified tenant-authorized operational dashboard aggregates.
+Authenticated `GET /` obtains authentic authority through a route-local tenant
+context gate without globally activating `requireValidActiveTenantContext`.
+Aircraft, Customer, historical Workpack, SerializedComponent custody, and both
+Workpack-linked and standalone Aircraft-rooted snag counts are tenant-scoped.
+Focused DB-free/static verification passed 196/196 tests and guarded
+two-tenant `jupiter_test` verification passed 3/3. No schema, migration, or
+production change occurred. The unrelated AircraftComponent tenant repository
+cast error remains outside MT-4C5.
+
+Migration `594_grant_tenant_login_provisioning_access.ts` repairs the tenant
+runtime ACL gap with least privilege: `jupiter_app` receives read-only access
+to Tenant and TenantMembership roots plus `INSERT`/`UPDATE` on the dedicated
+tenant-switch attempt ledger. Tenant and membership provisioning remains an
+administrator operation through `OrganisationProvisioningService`. Migration
+594 is verified on development `jupiter_db` and guarded `jupiter_test` only;
+production remains untouched. Development login and persisted active tenant
+context were verified after provisioning one active `JUPITER_DEV` membership.
+
+MT-4C3C establishes verified Workpack aggregate tenant isolation across
+Workpack, PlanningSession, task, snag, audit, execution, and component-context
+boundaries. Workpack historical `tenant_id` remains authoritative, and
+cross-tenant ambiguous TaskCards are neutral and unavailable. Standalone snags
+retain mandatory audit history through migrations 591–593, applied only to
+`jupiter_test`. Focused verification passed 14/14 DB-free and 9/9 guarded
+`jupiter_test` tests. Production was not migrated. The unrelated existing
+TypeScript cast error in `aircraft-component-tenant.repository.live.ts` remains
+outside this slice.
+
+MT-4C6B1 establishes verified durable custody for legacy
+`aircraft_components` and immutable event-time movement history. Migration 595
+adds non-null `custodian_tenant_id`, deterministic Aircraft-tenant backfill,
+custody FK/index/normalized identity enforcement, custody immutability and
+Aircraft-tenant matching, plus constrained installation/removal history with
+database-enforced UPDATE/DELETE rejection. Existing component state received no
+fabricated retrospective movement rows. Migration 596 leaves `jupiter_app`
+movement-history `SELECT` and `INSERT` privileges only, with no `UPDATE` or
+`DELETE`. Verification passed 241/241 DB-free/static and 5/5 guarded
+`jupiter_test` tests. Migrations 595 and 596 are applied to local development
+and test databases; production remains untouched. Fleet projection conversion
+remains incomplete and is outside the MT-4C6B1 boundary.
+
+MT-4C6B2 establishes verified authoritative mounted legacy component removal
+and same-tenant reinstall. The compatibility inventory URLs now require
+authentic tenant and actor authority and use custody-scoped AircraftComponent
+repositories rather than the stale `components`/`inventory_movements` path.
+Removal preserves custody and retained Aircraft identity while carrying accrued
+TSN/TSO; reinstall targets an ACTIVE Aircraft under the same tenant. Both use
+locked optimistic mutation and atomically append server-authoritative immutable
+movement history. Focused verification passed 35/35 DB-free/static and 10/10
+guarded `jupiter_test` tests. Fleet projection conversion remains incomplete
+and outside this verified boundary.
+
+MT-4C6B3 is DEFINE PASS / IMPLEMENTATION NOT AUTHORIZED. Its approved boundary
+is a route-local active-tenant gate plus authority-first projection
+service/repository for both mounted projection endpoints. Aircraft,
+both-root installed legacy components, and custody-owned removed inventory must
+be tenant-scoped in database queries; fleet health and summary must share the
+same truthful NORMAL/CRITICAL/EXPIRED/UNKNOWN rules. Runtime dependence on
+stale `components`, `SERVICEABLE`, and tenant-unsafe `vw_component_status` is
+to be replaced without altering schema. Movement history is not current custody
+authority. B3 excludes SerializedComponent redesign, transfer, wider gate
+activation, production, and migrations.
 
 ### CI / release hardening
 
@@ -92,6 +208,9 @@ content authority.
 Do not recreate workpack lifecycle, task lifecycle, certification, close, snag,
 or workpack audit authority.
 
+MT-4C3C adds verified tenant isolation around these established authorities,
+including historical Workpack ownership and standalone Aircraft-rooted snags.
+
 ### Serialized components
 
 **Status:** `COMPLETE + LOCKED` foundation; unified workspace remains
@@ -113,7 +232,8 @@ component functionality.
 Known gaps include:
 
 - no unified Component Management workspace;
-- current serialized lookup is not proven tenant/company isolated;
+- serialized-component isolation outside the verified MT-4C3B local paths
+  remains incomplete;
 - ordinary serialized creation has orchestration/duplicate-handling gaps;
 - no dedicated truthful opening-lifecycle-intake authority;
 - some legacy meter normalization paths can convert missing values to zero;
@@ -139,8 +259,9 @@ Aircraft CRUD, technical views, utilisation services, hours/cycles,
 utilisation-event architecture, and component installation/removal compatibility
 exist.
 
-Authority and propagation are not uniformly mature across all legacy and
-serialized paths.
+Aircraft utilisation, local serialized-component life propagation, and broad
+due monitoring are tenant-authorized and verified. Authority and propagation
+remain incomplete across other legacy or aggregate paths.
 
 Unknown operational values must not be assumed zero.
 
@@ -203,7 +324,7 @@ Do not extend or retire them without applicable investigation.
 
 - PostgreSQL with Sequelize and direct `pg` usage is the current database stack.
 - `migrations/` is the active migration filesystem.
-- Current migration lineage extends through migration 584 at the last evidence
+- Current migration lineage extends through migration 596 at the last evidence
   review.
 - Executed migrations are immutable.
 - Corrections require additive repair migrations.

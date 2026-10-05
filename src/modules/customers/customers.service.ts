@@ -1,5 +1,16 @@
-import { sequelize, Customer, CustomerAircraftLink, Aircraft } from '../../models/index.js';
+import { withTenantTransaction } from '../tenancy/tenant-transaction.js';
+import { sequelize } from '../../models/index.js';
 import { AuditService } from '../audit/audit.service.js';
+import {
+  assertTenantQueryAuthority,
+  type TenantQueryAuthority,
+} from '../tenancy/tenant-query-authority.js';
+import {
+  CUSTOMER_AIRCRAFT_RELATIONSHIP_TYPES,
+  type CustomerAircraftRelationshipType,
+} from './customer-aircraft-link-tenant.repository.js';
+import { customerAircraftLinkTenantService } from './customer-aircraft-link-tenant.live.js';
+import { customerTenantRepository } from './customer-tenant.repository.live.js';
 
 type CustomerPayload = {
   name: string;
@@ -83,6 +94,23 @@ export class CustomersService {
     return normalized;
   }
 
+  private static normalizeRelationshipType(value: unknown): CustomerAircraftRelationshipType {
+    const normalized = this.normalizeRequiredString(
+      value,
+      'RELATIONSHIP_TYPE_REQUIRED',
+    ).toUpperCase();
+    if (!CUSTOMER_AIRCRAFT_RELATIONSHIP_TYPES.includes(
+      normalized as CustomerAircraftRelationshipType,
+    )) {
+      throw new Error('RELATIONSHIP_TYPE_INVALID');
+    }
+    return normalized as CustomerAircraftRelationshipType;
+  }
+
+  private static recordValues(record: { toJSON?(): Record<string, unknown> } & Record<string, unknown>) {
+    return typeof record.toJSON === 'function' ? record.toJSON() : { ...record };
+  }
+
   private static buildCustomerValues(payload: Record<string, unknown>): CustomerPayload {
     return {
       name: this.normalizeRequiredString(payload.name, 'CUSTOMER_NAME_REQUIRED'),
@@ -110,50 +138,39 @@ export class CustomersService {
     };
   }
 
-  static async listCustomers() {
-    return Customer.findAll({
-      order: [['name', 'ASC']],
-    });
+  static async listCustomers(authority: TenantQueryAuthority) {
+    assertTenantQueryAuthority(authority);
+    return withTenantTransaction(authority, async (transaction) =>
+      customerTenantRepository.list(authority, {}, { transaction }),
+    );
   }
 
-  static async getCustomerOrThrow(id: string) {
-    const customer = await Customer.findByPk(id, {
-      include: [
-        {
-          model: CustomerAircraftLink,
-          as: 'AircraftLinks',
-          include: [
-            {
-              model: Aircraft,
-              as: 'Aircraft',
-              attributes: ['id', 'registration', 'serial_number'],
-            }
-          ],
-          required: false,
-        }
-      ],
-      order: [[{ model: CustomerAircraftLink, as: 'AircraftLinks' }, 'is_current', 'DESC']],
-    });
-
-    if (!customer) {
+  static async getCustomerOrThrow(authority: TenantQueryAuthority, id: string) {
+    assertTenantQueryAuthority(authority);
+    const projection = await customerAircraftLinkTenantService.getCustomerWithLinks(authority, id);
+    if (!projection) {
       throw new Error('CUSTOMER_NOT_FOUND');
     }
-
-    return customer;
+    return projection;
   }
 
-  static async getActiveCustomers() {
-    return Customer.findAll({
-      where: { status: 'ACTIVE' },
-      order: [['name', 'ASC']],
-    });
+  static async getActiveCustomers(authority: TenantQueryAuthority) {
+    assertTenantQueryAuthority(authority);
+    return withTenantTransaction(authority, async (transaction) =>
+      customerTenantRepository.listActive(authority, { transaction }),
+    );
   }
 
-  static async createCustomer(payload: Record<string, unknown>, actor_id?: string | null) {
+  static async createCustomer(
+    authority: TenantQueryAuthority,
+    payload: Record<string, unknown>,
+    actor_id?: string | null
+  ) {
+    assertTenantQueryAuthority(authority);
     const values = this.buildCustomerValues(payload);
 
-    return sequelize.transaction(async (transaction) => {
-      const customer = await Customer.create(values, { transaction });
+    return withTenantTransaction(authority, async (transaction) => {
+      const customer = await customerTenantRepository.create(authority, values, { transaction });
 
       await AuditService.log(
         this.withOptionalActorId(
@@ -173,11 +190,17 @@ export class CustomersService {
     });
   }
 
-  static async updateCustomer(id: string, payload: Record<string, unknown>, actor_id?: string | null) {
+  static async updateCustomer(
+    authority: TenantQueryAuthority,
+    id: string,
+    payload: Record<string, unknown>,
+    actor_id?: string | null,
+  ) {
+    assertTenantQueryAuthority(authority);
     const values = this.buildCustomerValues(payload);
 
-    return sequelize.transaction(async (transaction) => {
-      const customer = await Customer.findByPk(id, {
+    return withTenantTransaction(authority, async (transaction) => {
+      const customer = await customerTenantRepository.getForRootUpdate(authority, id, {
         transaction,
         lock: transaction.LOCK.UPDATE,
       });
@@ -186,96 +209,60 @@ export class CustomersService {
         throw new Error('CUSTOMER_NOT_FOUND');
       }
 
-      const oldValues = customer.toJSON();
-
-      await customer.update(values, { transaction });
+      const oldValues = this.recordValues(customer);
+      const mutation = await customerTenantRepository.updateById(authority, id, values, {
+        transaction,
+      });
+      if (mutation.outcome !== 'CHANGED') throw new Error('CUSTOMER_NOT_FOUND');
+      const updated = await customerTenantRepository.getById(authority, id, { transaction });
+      if (!updated) throw new Error('CUSTOMER_NOT_FOUND');
+      const newValues = this.recordValues(updated);
 
       await AuditService.log(
         this.withOptionalActorId(
           {
             table_name: 'customers',
-            row_id: customer.id,
+            row_id: updated.id,
             action: 'UPDATE',
             reason: 'Customer master record updated',
             old_values: oldValues,
-            new_values: customer.toJSON(),
+            new_values: newValues,
           },
           actor_id
         ),
         transaction
       );
 
-      return customer;
+      return updated;
     });
   }
 
-  static async assignAircraftToCustomer(payload: AircraftLinkPayload) {
+  static async assignAircraftToCustomer(
+    authority: TenantQueryAuthority,
+    payload: AircraftLinkPayload,
+  ) {
+    assertTenantQueryAuthority(authority);
     const customer_id = this.normalizeRequiredString(payload.customer_id, 'CUSTOMER_ID_REQUIRED');
     const aircraft_id = this.normalizeRequiredString(payload.aircraft_id, 'AIRCRAFT_ID_REQUIRED');
-    const relationship_type = this.normalizeRequiredString(payload.relationship_type, 'RELATIONSHIP_TYPE_REQUIRED');
+    const relationship_type = this.normalizeRelationshipType(payload.relationship_type);
     const start_date = this.normalizeDate(payload.start_date, 'START_DATE_REQUIRED');
     const notes = this.normalizeString(payload.notes);
 
-    return sequelize.transaction(async (transaction) => {
-      const customer = await Customer.findByPk(customer_id, {
-        transaction,
-        lock: transaction.LOCK.UPDATE,
-      });
-      if (!customer) {
-        throw new Error('CUSTOMER_NOT_FOUND');
-      }
-
-      const aircraft = await Aircraft.findByPk(aircraft_id, {
-        transaction,
-        lock: transaction.LOCK.UPDATE,
-      });
-      if (!aircraft) {
-        throw new Error('AIRCRAFT_NOT_FOUND');
-      }
-
-      const existingCurrent = await CustomerAircraftLink.findOne({
-        where: {
-          aircraft_id,
-          customer_id,
-          relationship_type,
-          is_current: true,
-        },
-        transaction,
-        lock: transaction.LOCK.UPDATE,
-      });
-
-      if (existingCurrent) {
-        throw new Error('CURRENT_CUSTOMER_ALREADY_ASSIGNED');
-      }
-
-      const link = await CustomerAircraftLink.create(
+    return withTenantTransaction(authority, async (transaction) => {
+      const serviceOptions = payload.actor_id === undefined
+        ? { transaction }
+        : { transaction, actorId: payload.actor_id };
+      return customerAircraftLinkTenantService.createLink(
+        authority,
         {
-          customer_id,
-          aircraft_id,
-          relationship_type,
-          is_current: true,
-          start_date,
-          end_date: null,
+          customerId: customer_id,
+          aircraftId: aircraft_id,
+          relationshipType: relationship_type,
+          startDate: start_date,
           notes,
         },
-        { transaction }
+        serviceOptions,
       );
-
-      await AuditService.log(
-        this.withOptionalActorId(
-          {
-            table_name: 'customer_aircraft_links',
-            row_id: link.id,
-            action: 'CREATE',
-            reason: 'Current customer relationship added to aircraft',
-            new_values: link.toJSON(),
-          },
-          payload.actor_id
-        ),
-        transaction
-      );
-
-      return link;
     });
   }
 }

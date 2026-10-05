@@ -105,7 +105,7 @@ export async function createWorkpackStatus(code: string) {
   return { id: status.id, code };
 }
 
-export async function createAircraft(catId?: string, modelId?: string) {
+export async function createAircraft(catId?: string, modelId?: string, tenantId?: string) {
   const finalCatId = catId || (await createAircraftCategory());
   const finalModelId = modelId || (await createComponentModel()).id;
   const id = uuid();
@@ -119,6 +119,7 @@ export async function createAircraft(catId?: string, modelId?: string) {
     model_id: finalModelId,
     status: 'REGISTERED',
     version: 0
+    ,tenant_id: tenantId
   });
   
   return { id: aircraft.id, aircraftId: aircraft.id, modelId: finalModelId };

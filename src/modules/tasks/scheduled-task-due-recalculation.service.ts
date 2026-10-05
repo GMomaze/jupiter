@@ -8,6 +8,9 @@ import {
   TaskTemplate,
   sequelize,
 } from '../../models/index.js';
+import { aircraftTenantRepository } from '../aircraft/aircraft-tenant.repository.live.js';
+import { withTenantTransaction } from '../tenancy/tenant-transaction.js';
+import { assertTenantQueryAuthority, type TenantQueryAuthority } from '../tenancy/tenant-query-authority.js';
 import {
   DueLimitEvaluation,
   DueStatusResult,
@@ -134,30 +137,32 @@ type CompletionRow = {
 };
 
 export class ScheduledTaskDueRecalculationService {
-  static async recalculateForUtilisationEvent(aircraftId: string, options: RecalculationOptions = {}) {
-    return this.recalculateForAircraft(aircraftId, 'UTILISATION_EVENT', options);
+  static async recalculateForUtilisationEvent(authority: TenantQueryAuthority, aircraftId: string, options: RecalculationOptions = {}) {
+    return this.recalculateForAircraft(authority, aircraftId, 'UTILISATION_EVENT', options);
   }
 
-  static async recalculateForTaskCompletion(aircraftId: string, options: RecalculationOptions = {}) {
-    return this.recalculateForAircraft(aircraftId, 'TASK_COMPLETION', options);
+  static async recalculateForTaskCompletion(authority: TenantQueryAuthority, aircraftId: string, options: RecalculationOptions = {}) {
+    return this.recalculateForDeferredAircraft(authority, aircraftId, 'TASK_COMPLETION', options);
   }
 
   static async recalculateForBaselineImport(
+    authority: TenantQueryAuthority,
     aircraftId: string,
     baselines: ScheduledTaskBaselineInput[] = []
   ) {
-    return this.recalculateForAircraft(aircraftId, 'BASELINE_IMPORT', { baselines });
+    return this.recalculateForDeferredAircraft(authority, aircraftId, 'BASELINE_IMPORT', { baselines });
   }
 
   static async recalculateForApplicabilityChange(
+    authority: TenantQueryAuthority,
     aircraftId: string,
     options: RecalculationOptions = {}
   ) {
-    return this.recalculateForAircraft(aircraftId, 'APPLICABILITY_CHANGE', options);
+    return this.recalculateForAircraft(authority, aircraftId, 'APPLICABILITY_CHANGE', options);
   }
 
-  static async recalculateManually(aircraftId: string, options: RecalculationOptions = {}) {
-    return this.recalculateForAircraft(aircraftId, 'MANUAL_RECALCULATION', options);
+  static async recalculateManually(authority: TenantQueryAuthority, aircraftId: string, options: RecalculationOptions = {}) {
+    return this.recalculateForAircraft(authority, aircraftId, 'MANUAL_RECALCULATION', options);
   }
 
   static buildNotApplicableResult(params: {
@@ -191,17 +196,40 @@ export class ScheduledTaskDueRecalculationService {
   }
 
   static async recalculateForAircraft(
+    authority: TenantQueryAuthority,
     aircraftId: string,
     recalculationSource = 'MANUAL_RECALCULATION',
     options: RecalculationOptions = {}
   ): Promise<ScheduledTaskDueResult[]> {
-    const aircraft = await this.getAircraftSnapshot(aircraftId);
+    assertTenantQueryAuthority(authority);
+    const aircraft = await this.getTenantAircraftSnapshot(authority, aircraftId);
+    return this.recalculateResolvedAircraft(authority, aircraft, recalculationSource, options);
+  }
+
+  private static async recalculateForDeferredAircraft(
+    authority: TenantQueryAuthority,
+    aircraftId: string,
+    recalculationSource: string,
+    options: RecalculationOptions,
+  ): Promise<ScheduledTaskDueResult[]> {
+    const aircraft = await this.getAircraftSnapshot(authority, aircraftId);
+    return this.recalculateResolvedAircraft(authority, aircraft, recalculationSource, options);
+  }
+
+  private static async recalculateResolvedAircraft(
+    authority: TenantQueryAuthority,
+    aircraft: AircraftSnapshot,
+    recalculationSource: string,
+    options: RecalculationOptions,
+  ): Promise<ScheduledTaskDueResult[]> {
     const baselineMap = this.baselineMap(options.baselines || []);
-    const sources = await this.getScheduledTaskSources(aircraftId);
+    const sources = await this.getScheduledTaskSources(authority, aircraft);
 
     return Promise.all(
       sources.map((source) =>
         this.calculateSourceResult({
+          authority,
+
           aircraft,
           source,
           baseline: baselineMap.get(this.sourceKey(source)) || null,
@@ -212,6 +240,8 @@ export class ScheduledTaskDueRecalculationService {
   }
 
   private static async calculateSourceResult(params: {
+    authority: TenantQueryAuthority;
+
     aircraft: AircraftSnapshot;
     source: ScheduledTaskSource;
     baseline: ScheduledTaskBaselineInput | null;
@@ -239,7 +269,7 @@ export class ScheduledTaskDueRecalculationService {
       });
     }
 
-    const completion = await this.completionEvidenceFor(params.aircraft.id, params.source);
+    const completion = await this.completionEvidenceFor(params.authority, params.aircraft.id, params.source);
     const lastCompliance = this.lastCompliance(params.baseline, completion);
     const dueStatus = this.evaluateDueStatus({
       aircraft: params.aircraft,
@@ -466,10 +496,11 @@ export class ScheduledTaskDueRecalculationService {
     };
   }
 
-  private static async getAircraftSnapshot(aircraftId: string): Promise<AircraftSnapshot> {
-    const aircraft = await Aircraft.findByPk(aircraftId, {
+  private static async getAircraftSnapshot(authority: TenantQueryAuthority, aircraftId: string): Promise<AircraftSnapshot> {
+    const aircraft = await withTenantTransaction(authority, (transaction) => Aircraft.findByPk(aircraftId, {
       attributes: ['id', 'model_id', 'total_time_hours', 'total_time_cycles'],
-    });
+      transaction,
+    }));
 
     if (!aircraft) {
       throw new Error('INVALID_AIRCRAFT');
@@ -483,19 +514,27 @@ export class ScheduledTaskDueRecalculationService {
     };
   }
 
-  private static async getScheduledTaskSources(aircraftId: string): Promise<ScheduledTaskSource[]> {
-    const aircraft = await Aircraft.findByPk(aircraftId, {
-      attributes: ['id', 'model_id'],
-    });
+  private static async getTenantAircraftSnapshot(
+    authority: TenantQueryAuthority,
+    aircraftId: string,
+  ): Promise<AircraftSnapshot> {
+    const aircraft = await withTenantTransaction(authority, (transaction) => aircraftTenantRepository.getById(authority, aircraftId, { transaction }));
+    if (!aircraft) throw new Error('TENANT_RESOURCE_UNAVAILABLE');
+    return {
+      id: aircraft.id,
+      model_id: String(aircraft.model_id || '') || null,
+      total_time_hours: this.numberOrNull(aircraft.total_time_hours),
+      total_time_cycles: this.numberOrNull(aircraft.total_time_cycles),
+    };
+  }
 
-    if (!aircraft) {
-      throw new Error('INVALID_AIRCRAFT');
-    }
+  private static async getScheduledTaskSources(authority: TenantQueryAuthority, aircraft: AircraftSnapshot): Promise<ScheduledTaskSource[]> {
+    const aircraftId = aircraft.id;
 
     const taskTemplates = await TaskTemplate.findAll({ where: { is_active: true } });
     const maintenanceTemplates = await MaintenanceTemplate.findAll({ where: { is_active: true } });
     const maintenanceRequirements = await MaintenanceRequirement.findAll();
-    const taskCards = await TaskCard.findAll({ where: { aircraft_id: aircraftId } });
+    const taskCards = await withTenantTransaction(authority, (transaction) => TaskCard.findAll({ where: { aircraft_id: aircraftId }, transaction }));
     const maintenanceTemplateItems = await this.getMaintenanceTemplateItemSources();
 
     return [
@@ -701,6 +740,8 @@ export class ScheduledTaskDueRecalculationService {
   }
 
   private static async completionEvidenceFor(
+    authority: TenantQueryAuthority,
+
     aircraftId: string,
     source: ScheduledTaskSource
   ): Promise<CompletionEvidence> {
@@ -708,7 +749,7 @@ export class ScheduledTaskDueRecalculationService {
       return {
         hours: null,
         cycles: null,
-        date: await this.latestCompletionDateForTaskCard(source.source_id),
+        date: await this.latestCompletionDateForTaskCard(authority, source.source_id),
         source: 'task_cards',
       };
     }
@@ -717,7 +758,7 @@ export class ScheduledTaskDueRecalculationService {
       return {
         hours: null,
         cycles: null,
-        date: await this.latestCompletionDateForTaskTemplate(aircraftId, source.task_template_id),
+        date: await this.latestCompletionDateForTaskTemplate(authority, aircraftId, source.task_template_id),
         source: 'task_cards',
       };
     }
@@ -726,10 +767,13 @@ export class ScheduledTaskDueRecalculationService {
   }
 
   private static async latestCompletionDateForTaskTemplate(
+    authority: TenantQueryAuthority,
+
     aircraftId: string,
     taskTemplateId: string
   ) {
-    const rows = await sequelize.query<CompletionRow>(
+    const rows = await withTenantTransaction(authority, (transaction) =>
+      sequelize.query<CompletionRow>(
       `
       SELECT
         tc.mechanic_completed_at,
@@ -754,14 +798,17 @@ export class ScheduledTaskDueRecalculationService {
       {
         replacements: { aircraftId, taskTemplateId },
         type: QueryTypes.SELECT,
+          transaction,
       }
+      )
     ).catch(() => [] as CompletionRow[]);
 
     return this.completionDateFromRow(rows[0] || null);
   }
 
-  private static async latestCompletionDateForTaskCard(taskCardId: string) {
-    const rows = await sequelize.query<CompletionRow>(
+  private static async latestCompletionDateForTaskCard(authority: TenantQueryAuthority, taskCardId: string) {
+    const rows = await withTenantTransaction(authority, (transaction) =>
+      sequelize.query<CompletionRow>(
       `
       SELECT
         tc.mechanic_completed_at,
@@ -785,7 +832,9 @@ export class ScheduledTaskDueRecalculationService {
       {
         replacements: { taskCardId },
         type: QueryTypes.SELECT,
+          transaction,
       }
+      )
     ).catch(() => [] as CompletionRow[]);
 
     return this.completionDateFromRow(rows[0] || null);

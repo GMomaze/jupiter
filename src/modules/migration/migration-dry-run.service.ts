@@ -1,6 +1,10 @@
 import { QueryTypes } from 'sequelize';
 import sequelize from '../../config/database.js';
-import { LibraryService } from '../library/library.service.js';
+import { serializedComponentReconciliationService } from '../library/serialized-component-reconciliation.service.live.js';
+import {
+  assertTenantQueryAuthority,
+  type TenantQueryAuthority,
+} from '../tenancy/tenant-query-authority.js';
 
 type MigrationCategory =
   | 'AUTO_MIGRATE'
@@ -26,13 +30,17 @@ const categoryOrder: MigrationCategory[] = [
 ];
 
 export class MigrationDryRunService {
-  static async previewLegacyAircraftComponentMigration(options: PreviewOptions = {}) {
+  static async previewLegacyAircraftComponentMigration(
+    authority: TenantQueryAuthority,
+    options: PreviewOptions = {},
+  ) {
+    assertTenantQueryAuthority(authority);
     const generatedAt = new Date().toISOString();
-    const sourceRows = await this.getLegacySourceRows(options);
+    const sourceRows = await this.getLegacySourceRows(authority, options);
     const [serializedRows, completedLedgerRows, reconciliation] = await Promise.all([
-      this.getSerializedRows(),
-      this.getCompletedLedgerRows(sourceRows.map((row) => row.id)),
-      LibraryService.getSerializedComponentReconciliationReport(),
+      this.getSerializedRows(authority),
+      this.getCompletedLedgerRows(authority, sourceRows.map((row) => row.id)),
+      serializedComponentReconciliationService.getReport(authority),
     ]);
     const activeSerializedRows = serializedRows.filter((row) => !row.serialized_removed_at);
     const rows = sourceRows.map((sourceRow) =>
@@ -80,9 +88,13 @@ export class MigrationDryRunService {
     };
   }
 
-  private static async getLegacySourceRows(options: PreviewOptions) {
-    const whereClauses: string[] = [];
-    const replacements: Record<string, unknown> = {};
+  private static async getLegacySourceRows(authority: TenantQueryAuthority, options: PreviewOptions) {
+    assertTenantQueryAuthority(authority);
+    const whereClauses: string[] = [
+      'ac.custodian_tenant_id = :tenantId',
+      'aircraft.tenant_id = :tenantId',
+    ];
+    const replacements: Record<string, unknown> = { tenantId: authority.tenantId };
     const sourceRowIds = Array.isArray(options.source_row_ids)
       ? options.source_row_ids.map((id) => String(id || '').trim()).filter(Boolean)
       : [];
@@ -140,7 +152,7 @@ export class MigrationDryRunService {
           at.is_installable_on_aircraft,
           at.is_required_for_aircraft
         FROM aircraft_components ac
-        LEFT JOIN aircraft
+        JOIN aircraft
           ON aircraft.id = ac.aircraft_id
         LEFT JOIN component_models cm
           ON cm.id = ac.model_id
@@ -156,7 +168,8 @@ export class MigrationDryRunService {
     ) as Promise<any[]>;
   }
 
-  private static async getSerializedRows() {
+  private static async getSerializedRows(authority: TenantQueryAuthority) {
+    assertTenantQueryAuthority(authority);
     return sequelize.query(
       `
         SELECT
@@ -174,30 +187,49 @@ export class MigrationDryRunService {
         FROM serialized_components sc
         LEFT JOIN aircraft_component_installations aci
           ON aci.serialized_component_id = sc.id
+         AND aci.removed_at IS NULL
+         AND EXISTS (
+           SELECT 1 FROM aircraft installation_aircraft
+            WHERE installation_aircraft.id = aci.aircraft_id
+              AND installation_aircraft.tenant_id = :tenantId
+         )
         LEFT JOIN component_models cm
           ON cm.id = sc.component_model_id
-        ORDER BY sc.serial_number ASC, aci.removed_at ASC NULLS FIRST, aci.created_at DESC NULLS LAST
+        WHERE sc.custodian_tenant_id = :tenantId
+          AND NOT EXISTS (
+            SELECT 1
+              FROM aircraft_component_installations foreign_installation
+              JOIN aircraft foreign_aircraft
+                ON foreign_aircraft.id = foreign_installation.aircraft_id
+             WHERE foreign_installation.serialized_component_id = sc.id
+               AND foreign_installation.removed_at IS NULL
+               AND foreign_aircraft.tenant_id <> :tenantId
+          )
+        ORDER BY sc.serial_number ASC, aci.created_at DESC NULLS LAST
       `,
-      { type: QueryTypes.SELECT }
+      { type: QueryTypes.SELECT, replacements: { tenantId: authority.tenantId } }
     ) as Promise<any[]>;
   }
 
-  private static async getCompletedLedgerRows(sourceRowIds: string[]) {
+  private static async getCompletedLedgerRows(authority: TenantQueryAuthority, sourceRowIds: string[]) {
+    assertTenantQueryAuthority(authority);
     if (sourceRowIds.length === 0) {
       return new Map<string, any>();
     }
 
     const rows = await sequelize.query(
       `
-        SELECT source_row_id, status, batch_id, id AS batch_row_id
-        FROM migration_batch_rows
-        WHERE source_table = 'aircraft_components'
+        SELECT row.source_row_id, row.status, row.batch_id, row.id AS batch_row_id
+        FROM migration_batch_rows row
+        JOIN migration_batches batch ON batch.id = row.batch_id
+        WHERE row.source_table = 'aircraft_components'
+          AND batch.tenant_id = :tenantId
           AND source_row_id IN (:sourceRowIds)
-          AND status = 'MIGRATED'
+          AND row.status = 'MIGRATED'
       `,
       {
         type: QueryTypes.SELECT,
-        replacements: { sourceRowIds },
+        replacements: { tenantId: authority.tenantId, sourceRowIds },
       }
     ) as any[];
 

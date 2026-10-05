@@ -1,9 +1,22 @@
 import { Request, Response } from 'express';
 import { CustomersService } from './customers.service.js';
+import { assertTenantQueryAuthority } from '../tenancy/tenant-query-authority.js';
 
 export class CustomersController {
+  private static requireTenantAuthority(req: Request) {
+    assertTenantQueryAuthority(req.tenantAuthority);
+    return req.tenantAuthority;
+  }
+
   private static getParam(value: string | string[] | undefined) {
     return Array.isArray(value) ? value[0] || '' : value || '';
+  }
+
+  private static recordValues(record: Record<string, unknown>) {
+    const toJSON = record.toJSON;
+    return typeof toJSON === 'function'
+      ? (toJSON.call(record) as Record<string, unknown>)
+      : { ...record };
   }
 
   private static buildFormData(body: Record<string, unknown> = {}) {
@@ -57,7 +70,8 @@ export class CustomersController {
 
   static async index(req: Request, res: Response) {
     try {
-      const customers = await CustomersService.listCustomers();
+      const authority = CustomersController.requireTenantAuthority(req);
+      const customers = await CustomersService.listCustomers(authority);
       res.render('customers/index', { customers });
     } catch (err: any) {
       res.status(500).send(err.message);
@@ -73,7 +87,12 @@ export class CustomersController {
 
   static async create(req: Request, res: Response) {
     try {
-      const customer = await CustomersService.createCustomer(req.body, (req.user as any)?.id || null);
+      const authority = CustomersController.requireTenantAuthority(req);
+      const customer = await CustomersService.createCustomer(
+        authority,
+        req.body,
+        (req.user as any)?.id || null
+      );
       req.flash('success', 'Customer created successfully.');
       res.redirect(`/customers/${customer.id}/edit`);
     } catch (err) {
@@ -87,10 +106,13 @@ export class CustomersController {
   static async showEdit(req: Request, res: Response) {
     try {
       const customerId = CustomersController.getParam(req.params.id);
-      const customer = await CustomersService.getCustomerOrThrow(customerId);
+      const authority = CustomersController.requireTenantAuthority(req);
+      const projection = await CustomersService.getCustomerOrThrow(authority, customerId);
+      const { customer, links } = projection;
       res.render('customers/edit', {
         customer,
-        form: CustomersController.buildFormData(customer.toJSON() as Record<string, unknown>),
+        links,
+        form: CustomersController.buildFormData(CustomersController.recordValues(customer)),
         error: null,
       });
     } catch (err) {
@@ -102,19 +124,30 @@ export class CustomersController {
     const customerId = CustomersController.getParam(req.params.id);
 
     try {
-      const customer = await CustomersService.updateCustomer(customerId, req.body, (req.user as any)?.id || null);
+      const authority = CustomersController.requireTenantAuthority(req);
+      const customer = await CustomersService.updateCustomer(
+        authority,
+        customerId,
+        req.body,
+        (req.user as any)?.id || null,
+      );
       req.flash('success', 'Customer updated successfully.');
       res.redirect(`/customers/${customer.id}/edit`);
     } catch (err) {
       let customer = null;
+      let links: readonly unknown[] = [];
       try {
-        customer = await CustomersService.getCustomerOrThrow(customerId);
+        const authority = CustomersController.requireTenantAuthority(req);
+        const projection = await CustomersService.getCustomerOrThrow(authority, customerId);
+        customer = projection.customer;
+        links = projection.links;
       } catch {
         customer = null;
       }
 
       res.status(400).render('customers/edit', {
         customer,
+        links,
         form: CustomersController.buildFormData(req.body),
         error: CustomersController.toUserError(err),
       });

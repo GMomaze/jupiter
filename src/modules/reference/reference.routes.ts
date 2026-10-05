@@ -1,6 +1,8 @@
 import { Router } from 'express';
 import { BaseReferenceService } from './BaseReferenceService.js';
 import { defineAbilitiesFor } from '../auth/ability.js';
+import { referenceOperationPolicy } from '../platform-authority/shared-operation-policy.js';
+import { requestPlatformMutationEvidence } from '../platform-authority/authoritative-platform-mutation.js';
 
 const router = Router();
 
@@ -36,7 +38,8 @@ router.post('/:tableName/gap-create', attachAbility, async (req: any, res) => {
   
   try {
     // Controller passes the ability to the service for enforcement
-    const newRecord = await service.create(req.body, req.ability);
+    const operation = referenceOperationPolicy(tableName, 'CREATE');
+    const newRecord = await service.create(requestPlatformMutationEvidence(req, [operation.capability === 'RBAC_DEFINITION_MANAGE' ? 'RBAC_DEFINITION_MANAGE' : 'REFERENCE_CREATE'], tableName), req.body, req.ability);
 
     res.setHeader('HX-Trigger', JSON.stringify({
       [`refresh-${tableName}`]: { selectedId: newRecord.id }
@@ -57,7 +60,8 @@ router.delete('/:tableName/:id', attachAbility, async (req: any, res) => {
   const service = new BaseReferenceService(tableName);
 
   try {
-    await service.deactivate(id, req.ability);
+    const operation = referenceOperationPolicy(tableName, 'DEACTIVATE');
+    await service.deactivate(requestPlatformMutationEvidence(req, [operation.capability === 'RBAC_DEFINITION_MANAGE' ? 'RBAC_DEFINITION_MANAGE' : 'REFERENCE_DEACTIVATE'], tableName, id), id, req.ability);
     res.status(204).send();
   } catch (error) {
     res.status(400).send((error as Error).message);

@@ -7,6 +7,7 @@ export class User extends Model {
   declare password_hash: string;
   declare full_name: string;
   declare is_active: boolean;
+  declare retired_at: Date | null;
   declare Roles?: any[];
 }
 
@@ -33,6 +34,10 @@ User.init(
     is_active: {
       type: DataTypes.BOOLEAN,
       defaultValue: true,
+    },
+    retired_at: {
+      type: DataTypes.DATE,
+      allowNull: true,
     },
   },
   {

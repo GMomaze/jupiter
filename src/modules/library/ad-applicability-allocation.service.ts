@@ -1,5 +1,8 @@
 import { createHash } from 'node:crypto';
 import { AdApplicabilityAllocation } from '../../models/index.js';
+import type { Transaction } from 'sequelize';
+import type { PlatformMutationEvidence } from '../platform-authority/authoritative-platform-mutation.js';
+import { executeAuthoritativePlatformMutation, requirePlatformMutationOperations } from '../platform-authority/authoritative-platform-mutation.js';
 import type {
   AdApplicabilityAllocationClassification,
   AdApplicabilityAllocationStatus,
@@ -313,21 +316,27 @@ export class AdApplicabilityAllocationService {
     return candidates;
   }
 
-  static async getExistingAllocationBySourceKey(
+  private static async getExistingAllocationBySourceKey(
     airworthinessDirectiveId: string,
-    sourceKey: string
+    sourceKey: string,
+    transaction: Transaction,
   ): Promise<AdApplicabilityAllocation | null> {
     return AdApplicabilityAllocation.findOne({
       where: {
         airworthiness_directive_id: airworthinessDirectiveId,
         source_key: sourceKey,
       },
+      transaction,
+      lock: transaction.LOCK.UPDATE,
     });
   }
 
   static async persistSuggestedAllocations(
+    evidence: PlatformMutationEvidence,
     input: PersistSuggestedAdApplicabilityAllocationsInput
   ): Promise<AdApplicabilityAllocationPersistResult> {
+    let auditAfter: unknown;
+    return executeAuthoritativePlatformMutation(requirePlatformMutationOperations(evidence, ['REGULATORY_RELATIONSHIP_MUTATE']), async (transaction, audit) => {
     const candidates = this.buildAllocationCandidatesFromRelevance(input);
     const result: AdApplicabilityAllocationPersistResult = {
       created: 0,
@@ -337,30 +346,38 @@ export class AdApplicabilityAllocationService {
       unchanged: 0,
       candidates,
     };
+    const beforeStates: unknown[] = [];
+    const afterStates: unknown[] = [];
 
     for (const candidate of candidates) {
       const existing = await this.getExistingAllocationBySourceKey(
         candidate.airworthiness_directive_id,
-        candidate.source_key
+        candidate.source_key,
+        transaction,
       );
 
       if (!existing) {
-        await AdApplicabilityAllocation.create(candidate);
+        const created = await AdApplicabilityAllocation.create(candidate, { transaction });
+        afterStates.push(typeof (created as any).toJSON === 'function' ? created.toJSON() : { ...(created as any) });
         result.created += 1;
         continue;
       }
+      beforeStates.push(typeof (existing as any).toJSON === 'function' ? existing.toJSON() : { ...(existing as any) });
 
       if (existing.status === 'ACCEPTED') {
+        afterStates.push(typeof (existing as any).toJSON === 'function' ? existing.toJSON() : { ...(existing as any) });
         result.skippedAccepted += 1;
         continue;
       }
 
       if (existing.status === 'IGNORED') {
+        afterStates.push(typeof (existing as any).toJSON === 'function' ? existing.toJSON() : { ...(existing as any) });
         result.skippedIgnored += 1;
         continue;
       }
 
       if (existing.status !== 'SUGGESTED' && existing.status !== 'NEEDS_REVIEW') {
+        afterStates.push(typeof (existing as any).toJSON === 'function' ? existing.toJSON() : { ...(existing as any) });
         result.unchanged += 1;
         continue;
       }
@@ -379,19 +396,26 @@ export class AdApplicabilityAllocationService {
         match_confidence: candidate.match_confidence,
         match_reason: candidate.match_reason,
         metadata: candidate.metadata,
-      });
+      }, { transaction });
+      afterStates.push(typeof (existing as any).toJSON === 'function' ? existing.toJSON() : { ...(existing as any) });
       result.updated += 1;
     }
 
+    audit.setBefore(beforeStates);
+    auditAfter = afterStates;
+
     return result;
+    }, () => ({ after: auditAfter }));
   }
 
-  static async reviewAllocation(input: ReviewAdApplicabilityAllocationInput) {
-    const allocation = await AdApplicabilityAllocation.findByPk(input.allocationId);
+  static async reviewAllocation(evidence: PlatformMutationEvidence, input: ReviewAdApplicabilityAllocationInput) {
+    return executeAuthoritativePlatformMutation(requirePlatformMutationOperations(evidence, ['REGULATORY_RELATIONSHIP_MUTATE']), async (transaction, audit) => {
+    const allocation = await AdApplicabilityAllocation.findByPk(input.allocationId, { transaction, lock: transaction.LOCK.UPDATE });
 
     if (!allocation) {
       throw new Error('AD applicability allocation not found.');
     }
+    audit.setBefore(typeof (allocation as any).toJSON === 'function' ? allocation.toJSON() : { ...(allocation as any) });
 
     if (!['SUGGESTED', 'NEEDS_REVIEW'].includes(String(allocation.status))) {
       throw new Error('Only suggested or needs-review allocations can be reviewed.');
@@ -402,15 +426,18 @@ export class AdApplicabilityAllocationService {
       reviewed_by: input.actorUserId || null,
       reviewed_at: new Date(),
       review_reason: String(input.reviewReason || '').trim() || null,
-    });
+    }, { transaction });
+    }, row => ({ resourceId: row.id, after: row.toJSON() }));
   }
 
-  static async restoreAllocation(input: RestoreAdApplicabilityAllocationInput) {
-    const allocation = await AdApplicabilityAllocation.findByPk(input.allocationId);
+  static async restoreAllocation(evidence: PlatformMutationEvidence, input: RestoreAdApplicabilityAllocationInput) {
+    return executeAuthoritativePlatformMutation(requirePlatformMutationOperations(evidence, ['REGULATORY_RELATIONSHIP_MUTATE']), async (transaction, audit) => {
+    const allocation = await AdApplicabilityAllocation.findByPk(input.allocationId, { transaction, lock: transaction.LOCK.UPDATE });
 
     if (!allocation) {
       throw new Error('AD applicability allocation not found.');
     }
+    audit.setBefore(typeof (allocation as any).toJSON === 'function' ? allocation.toJSON() : { ...(allocation as any) });
 
     if (allocation.status !== 'IGNORED') {
       throw new Error('Only ignored allocations can be restored.');
@@ -425,15 +452,18 @@ export class AdApplicabilityAllocationService {
       reviewed_by: input.actorUserId || null,
       reviewed_at: new Date(),
       review_reason: String(input.reviewReason || '').trim() || null,
-    });
+    }, { transaction });
+    }, row => ({ resourceId: row.id, after: row.toJSON() }));
   }
 
-  static async linkAllocationToModel(input: LinkAdApplicabilityAllocationToModelInput) {
-    const allocation = await AdApplicabilityAllocation.findByPk(input.allocationId);
+  static async linkAllocationToModel(evidence: PlatformMutationEvidence, input: LinkAdApplicabilityAllocationToModelInput) {
+    return executeAuthoritativePlatformMutation(requirePlatformMutationOperations(evidence, ['REGULATORY_RELATIONSHIP_MUTATE']), async (transaction, audit) => {
+    const allocation = await AdApplicabilityAllocation.findByPk(input.allocationId, { transaction, lock: transaction.LOCK.UPDATE });
 
     if (!allocation) {
       throw new Error('AD applicability allocation not found.');
     }
+    audit.setBefore(typeof (allocation as any).toJSON === 'function' ? allocation.toJSON() : { ...(allocation as any) });
 
     if (!['SUGGESTED', 'NEEDS_REVIEW'].includes(String(allocation.status))) {
       throw new Error('Only suggested or needs-review allocations can be linked to a model.');
@@ -449,17 +479,21 @@ export class AdApplicabilityAllocationService {
       reviewed_by: input.actorUserId || null,
       reviewed_at: new Date(),
       review_reason: String(input.reviewReason || '').trim() || null,
-    });
+    }, { transaction });
+    }, row => ({ resourceId: row.id, after: row.toJSON() }));
   }
 
   static async linkAllocationToManufacturer(
+    evidence: PlatformMutationEvidence,
     input: LinkAdApplicabilityAllocationToManufacturerInput
   ) {
-    const allocation = await AdApplicabilityAllocation.findByPk(input.allocationId);
+    return executeAuthoritativePlatformMutation(requirePlatformMutationOperations(evidence, ['REGULATORY_RELATIONSHIP_MUTATE']), async (transaction, audit) => {
+    const allocation = await AdApplicabilityAllocation.findByPk(input.allocationId, { transaction, lock: transaction.LOCK.UPDATE });
 
     if (!allocation) {
       throw new Error('AD applicability allocation not found.');
     }
+    audit.setBefore(typeof (allocation as any).toJSON === 'function' ? allocation.toJSON() : { ...(allocation as any) });
 
     if (!['SUGGESTED', 'NEEDS_REVIEW'].includes(String(allocation.status))) {
       throw new Error('Only suggested or needs-review allocations can be linked to a manufacturer.');
@@ -475,6 +509,7 @@ export class AdApplicabilityAllocationService {
       reviewed_by: input.actorUserId || null,
       reviewed_at: new Date(),
       review_reason: String(input.reviewReason || '').trim() || null,
-    });
+    }, { transaction });
+    }, row => ({ resourceId: row.id, after: row.toJSON() }));
   }
 }

@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { ServiceBulletinService } from './service-bulletin.service.js';
+import { requestPlatformMutationEvidence } from '../platform-authority/authoritative-platform-mutation.js';
 
 const router = Router();
 
@@ -81,7 +82,7 @@ router.post('/', async (req: any, res, next) => {
       throw new Error('Model is required.');
     }
 
-    const created = await ServiceBulletinService.create({
+    const created = await ServiceBulletinService.create(requestPlatformMutationEvidence(req, ['REGULATORY_MASTER_CREATE', 'REGULATORY_RELATIONSHIP_MUTATE'], 'service_bulletin'), {
       sb_number,
       title,
       model_id,

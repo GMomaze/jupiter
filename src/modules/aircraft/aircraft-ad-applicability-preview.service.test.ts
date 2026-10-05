@@ -2,8 +2,10 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { Op } from 'sequelize';
-import { Aircraft, AdApplicabilityAllocation } from '../../models/index.js';
+import { ComponentModel, AdApplicabilityAllocation } from '../../models/index.js';
 import { AircraftService } from './aircraft.service.js';
+import { aircraftTenantRepository } from './aircraft-tenant.repository.live.js';
+import { aircraftComplianceTestAuthority as authority } from './aircraft-compliance-tenant.test-support.js';
 
 const aircraftId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const modelId = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
@@ -63,16 +65,14 @@ function allocation(overrides: Record<string, any>) {
 
 describe('aircraft AD applicability preview', () => {
   it('queries only ACCEPTED allocation rows for the aircraft model or manufacturer', async () => {
-    vi.spyOn(Aircraft, 'findByPk').mockResolvedValue({
+    vi.spyOn(aircraftTenantRepository, 'getById').mockResolvedValue({
       id: aircraftId,
       model_id: modelId,
-      ComponentModel: {
-        manufacturer_id: manufacturerId,
-      },
     } as any);
+    vi.spyOn(ComponentModel, 'findByPk').mockResolvedValue({ manufacturer_id: manufacturerId } as any);
     vi.spyOn(AdApplicabilityAllocation, 'findAll').mockResolvedValue([]);
 
-    await AircraftService.getAdApplicabilityPreviewForAircraft(aircraftId);
+    await AircraftService.getAdApplicabilityPreviewForAircraft(authority, aircraftId);
 
     expect(AdApplicabilityAllocation.findAll).toHaveBeenCalledTimes(1);
     const query = vi.mocked(AdApplicabilityAllocation.findAll).mock.calls[0]?.[0] as any;
@@ -87,13 +87,8 @@ describe('aircraft AD applicability preview', () => {
   });
 
   it('maps model, manufacturer, manual model, manual manufacturer, and broad accepted rows', async () => {
-    vi.spyOn(Aircraft, 'findByPk').mockResolvedValue({
-      id: aircraftId,
-      model_id: modelId,
-      ComponentModel: {
-        manufacturer_id: manufacturerId,
-      },
-    } as any);
+    vi.spyOn(aircraftTenantRepository, 'getById').mockResolvedValue({ id: aircraftId, model_id: modelId } as any);
+    vi.spyOn(ComponentModel, 'findByPk').mockResolvedValue({ manufacturer_id: manufacturerId } as any);
     vi.spyOn(AdApplicabilityAllocation, 'findAll').mockResolvedValue([
       allocation({ id: 'model', classification: 'EXACT_MODEL_CODE' }),
       allocation({
@@ -131,7 +126,7 @@ describe('aircraft AD applicability preview', () => {
       }),
     ] as any);
 
-    const preview = await AircraftService.getAdApplicabilityPreviewForAircraft(aircraftId);
+    const preview = await AircraftService.getAdApplicabilityPreviewForAircraft(authority, aircraftId);
 
     expect(preview.map((item) => item.allocation_type)).toEqual([
       'Model allocation',
@@ -147,13 +142,8 @@ describe('aircraft AD applicability preview', () => {
   });
 
   it('requires MANUAL_LINK target type before labeling manual link allocations', async () => {
-    vi.spyOn(Aircraft, 'findByPk').mockResolvedValue({
-      id: aircraftId,
-      model_id: modelId,
-      ComponentModel: {
-        manufacturer_id: manufacturerId,
-      },
-    } as any);
+    vi.spyOn(aircraftTenantRepository, 'getById').mockResolvedValue({ id: aircraftId, model_id: modelId } as any);
+    vi.spyOn(ComponentModel, 'findByPk').mockResolvedValue({ manufacturer_id: manufacturerId } as any);
     vi.spyOn(AdApplicabilityAllocation, 'findAll').mockResolvedValue([
       allocation({
         id: 'manual-model-classification-with-model-target',
@@ -185,7 +175,7 @@ describe('aircraft AD applicability preview', () => {
       }),
     ] as any);
 
-    const preview = await AircraftService.getAdApplicabilityPreviewForAircraft(aircraftId);
+    const preview = await AircraftService.getAdApplicabilityPreviewForAircraft(authority, aircraftId);
 
     expect(preview.map((item) => item.allocation_type)).toEqual([
       'Model allocation',
@@ -196,20 +186,15 @@ describe('aircraft AD applicability preview', () => {
   });
 
   it('does not return accepted unresolved allocations', async () => {
-    vi.spyOn(Aircraft, 'findByPk').mockResolvedValue({
-      id: aircraftId,
-      model_id: modelId,
-      ComponentModel: {
-        manufacturer_id: manufacturerId,
-      },
-    } as any);
+    vi.spyOn(aircraftTenantRepository, 'getById').mockResolvedValue({ id: aircraftId, model_id: modelId } as any);
+    vi.spyOn(ComponentModel, 'findByPk').mockResolvedValue({ manufacturer_id: manufacturerId } as any);
     vi.spyOn(AdApplicabilityAllocation, 'findAll').mockResolvedValue([
       allocation({ id: 'unresolved-make', classification: 'UNRESOLVED_MAKE' }),
       allocation({ id: 'unresolved-model', classification: 'UNRESOLVED_MODEL' }),
       allocation({ id: 'exact-model', classification: 'EXACT_MODEL_CODE' }),
     ] as any);
 
-    const preview = await AircraftService.getAdApplicabilityPreviewForAircraft(aircraftId);
+    const preview = await AircraftService.getAdApplicabilityPreviewForAircraft(authority, aircraftId);
 
     expect(preview.map((item) => item.classification)).toEqual(['EXACT_MODEL_CODE']);
   });

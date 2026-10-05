@@ -8,8 +8,11 @@ import {
   ComponentModel,
   Manufacturer,
   SerializedComponent,
+  Tenant,
+  User,
   UtilisationEvent,
 } from '../../models/index.js';
+import { createTenantQueryAuthority } from '../tenancy/tenant-query-authority.js';
 import { UtilisationService } from './utilisation.service.js';
 import { UtilisationPropagationPreviewService } from './utilisation-propagation-preview.service.js';
 
@@ -26,6 +29,9 @@ async function createPreviewContext(options?: {
   installCso?: number | null;
 }) {
   const suffix = randomUUID().slice(0, 8).toUpperCase();
+  const owner = await User.create({ email: `preview-${suffix}@example.test`, password_hash: 'test', full_name: 'Preview Test Owner', is_active: true });
+  const tenant = await Tenant.create({ code: `PREVIEW_${suffix}`, display_name: `Preview Tenant ${suffix}`, status: 'ACTIVE', created_by_user_id: owner.id, updated_by_user_id: owner.id });
+  const authority = createTenantQueryAuthority({ state: 'VALID_ACTIVE_TENANT', tenant: { id: tenant.id, publicId: tenant.public_id, code: tenant.code, displayName: tenant.display_name, status: 'ACTIVE' }, membership: { id: randomUUID(), tenantId: tenant.id, userId: owner.id, status: 'ACTIVE' }, validatedAt: Date.now() });
   const sequence = (++previewAircraftCounter).toString(36).toUpperCase().padStart(4, '0');
   const manufacturer = await Manufacturer.create({
     code: `MFR_PREVIEW_${suffix}`,
@@ -63,15 +69,17 @@ async function createPreviewContext(options?: {
     total_time_hours: 0,
     total_time_cycles: 0,
     version: 0,
+    tenant_id: tenant.id,
   });
   const serializedComponent = await SerializedComponent.create({
     component_model_id: model.id,
     serial_number: `PREVIEW-SC-${suffix}`,
     part_number: `PN-${suffix}`,
     status: 'INSTALLED',
+    custodian_tenant_id: tenant.id,
   });
 
-  await UtilisationService.recordUtilisation({
+  await UtilisationService.recordUtilisation(authority, {
     aircraftId: aircraft.id,
     newTotalTimeHours: 10,
     newTotalTimeCycles: 4,
@@ -98,15 +106,15 @@ async function createPreviewContext(options?: {
     install_cso: options && 'installCso' in options ? options.installCso : 2,
   });
 
-  return { aircraft, installation, serializedComponent };
+  return { aircraft, installation, serializedComponent, authority };
 }
 
 describe('UtilisationPropagationPreviewService', () => {
   it('does not create utilisation events or update aircraft snapshots during preview', async () => {
-    const { aircraft } = await createPreviewContext();
+    const { aircraft, authority } = await createPreviewContext();
     const eventCountBefore = await UtilisationEvent.count({ where: { aircraft_id: aircraft.id } });
 
-    await UtilisationPropagationPreviewService.preview({
+    await UtilisationPropagationPreviewService.preview(authority, {
       aircraftId: aircraft.id,
       proposedTotalTimeHours: 15,
       proposedTotalTimeCycles: 5,
@@ -124,9 +132,9 @@ describe('UtilisationPropagationPreviewService', () => {
   });
 
   it('returns current and projected component life with delta impact', async () => {
-    const { aircraft, installation } = await createPreviewContext();
+    const { aircraft, installation, authority } = await createPreviewContext();
 
-    const preview = await UtilisationPropagationPreviewService.preview({
+    const preview = await UtilisationPropagationPreviewService.preview(authority, {
       aircraftId: aircraft.id,
       proposedTotalTimeHours: 15,
       proposedTotalTimeCycles: 4,
@@ -148,12 +156,12 @@ describe('UtilisationPropagationPreviewService', () => {
   });
 
   it('returns UNKNOWN reasons when projected component life cannot be calculated', async () => {
-    const { aircraft } = await createPreviewContext({
+    const { aircraft, authority } = await createPreviewContext({
       trackingBasis: 'AIRCRAFT_HOURS',
       installAircraftHours: null,
     });
 
-    const preview = await UtilisationPropagationPreviewService.preview({
+    const preview = await UtilisationPropagationPreviewService.preview(authority, {
       aircraftId: aircraft.id,
       proposedTotalTimeHours: 15,
       proposedTotalTimeCycles: 4,
@@ -172,9 +180,9 @@ describe('UtilisationPropagationPreviewService', () => {
   });
 
   it('marks decreases as correction preview and warns about source reference', async () => {
-    const { aircraft } = await createPreviewContext();
+    const { aircraft, authority } = await createPreviewContext();
 
-    const preview = await UtilisationPropagationPreviewService.preview({
+    const preview = await UtilisationPropagationPreviewService.preview(authority, {
       aircraftId: aircraft.id,
       proposedTotalTimeHours: 8,
       proposedTotalTimeCycles: 3,
@@ -192,9 +200,9 @@ describe('UtilisationPropagationPreviewService', () => {
   });
 
   it('returns due and compliance placeholders without calculating projected due status', async () => {
-    const { aircraft } = await createPreviewContext();
+    const { aircraft, authority } = await createPreviewContext();
 
-    const preview = await UtilisationPropagationPreviewService.preview({
+    const preview = await UtilisationPropagationPreviewService.preview(authority, {
       aircraftId: aircraft.id,
       proposedTotalTimeHours: 15,
       proposedTotalTimeCycles: 5,
@@ -219,10 +227,10 @@ describe('UtilisationPropagationPreviewService', () => {
   });
 
   it('confirm path still creates a utilisation event through UtilisationService', async () => {
-    const { aircraft } = await createPreviewContext();
+    const { aircraft, authority } = await createPreviewContext();
     const eventCountBefore = await UtilisationEvent.count({ where: { aircraft_id: aircraft.id } });
 
-    await UtilisationPropagationPreviewService.preview({
+    await UtilisationPropagationPreviewService.preview(authority, {
       aircraftId: aircraft.id,
       proposedTotalTimeHours: 15,
       proposedTotalTimeCycles: 5,
@@ -231,7 +239,7 @@ describe('UtilisationPropagationPreviewService', () => {
       reason: 'Preview before confirm',
     });
 
-    await UtilisationService.recordUtilisation({
+    await UtilisationService.recordUtilisation(authority, {
       aircraftId: aircraft.id,
       newTotalTimeHours: 15,
       newTotalTimeCycles: 5,

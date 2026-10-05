@@ -4,6 +4,7 @@ import {
   ComponentModel,
   Manufacturer,
 } from '../../models/index.js';
+import { resolveFaaSourceManufacturerCode } from './ad-source-manufacturer-mapping.js';
 
 export type AdRelevanceBucket =
   | 'ASSIGNED'
@@ -119,7 +120,15 @@ function manufacturerTokenMatches(token: string, context: AdRelevanceContext) {
     .map(normalizeCompact)
     .filter(Boolean);
 
-  return manufacturerValues.includes(candidate);
+  if (manufacturerValues.includes(candidate)) {
+    return true;
+  }
+
+  const resolvedManufacturerCode = resolveFaaSourceManufacturerCode(token);
+  return Boolean(
+    resolvedManufacturerCode &&
+      normalizeCompact(resolvedManufacturerCode) === normalizeCompact(context.manufacturerCode)
+  );
 }
 
 function productTypeMatchesContext(value: unknown, context: AdRelevanceContext) {
@@ -197,7 +206,7 @@ export function classifyAirworthinessDirectiveForModel(
   }
 
   const modelTokens = splitPipeTokens(directive.model);
-  const makeAllowsExactMatch = !makeTokens.length || Boolean(matchedMake);
+  const makeAllowsExactMatch = Boolean(matchedMake);
   for (const token of modelTokens) {
     if (makeAllowsExactMatch && modelTokenMatches(token, context.modelCode)) {
       return toMatch(
@@ -276,8 +285,8 @@ export function classifyAirworthinessDirectiveForModel(
 
   return toMatch(
     directive,
-    'UNMATCHED',
-    'FAA Make matches, but FAA Model does not exactly match and is not broad.',
+    'MANUFACTURER_SUGGESTED',
+    'FAA Make matches, but FAA Model does not exactly match and requires manufacturer-level review.',
     {
       matchedMake,
       productTypeMatch,

@@ -66,7 +66,7 @@
   <hr class="my-10 border-slate-200">
 
   <div class="grid gap-6">
-    <h2 class="text-xl font-semibold text-slate-700">Serviceable Inventory (On Shelf)</h2>
+    <h2 class="text-xl font-semibold text-slate-700">Removed Inventory (On Shelf)</h2>
     <div class="bg-white border border-dashed border-slate-300 rounded-xl overflow-hidden">
       <table class="w-full text-left">
         <thead class="bg-slate-50 border-b text-xs font-bold text-slate-500 uppercase">
@@ -83,19 +83,19 @@
             <% uninstalled.forEach(item => { %>
               <tr>
                 <td class="px-6 py-4">
-                  <%- include('../partials/component_actions', { component: { ...item, status: 'SERVICEABLE' }, aircraft: aircraft }) %>
+                  <%- include('../partials/component_actions', { component: { ...item, status: 'REMOVED' }, aircraft: aircraft }) %>
                 </td>
                 <td class="px-6 py-4 font-medium"><%= item.model_name || 'Generic Component' %></td>
                 <td class="px-6 py-4 font-mono text-xs"><%= item.serial_number %></td>
                 <td class="px-6 py-4"><%= item.tso_at_install %> hrs</td>
                 <td class="px-6 py-4">
-                  <span class="bg-blue-100 text-blue-700 px-2 py-1 rounded-full text-[10px] font-bold border border-blue-200">SERVICEABLE</span>
+                  <span class="bg-blue-100 text-blue-700 px-2 py-1 rounded-full text-[10px] font-bold border border-blue-200">REMOVED</span>
                 </td>
               </tr>
             <% }) %>
           <% } else { %>
             <tr>
-              <td colspan="5" class="px-6 py-8 text-center text-slate-400 italic">No serviceable components in store.</td>
+              <td colspan="5" class="px-6 py-8 text-center text-slate-400 italic">No removed components in store.</td>
             </tr>
           <% } %>
         </tbody>

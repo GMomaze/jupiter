@@ -22,8 +22,15 @@ import {
   CustomerAircraftLink,
 } from '../../models/index.js';
 import { CustomersService } from '../customers/customers.service.js';
+import { assertTenantQueryAuthority } from '../tenancy/tenant-query-authority.js';
+import { aircraftPhotoLifecycle } from './aircraft-photo-lifecycle.middleware.js';
 
 export class AircraftController {
+  private static requireTenantAuthority(req: Request) {
+    assertTenantQueryAuthority(req.tenantAuthority);
+    return req.tenantAuthority;
+  }
+
   private static getParam(value: string | string[] | undefined) {
     return Array.isArray(value) ? value[0] || '' : value || '';
   }
@@ -312,10 +319,13 @@ export class AircraftController {
     };
   }
 
-  private static async getSerializedWorkflowContext(aircraftId: string) {
+  private static async getSerializedWorkflowContext(
+    authority: ReturnType<typeof AircraftController.requireTenantAuthority>,
+    aircraftId: string
+  ) {
     const [availableSerializedComponents, activeSerializedInstallations] = await Promise.all([
-      AircraftComponentService.getAvailableSerializedComponents(),
-      AircraftComponentService.getActiveSerializedInstallationsForAircraft(aircraftId),
+      AircraftComponentService.getAvailableSerializedComponents(authority),
+      AircraftComponentService.getActiveSerializedInstallationsForAircraft(authority, aircraftId),
     ]);
 
     const serializedComponentIds = activeSerializedInstallations
@@ -328,6 +338,7 @@ export class AircraftController {
 
     const serializedInstallationHistory =
       await AircraftComponentService.getSerializedInstallationHistoryForComponents(
+        authority,
         serializedComponentIds
       );
 
@@ -525,7 +536,10 @@ export class AircraftController {
     };
   }
 
-  private static async attachServiceBulletinCompliance(aircraft: any) {
+  private static async attachServiceBulletinCompliance(
+    authority: ReturnType<typeof AircraftController.requireTenantAuthority>,
+    aircraft: any
+  ) {
     const serviceBulletins = aircraft?.ComponentModel?.ApplicableServiceBulletins || [];
 
     if (serviceBulletins.length === 0) {
@@ -533,7 +547,14 @@ export class AircraftController {
     }
 
     const complianceRows = await AircraftSbCompliance.findAll({
-      where: { aircraft_id: aircraft.id }
+      where: { aircraft_id: aircraft.id },
+      include: [{
+        model: Aircraft,
+        as: 'Aircraft',
+        attributes: ['id'],
+        required: true,
+        where: { id: aircraft.id, tenant_id: authority.tenantId },
+      }],
     });
 
     const complianceByBulletinId = new Map(
@@ -546,8 +567,8 @@ export class AircraftController {
     }
   }
 
-  private static async getAircraftServiceBulletinOrThrow(aircraftId: string, serviceBulletinId: string) {
-    const serviceBulletins = await AircraftService.getServiceBulletinsForAircraft(aircraftId);
+  private static async getAircraftServiceBulletinOrThrow(authority: ReturnType<typeof AircraftController.requireTenantAuthority>, aircraftId: string, serviceBulletinId: string) {
+    const serviceBulletins = await AircraftService.getServiceBulletinsForAircraft(authority, aircraftId);
     const serviceBulletin = serviceBulletins.find((item) => item.id === serviceBulletinId);
 
     if (!serviceBulletin) {
@@ -588,12 +609,8 @@ export class AircraftController {
 
   static async index(req: Request, res: Response) {
     try {
-      const aircraft = await Aircraft.findAll({
-        include: [
-          AircraftController.componentModelInclude()
-        ],
-        order: [['registration', 'ASC']]
-      });
+      const authority = AircraftController.requireTenantAuthority(req);
+      const aircraft = await AircraftService.list(authority);
 
       res.render('aircraft/index', { aircraft });
     } catch (err: any) {
@@ -646,6 +663,8 @@ export class AircraftController {
 
   static async create(req: Request, res: Response) {
     try {
+      const authority = AircraftController.requireTenantAuthority(req);
+
       const {
         registration,
         serial_number,
@@ -661,19 +680,24 @@ export class AircraftController {
       const uploadedPhotoPath =
         (req as any).file ? `/uploads/aircraft/${(req as any).file.filename}` : null;
 
-      const aircraft = await AircraftService.create({
-        registration,
-        serial_number,
-        model_id,
-        category_id,
-        total_time_hours: total_time_hours ? Number(total_time_hours) : 0,
-        total_time_cycles: total_time_cycles ? Number(total_time_cycles) : 0,
-        loaded_into_system_at,
-        manufacture_date,
-        tcds_number,
-        tcds_url,
-        photo_url: uploadedPhotoPath,
-      });
+      const aircraft = await AircraftService.create(
+        authority,
+        {
+          registration,
+          serial_number,
+          model_id,
+          category_id,
+          total_time_hours: total_time_hours ? Number(total_time_hours) : 0,
+          total_time_cycles: total_time_cycles ? Number(total_time_cycles) : 0,
+          loaded_into_system_at,
+          manufacture_date,
+          tcds_number,
+          tcds_url,
+          photo_url: uploadedPhotoPath,
+        }
+      );
+
+      aircraftPhotoLifecycle.commit(req);
 
       res.redirect(`/aircraft/view/${aircraft.id}`);
     } catch (err: any) {
@@ -683,8 +707,16 @@ export class AircraftController {
 
   static async showView(req: Request, res: Response) {
     try {
+      const authority = AircraftController.requireTenantAuthority(req);
       const aircraftId = AircraftController.getParam(req.params.id);
-      const aircraft = await Aircraft.findByPk(aircraftId, {
+      const ownedAircraft = await AircraftService.getById(authority, aircraftId);
+      if (!ownedAircraft) {
+        return res.status(404).send('Aircraft not found');
+      }
+
+      // Tenant authority owns the aggregate query; shared model data remains reference data.
+      const aircraft = await Aircraft.findOne({
+        where: { id: aircraftId, tenant_id: authority.tenantId },
         include: [
           {
             model: ComponentModel,
@@ -731,11 +763,11 @@ export class AircraftController {
         return res.status(404).send('Aircraft not found');
       }
 
-      await AircraftController.attachServiceBulletinCompliance(aircraft);
+      await AircraftController.attachServiceBulletinCompliance(authority, aircraft);
       const sbFilters = AircraftController.getServiceBulletinFilters(req);
-      const serviceBulletins = await AircraftService.getServiceBulletinsForAircraft(aircraft.id, sbFilters);
+      const serviceBulletins = await AircraftService.getServiceBulletinsForAircraft(authority, aircraft.id, sbFilters);
       const applicableStandardTasks =
-        await AircraftService.getApplicableStandardTasksForAircraft(aircraft.id);
+        await AircraftService.getApplicableStandardTasksForAircraft(authority, aircraft.id);
       const selectedManufacturerId =
         (aircraft as any).ComponentModel?.manufacturer_id ||
         (aircraft as any).ComponentModel?.Manufacturer?.id;
@@ -755,7 +787,7 @@ export class AircraftController {
         order: [['model_name', 'ASC']]
       });
 
-      const customerOptions = await CustomersService.getActiveCustomers();
+      const customerOptions = await CustomersService.getActiveCustomers(authority);
       const customerLinks = ((aircraft as any).CustomerLinks || []).slice().sort((left: any, right: any) => {
         if (left.is_current !== right.is_current) {
           return left.is_current ? -1 : 1;
@@ -766,7 +798,7 @@ export class AircraftController {
       const currentCustomerLinks = customerLinks.filter((link: any) => link.is_current);
       const historicalCustomerLinks = customerLinks.filter((link: any) => !link.is_current);
       const serializedWorkflowContext =
-        await AircraftController.getSerializedWorkflowContext(aircraft.id);
+        await AircraftController.getSerializedWorkflowContext(authority, aircraft.id);
 
       res.render('aircraft/view', {
         aircraft,
@@ -790,8 +822,16 @@ export class AircraftController {
 
   static async showApplicability(req: Request, res: Response) {
     try {
+      const authority = AircraftController.requireTenantAuthority(req);
       const aircraftId = AircraftController.getParam(req.params.id);
-      const aircraft = await Aircraft.findByPk(aircraftId, {
+      const ownedAircraft = await AircraftService.getById(authority, aircraftId);
+      if (!ownedAircraft) {
+        return res.status(404).send('Aircraft not found');
+      }
+
+      // Tenant authority owns the aggregate query; shared model data remains reference data.
+      const aircraft = await Aircraft.findOne({
+        where: { id: aircraftId, tenant_id: authority.tenantId },
         include: [AircraftController.componentModelInclude()],
       });
 
@@ -800,7 +840,7 @@ export class AircraftController {
       }
 
       const applicability =
-        await ApplicabilityEngineService.getApplicabilityForAircraft(aircraftId);
+        await ApplicabilityEngineService.getTenantApplicabilityForAircraft(authority, aircraftId);
       const summary = AircraftController.buildApplicabilitySummary(
         applicability.items
       );
@@ -808,7 +848,7 @@ export class AircraftController {
         applicability.items
       );
       const adApplicabilityPreview =
-        await AircraftService.getAdApplicabilityPreviewForAircraft(aircraftId);
+        await AircraftService.getAdApplicabilityPreviewForAircraft(authority, aircraftId);
 
       res.render('aircraft/applicability', {
         aircraft,
@@ -828,10 +868,11 @@ export class AircraftController {
 
   static async createAdComplianceAssignment(req: Request, res: Response) {
     try {
+      const authority = AircraftController.requireTenantAuthority(req);
       const aircraftId = AircraftController.getParam(req.params.id);
       const allocationId = AircraftController.getParam(req.params.allocationId);
 
-      await AircraftService.createAdComplianceAssignmentFromAcceptedAllocation({
+      await AircraftService.createAdComplianceAssignmentFromAcceptedAllocation(authority, {
         aircraftId,
         allocationId,
         actorUserId: (req.user as any)?.id || null,
@@ -865,10 +906,11 @@ export class AircraftController {
 
   static async createAdOperationalComplianceRecord(req: Request, res: Response) {
     try {
+      const authority = AircraftController.requireTenantAuthority(req);
       const aircraftId = AircraftController.getParam(req.params.id);
       const assignmentId = AircraftController.getParam(req.params.assignmentId);
 
-      await AircraftService.createAdOperationalComplianceRecordFromAssignment({
+      await AircraftService.createAdOperationalComplianceRecordFromAssignment(authority, {
         aircraftId,
         assignmentId,
         actorUserId: (req.user as any)?.id || null,
@@ -905,10 +947,11 @@ export class AircraftController {
 
   static async updateAdOperationalComplianceStatus(req: Request, res: Response) {
     try {
+      const authority = AircraftController.requireTenantAuthority(req);
       const aircraftId = AircraftController.getParam(req.params.id);
       const complianceId = AircraftController.getParam(req.params.complianceId);
 
-      await AircraftService.updateAdOperationalComplianceStatus({
+      await AircraftService.updateAdOperationalComplianceStatus(authority, {
         aircraftId,
         complianceId,
         status: typeof req.body.status === 'string' ? req.body.status : '',
@@ -949,10 +992,11 @@ export class AircraftController {
 
   static async updateAdOperationalComplianceDueData(req: Request, res: Response) {
     try {
+      const authority = AircraftController.requireTenantAuthority(req);
       const aircraftId = AircraftController.getParam(req.params.id);
       const complianceId = AircraftController.getParam(req.params.complianceId);
 
-      await AircraftService.updateAdOperationalComplianceDueData({
+      await AircraftService.updateAdOperationalComplianceDueData(authority, {
         aircraftId,
         complianceId,
         actorUserId: (req.user as any)?.id || null,
@@ -1007,9 +1051,16 @@ export class AircraftController {
 
   static async showByRegistration(req: Request, res: Response) {
     try {
+      const authority = AircraftController.requireTenantAuthority(req);
       const registration = AircraftController.getParam(req.params.registration);
+      const ownedAircraft = await AircraftService.getByRegistration(authority, registration);
+      if (!ownedAircraft) {
+        return res.status(404).send('Aircraft not found');
+      }
+
+      // Tenant authority owns the aggregate query; shared model data remains reference data.
       const aircraft = await Aircraft.findOne({
-        where: { registration: registration.toUpperCase() },
+        where: { id: ownedAircraft.id, tenant_id: authority.tenantId },
         include: [
           {
             model: ComponentModel,
@@ -1056,11 +1107,11 @@ export class AircraftController {
         return res.status(404).send('Aircraft not found');
       }
 
-      await AircraftController.attachServiceBulletinCompliance(aircraft);
+      await AircraftController.attachServiceBulletinCompliance(authority, aircraft);
       const sbFilters = AircraftController.getServiceBulletinFilters(req);
-      const serviceBulletins = await AircraftService.getServiceBulletinsForAircraft(aircraft.id, sbFilters);
+      const serviceBulletins = await AircraftService.getServiceBulletinsForAircraft(authority, aircraft.id, sbFilters);
       const applicableStandardTasks =
-        await AircraftService.getApplicableStandardTasksForAircraft(aircraft.id);
+        await AircraftService.getApplicableStandardTasksForAircraft(authority, aircraft.id);
       const selectedManufacturerId =
         (aircraft as any).ComponentModel?.manufacturer_id ||
         (aircraft as any).ComponentModel?.Manufacturer?.id;
@@ -1080,7 +1131,7 @@ export class AircraftController {
         order: [['model_name', 'ASC']]
       });
 
-      const customerOptions = await CustomersService.getActiveCustomers();
+      const customerOptions = await CustomersService.getActiveCustomers(authority);
       const customerLinks = ((aircraft as any).CustomerLinks || []).slice().sort((left: any, right: any) => {
         if (left.is_current !== right.is_current) {
           return left.is_current ? -1 : 1;
@@ -1091,7 +1142,7 @@ export class AircraftController {
       const currentCustomerLinks = customerLinks.filter((link: any) => link.is_current);
       const historicalCustomerLinks = customerLinks.filter((link: any) => !link.is_current);
       const serializedWorkflowContext =
-        await AircraftController.getSerializedWorkflowContext(aircraft.id);
+        await AircraftController.getSerializedWorkflowContext(authority, aircraft.id);
 
       res.render('aircraft/view', {
         aircraft,
@@ -1115,9 +1166,10 @@ export class AircraftController {
 
   static async assignCustomer(req: Request, res: Response) {
     try {
+      const authority = AircraftController.requireTenantAuthority(req);
       const aircraftId = AircraftController.getParam(req.params.id);
 
-      await CustomersService.assignAircraftToCustomer({
+      await CustomersService.assignAircraftToCustomer(authority, {
         aircraft_id: aircraftId,
         customer_id: String(req.body.customer_id || ''),
         relationship_type: String(req.body.relationship_type || ''),
@@ -1136,6 +1188,7 @@ export class AircraftController {
           req.flash('error', 'A customer must be selected.');
           break;
         case 'RELATIONSHIP_TYPE_REQUIRED':
+        case 'RELATIONSHIP_TYPE_INVALID':
           req.flash('error', 'Relationship type is required.');
           break;
         case 'START_DATE_REQUIRED':
@@ -1144,11 +1197,8 @@ export class AircraftController {
         case 'CURRENT_CUSTOMER_ALREADY_ASSIGNED':
           req.flash('error', 'That customer relationship is already current for this aircraft.');
           break;
-        case 'CUSTOMER_NOT_FOUND':
-          req.flash('error', 'Customer not found.');
-          break;
-        case 'AIRCRAFT_NOT_FOUND':
-          req.flash('error', 'Aircraft not found.');
+        case 'TENANT_RESOURCE_UNAVAILABLE':
+          req.flash('error', 'Customer or aircraft is unavailable.');
           break;
         default:
           req.flash('error', message);
@@ -1161,11 +1211,12 @@ export class AircraftController {
 
   static async update(req: Request, res: Response) {
     try {
+      const authority = AircraftController.requireTenantAuthority(req);
       const aircraftId = AircraftController.getParam(req.params.id);
       const uploadedPhotoPath =
         (req as any).file ? `/uploads/aircraft/${(req as any).file.filename}` : undefined;
 
-      await AircraftService.updateDetails(aircraftId, {
+      await AircraftService.updateDetails(authority, aircraftId, {
         registration: req.body.registration,
         serial_number: req.body.serial_number,
         model_id: req.body.model_id,
@@ -1179,6 +1230,8 @@ export class AircraftController {
         photo_url: uploadedPhotoPath,
         version: req.body.version,
       });
+
+      aircraftPhotoLifecycle.commit(req);
 
       if (req.method === 'PATCH') {
         return res.status(204).send();
@@ -1202,7 +1255,7 @@ export class AircraftController {
     const aircraftId = AircraftController.getParam(req.params.id);
 
     try {
-      const result = await UtilisationService.recordUtilisation({
+      const result = await UtilisationService.recordUtilisation(AircraftController.requireTenantAuthority(req), {
         aircraftId,
         newTotalTimeHours: req.body.total_time_hours,
         newTotalTimeCycles: req.body.total_time_cycles,
@@ -1239,7 +1292,7 @@ export class AircraftController {
     const aircraftId = AircraftController.getParam(req.params.id);
 
     try {
-      const preview = await UtilisationPropagationPreviewService.preview({
+      const preview = await UtilisationPropagationPreviewService.preview(AircraftController.requireTenantAuthority(req), {
         aircraftId,
         proposedTotalTimeHours: req.body.total_time_hours,
         proposedTotalTimeCycles: req.body.total_time_cycles,
@@ -1260,21 +1313,22 @@ export class AircraftController {
 
   static async transition(req: Request, res: Response) {
     try {
+      const authority = AircraftController.requireTenantAuthority(req);
       const aircraftId = AircraftController.getParam(req.params.id);
       const { action, reason } = req.body;
 
       switch (action) {
         case 'ACTIVATE':
-          await AircraftService.activate(aircraftId, reason);
+          await AircraftService.activate(authority, aircraftId, reason);
           break;
         case 'GROUND':
-          await AircraftService.ground(aircraftId, reason);
+          await AircraftService.ground(authority, aircraftId, reason);
           break;
         case 'RETURN_TO_SERVICE':
-          await AircraftService.returnToService(aircraftId, reason);
+          await AircraftService.returnToService(authority, aircraftId, reason);
           break;
         case 'RETIRE':
-          await AircraftService.retire(aircraftId, reason);
+          await AircraftService.retire(authority, aircraftId, reason);
           break;
         default:
           throw new Error('INVALID_TRANSITION_ACTION');
@@ -1294,7 +1348,10 @@ export class AircraftController {
         aircraft_id: aircraftId
       };
 
-      await AircraftComponentService.installComponent(data);
+      await AircraftComponentService.installComponent(
+        AircraftController.requireTenantAuthority(req),
+        data,
+      );
 
       res.redirect(`/aircraft/view/${aircraftId}`);
     } catch (err: any) {
@@ -1306,7 +1363,7 @@ export class AircraftController {
     const aircraftId = AircraftController.getParam(req.params.id);
 
     try {
-      await AircraftComponentService.installSerializedComponent({
+      await AircraftComponentService.installSerializedComponent(AircraftController.requireTenantAuthority(req), {
         ...req.body,
         aircraft_id: aircraftId,
       });
@@ -1323,7 +1380,7 @@ export class AircraftController {
     const aircraftId = AircraftController.getParam(req.params.id);
 
     try {
-      await AircraftComponentService.baselineCaptureSerializedComponent({
+      await AircraftComponentService.baselineCaptureSerializedComponent(AircraftController.requireTenantAuthority(req), {
         ...req.body,
         aircraft_id: aircraftId,
       });
@@ -1346,7 +1403,7 @@ export class AircraftController {
     const installationId = AircraftController.getParam(req.params.installationId);
 
     try {
-      await AircraftComponentService.removeSerializedComponent({
+      await AircraftComponentService.removeSerializedComponent(AircraftController.requireTenantAuthority(req), {
         ...req.body,
         aircraft_id: aircraftId,
         installation_id: installationId,
@@ -1362,9 +1419,10 @@ export class AircraftController {
 
   static async updateServiceBulletinCompliance(req: Request, res: Response) {
     try {
+      const authority = AircraftController.requireTenantAuthority(req);
       const aircraftId = AircraftController.getParam(req.params.id);
       const serviceBulletinId = AircraftController.getParam(req.params.serviceBulletinId);
-      await AircraftService.updateServiceBulletinCompliance({
+      await AircraftService.updateServiceBulletinCompliance(authority, {
         aircraft_id: aircraftId,
         service_bulletin_id: serviceBulletinId,
         status: req.body.status,
@@ -1379,15 +1437,18 @@ export class AircraftController {
 
   static async complyServiceBulletin(req: Request, res: Response) {
     try {
+      const authority = AircraftController.requireTenantAuthority(req);
       const aircraftId = AircraftController.getParam(req.params.id);
       const sbId = AircraftController.getParam(req.params.sbId);
       await AircraftService.markServiceBulletinComplied(
+        authority,
         aircraftId,
         sbId
       );
 
       const serviceBulletin =
         await AircraftController.getAircraftServiceBulletinOrThrow(
+          authority,
           aircraftId,
           sbId
         );
@@ -1411,15 +1472,18 @@ export class AircraftController {
 
   static async markServiceBulletinNotApplicable(req: Request, res: Response) {
     try {
+      const authority = AircraftController.requireTenantAuthority(req);
       const aircraftId = AircraftController.getParam(req.params.id);
       const sbId = AircraftController.getParam(req.params.sbId);
       await AircraftService.markServiceBulletinNotApplicable(
+        authority,
         aircraftId,
         sbId
       );
 
       const serviceBulletin =
         await AircraftController.getAircraftServiceBulletinOrThrow(
+          authority,
           aircraftId,
           sbId
         );
@@ -1443,8 +1507,10 @@ export class AircraftController {
 
   static async getServiceBulletins(req: Request, res: Response) {
     try {
+      const authority = AircraftController.requireTenantAuthority(req);
       const aircraftId = AircraftController.getParam(req.params.id);
       const serviceBulletins = await AircraftService.getServiceBulletinsForAircraft(
+        authority,
         aircraftId,
         AircraftController.getServiceBulletinFilters(req)
       );

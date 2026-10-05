@@ -1,6 +1,10 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+vi.mock('../platform-authority/authoritative-platform-mutation.js', () => ({
+  requirePlatformMutationOperations: (evidence: unknown) => evidence,
+  executeAuthoritativePlatformMutation: async (_evidence: unknown, work: (tx: any, audit: any) => Promise<unknown>) => work({ LOCK: { UPDATE: 'UPDATE' } }, { setBefore: vi.fn() }),
+}));
 import {
   AdApplicabilityAllocation,
   ComplianceAssignment,
@@ -12,6 +16,7 @@ import { AdApplicabilityAllocationService } from './ad-applicability-allocation.
 const modelId = '11111111-1111-4111-8111-111111111111';
 const manufacturerId = '22222222-2222-4222-8222-222222222222';
 const actorUserId = '33333333-3333-4333-8333-333333333333';
+const evidence = {} as any;
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -180,7 +185,7 @@ describe('AD applicability allocation service foundation', () => {
     } as any);
     const create = vi.spyOn(AdApplicabilityAllocation, 'create');
 
-    const result = await AdApplicabilityAllocationService.persistSuggestedAllocations({
+    const result = await AdApplicabilityAllocationService.persistSuggestedAllocations(evidence, {
       relevance,
       modelId,
       manufacturerId,
@@ -201,7 +206,7 @@ describe('AD applicability allocation service foundation', () => {
     } as any);
     const create = vi.spyOn(AdApplicabilityAllocation, 'create');
 
-    const result = await AdApplicabilityAllocationService.persistSuggestedAllocations({
+    const result = await AdApplicabilityAllocationService.persistSuggestedAllocations(evidence, {
       relevance,
       modelId,
       manufacturerId,
@@ -223,12 +228,12 @@ describe('AD applicability allocation service foundation', () => {
       .spyOn(AdApplicabilityAllocation, 'create')
       .mockResolvedValue({ id: 'created-allocation' } as any);
 
-    const first = await AdApplicabilityAllocationService.persistSuggestedAllocations({
+    const first = await AdApplicabilityAllocationService.persistSuggestedAllocations(evidence, {
       relevance,
       modelId,
       manufacturerId,
     });
-    const second = await AdApplicabilityAllocationService.persistSuggestedAllocations({
+    const second = await AdApplicabilityAllocationService.persistSuggestedAllocations(evidence, {
       relevance,
       modelId,
       manufacturerId,
@@ -249,7 +254,7 @@ describe('AD applicability allocation service foundation', () => {
     const itemCreate = vi.spyOn(ComplianceItem, 'create');
     const assignmentCreate = vi.spyOn(ComplianceAssignment, 'create');
 
-    await AdApplicabilityAllocationService.persistSuggestedAllocations({
+    await AdApplicabilityAllocationService.persistSuggestedAllocations(evidence, {
       relevance,
       modelId,
       manufacturerId,
@@ -266,7 +271,7 @@ describe('AD applicability allocation service foundation', () => {
       update,
     } as any);
 
-    await AdApplicabilityAllocationService.reviewAllocation({
+    await AdApplicabilityAllocationService.reviewAllocation(evidence, {
       allocationId: 'allocation',
       status: 'ACCEPTED',
       actorUserId,
@@ -296,7 +301,7 @@ describe('AD applicability allocation service foundation', () => {
       update,
     } as any);
 
-    await AdApplicabilityAllocationService.reviewAllocation({
+    await AdApplicabilityAllocationService.reviewAllocation(evidence, {
       allocationId: 'allocation',
       status: 'IGNORED',
       actorUserId,
@@ -308,7 +313,7 @@ describe('AD applicability allocation service foundation', () => {
       reviewed_by: actorUserId,
       reviewed_at: expect.any(Date),
       review_reason: 'False positive.',
-    });
+    }, expect.objectContaining({ transaction: expect.anything() }));
   });
 
   it('does not review already accepted or ignored allocations', async () => {
@@ -319,7 +324,7 @@ describe('AD applicability allocation service foundation', () => {
     } as any);
 
     await expect(
-      AdApplicabilityAllocationService.reviewAllocation({
+      AdApplicabilityAllocationService.reviewAllocation(evidence, {
         allocationId: 'allocation',
         status: 'IGNORED',
         actorUserId,
@@ -337,7 +342,7 @@ describe('AD applicability allocation service foundation', () => {
       update,
     } as any);
 
-    await AdApplicabilityAllocationService.restoreAllocation({
+    await AdApplicabilityAllocationService.restoreAllocation(evidence, {
       allocationId: 'allocation',
       actorUserId,
       reviewReason: 'Review again.',
@@ -367,7 +372,7 @@ describe('AD applicability allocation service foundation', () => {
       update,
     } as any);
 
-    await AdApplicabilityAllocationService.restoreAllocation({
+    await AdApplicabilityAllocationService.restoreAllocation(evidence, {
       allocationId: 'allocation',
       actorUserId,
       reviewReason: null,
@@ -378,7 +383,7 @@ describe('AD applicability allocation service foundation', () => {
       reviewed_by: actorUserId,
       reviewed_at: expect.any(Date),
       review_reason: null,
-    });
+    }, expect.objectContaining({ transaction: expect.anything() }));
   });
 
   it('does not restore allocations unless they are ignored', async () => {
@@ -390,7 +395,7 @@ describe('AD applicability allocation service foundation', () => {
     } as any);
 
     await expect(
-      AdApplicabilityAllocationService.restoreAllocation({
+      AdApplicabilityAllocationService.restoreAllocation(evidence, {
         allocationId: 'allocation',
         actorUserId,
         reviewReason: null,
@@ -406,7 +411,7 @@ describe('AD applicability allocation service foundation', () => {
       update,
     } as any);
 
-    await AdApplicabilityAllocationService.linkAllocationToModel({
+    await AdApplicabilityAllocationService.linkAllocationToModel(evidence, {
       allocationId: 'allocation',
       componentModelId: modelId,
       manufacturerId,
@@ -448,7 +453,7 @@ describe('AD applicability allocation service foundation', () => {
     } as any);
 
     await expect(
-      AdApplicabilityAllocationService.linkAllocationToModel({
+      AdApplicabilityAllocationService.linkAllocationToModel(evidence, {
         allocationId: 'allocation',
         componentModelId: modelId,
         manufacturerId,
@@ -466,7 +471,7 @@ describe('AD applicability allocation service foundation', () => {
       update,
     } as any);
 
-    await AdApplicabilityAllocationService.linkAllocationToManufacturer({
+    await AdApplicabilityAllocationService.linkAllocationToManufacturer(evidence, {
       allocationId: 'allocation',
       manufacturerId,
       actorUserId,
@@ -507,7 +512,7 @@ describe('AD applicability allocation service foundation', () => {
     } as any);
 
     await expect(
-      AdApplicabilityAllocationService.linkAllocationToManufacturer({
+      AdApplicabilityAllocationService.linkAllocationToManufacturer(evidence, {
         allocationId: 'allocation',
         manufacturerId,
         actorUserId,

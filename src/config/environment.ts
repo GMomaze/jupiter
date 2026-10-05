@@ -24,5 +24,5 @@ if (process.env.NODE_ENV === 'test') {
     quiet: true,
   });
 } else {
-  dotenv.config({ quiet: true });
+  dotenv.config({ override: true, quiet: true });
 }

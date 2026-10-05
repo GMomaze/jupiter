@@ -1,11 +1,16 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+vi.mock('../platform-authority/authoritative-platform-mutation.js', () => ({
+  requirePlatformMutationOperations: (evidence: unknown) => evidence,
+  executeAuthoritativePlatformMutation: async (_evidence: unknown, work: (tx: any, audit: any) => Promise<unknown>) => work({ LOCK: { UPDATE: 'UPDATE' } }, { setBefore: vi.fn() }),
+}));
 import { Op } from 'sequelize';
 import sequelize from '../../config/database.js';
 import { ComponentModel } from '../../models/index.js';
 import { AirworthinessDirective } from '../../models/AirworthinessDirective.js';
 import { LibraryService } from './library.service.js';
+const evidence = {} as any;
 
 const modelDetailView = readFileSync(
   resolve(process.cwd(), 'src/views/library/model-detail.ejs'),
@@ -55,12 +60,13 @@ describe('component model AD number assignment repair', () => {
     expect(modelDetailView).toContain('assignableAdPageUrl(assignableAdPagination.page + 1)');
   });
 
-  it('keeps AD relevance suggestions read-only', () => {
-    const suggestionStart = modelDetailView.indexOf('Read-only AD Relevance Suggestions');
+  it('keeps scoped AD suggestions read-only', () => {
+    const complianceStart = modelDetailView.indexOf('id="component-model-tab-compliance"');
+    const suggestionStart = modelDetailView.indexOf('scopedAdSuggestionGroups.forEach', complianceStart);
+    const searchStart = modelDetailView.indexOf('Search and Add from Full AD Library', suggestionStart);
     const sidStart = modelDetailView.indexOf('Structural Inspection Directives');
-    const suggestionPanel = modelDetailView.slice(suggestionStart, sidStart);
+    const suggestionPanel = modelDetailView.slice(suggestionStart, searchStart);
 
-    expect(suggestionPanel).toContain('readOnlyAdSuggestionGroups.forEach');
     expect(suggestionPanel).toContain('directive.relevance_reason');
     expect(suggestionPanel).not.toContain('<form');
     expect(suggestionPanel).not.toContain('type="checkbox"');
@@ -87,8 +93,8 @@ describe('component model AD number assignment repair', () => {
     expect(route).toContain("requirePermission('LIBRARY_EDIT')");
     expect(route).toContain('csrfProtection');
     expect(route).toContain('airworthiness_directive_ids');
-    expect(route).toContain('assignAirworthinessDirectiveToModel(id, String(directiveId))');
-    expect(route).toContain('assignAirworthinessDirectiveToModelByNumber(id, adNumber)');
+    expect(route).toContain("assignAirworthinessDirectiveToModel(requestPlatformMutationEvidence(req, ['REGULATORY_RELATIONSHIP_MUTATE']");
+    expect(route).toContain("assignAirworthinessDirectiveToModelByNumber(requestPlatformMutationEvidence(req, ['REGULATORY_RELATIONSHIP_MUTATE']");
     expect(route).toContain('Use either AD number assignment or selected AD rows, not both.');
   });
 
@@ -98,7 +104,7 @@ describe('component model AD number assignment repair', () => {
       .mockResolvedValueOnce([{ total: '450' }] as any)
       .mockResolvedValueOnce([{ id: 'ad-1' }] as any);
 
-    const result = await (LibraryService as any).getAssignableAirworthinessDirectives('model-1');
+    const result = await (LibraryService as any).getAssignableAirworthinessDirectives('model-1', '20');
 
     expect(result.pagination).toEqual({
       total: 450,
@@ -113,6 +119,7 @@ describe('component model AD number assignment repair', () => {
       expect.objectContaining({
         replacements: {
           modelId: 'model-1',
+          adNumberSearch: '%20%',
           adPageSize: 200,
           adOffset: 0,
         },
@@ -128,7 +135,7 @@ describe('component model AD number assignment repair', () => {
 
     const result = await (LibraryService as any).getAssignableAirworthinessDirectives(
       'model-1',
-      null,
+      '20',
       { page: '2', pageSize: '400' }
     );
 
@@ -145,6 +152,7 @@ describe('component model AD number assignment repair', () => {
       expect.objectContaining({
         replacements: {
           modelId: 'model-1',
+          adNumberSearch: '%20%',
           adPageSize: 400,
           adOffset: 400,
         },
@@ -160,7 +168,7 @@ describe('component model AD number assignment repair', () => {
 
     const result = await (LibraryService as any).getAssignableAirworthinessDirectives(
       'model-1',
-      null,
+      '20',
       { page: '-2', pageSize: '1200' }
     );
 
@@ -170,6 +178,7 @@ describe('component model AD number assignment repair', () => {
       expect.objectContaining({
         replacements: {
           modelId: 'model-1',
+          adNumberSearch: '%20%',
           adPageSize: 200,
           adOffset: 0,
         },
@@ -185,7 +194,7 @@ describe('component model AD number assignment repair', () => {
 
     const result = await (LibraryService as any).getAssignableAirworthinessDirectives(
       'model-1',
-      null,
+      '20',
       { page: '99', pageSize: '200' }
     );
 
@@ -195,6 +204,7 @@ describe('component model AD number assignment repair', () => {
       expect.objectContaining({
         replacements: {
           modelId: 'model-1',
+          adNumberSearch: '%20%',
           adPageSize: 200,
           adOffset: 400,
         },
@@ -209,7 +219,7 @@ describe('component model AD number assignment repair', () => {
 
     const result = await (LibraryService as any).getAssignableAirworthinessDirectives(
       'model-1',
-      null,
+      '20',
       { page: '3', pageSize: '800' }
     );
 
@@ -260,21 +270,22 @@ describe('component model AD number assignment repair', () => {
     );
   });
 
-  it('keeps empty assignable AD search as the existing full-list query', async () => {
-    const query = vi
-      .spyOn(sequelize, 'query')
-      .mockResolvedValueOnce([{ total: '0' }] as any)
-      .mockResolvedValueOnce([] as any);
+  it('does not query or return the full AD library for an empty search', async () => {
+    const query = vi.spyOn(sequelize, 'query');
 
-    await (LibraryService as any).getAssignableAirworthinessDirectives('model-1', '   ');
+    const result = await (LibraryService as any).getAssignableAirworthinessDirectives(
+      'model-1',
+      '   '
+    );
 
-    expect(String(query.mock.calls[0]?.[0] || '')).not.toContain('ad.ad_number ILIKE');
-    expect(String(query.mock.calls[1]?.[0] || '')).not.toContain('ad.ad_number ILIKE');
+    expect(query).not.toHaveBeenCalled();
+    expect(result.rows).toEqual([]);
+    expect(result.pagination.total).toBe(0);
   });
 
   it('rejects blank AD number assignment', async () => {
     await expect(
-      LibraryService.assignAirworthinessDirectiveToModelByNumber('model-1', '   ')
+      LibraryService.assignAirworthinessDirectiveToModelByNumber(evidence, 'model-1', '   ')
     ).rejects.toThrow('Enter an AD number to assign.');
   });
 
@@ -283,7 +294,7 @@ describe('component model AD number assignment repair', () => {
     vi.spyOn(AirworthinessDirective, 'findAll').mockResolvedValue([]);
 
     await expect(
-      LibraryService.assignAirworthinessDirectiveToModelByNumber('model-1', '2022-05-01')
+      LibraryService.assignAirworthinessDirectiveToModelByNumber(evidence, 'model-1', '2022-05-01')
     ).rejects.toThrow('No active AD found for AD number 2022-05-01.');
   });
 
@@ -295,7 +306,7 @@ describe('component model AD number assignment repair', () => {
     ] as any);
 
     await expect(
-      LibraryService.assignAirworthinessDirectiveToModelByNumber('model-1', '2022-05-01')
+      LibraryService.assignAirworthinessDirectiveToModelByNumber(evidence, 'model-1', '2022-05-01')
     ).rejects.toThrow('Multiple active AD records match 2022-05-01.');
   });
 
@@ -307,7 +318,7 @@ describe('component model AD number assignment repair', () => {
     vi.spyOn(sequelize, 'query').mockResolvedValue([{ id: 'ad-1' }] as any);
 
     await expect(
-      LibraryService.assignAirworthinessDirectiveToModelByNumber('model-1', '2022-05-01')
+      LibraryService.assignAirworthinessDirectiveToModelByNumber(evidence, 'model-1', '2022-05-01')
     ).rejects.toThrow('AD 2022-05-01 is already assigned to this model.');
   });
 
@@ -322,11 +333,12 @@ describe('component model AD number assignment repair', () => {
       .mockResolvedValue({ id: 'assignment-1' } as any);
 
     await LibraryService.assignAirworthinessDirectiveToModelByNumber(
+      evidence,
       'model-1',
       ' 2022-05-01 '
     );
 
-    expect(assign).toHaveBeenCalledWith('model-1', 'ad-1');
+    expect(assign).toHaveBeenCalledWith(evidence, 'model-1', 'ad-1');
     expect(AirworthinessDirective.findAll).toHaveBeenCalledWith(
       expect.objectContaining({
         where: {

@@ -10,8 +10,11 @@ import {
   Manufacturer,
   SerializedComponent,
   SerializedComponentLifeState,
+  Tenant,
+  User,
   sequelize,
 } from '../../models/index.js';
+import { createTenantQueryAuthority } from '../tenancy/tenant-query-authority.js';
 import { ComponentLimitMonitoringService } from './component-limit-monitoring.service.js';
 
 const testRunSuffix = Date.now().toString(36).toUpperCase();
@@ -67,6 +70,9 @@ async function createMonitoringContext(options: {
   };
 }) {
   const suffix = randomUUID().slice(0, 8).toUpperCase();
+  const owner = await User.create({ email: `monitor-${suffix}@example.test`, password_hash: 'test', full_name: 'Monitor Test Owner', is_active: true });
+  const tenant = await Tenant.create({ code: `MON_${suffix}`, display_name: `Monitor Tenant ${suffix}`, status: 'ACTIVE', created_by_user_id: owner.id, updated_by_user_id: owner.id });
+  const authority = createTenantQueryAuthority({ state: 'VALID_ACTIVE_TENANT', tenant: { id: tenant.id, publicId: tenant.public_id, code: tenant.code, displayName: tenant.display_name, status: 'ACTIVE' }, membership: { id: randomUUID(), tenantId: tenant.id, userId: owner.id, status: 'ACTIVE' }, validatedAt: Date.now() });
   const registrationSequence = (++aircraftRegistrationCounter)
     .toString(36)
     .toUpperCase()
@@ -111,12 +117,14 @@ async function createMonitoringContext(options: {
     total_time_hours: options.aircraftHours ?? 0,
     total_time_cycles: options.aircraftCycles ?? 0,
     version: 0,
+    tenant_id: tenant.id,
   });
   currentFixture.aircraft = aircraft.id;
   const serializedComponent = await SerializedComponent.create({
     component_model_id: model.id,
     serial_number: `MON-SC-${suffix}`,
     status: 'INSTALLED',
+    custodian_tenant_id: tenant.id,
   });
   currentFixture.serializedComponent = serializedComponent.id;
   const lifeLimit = await ComponentLifeLimit.create({
@@ -160,12 +168,12 @@ async function createMonitoringContext(options: {
   });
   currentFixture.installation = installation.id;
 
-  return { aircraft, installation, lifeLimit, model, serializedComponent };
+  return { aircraft, installation, lifeLimit, model, serializedComponent, authority };
 }
 
 describe('ComponentLimitMonitoringService', () => {
   it('monitors TBO hours from calculated TSO', async () => {
-    const { installation } = await createMonitoringContext({
+    const { installation, authority } = await createMonitoringContext({
       trackingBasis: 'AIRCRAFT_HOURS',
       aircraftHours: 40,
       installAircraftHours: 10,
@@ -178,7 +186,7 @@ describe('ComponentLimitMonitoringService', () => {
       },
     });
 
-    const [result] = await ComponentLimitMonitoringService.monitorInstallation(installation.id);
+    const [result] = await ComponentLimitMonitoringService.monitorInstallation(authority, installation.id);
 
     expect(result.limit_type).toBe('TBO_HOURS');
     expect(result.current_value).toBe(50);
@@ -189,7 +197,7 @@ describe('ComponentLimitMonitoringService', () => {
   });
 
   it('monitors TBO cycles from calculated CSO', async () => {
-    const { installation } = await createMonitoringContext({
+    const { installation, authority } = await createMonitoringContext({
       trackingBasis: 'AIRCRAFT_CYCLES',
       aircraftCycles: 20,
       installAircraftCycles: 8,
@@ -202,7 +210,7 @@ describe('ComponentLimitMonitoringService', () => {
       },
     });
 
-    const [result] = await ComponentLimitMonitoringService.monitorInstallation(installation.id);
+    const [result] = await ComponentLimitMonitoringService.monitorInstallation(authority, installation.id);
 
     expect(result.limit_type).toBe('TBO_CYCLES');
     expect(result.current_value).toBe(24);
@@ -211,7 +219,7 @@ describe('ComponentLimitMonitoringService', () => {
   });
 
   it('monitors retirement hours from calculated TSN', async () => {
-    const { installation } = await createMonitoringContext({
+    const { installation, authority } = await createMonitoringContext({
       trackingBasis: 'AIRCRAFT_HOURS',
       aircraftHours: 50,
       installAircraftHours: 20,
@@ -224,7 +232,7 @@ describe('ComponentLimitMonitoringService', () => {
       },
     });
 
-    const [result] = await ComponentLimitMonitoringService.monitorInstallation(installation.id);
+    const [result] = await ComponentLimitMonitoringService.monitorInstallation(authority, installation.id);
 
     expect(result.limit_type).toBe('RETIREMENT_HOURS');
     expect(result.current_value).toBe(930);
@@ -234,7 +242,7 @@ describe('ComponentLimitMonitoringService', () => {
   });
 
   it('monitors retirement cycles from calculated CSN', async () => {
-    const { installation } = await createMonitoringContext({
+    const { installation, authority } = await createMonitoringContext({
       trackingBasis: 'AIRCRAFT_CYCLES',
       aircraftCycles: 70,
       installAircraftCycles: 50,
@@ -247,7 +255,7 @@ describe('ComponentLimitMonitoringService', () => {
       },
     });
 
-    const [result] = await ComponentLimitMonitoringService.monitorInstallation(installation.id);
+    const [result] = await ComponentLimitMonitoringService.monitorInstallation(authority, installation.id);
 
     expect(result.limit_type).toBe('RETIREMENT_CYCLES');
     expect(result.current_value).toBe(1000);
@@ -257,7 +265,7 @@ describe('ComponentLimitMonitoringService', () => {
   });
 
   it('marks hard-life due and overdue limits as SEVERE', async () => {
-    const { installation } = await createMonitoringContext({
+    const { installation, authority } = await createMonitoringContext({
       trackingBasis: 'AIRCRAFT_HOURS',
       aircraftHours: 25,
       installAircraftHours: 10,
@@ -270,7 +278,7 @@ describe('ComponentLimitMonitoringService', () => {
       },
     });
 
-    const [result] = await ComponentLimitMonitoringService.monitorInstallation(installation.id);
+    const [result] = await ComponentLimitMonitoringService.monitorInstallation(authority, installation.id);
 
     expect(result.due_status).toBe('OVERDUE');
     expect(result.severity).toBe('SEVERE');
@@ -278,7 +286,7 @@ describe('ComponentLimitMonitoringService', () => {
 
   it('monitors calendar life from an approved reference date', async () => {
     const today = new Date().toISOString().slice(0, 10);
-    const { installation } = await createMonitoringContext({
+    const { installation, authority } = await createMonitoringContext({
       trackingBasis: 'CALENDAR',
       installedAt: today,
       lifeState: {
@@ -291,7 +299,7 @@ describe('ComponentLimitMonitoringService', () => {
       },
     });
 
-    const [result] = await ComponentLimitMonitoringService.monitorInstallation(installation.id);
+    const [result] = await ComponentLimitMonitoringService.monitorInstallation(authority, installation.id);
 
     expect(result.limit_type).toBe('CALENDAR_LIFE');
     expect(result.due_status).toBe('NOT_DUE');
@@ -299,7 +307,7 @@ describe('ComponentLimitMonitoringService', () => {
   });
 
   it('returns UNKNOWN when required life baselines are missing', async () => {
-    const { installation } = await createMonitoringContext({
+    const { installation, authority } = await createMonitoringContext({
       trackingBasis: 'AIRCRAFT_HOURS',
       aircraftHours: 40,
       installAircraftHours: null,
@@ -312,14 +320,14 @@ describe('ComponentLimitMonitoringService', () => {
       },
     });
 
-    const [result] = await ComponentLimitMonitoringService.monitorInstallation(installation.id);
+    const [result] = await ComponentLimitMonitoringService.monitorInstallation(authority, installation.id);
 
     expect(result.due_status).toBe('UNKNOWN');
     expect(result.unknown_reason).toContain('install_aircraft_hours is missing');
   });
 
   it('monitors manual authorised limits through manual life-state values', async () => {
-    const { installation } = await createMonitoringContext({
+    const { installation, authority } = await createMonitoringContext({
       trackingBasis: 'MANUAL_AUTHORISED',
       lifeState: {
         tsn_hours: 75,
@@ -331,7 +339,7 @@ describe('ComponentLimitMonitoringService', () => {
       },
     });
 
-    const [result] = await ComponentLimitMonitoringService.monitorInstallation(installation.id);
+    const [result] = await ComponentLimitMonitoringService.monitorInstallation(authority, installation.id);
 
     expect(result.limit_type).toBe('MANUAL_AUTHORISED');
     expect(result.current_value).toBe(75);
@@ -340,7 +348,7 @@ describe('ComponentLimitMonitoringService', () => {
   });
 
   it('returns the required explanation fields', async () => {
-    const { installation, serializedComponent } = await createMonitoringContext({
+    const { installation, serializedComponent, authority } = await createMonitoringContext({
       trackingBasis: 'AIRCRAFT_HOURS',
       aircraftHours: 40,
       installAircraftHours: 10,
@@ -353,7 +361,7 @@ describe('ComponentLimitMonitoringService', () => {
       },
     });
 
-    const [result] = await ComponentLimitMonitoringService.monitorInstallation(installation.id);
+    const [result] = await ComponentLimitMonitoringService.monitorInstallation(authority, installation.id);
 
     expect(result.component.serialized_component_id).toBe(serializedComponent.id);
     expect(result.component.installation_id).toBe(installation.id);

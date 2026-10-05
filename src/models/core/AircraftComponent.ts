@@ -3,6 +3,7 @@ import sequelize from '../../config/database.js';
 
 export class AircraftComponent extends Model {
   declare id: string;
+  declare readonly custodian_tenant_id: string;
   declare aircraft_id: string;
   declare model_id: string;
   declare serial_number: string;
@@ -36,6 +37,13 @@ AircraftComponent.init(
     serial_number: {
       type: DataTypes.TEXT,
       allowNull: false,
+    },
+    custodian_tenant_id: {
+      type: DataTypes.UUID,
+      allowNull: false,
+      references: { model: 'tenants', key: 'id' },
+      onUpdate: 'RESTRICT',
+      onDelete: 'RESTRICT',
     },
     position_code: {
       type: DataTypes.STRING,

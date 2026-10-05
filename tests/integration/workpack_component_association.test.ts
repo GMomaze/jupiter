@@ -9,13 +9,29 @@ import {
   AssetType,
   ComponentModel,
   Manufacturer,
+  Tenant,
+  User,
   TaskCard,
   Workpack,
   WorkpackStatus,
+  WorkpackSnag,
   WorkpackTask,
   sequelize,
 } from '../../src/models/index.js';
 import { WorkpackComponentIntegrationService } from '../../src/modules/workpacks/services/workpack-component-integration.service.js';
+import { createTenantQueryAuthority } from '../../src/modules/tenancy/tenant-query-authority.js';
+import { workpackTenantRepository } from '../../src/modules/workpacks/workpack-tenant.repository.js';
+import { aircraftComponentInstallationTenantRepository } from '../../src/modules/aircraft/aircraft-component-installation-tenant.repository.live.js';
+import { aircraftComponentTenantRepository } from '../../src/modules/aircraft/aircraft-component-tenant.repository.live.js';
+
+function authorityFor(tenantId: string, userId = randomUUID()) {
+  return createTenantQueryAuthority({
+    state: 'VALID_ACTIVE_TENANT',
+    tenant: { id: tenantId, publicId: randomUUID(), code: 'TEST', displayName: 'Test', status: 'ACTIVE' },
+    membership: { id: randomUUID(), tenantId, userId, status: 'ACTIVE' },
+    validatedAt: Date.now(),
+  });
+}
 
 describe('TaskCard legacy aircraft-component association', () => {
   let transaction: Transaction | null = null;
@@ -40,6 +56,15 @@ describe('TaskCard legacy aircraft-component association', () => {
   it('supports detail and nested execution queries with nullable and valid legacy components', async () => {
     transaction = await sequelize.transaction();
     const suffix = randomUUID();
+    const user = await User.create({
+      id: randomUUID(), email: `wca-${suffix}@test.local`, password_hash: 'hash',
+      full_name: 'WCA tester', is_active: true,
+    }, { transaction });
+    const tenant = await Tenant.create({
+      id: randomUUID(), public_id: randomUUID(), code: `WCA_${suffix.replace(/-/g, '').slice(0, 10).toUpperCase()}`,
+      display_name: 'WCA tenant', status: 'ACTIVE', created_by_user_id: user.id,
+      updated_by_user_id: user.id,
+    }, { transaction });
 
     const manufacturer = await Manufacturer.create(
       {
@@ -86,6 +111,7 @@ describe('TaskCard legacy aircraft-component association', () => {
         model_id: componentModel.id,
         category_id: category.id,
         status: 'REGISTERED',
+        tenant_id: tenant.id,
       },
       { transaction }
     );
@@ -103,6 +129,7 @@ describe('TaskCard legacy aircraft-component association', () => {
         work_order_number: `WCA-${suffix}`,
         aircraft_id: aircraft.id,
         status_id: status.id,
+        tenant_id: tenant.id,
       },
       { transaction }
     );
@@ -189,10 +216,22 @@ describe('TaskCard legacy aircraft-component association', () => {
   });
 
   it('preserves legacy-to-serialized execution-context derivation', async () => {
+    const tenantId = randomUUID();
+    const authority = authorityFor(tenantId);
+    const workpackId = randomUUID();
+    const aircraftId = randomUUID();
     const serializedComponentId = randomUUID();
     const legacyComponentId = randomUUID();
-    vi.spyOn(AircraftComponentInstallation, 'findAll')
-      .mockResolvedValueOnce([
+    vi.spyOn(workpackTenantRepository, 'getById').mockResolvedValue({
+      id: workpackId, aircraft_id: aircraftId,
+    } as any);
+    vi.spyOn(WorkpackTask, 'findAll').mockResolvedValue([{ task_id: 'task-1' }] as any);
+    vi.spyOn(TaskCard, 'findAll').mockResolvedValue([{
+      id: 'task-1', task_card_number: 'ENGINE-TASK', component_id: legacyComponentId,
+    }] as any);
+    vi.spyOn(WorkpackSnag, 'findAll').mockResolvedValue([] as any);
+    vi.spyOn(aircraftComponentInstallationTenantRepository, 'listActiveWorkflowForAircraft')
+      .mockResolvedValue([
         {
           toJSON: () => ({
             id: randomUUID(),
@@ -215,10 +254,14 @@ describe('TaskCard legacy aircraft-component association', () => {
             },
           }),
         },
-      ] as any)
-      .mockResolvedValueOnce([] as any);
-    vi.spyOn(AircraftComponent, 'findAll').mockResolvedValue([
+      ] as any);
+    vi.spyOn(aircraftComponentInstallationTenantRepository, 'listWorkflowHistoryForSerializedComponents')
+      .mockResolvedValue([] as any);
+    vi.spyOn(aircraftComponentTenantRepository, 'listForAircraft').mockResolvedValue([
       {
+        id: legacyComponentId,
+        serial_number: 'LEGACY-ENGINE-1',
+        position_code: 'ENGINE',
         toJSON: () => ({
           id: legacyComponentId,
           serial_number: 'LEGACY-ENGINE-1',
@@ -228,14 +271,8 @@ describe('TaskCard legacy aircraft-component association', () => {
     ] as any);
 
     const context = await WorkpackComponentIntegrationService.buildForWorkpack({
-      aircraftId: randomUUID(),
-      tasks: [
-        {
-          id: randomUUID(),
-          task_card_number: 'ENGINE-TASK',
-          component_id: legacyComponentId,
-        },
-      ],
+      authority,
+      workpackId,
     });
 
     expect(context.summary.installed_serialized_count).toBe(1);

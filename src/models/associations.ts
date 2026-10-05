@@ -4,6 +4,10 @@ import { AdRelationship } from './AdRelationship.js';
 import { AdServiceBulletinReference } from './AdServiceBulletinReference.js';
 import { AssetType } from './AssetType.js';
 import { Manufacturer } from './Manufacturer.js';
+import { ManufacturerSourceName } from './ManufacturerSourceName.js';
+import { Tenant } from './Tenant.js';
+import { TenantMembership } from './TenantMembership.js';
+import { TenantMembershipRole } from './TenantMembershipRole.js';
 import { ComponentModel } from './ComponentModel.js';
 import { SerializedComponent } from './SerializedComponent.js';
 import { SerializedComponentLifeState } from './SerializedComponentLifeState.js';
@@ -59,6 +63,41 @@ import { Permission } from './rbac/Permission.js';
 import { RolePermission } from './rbac/RolePermission.js';
 import { UserRole } from './rbac/UserRole.js';
 
+Tenant.hasMany(TenantMembership, { foreignKey: 'tenant_id', as: 'Memberships' });
+TenantMembership.belongsTo(Tenant, { foreignKey: 'tenant_id', as: 'Tenant' });
+User.hasMany(TenantMembership, { foreignKey: 'user_id', as: 'TenantMemberships' });
+TenantMembership.belongsTo(User, { foreignKey: 'user_id', as: 'User' });
+TenantMembership.hasMany(TenantMembershipRole, {
+  foreignKey: 'membership_id',
+  as: 'RoleAssignments',
+});
+TenantMembershipRole.belongsTo(TenantMembership, {
+  foreignKey: 'membership_id',
+  as: 'Membership',
+});
+Role.hasMany(TenantMembershipRole, {
+  foreignKey: 'role_id',
+  as: 'TenantMembershipAssignments',
+});
+TenantMembershipRole.belongsTo(Role, { foreignKey: 'role_id', as: 'Role' });
+
+Tenant.hasMany(Aircraft, { foreignKey: 'tenant_id', as: 'OwnedAircraft' });
+Aircraft.belongsTo(Tenant, { foreignKey: 'tenant_id', as: 'OwningTenant' });
+Tenant.hasMany(Customer, { foreignKey: 'tenant_id', as: 'Customers' });
+Customer.belongsTo(Tenant, { foreignKey: 'tenant_id', as: 'Tenant' });
+Tenant.hasMany(SerializedComponent, {
+  foreignKey: 'custodian_tenant_id',
+  as: 'CustodiedSerializedComponents',
+});
+SerializedComponent.belongsTo(Tenant, {
+  foreignKey: 'custodian_tenant_id',
+  as: 'CustodianTenant',
+});
+Tenant.hasMany(PlanningSession, { foreignKey: 'tenant_id', as: 'PlanningSessions' });
+PlanningSession.belongsTo(Tenant, { foreignKey: 'tenant_id', as: 'Tenant' });
+Tenant.hasMany(Workpack, { foreignKey: 'tenant_id', as: 'Workpacks' });
+Workpack.belongsTo(Tenant, { foreignKey: 'tenant_id', as: 'HistoricalTenant' });
+
 /* ============================================================
    CORE DOMAIN ASSOCIATIONS
 ============================================================ */
@@ -93,6 +132,14 @@ ComponentModel.belongsTo(AssetType, { foreignKey: 'asset_type_id' });
 
 Manufacturer.hasMany(ComponentModel, { foreignKey: 'manufacturer_id' });
 ComponentModel.belongsTo(Manufacturer, { foreignKey: 'manufacturer_id' });
+Manufacturer.hasMany(ManufacturerSourceName, {
+  foreignKey: 'manufacturer_id',
+  as: 'SourceNames',
+});
+ManufacturerSourceName.belongsTo(Manufacturer, {
+  foreignKey: 'manufacturer_id',
+  as: 'Manufacturer',
+});
 Manufacturer.hasMany(AdApplicabilityAllocation, {
   foreignKey: 'matched_manufacturer_id',
   as: 'MatchedAdApplicabilityAllocations',
@@ -306,6 +353,7 @@ WorkpackAuditLog.belongsTo(User, { foreignKey: 'user_id', as: 'Actor' });
 
 Workpack.hasMany(WorkpackSnag, { foreignKey: 'workpack_id', as: 'Snags' });
 WorkpackSnag.belongsTo(Workpack, { foreignKey: 'workpack_id', as: 'Workpack' });
+WorkpackSnag.belongsTo(Aircraft, { foreignKey: 'aircraft_id', as: 'Aircraft' });
 WorkpackSnag.belongsTo(AircraftComponent, { foreignKey: 'component_id', as: 'Component' });
 WorkpackSnag.belongsTo(User, { foreignKey: 'created_by', as: 'Reporter' });
 WorkpackSnag.belongsTo(User, { foreignKey: 'assigned_to', as: 'Assignee' });

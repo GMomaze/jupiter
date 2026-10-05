@@ -4,7 +4,7 @@ import sequelize from '../../config/database.js';
 export class WorkpackSnagAuditLog extends Model {
   declare id: string;
   declare snag_id: string;
-  declare workpack_id: string;
+  declare workpack_id: string | null;
   declare user_id: string | null;
   declare action: string;
   declare field: string | null;
@@ -30,7 +30,7 @@ WorkpackSnagAuditLog.init(
     },
     workpack_id: {
       type: DataTypes.UUID,
-      allowNull: false,
+      allowNull: true,
     },
     user_id: {
       type: DataTypes.UUID,

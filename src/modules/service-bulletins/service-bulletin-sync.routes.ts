@@ -2,17 +2,19 @@ import { Router } from 'express';
 import csrf from 'csurf';
 import { ServiceBulletinSyncService } from './service-bulletin-sync.service.js';
 import { serviceBulletinImportUpload } from '../../middleware/upload.middleware.js';
+import { requestPlatformMutationEvidence } from '../platform-authority/authoritative-platform-mutation.js';
+import { runSbSyncFileMutation } from '../uploads/service-bulletin-sync-file-boundary.js';
 
 const router = Router();
 const csrfProtection = csrf();
 
 router.post(
   '/sync',
+  csrfProtection,
   serviceBulletinImportUpload.fields([
     { name: 'veryon_csv_file', maxCount: 1 },
     { name: 'piper_pdf_file', maxCount: 1 },
   ]),
-  csrfProtection,
   async (req: any, res, next) => {
     try {
       const files = req.files as {
@@ -20,14 +22,16 @@ router.post(
         piper_pdf_file?: Express.Multer.File[];
       };
 
-      const uploadedVeryonFile = files?.veryon_csv_file?.[0]?.path || null;
-      const uploadedPiperFile = files?.piper_pdf_file?.[0]?.path || null;
+      const uploadedVeryonFile = files?.veryon_csv_file?.[0];
+      const uploadedPiperFile = files?.piper_pdf_file?.[0];
 
       const method = req.body?.sync_method || 'VERYON';
 
       console.log(
-        `[ServiceBulletinSyncRoutes] Sync requested | method=${method} | veryonFile=${uploadedVeryonFile || 'none'} | piperFile=${uploadedPiperFile || 'none'}`
+        `[ServiceBulletinSyncRoutes] Authorized sync requested | method=${method}`
       );
+
+      if (req.body?.veryon_root_path || req.body?.piper_pdf_path) throw new Error('CLIENT_SB_SYNC_PATH_FORBIDDEN');
 
       if (method === 'VERYON' && !uploadedVeryonFile) {
         throw new Error('Veryon CSV file is required.');
@@ -35,17 +39,14 @@ router.post(
 
       if (
         method === 'PIPER_PDF' &&
-        !uploadedPiperFile &&
-        !req.body?.piper_pdf_path
+        !uploadedPiperFile
       ) {
         throw new Error('Piper PDF file or path is required.');
       }
 
-      const result = await ServiceBulletinSyncService.syncAll('MANUAL', {
-        method,
-        veryonRootPath: uploadedVeryonFile || req.body?.veryon_root_path || null,
-        piperPdfPath: uploadedPiperFile || req.body?.piper_pdf_path || null,
-      });
+      const evidence = requestPlatformMutationEvidence(req, ['SERVICE_BULLETIN_SYNC'], 'service_bulletin_sync_run');
+      const result = await runSbSyncFileMutation({ evidence, veryonCsv: uploadedVeryonFile, piperPdf: uploadedPiperFile,
+        mutate: files => ServiceBulletinSyncService.syncAll(evidence, 'MANUAL', { method, files }) });
 
       // ✅ Store unmatched models in session for the frontend to react to
       if (result.unmatchedModels && result.unmatchedModels.length > 0) {

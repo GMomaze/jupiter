@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   assertTestDatabaseSafety,
   validateTestDatabaseSafety,
@@ -10,6 +10,31 @@ const approvedConfig = {
   databaseUser: 'jupiter_test',
   resetApproval: 'YES',
 };
+
+const testEnvironmentKeys = [
+  'NODE_ENV',
+  'DB_NAME',
+  'DB_USER',
+  'ALLOW_TEST_DATABASE_RESET',
+] as const;
+const originalEnvironment = Object.fromEntries(
+  testEnvironmentKeys.map(key => [key, process.env[key]])
+);
+
+beforeEach(() => {
+  process.env.NODE_ENV = 'test';
+  process.env.DB_NAME = 'jupiter_test';
+  process.env.DB_USER = 'jupiter_test';
+  process.env.ALLOW_TEST_DATABASE_RESET = 'YES';
+});
+
+afterEach(() => {
+  for (const key of testEnvironmentKeys) {
+    const original = originalEnvironment[key];
+    if (original === undefined) delete process.env[key];
+    else process.env[key] = original;
+  }
+});
 
 describe('test database safety validation', () => {
   it('rejects jupiter_db', () => {

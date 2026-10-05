@@ -1,4 +1,5 @@
 import 'express-session';
+import type { ActiveTenantSessionContext } from '../modules/tenancy/active-tenant-context.types.js';
 
 declare module 'express-session' {
   interface CustomerSessionUser {
@@ -211,6 +212,7 @@ declare module 'express-session' {
   }
 
   interface SessionData {
+    activeTenantContext?: ActiveTenantSessionContext;
     adImportState?: AdImportSessionState;
     sbImportState?: SbImportSessionState;
     standardTaskImportState?: StandardTaskImportSessionState;

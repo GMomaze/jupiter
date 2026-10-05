@@ -7,13 +7,14 @@ import csrf from 'csurf';
 import flash from 'connect-flash';
 import path from 'path';
 import fs from 'fs';
+import { randomUUID } from 'crypto';
 import { fileURLToPath } from 'url';
 import passport from 'passport';
 import session from 'express-session';
 import connectPgSimple from 'connect-pg-simple';
 
 import { pool } from './config/database.js';
-import { sequelize } from './models/index.js';
+import { sequelize, Tenant, TenantMembership } from './models/index.js';
 
 // ===============================
 // Auth & Core Setup
@@ -25,24 +26,61 @@ import { ensureAuthenticated } from './middleware/auth.middleware.js';
 // Domain Routes
 // ===============================
 import referenceRoutes from './modules/reference/reference.routes.js';
-import authRoutes from './modules/auth/auth.routes.js';
-import staffRoutes from './modules/auth/staff.routes.js';
+import { createAuthRouter } from './modules/auth/auth.routes.js';
+import { createStaffRouter } from './modules/auth/staff.routes.js';
 import customerAuthRoutes from './modules/customer-auth/customer-auth.routes.js';
 import customerPortalRoutes from './modules/customer-portal/customer-portal.routes.js';
-import auditRoutes from './modules/audit/audit.routes.js';
-import aircraftRoutes from './modules/aircraft/aircraft.routes.js';
-import customersRoutes from './modules/customers/customers.routes.js';
-import workpackRoutes from './modules/workpacks/workpack.routes.js';
-import inventoryRoutes from './modules/inventory/inventory.routes.js';
-import mainRouter from './routes/index.js';
-import libraryRoutes from './modules/library/library.routes.js';
-import projectionRoutes from './modules/projection/projection.routes.js';
+import { createAuditRouter } from './modules/audit/audit.routes.js';
+import { createAircraftRouter } from './modules/aircraft/aircraft.routes.js';
+import { createCustomersRouter } from './modules/customers/customers.routes.js';
+import { createWorkpackRouter } from './modules/workpacks/workpack.routes.js';
+import { createInventoryRouter } from './modules/inventory/inventory.routes.js';
+import { createMainRouter } from './routes/index.js';
+import { createLibraryRouter } from './modules/library/library.routes.js';
+import { createProjectionRouter } from './modules/projection/projection.routes.js';
 import serviceBulletinRoutes from './modules/service-bulletins/service-bulletin.routes.js';
 import serviceBulletinSyncRoutes from './modules/service-bulletins/service-bulletin-sync.routes.js';
+import { PlatformAuthorityRepository } from './modules/platform-authority/platform-authority.repository.js';
+import { requireMountedHumanPlatformGate } from './modules/platform-authority/mounted-human-platform-gate.js';
 import { sessionTimeout } from './middleware/sessionTimeout.js';
 import { formatModelDisplay } from './utils/model-display.js';
+import { SequelizeActiveTenantContextRepository } from './modules/tenancy/active-tenant-context.repository.js';
+import { ActiveTenantContextService } from './modules/tenancy/active-tenant-context.service.js';
+import { OrganisationSelectionService } from './modules/tenancy/organisation-selection.service.js';
+import { createOrganisationRouter } from './modules/tenancy/organisation.routes.js';
+import { requireTenantSwitchTokenSecret } from './config/tenantSwitchRuntimeSafety.js';
+import { createActiveTenantContextMiddleware } from './modules/tenancy/active-tenant-context.middleware.js';
+import { createActiveTenantRbacHydration } from './modules/auth/active-tenant-rbac.middleware.js';
+import { createActiveOrganisationUiMiddleware } from './modules/tenancy/active-organisation-ui.middleware.js';
+import { createTenantSwitchTokenCodec } from './modules/tenancy/tenant-switch-token.js';
+import { PostgresTenantSwitchAdvisoryLock } from './modules/tenancy/tenant-switch-advisory-lock.js';
+import { TenantSwitchPersistenceRepository } from './modules/tenancy/tenant-switch-persistence.repository.js';
+import { TenantSwitchCoordinator } from './modules/tenancy/tenant-switch-coordinator.js';
+import { createOrganisationSwitchRouter } from './modules/tenancy/organisation-switch.routes.js';
+import { createUploadDeliveryRouter } from './modules/uploads/upload-delivery.routes.js';
+import { TenantLifecycleCommandRepository } from './modules/tenancy/tenant-lifecycle-command.repository.js';
+import { TenantLifecycleCommandService } from './modules/tenancy/tenant-lifecycle-command.service.js';
+import { createTenantLifecycleCommandRouter } from './modules/tenancy/tenant-lifecycle-command.routes.js';
+import { TenantAdminRecoveryRepository } from './modules/tenancy/tenant-admin-recovery.js';
+import { createStaffInvitationAcceptanceRouter } from './modules/auth/staff-invitation.routes.js';
+import { StaffInvitationService, StaffMembershipAdministrationRepository } from './modules/auth/staff-membership-administration.js';
+import { SmtpStaffInvitationDelivery } from './modules/email/smtp-staff-invitation-delivery.js';
+import { SmtpSystemOwnerNotificationDelivery } from './modules/email/smtp-system-owner-notification-delivery.js';
+import { SmtpTenantActivationDelivery } from './modules/email/smtp-tenant-activation-delivery.js';
+import { loadSystemOwnerNotificationEmail } from './modules/email/email-config.js';
+import { TenantSuspensionAccessCoordinator } from './modules/tenancy/tenant-suspension-access-coordinator.js';
+import { createCustomerPortalSuspensionMiddleware } from './modules/customer-portal/customer-portal-suspension.middleware.js';
+import { createPlatformAdministrationRouter } from './modules/platform-authority/platform-administration.routes.js';
+import { PlatformUserInvitationRepository, PlatformUserInvitationService } from './modules/platform-authority/platform-user-invitation.js';
+import { createPlatformUserInvitationAcceptanceRouter } from './modules/platform-authority/platform-user-invitation.routes.js';
+import { SmtpPlatformUserInvitationDelivery } from './modules/email/smtp-platform-user-invitation-delivery.js';
+import { createHealthRouter } from './modules/observability/health.routes.js';
+import { assertProductionRuntimeSafety } from './config/productionRuntimeSafety.js';
+import { emitOperationalEvent } from './modules/observability/operational-event.js';
 
 console.log('IP_WHITELIST_ENABLED:', process.env.IP_WHITELIST_ENABLED);
+assertProductionRuntimeSafety();
+const platformAuthorityRepository = new PlatformAuthorityRepository(pool);
 
 // ===============================
 // Path Resolution
@@ -114,7 +152,7 @@ fs.mkdirSync(publicDir, { recursive: true });
 
 const app = express();
 
-app.set('trust proxy', 1);
+app.set('trust proxy', isProduction ? Number(process.env.TRUST_PROXY) : 1);
 
 // ===============================
 // View Engine
@@ -122,8 +160,11 @@ app.set('trust proxy', 1);
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
 
-app.use('/uploads', express.static(uploadsDir));
-app.use(express.static(publicDir));
+const publicStatic = express.static(publicDir);
+app.use((req, res, next) => {
+  if (req.path === '/uploads' || req.path.startsWith('/uploads/')) return next();
+  return publicStatic(req, res, next);
+});
 
 // ===============================
 // Core Middleware
@@ -165,7 +206,7 @@ app.use(
     proxy: isProduction,
     cookie: {
       httpOnly: true,
-      secure: false,
+      secure: isProduction,
       sameSite: 'lax',
       maxAge: 24 * 60 * 60 * 1000,
     },
@@ -350,6 +391,33 @@ app.use((req, res, next) => {
   return csrfProtection(req, res, next);
 });
 
+const tenantContextRepository = new SequelizeActiveTenantContextRepository(
+  sequelize,
+);
+const tenantContextService = new ActiveTenantContextService(
+  tenantContextRepository,
+  Date.now,
+);
+const organisationSelectionService = new OrganisationSelectionService(
+  tenantContextService,
+  Date.now,
+);
+const tenantSwitchTokenCodec = createTenantSwitchTokenCodec(
+  requireTenantSwitchTokenSecret(),
+);
+const tenantSuspensionAccessCoordinator = new TenantSuspensionAccessCoordinator(pool);
+const { resolveTenantContext, requireValidActiveTenantContext } = createActiveTenantContextMiddleware(
+  tenantContextService,
+  tenantSuspensionAccessCoordinator,
+);
+const activeOrganisationUi = createActiveOrganisationUiMiddleware({
+  selectionService: organisationSelectionService,
+  tokenCodec: tenantSwitchTokenCodec,
+});
+
+app.use(resolveTenantContext);
+app.use(createActiveTenantRbacHydration(pool));
+
 // ===============================
 // Locals
 // ===============================
@@ -368,6 +436,22 @@ app.use((req, res, next) => {
   next();
 });
 
+app.use(async (req, res, next) => {
+  res.locals.canPlatformAdmin = false;
+  const userId = (req.user as { id?: unknown } | undefined)?.id;
+  if (typeof userId !== 'string') return next();
+  try {
+    const authority = await platformAuthorityRepository.resolveHuman(userId);
+    res.locals.canPlatformAdmin = Boolean(authority?.principalType === 'HUMAN' &&
+      authority.capabilities.size > 0);
+  } catch {
+    res.locals.canPlatformAdmin = false;
+  }
+  return next();
+});
+
+app.use(activeOrganisationUi);
+
 // ===============================
 // Rate Limit
 // ===============================
@@ -384,7 +468,78 @@ app.use(
 // ===============================
 // Routes
 // ===============================
+const authRoutes = createAuthRouter({
+  tenantContextService,
+  clock: Date.now,
+  isPlatformAdministrator: async (userId) => {
+    try {
+      const authority = await platformAuthorityRepository.resolveHuman(userId);
+      return Boolean(
+        authority?.principalType === 'HUMAN' &&
+        authority.capabilities.size > 0,
+      );
+    } catch {
+      return false;
+    }
+  },
+});
+const organisationRoutes = createOrganisationRouter({
+  selectionService: organisationSelectionService,
+  csrfProtection,
+});
+const tenantSwitchCoordinator = new TenantSwitchCoordinator({
+  tenantContextService,
+  advisoryLock: new PostgresTenantSwitchAdvisoryLock(pool, {
+    acquisitionTimeoutMs: 2_000,
+    retryIntervalMs: 50,
+  }),
+  persistence: new TenantSwitchPersistenceRepository(pool),
+  tokenCodec: tenantSwitchTokenCodec,
+  clock: Date.now,
+  idFactory: randomUUID,
+});
+const organisationSwitchRoutes = createOrganisationSwitchRouter({
+  coordinator: tenantSwitchCoordinator,
+  csrfProtection,
+});
+const mainRoutes = createMainRouter(requireValidActiveTenantContext);
+const projectionRoutes = createProjectionRouter(requireValidActiveTenantContext);
+const auditRoutes = createAuditRouter(requireValidActiveTenantContext);
+const uploadDeliveryRoutes = createUploadDeliveryRouter(requireValidActiveTenantContext);
+const libraryRoutes = createLibraryRouter(requireValidActiveTenantContext);
+const aircraftRoutes = createAircraftRouter(requireValidActiveTenantContext);
+const customersRoutes = createCustomersRouter(requireValidActiveTenantContext);
+const workpackRoutes = createWorkpackRouter(requireValidActiveTenantContext);
+const inventoryRoutes = createInventoryRouter(requireValidActiveTenantContext);
+const staffMembershipAdministration = new StaffMembershipAdministrationRepository(pool);
+const invitationDelivery = new SmtpStaffInvitationDelivery();
+const systemOwnerNotificationDelivery = new SmtpSystemOwnerNotificationDelivery();
+const staffInvitationService = new StaffInvitationService(
+  staffMembershipAdministration,
+  invitationDelivery,
+  Date.now,
+  {
+    delivery: systemOwnerNotificationDelivery,
+    recipient: {
+      resolve: async () => {
+        const configured = loadSystemOwnerNotificationEmail();
+        if (configured) return configured;
+        return platformAuthorityRepository.resolveSystemOwnerNotificationEmail();
+      },
+    },
+  },
+);
+const staffRoutes = createStaffRouter(requireValidActiveTenantContext, { administration: staffMembershipAdministration, invitationService: staffInvitationService });
+const platformUserInvitationRepository = new PlatformUserInvitationRepository(pool);
+const platformUserInvitationService = new PlatformUserInvitationService(platformUserInvitationRepository, new SmtpPlatformUserInvitationDelivery());
+const tenantLifecycleCommandRoutes = createTenantLifecycleCommandRouter(
+  platformAuthorityRepository,
+  new TenantLifecycleCommandService(new TenantLifecycleCommandRepository(), invitationDelivery, new SmtpTenantActivationDelivery()),
+  new TenantAdminRecoveryRepository(pool),
+);
+
 app.get('/ping', (_req, res) => res.send('PONG'));
+app.use('/health', createHealthRouter(pool));
 
 app.get('/offline', (_req, res) => {
   res.send('<h2>Jupiter Offline</h2>');
@@ -392,8 +547,15 @@ app.get('/offline', (_req, res) => {
 
 app.use('/auth', authRoutes);
 app.use('/auth/staff', staffRoutes);
+app.use('/auth/staff-invitations', createStaffInvitationAcceptanceRouter(staffInvitationService));
 app.use('/customer-auth', customerAuthRoutes);
-app.use('/customer-portal', customerPortalRoutes);
+app.use('/customer-portal', createCustomerPortalSuspensionMiddleware(tenantSuspensionAccessCoordinator), customerPortalRoutes);
+app.use('/organisation', organisationRoutes);
+app.use('/organisation', organisationSwitchRoutes);
+app.use('/uploads', uploadDeliveryRoutes);
+app.use('/platform/users/accept', createPlatformUserInvitationAcceptanceRouter(platformUserInvitationService));
+app.use('/platform/tenants', ensureAuthenticated, tenantLifecycleCommandRoutes);
+app.use('/platform', ensureAuthenticated, createPlatformAdministrationRouter(platformAuthorityRepository, pool, platformUserInvitationService));
 
 app.get('/compliance-maintenance-data', ensureAuthenticated, (_req, res) => {
   res.render('compliance-maintenance-data/index', {
@@ -401,18 +563,18 @@ app.get('/compliance-maintenance-data', ensureAuthenticated, (_req, res) => {
   });
 });
 
-app.use('/library', ensureAuthenticated, libraryRoutes);
-app.use('/service-bulletins', ensureAuthenticated, serviceBulletinRoutes);
-app.use('/sb', ensureAuthenticated, serviceBulletinSyncRoutes);
+app.use('/library', ensureAuthenticated, requireMountedHumanPlatformGate(platformAuthorityRepository, 'LIBRARY'), libraryRoutes);
+app.use('/service-bulletins', ensureAuthenticated, requireMountedHumanPlatformGate(platformAuthorityRepository, 'SERVICE_BULLETINS'), serviceBulletinRoutes);
+app.use('/sb', ensureAuthenticated, requireMountedHumanPlatformGate(platformAuthorityRepository, 'SB_SYNC'), serviceBulletinSyncRoutes);
 app.use('/aircraft', ensureAuthenticated, aircraftRoutes);
 app.use('/customers', ensureAuthenticated, customersRoutes);
 app.use('/projection', ensureAuthenticated, projectionRoutes);
-app.use('/reference', ensureAuthenticated, referenceRoutes);
+app.use('/reference', ensureAuthenticated, requireMountedHumanPlatformGate(platformAuthorityRepository, 'REFERENCE'), referenceRoutes);
 app.use('/workpacks', ensureAuthenticated, workpackRoutes);
 app.use('/inventory', ensureAuthenticated, inventoryRoutes);
 app.use('/audit', ensureAuthenticated, auditRoutes);
 
-app.use('/', mainRouter);
+app.use('/', mainRoutes);
 
 // ===============================
 // HTTPS (Production)
@@ -432,6 +594,12 @@ if (isProduction) {
 
 sequelize.query('SELECT current_user').then(([rows]) => {
   console.log('DB USER:', rows);
+});
+
+app.use((error: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+  const csrfFailure = error instanceof Error && (error as Error & { code?: string }).code === 'EBADCSRFTOKEN';
+  emitOperationalEvent({code:csrfFailure?'CSRF_REFUSED':'APPLICATION_FAILURE',severity:csrfFailure?'WARN':'ERROR',outcome:csrfFailure?'DENIED':'FAILED',operation:csrfFailure?'CSRF':'HTTP_REQUEST',error});
+  return csrfFailure ? res.status(403).send('Request unavailable.') : res.status(500).send('Internal server error.');
 });
 
 export default app;

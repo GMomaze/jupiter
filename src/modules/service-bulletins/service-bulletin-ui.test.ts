@@ -1,11 +1,9 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import request from 'supertest';
 import { v4 as uuid } from 'uuid';
+import { Op } from 'sequelize';
 import app from '../../app.js';
 import {
-  AssetType,
-  ComponentModel,
-  Manufacturer,
   ServiceBulletinSyncRun,
   User,
 } from '../../models/index.js';
@@ -14,82 +12,90 @@ import { hashPassword } from '../auth/password.util.js';
 import { assertTestDatabaseSafety } from '../../config/testDatabaseSafety.js';
 
 describe('Phase 8: Service bulletin sync UI', () => {
+  const testCategory = 'INTEGRATION SAFE-FIXTURE';
   let agent: request.SuperAgentTest;
+  let ownedUserId: string | undefined;
+  let ownedSyncRunIds: string[] = [];
 
   beforeEach(async () => {
     await assertTestDatabaseSafety(pool);
-
+    ownedUserId = undefined;
+    ownedSyncRunIds = [];
+    void testCategory;
     agent = request.agent(app);
 
-    await pool.query("SET app.is_test_mode = 'true'");
-    await pool.query(
-      `
-      TRUNCATE TABLE
-        service_bulletin_sync_runs,
-        service_bulletins,
-        component_models,
-        manufacturers,
-        rf_asset_type,
-        user_roles,
-        sessions,
-        users
-      RESTART IDENTITY CASCADE
-      `
-    );
-    await pool.query("SET app.is_test_mode = 'false'");
-
-    const assetType = await AssetType.create({
-      id: uuid(),
-      code: 'ENGINE',
-      label: 'Engine',
-      is_installable_on_aircraft: true,
-      is_required_for_aircraft: false,
-      required_quantity: 0,
+    const olderRunId = uuid();
+    const newerRunId = uuid();
+    const olderRun = await ServiceBulletinSyncRun.create({
+      id: olderRunId,
+      trigger_type: 'MANUAL',
+      status: 'FAILED',
+      synced_count: 1,
+      created_count: 0,
+      updated_count: 0,
+      error_message: `Owned older run ${olderRunId}`,
+      started_at: new Date('9999-12-30T07:00:00.000Z'),
+      finished_at: new Date('9999-12-30T07:01:00.000Z'),
     });
+    ownedSyncRunIds.push(olderRun.id);
 
-    const manufacturer = await Manufacturer.create({
-      id: uuid(),
-      code: 'OEM-1',
-      name: 'Omega Engines',
-      is_active: true,
-    });
-
-    await ComponentModel.create({
-      id: uuid(),
-      model_name: 'OE-900',
-      manufacturer_id: manufacturer.id,
-      asset_type_id: assetType.id,
-      is_active: true,
-    });
-
-    await ServiceBulletinSyncRun.create({
-      id: uuid(),
+    const newerRun = await ServiceBulletinSyncRun.create({
+      id: newerRunId,
       trigger_type: 'CRON',
       status: 'SUCCESS',
       synced_count: 7,
       created_count: 5,
       updated_count: 2,
-      started_at: new Date('2026-03-29T07:00:00.000Z'),
-      finished_at: new Date('2026-03-29T07:05:00.000Z'),
+      started_at: new Date('9999-12-31T07:00:00.000Z'),
+      finished_at: new Date('9999-12-31T07:05:00.000Z'),
     });
+    ownedSyncRunIds.push(newerRun.id);
 
     const password = 'password123';
     const passwordHash = await hashPassword(password);
-
-    await User.create({
-      id: uuid(),
-      email: 'sb-ui@test.com',
+    const userFixtureId = uuid();
+    const email = `sb-ui+${userFixtureId}@tests.jupiter.invalid`;
+    const user = await User.create({
+      id: userFixtureId,
+      email,
       password_hash: passwordHash,
       full_name: 'SB UI Tester',
       is_active: true,
     });
+    ownedUserId = user.id;
 
     const loginResponse = await agent
       .post('/auth/login')
       .set('Accept', 'application/json')
-      .send({ email: 'sb-ui@test.com', password });
+      .send({ email, password });
 
     expect(loginResponse.status).toBe(200);
+  });
+
+  afterEach(async () => {
+    const userId = ownedUserId;
+    const syncRunIds = [...ownedSyncRunIds];
+    ownedUserId = undefined;
+    ownedSyncRunIds = [];
+
+    try {
+      if (userId) {
+        await pool.query(
+          "DELETE FROM sessions WHERE sess -> 'passport' ->> 'user' = $1",
+          [userId]
+        );
+      }
+    } finally {
+      try {
+        if (userId) await User.destroy({ where: { id: userId } });
+      } finally {
+        if (syncRunIds.length > 0) {
+          await ServiceBulletinSyncRun.destroy({
+            where: { id: { [Op.in]: syncRunIds } },
+          });
+        }
+      }
+    }
   });
 
   it('renders the latest sync state on the service bulletin page', async () => {

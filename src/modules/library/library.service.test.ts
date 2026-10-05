@@ -1,4 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+vi.mock('../platform-authority/authoritative-platform-mutation.js', () => ({
+  requirePlatformMutationOperations: (evidence: unknown) => evidence,
+  executeAuthoritativePlatformMutation: async (_evidence: unknown, work: (tx: any, audit: any) => Promise<unknown>) => work({ LOCK: { UPDATE: 'UPDATE' } }, { setBefore: vi.fn() }),
+}));
 import { LibraryService } from './library.service.js';
 import {
   ComponentModel,
@@ -7,6 +11,7 @@ import {
 } from '../../models/index.js';
 
 const modelId = '11111111-1111-4111-8111-111111111111';
+const evidence = {} as any;
 
 describe('LibraryService SID import', () => {
   afterEach(() => {
@@ -19,6 +24,7 @@ describe('LibraryService SID import', () => {
       { id: 'sid-existing', title: 'Inspect Carry Through Spar' },
     ] as any);
     vi.spyOn(SupplementalInspectionDocument, 'findAll').mockResolvedValue([] as any);
+    vi.spyOn(SidModelApplicability, 'findOne').mockResolvedValue(null);
 
     const createSpy = vi
       .spyOn(SupplementalInspectionDocument, 'create')
@@ -45,7 +51,7 @@ describe('LibraryService SID import', () => {
       ].join('\n')
     );
 
-    const result = await LibraryService.importModelSidsFromCsv(modelId, csv);
+    const result = await LibraryService.importModelSidsFromCsv(evidence, modelId, csv);
 
     expect(result).toEqual({
       created: 2,
@@ -60,14 +66,16 @@ describe('LibraryService SID import', () => {
       expect.objectContaining({
         reference: 'SID-001',
         title: 'Inspect Firewall Structure',
-      })
+      }),
+      expect.objectContaining({ transaction: expect.anything() })
     );
     expect(createSpy).toHaveBeenNthCalledWith(
       2,
       expect.objectContaining({
         reference: 'SID-003',
         title: 'Inspect Empennage Attach Points',
-      })
+      }),
+      expect.objectContaining({ transaction: expect.anything() })
     );
   });
 });

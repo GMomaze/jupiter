@@ -7,6 +7,7 @@ import { TaskExecutionService } from './services/task-execution.service.js';
 import { WorkpackPlanningService } from './services/workpack-planning.service.js';
 import { WorkpackServiceBulletinService } from './services/workpack-service-bulletin.service.js';
 import { WorkpackLifecycleService } from './services/workpack-lifecycle.service.js';
+import type { TenantQueryAuthority } from '../tenancy/tenant-query-authority.js';
 
 type WorkpackStatusCode =
   | 'DRAFT'
@@ -162,7 +163,7 @@ export class WorkpackService {
   private static async appendSnagAuditEntry(
     params: {
       snagId: string;
-      workpackId: string;
+      workpackId: string | null;
       userId?: string | undefined;
       action: string;
       field?: string | null;
@@ -221,8 +222,8 @@ export class WorkpackService {
     }
   }
 
-  private static async getExecutablePackForTask(taskId: string, transaction: any) {
-    return WorkpackExecutionService.getExecutablePackForTask(taskId, transaction);
+  private static async getExecutablePackForTask(authority: TenantQueryAuthority, taskId: string, transaction: any) {
+    return WorkpackExecutionService.getExecutablePackForTask(authority, taskId, transaction);
   }
 
   /* ============================================================
@@ -231,10 +232,12 @@ export class WorkpackService {
 
   static async create(
     data: { work_order_number: string; aircraft_id: string },
+    tenantAuthority: TenantQueryAuthority,
     actorId?: string
   ) {
     return WorkpackLifecycleService.create(
       data,
+      tenantAuthority,
       actorId,
       sequelize,
       this.requireAuth.bind(this)
@@ -258,8 +261,9 @@ export class WorkpackService {
       ISSUE
   ============================================================ */
 
-  static async issue(id: string, actorId?: string) {
+  static async issue(authority: TenantQueryAuthority, id: string, actorId?: string) {
     return WorkpackLifecycleService.issue(
+      authority,
       id,
       actorId,
       sequelize,
@@ -271,8 +275,9 @@ export class WorkpackService {
       START WORK
   ============================================================ */
 
-  static async startWork(id: string, actorId?: string) {
+  static async startWork(authority: TenantQueryAuthority, id: string, actorId?: string) {
     return WorkpackLifecycleService.startWork(
+      authority,
       id,
       actorId,
       sequelize,
@@ -284,8 +289,9 @@ export class WorkpackService {
       CLOSE
   ============================================================ */
 
-  static async close(id: string, actorId?: string) {
+  static async close(authority: TenantQueryAuthority, id: string, actorId?: string) {
     return WorkpackLifecycleService.close(
+      authority,
       id,
       actorId,
       sequelize,
@@ -293,8 +299,9 @@ export class WorkpackService {
     );
   }
 
-  static async certify(id: string, actorId?: string, actorRoles: string[] = []) {
+  static async certify(authority: TenantQueryAuthority, id: string, actorId?: string, actorRoles: string[] = []) {
     return WorkpackLifecycleService.certify(
+      authority,
       id,
       actorId,
       actorRoles,
@@ -303,24 +310,26 @@ export class WorkpackService {
     );
   }
 
-  static async getCertificationBlockingErrors(id: string, actorRoles: string[] = []) {
+  static async getCertificationBlockingErrors(authority: TenantQueryAuthority, id: string, actorRoles: string[] = []) {
     return WorkpackLifecycleService.getCertificationBlockingErrors(
+      authority,
       id,
       actorRoles,
       sequelize
     );
   }
 
-  static async getCloseBlockingErrors(id: string) {
-    return WorkpackLifecycleService.getCloseBlockingErrors(id, sequelize);
+  static async getCloseBlockingErrors(authority: TenantQueryAuthority, id: string) {
+    return WorkpackLifecycleService.getCloseBlockingErrors(authority, id, sequelize);
   }
 
   /* ============================================================
       ADD TASK
   ============================================================ */
 
-  static async addTask(workpackId: string, taskId: string, actorId?: string) {
+  static async addTask(authority: TenantQueryAuthority, workpackId: string, taskId: string, actorId?: string) {
     return WorkpackPlanningService.addTask(
+      authority,
       workpackId,
       taskId,
       actorId,
@@ -333,8 +342,9 @@ export class WorkpackService {
       REMOVE TASK
   ============================================================ */
 
-  static async removeTask(workpackId: string, taskId: string, actorId?: string) {
+  static async removeTask(authority: TenantQueryAuthority, workpackId: string, taskId: string, actorId?: string) {
     return WorkpackPlanningService.removeTask(
+      authority,
       workpackId,
       taskId,
       actorId,
@@ -347,8 +357,9 @@ export class WorkpackService {
       ADD TASK FROM TEMPLATE
   ============================================================ */
 
-  static async addTaskFromTemplate(workpackId: string, templateId: string, actorId?: string) {
+  static async addTaskFromTemplate(authority: TenantQueryAuthority, workpackId: string, templateId: string, actorId?: string) {
     return WorkpackPlanningService.addTaskFromTemplate(
+      authority,
       workpackId,
       templateId,
       actorId,
@@ -358,11 +369,13 @@ export class WorkpackService {
   }
 
   static async addServiceBulletins(
+    authority: TenantQueryAuthority,
     workpackId: string,
     serviceBulletinIds: string[],
     actorId?: string
   ) {
     return WorkpackServiceBulletinService.addServiceBulletins(
+      authority,
       workpackId,
       serviceBulletinIds,
       actorId,
@@ -375,8 +388,9 @@ export class WorkpackService {
       DELETE DRAFT WORKPACK
   ============================================================ */
 
-  static async deleteDraft(workpackId: string, actorId?: string) {
+  static async deleteDraft(authority: TenantQueryAuthority, workpackId: string, actorId?: string) {
     return WorkpackLifecycleService.deleteDraft(
+      authority,
       workpackId,
       actorId,
       sequelize,
@@ -388,15 +402,16 @@ export class WorkpackService {
       START TASK (MECHANIC)
   ============================================================ */
 
-  static async startTask(taskId: string, actorId?: string, actorRoles: string[] = []) {
+  static async startTask(authority: TenantQueryAuthority, taskId: string, actorId?: string, actorRoles: string[] = []) {
     return TaskExecutionService.startTask(
+      authority,
       taskId,
       actorId,
       actorRoles,
       sequelize,
       this.requireAuth.bind(this),
       this.canStartTaskAsMechanic.bind(this),
-      this.getExecutablePackForTask.bind(this),
+      this.getExecutablePackForTask.bind(this, authority),
       this.transition.bind(this),
       this.ensureExecutionForTask.bind(this)
     );
@@ -407,6 +422,7 @@ export class WorkpackService {
   ============================================================ */
 
   static async completeTask(
+    authority: TenantQueryAuthority,
     taskId: string,
     actorId?: string,
     actorRoles: string[] = [],
@@ -414,6 +430,7 @@ export class WorkpackService {
     measurementsPayload?: unknown
   ) {
     return TaskExecutionService.completeTask(
+      authority,
       taskId,
       actorId,
       actorRoles,
@@ -422,7 +439,7 @@ export class WorkpackService {
       sequelize,
       this.requireAuth.bind(this),
       this.canEditTaskAsMechanic.bind(this),
-      this.getExecutablePackForTask.bind(this),
+      this.getExecutablePackForTask.bind(this, authority),
       this.transition.bind(this),
       this.ensureExecutionForTask.bind(this)
     );
@@ -432,14 +449,15 @@ export class WorkpackService {
       CERTIFY TASK (ENGINEER)
   ============================================================ */
 
-  static async signTask(taskId: string, actorId?: string, actorRoles: string[] = []) {
+  static async signTask(authority: TenantQueryAuthority, taskId: string, actorId?: string, actorRoles: string[] = []) {
     return TaskExecutionService.signTask(
+      authority,
       taskId,
       actorId,
       actorRoles,
       sequelize,
       this.requireAuth.bind(this),
-      this.getExecutablePackForTask.bind(this),
+      this.getExecutablePackForTask.bind(this, authority),
       this.getLatestExecution.bind(this)
     );
   }
@@ -448,13 +466,14 @@ export class WorkpackService {
       LOCK TASK (QA/LEGACY)
   ============================================================ */
 
-  static async lockTask(taskId: string, actorId?: string) {
+  static async lockTask(authority: TenantQueryAuthority, taskId: string, actorId?: string) {
     return TaskExecutionService.lockTask(
+      authority,
       taskId,
       actorId,
       sequelize,
       this.requireAuth.bind(this),
-      this.getExecutablePackForTask.bind(this)
+      this.getExecutablePackForTask.bind(this, authority)
     );
   }
 
@@ -463,6 +482,7 @@ export class WorkpackService {
   ============================================================ */
 
   static async saveWorkPerformed(
+    authority: TenantQueryAuthority,
     taskId: string,
     workPerformed: string,
     actorId?: string,
@@ -470,6 +490,7 @@ export class WorkpackService {
     measurementsPayload?: unknown
   ) {
     return TaskExecutionService.saveWorkPerformed(
+      authority,
       taskId,
       workPerformed,
       actorId,
@@ -478,14 +499,15 @@ export class WorkpackService {
       sequelize,
       this.requireAuth.bind(this),
       this.canEditTaskAsMechanic.bind(this),
-      this.getExecutablePackForTask.bind(this),
+      this.getExecutablePackForTask.bind(this, authority),
       this.transition.bind(this),
       this.ensureExecutionForTask.bind(this)
     );
   }
 
-  static async startSnag(snagId: string, actorId?: string, actorRoles: string[] = []) {
+  static async startSnag(authority: TenantQueryAuthority, snagId: string, actorId?: string, actorRoles: string[] = []) {
     return SnagService.startSnag(
+      authority,
       snagId,
       actorId,
       actorRoles,
@@ -496,6 +518,7 @@ export class WorkpackService {
   }
 
   static async resolveSnag(
+    authority: TenantQueryAuthority,
     snagId: string,
     data: {
       resolution_notes: string;
@@ -506,6 +529,7 @@ export class WorkpackService {
     actorRoles: string[] = []
   ) {
     return SnagService.resolveSnag(
+      authority,
       snagId,
       data,
       actorId,
@@ -517,8 +541,9 @@ export class WorkpackService {
     );
   }
 
-  static async closeSnag(snagId: string, actorId?: string, actorRoles: string[] = []) {
+  static async closeSnag(authority: TenantQueryAuthority, snagId: string, actorId?: string, actorRoles: string[] = []) {
     return SnagService.closeSnag(
+      authority,
       snagId,
       actorId,
       actorRoles,

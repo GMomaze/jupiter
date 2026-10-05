@@ -155,131 +155,15 @@ async function createSbProjection(
 }
 
 export class ComplianceProjectionService {
-  static async projectAdSources(transaction?: Transaction) {
-    const definition = await getComplianceItemDefinition();
-    assertProjectionColumns(definition);
-
-    const runProjection = async (activeTransaction: Transaction) => {
-      const directives = await AirworthinessDirective.findAll({
-        order: [['ad_number', 'ASC'], ['created_at', 'ASC']],
-        transaction: activeTransaction,
-      });
-
-      let inserted = 0;
-      let duplicates = 0;
-      const failures: ProjectionFailure[] = [];
-
-      for (const directive of directives) {
-        const existing = await findExistingProjection(
-          'AD',
-          directive.id,
-          activeTransaction
-        );
-
-        if (existing) {
-          duplicates += 1;
-          continue;
-        }
-
-        try {
-          await createAdProjection(directive, definition, activeTransaction);
-          inserted += 1;
-        } catch (error: any) {
-          failures.push({
-            sourceType: 'AD',
-            sourceId: directive.id,
-            reason: error?.message || 'Unable to project AD source record.',
-          });
-          throw error;
-        }
-      }
-
-      return {
-        totalAdSourcesInspected: directives.length,
-        adComplianceItemsInserted: inserted,
-        adDuplicatesSkipped: duplicates,
-        failures,
-      };
-    };
-
-    if (transaction) {
-      return runProjection(transaction);
-    }
-
-    return sequelize.transaction(runProjection);
+  static async projectAdSources(_transaction?: Transaction): Promise<never> {
+    throw new Error('DORMANT_COMPLIANCE_PROJECTION_WRITER_DISABLED');
   }
 
-  static async projectSbSources(transaction?: Transaction) {
-    const definition = await getComplianceItemDefinition();
-    assertProjectionColumns(definition);
-
-    const runProjection = async (activeTransaction: Transaction) => {
-      const bulletins = await ServiceBulletin.findAll({
-        order: [['created_at', 'ASC'], ['sb_number', 'ASC']],
-        transaction: activeTransaction,
-      });
-
-      let inserted = 0;
-      let duplicates = 0;
-      const failures: ProjectionFailure[] = [];
-
-      for (const bulletin of bulletins) {
-        const existing = await findExistingProjection(
-          'SB',
-          bulletin.id,
-          activeTransaction
-        );
-
-        if (existing) {
-          duplicates += 1;
-          continue;
-        }
-
-        try {
-          await createSbProjection(bulletin, definition, activeTransaction);
-          inserted += 1;
-        } catch (error: any) {
-          failures.push({
-            sourceType: 'SB',
-            sourceId: bulletin.id,
-            reason: error?.message || 'Unable to project SB source record.',
-          });
-          throw error;
-        }
-      }
-
-      return {
-        totalSbSourcesInspected: bulletins.length,
-        sbComplianceItemsInserted: inserted,
-        sbDuplicatesSkipped: duplicates,
-        failures,
-      };
-    };
-
-    if (transaction) {
-      return runProjection(transaction);
-    }
-
-    return sequelize.transaction(runProjection);
+  static async projectSbSources(_transaction?: Transaction): Promise<never> {
+    throw new Error('DORMANT_COMPLIANCE_PROJECTION_WRITER_DISABLED');
   }
 
-  static async projectAdAndSbSources(): Promise<ProjectionSummary> {
-    const definition = await getComplianceItemDefinition();
-    assertProjectionColumns(definition);
-
-    return sequelize.transaction(async (transaction) => {
-      const adResult = await this.projectAdSources(transaction);
-      const sbResult = await this.projectSbSources(transaction);
-
-      return {
-        totalAdSourcesInspected: adResult.totalAdSourcesInspected,
-        adComplianceItemsInserted: adResult.adComplianceItemsInserted,
-        adDuplicatesSkipped: adResult.adDuplicatesSkipped,
-        totalSbSourcesInspected: sbResult.totalSbSourcesInspected,
-        sbComplianceItemsInserted: sbResult.sbComplianceItemsInserted,
-        sbDuplicatesSkipped: sbResult.sbDuplicatesSkipped,
-        failures: [...adResult.failures, ...sbResult.failures],
-      };
-    });
+  static async projectAdAndSbSources(): Promise<never> {
+    throw new Error('DORMANT_COMPLIANCE_PROJECTION_WRITER_DISABLED');
   }
 }

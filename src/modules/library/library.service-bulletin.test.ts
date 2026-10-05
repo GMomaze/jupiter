@@ -1,10 +1,15 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+vi.mock('../platform-authority/authoritative-platform-mutation.js', () => ({
+  requirePlatformMutationOperations: (evidence: unknown) => evidence,
+  executeAuthoritativePlatformMutation: async (_evidence: unknown, work: (tx: any, audit: any) => Promise<unknown>) => work({ LOCK: { UPDATE: 'UPDATE' } }, { setBefore: vi.fn() }),
+}));
 import {
   ComponentModel,
   ServiceBulletin,
   ServiceBulletinModel,
 } from '../../models/index.js';
 import { LibraryService } from './library.service.js';
+const evidence = {} as any;
 
 describe('LibraryService service bulletin creation', () => {
   afterEach(() => {
@@ -27,7 +32,7 @@ describe('LibraryService service bulletin creation', () => {
     } as any);
     vi.spyOn(ServiceBulletinModel, 'findOrCreate').mockResolvedValue([{} as any, true]);
 
-    await LibraryService.createServiceBulletin({
+    await LibraryService.createServiceBulletin(evidence, {
       model_id: 'model-1',
       sb_number: ' sb-001 ',
       title: 'Magneto Inspection',
@@ -39,7 +44,8 @@ describe('LibraryService service bulletin creation', () => {
         sb_number: 'SB-001',
         reference: 'SB-001',
         title: 'Magneto Inspection',
-      })
+      }),
+      expect.objectContaining({ transaction: expect.anything() })
     );
   });
 
@@ -51,7 +57,7 @@ describe('LibraryService service bulletin creation', () => {
     } as any);
     vi.spyOn(ServiceBulletinModel, 'findOrCreate').mockResolvedValue([{} as any, true]);
 
-    await LibraryService.createServiceBulletin({
+    await LibraryService.createServiceBulletin(evidence, {
       model_id: 'model-1',
       sb_number: ' sb-002 ',
       title: 'Operational Check',
@@ -68,7 +74,8 @@ describe('LibraryService service bulletin creation', () => {
         reference: 'SB-002',
         compliance_type: 'REQUIRED',
         status: 'ACTIVE',
-      })
+      }),
+      expect.objectContaining({ transaction: expect.anything() })
     );
     expect(createSpy.mock.calls[0]?.[0]).not.toHaveProperty('source_refs');
   });
@@ -76,12 +83,14 @@ describe('LibraryService service bulletin creation', () => {
   it('bulk create succeeds with minimal service bulletin data', async () => {
     mockModel({ code: 'PIPER', name: 'Piper' });
     vi.spyOn(ServiceBulletin, 'findOne').mockResolvedValue(null);
+    vi.spyOn(ServiceBulletin, 'findAll').mockResolvedValue([]);
+    vi.spyOn(ServiceBulletinModel, 'findAll').mockResolvedValue([]);
     const createSpy = vi.spyOn(ServiceBulletin, 'create').mockResolvedValue({
       id: 'sb-3',
     } as any);
     vi.spyOn(ServiceBulletinModel, 'findOrCreate').mockResolvedValue([{} as any, true]);
 
-    const createdCount = await LibraryService.createServiceBulletinsBulk('model-1', [
+    const createdCount = await LibraryService.createServiceBulletinsBulk(evidence, 'model-1', [
       {
         sb_number: ' piper-1005 ',
         title: 'Drain Hole Inspection',
@@ -97,7 +106,8 @@ describe('LibraryService service bulletin creation', () => {
         title: 'Drain Hole Inspection',
         compliance_type: 'REQUIRED',
         status: 'ACTIVE',
-      })
+      }),
+      expect.objectContaining({ transaction: expect.anything() })
     );
   });
 
@@ -110,7 +120,7 @@ describe('LibraryService service bulletin creation', () => {
     vi.spyOn(ServiceBulletinModel, 'findOrCreate').mockResolvedValue([{} as any, true]);
 
     for (const reference of ['SB 223', 'SL 1141A', 'SI 100', 'CIL 2025-002']) {
-      await LibraryService.createServiceBulletin({
+      await LibraryService.createServiceBulletin(evidence, {
         model_id: 'model-1',
         sb_number: reference,
         title: `${reference} Title`,
@@ -122,7 +132,8 @@ describe('LibraryService service bulletin creation', () => {
         expect.objectContaining({
           sb_number: reference,
           reference,
-        })
+        }),
+        expect.objectContaining({ transaction: expect.anything() })
       );
     }
   });
@@ -141,6 +152,7 @@ describe('LibraryService service bulletin creation', () => {
       update,
     };
     vi.spyOn(ServiceBulletin, 'findOne').mockResolvedValue(existing as any);
+    vi.spyOn(ServiceBulletinModel, 'findOne').mockResolvedValue(null);
     const createSpy = vi.spyOn(ServiceBulletin, 'create').mockResolvedValue({
       id: 'new-sb',
     } as any);
@@ -148,7 +160,7 @@ describe('LibraryService service bulletin creation', () => {
       .spyOn(ServiceBulletinModel, 'findOrCreate')
       .mockResolvedValue([{} as any, false]);
 
-    const result = await LibraryService.createServiceBulletin({
+    const result = await LibraryService.createServiceBulletin(evidence, {
       model_id: 'model-1',
       sb_number: 'SB-001',
       title: 'Imported Duplicate',
@@ -166,11 +178,13 @@ describe('LibraryService service bulletin creation', () => {
         service_bulletin_id: 'existing-sb',
         model_id: 'model-1',
       },
+      transaction: expect.anything(),
     });
     expect(update).toHaveBeenCalledWith(
       expect.objectContaining({
         revision: 'A',
-      })
+      }),
+      expect.objectContaining({ transaction: expect.anything() })
     );
   });
 });

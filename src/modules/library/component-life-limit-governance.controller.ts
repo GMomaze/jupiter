@@ -1,5 +1,6 @@
 import { NextFunction, Request, Response } from 'express';
 import { ComponentLifeLimitGovernanceService, type LifeLimitProposalInput } from './component-life-limit-governance.service.js';
+import { requestPlatformMutationEvidence } from '../platform-authority/authoritative-platform-mutation.js';
 
 const text = (value: unknown) => String(value ?? '').trim();
 const actorId = (req: Request) => String((req.user as any)?.id || '');
@@ -101,12 +102,12 @@ export class ComponentLifeLimitGovernanceController {
   static async list(req: Request, res: Response) { res.render('library/life-limit-governance/index', { title: 'Component Life-Limit Governance', proposals: await ComponentLifeLimitGovernanceService.list(), canPropose: hasPermission(req, 'COMPONENT_LIFE_LIMIT_PROPOSE') }); }
   static async newProposal(_req: Request, res: Response) { return renderForm(res, 200); }
   static async create(req: Request, res: Response) {
-    try { const input = inputFrom(req.body); if (!await ComponentLifeLimitGovernanceService.modelExists(input.component_model_id)) throw new GovernanceInputError('Select an existing active component model.'); const proposal = await ComponentLifeLimitGovernanceService.propose(actorId(req), input); req.flash('success', 'Governed life-limit proposal created for independent review.'); return res.redirect(`/library/life-limit-governance/proposals/${proposal.id}`); }
+    try { const input = inputFrom(req.body); if (!await ComponentLifeLimitGovernanceService.modelExists(input.component_model_id)) throw new GovernanceInputError('Select an existing active component model.'); const proposal = await ComponentLifeLimitGovernanceService.propose(requestPlatformMutationEvidence(req, ['LIFE_LIMIT_PROPOSE'], 'component_life_limit_proposal'), actorId(req), input); req.flash('success', 'Governed life-limit proposal created for independent review.'); return res.redirect(`/library/life-limit-governance/proposals/${proposal.id}`); }
     catch (error) { return renderForm(res, 422, { form: req.body, errors: [friendly(error)] }); }
   }
   static async detail(req: Request, res: Response, next: NextFunction) { try { const id=validateUuid(String(req.params.id), 'Proposal not found.', 404); const data = await ComponentLifeLimitGovernanceService.detail(id); return res.render('library/life-limit-governance/detail', { title: 'Life-Limit Proposal', ...data, currentUserId: actorId(req), canPropose: hasPermission(req, 'COMPONENT_LIFE_LIMIT_PROPOSE'), canApprove: hasPermission(req, 'COMPONENT_LIFE_LIMIT_APPROVE'), canActivate: hasPermission(req, 'COMPONENT_LIFE_LIMIT_ACTIVATE') }); } catch(error) { if (error instanceof GovernanceInputError || String((error as any)?.message).includes('PROPOSAL_NOT_FOUND')) return res.status(404).send('Governed life-limit proposal not found.'); return next(error); } }
   private static async decide(req: Request, res: Response, action: 'approve' | 'reject') {
-    try { if (action === 'approve') await ComponentLifeLimitGovernanceService.approve(actorId(req), String(req.params.id), text(req.body.decision_reason), req.body.evidence_confirmed === 'true'); else await ComponentLifeLimitGovernanceService.reject(actorId(req), String(req.params.id), text(req.body.decision_reason)); req.flash('success', action === 'approve' ? 'Proposal approved. Dormant publication created.' : 'Proposal rejected with immutable history.'); }
+    try { const evidence=requestPlatformMutationEvidence(req, ['LIFE_LIMIT_APPROVE'], 'component_life_limit_proposal', String(req.params.id)); if (action === 'approve') await ComponentLifeLimitGovernanceService.approve(evidence, actorId(req), String(req.params.id), text(req.body.decision_reason), req.body.evidence_confirmed === 'true'); else await ComponentLifeLimitGovernanceService.reject(evidence, actorId(req), String(req.params.id), text(req.body.decision_reason)); req.flash('success', action === 'approve' ? 'Proposal approved. Dormant publication created.' : 'Proposal rejected with immutable history.'); }
     catch (error) { req.flash('error', friendly(error)); }
     return res.redirect(`/library/life-limit-governance/proposals/${req.params.id}`);
   }
@@ -121,7 +122,7 @@ export class ComponentLifeLimitGovernanceController {
       const base = purpose === 'WITHDRAWAL' ? { ...req.body, limit_type: 'TBO_HOURS', limit_value: '1' } : req.body;
       const input = inputFrom(base);
       if (purpose === 'WITHDRAWAL') Object.assign(input, { limit_type: null, basis: null, limit_hours: null, limit_cycles: null, limit_months: null });
-      const proposal = await ComponentLifeLimitGovernanceService.proposeRevision(actorId(req), targetId, purpose, input);
+      const proposal = await ComponentLifeLimitGovernanceService.proposeRevision(requestPlatformMutationEvidence(req, ['LIFE_LIMIT_PROPOSE'], 'component_life_limit_proposal', targetId), actorId(req), targetId, purpose, input);
       req.flash('success', `${purpose === 'REPLACEMENT' ? 'Replacement' : 'Withdrawal'} proposal created for independent approval.`);
       return res.redirect(`/library/life-limit-governance/proposals/${proposal.id}`);
     } catch (error) { if (error instanceof GovernanceInputError && error.status === 404 || String((error as any)?.message).includes('PROPOSAL_NOT_FOUND')) return res.status(404).send('Governed life-limit proposal not found.'); let target; try { target=(await ComponentLifeLimitGovernanceService.detail(String(req.params.id))).proposal; } catch { return res.status(404).send('Governed life-limit proposal not found.'); } return renderForm(res, 422, { form: req.body, errors: [friendly(error)], target, purpose }); }
@@ -132,7 +133,7 @@ export class ComponentLifeLimitGovernanceController {
     const publicationId = String(req.params.id);
     try {
       validateUuid(publicationId, 'Publication not found.', 404);
-      const publication = await ComponentLifeLimitGovernanceService.activate(actorId(req), publicationId, text(req.body.activation_reason), req.body.activation_confirmed === 'true');
+      const publication = await ComponentLifeLimitGovernanceService.activate(requestPlatformMutationEvidence(req, ['LIFE_LIMIT_ACTIVATE'], 'component_life_limit_publication', publicationId), actorId(req), publicationId, text(req.body.activation_reason), req.body.activation_confirmed === 'true');
       req.flash('success', 'Governed life-limit publication activated with immutable history.');
       return res.redirect(`/library/life-limit-governance/proposals/${publication.proposal_id}`);
     } catch (error) {

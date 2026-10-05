@@ -19,6 +19,17 @@ const piperPathfinderContext: AdRelevanceContext = {
   assetTypeLabel: 'Aircraft',
 };
 
+const cessna180Context: AdRelevanceContext = {
+  modelId: 'model-cessna-180',
+  modelCode: '180',
+  modelName: '180',
+  manufacturerName: 'Cessna',
+  manufacturerCode: 'CESSNA',
+  manufacturerAliases: [],
+  assetTypeCode: 'AIRFRAME',
+  assetTypeLabel: 'Airframe',
+};
+
 function directive(overrides: Partial<AdRelevanceDirective>): AdRelevanceDirective {
   return {
     id: overrides.id || `ad-${overrides.ad_number || 'test'}`,
@@ -112,17 +123,77 @@ describe('AD read-only relevance matching', () => {
     );
 
     expect(buckets.EXACT_MODEL_SUGGESTED).toHaveLength(0);
-    expect(buckets.UNMATCHED).toHaveLength(1);
+    expect(buckets.MANUFACTURER_SUGGESTED).toHaveLength(1);
   });
 
-  it('does not suggest a non-matching model as exact', () => {
+  it('retains a resolved manufacturer with a non-matching model for manufacturer review', () => {
     const buckets = buildAdRelevanceBuckets(
       [directive({ model: 'PA-28-140' })],
       piperPathfinderContext
     );
 
     expect(buckets.EXACT_MODEL_SUGGESTED).toHaveLength(0);
-    expect(buckets.UNMATCHED).toHaveLength(1);
+    expect(buckets.MANUFACTURER_SUGGESTED).toHaveLength(1);
+  });
+
+  it('maps the exact normalized FAA Cessna source name to the current CESSNA manufacturer', () => {
+    const buckets = buildAdRelevanceBuckets(
+      [directive({ make: '  Cessna   Aircraft Company ', model: '180' })],
+      cessna180Context
+    );
+
+    expect(buckets.EXACT_MODEL_SUGGESTED).toHaveLength(1);
+    expect(buckets.EXACT_MODEL_SUGGESTED[0]?.matched_make).toBe(
+      'Cessna   Aircraft Company'
+    );
+    expect(buckets.EXACT_MODEL_SUGGESTED[0]?.matched_model).toBe('180');
+  });
+
+  it('does not resolve unevidenced Cessna-like source names', () => {
+    for (const make of ['Cessna Aircraft', 'Cessna Co', 'Cessna Aircraft Corp']) {
+      const buckets = buildAdRelevanceBuckets(
+        [directive({ make, model: '180' })],
+        cessna180Context
+      );
+
+      expect(buckets.EXACT_MODEL_SUGGESTED).toHaveLength(0);
+      expect(buckets.UNMATCHED).toHaveLength(1);
+    }
+  });
+
+  it('requires a resolved Make even when Model exactly matches', () => {
+    for (const make of ['', 'Unknown Aircraft Company']) {
+      const buckets = buildAdRelevanceBuckets(
+        [directive({ make, model: '180' })],
+        cessna180Context
+      );
+
+      expect(buckets.EXACT_MODEL_SUGGESTED).toHaveLength(0);
+      expect(buckets.UNMATCHED).toHaveLength(1);
+    }
+  });
+
+  it('retains resolved Cessna Make with a non-matching model for manufacturer review', () => {
+    const buckets = buildAdRelevanceBuckets(
+      [directive({ make: 'Cessna Aircraft Company', model: '182' })],
+      cessna180Context
+    );
+
+    expect(buckets.EXACT_MODEL_SUGGESTED).toHaveLength(0);
+    expect(buckets.MANUFACTURER_SUGGESTED).toHaveLength(1);
+  });
+
+  it('matches complete pipe-separated model tokens but not text merely containing 180', () => {
+    const buckets = buildAdRelevanceBuckets(
+      [
+        directive({ id: 'pipe-exact', make: 'Cessna Aircraft Company', model: '172 | 180 | 182' }),
+        directive({ id: 'contains', make: 'Cessna Aircraft Company', model: '180 SERIES' }),
+      ],
+      cessna180Context
+    );
+
+    expect(buckets.EXACT_MODEL_SUGGESTED.map((row) => row.id)).toEqual(['pipe-exact']);
+    expect(buckets.BROAD_REVIEW.map((row) => row.id)).toEqual(['contains']);
   });
 
   it('does not create compliance items while building suggestions', () => {

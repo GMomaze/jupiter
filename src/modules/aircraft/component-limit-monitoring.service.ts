@@ -5,6 +5,8 @@ import {
   SerializedComponent,
   SerializedComponentLifeState,
 } from '../../models/index.js';
+import { assertTenantQueryAuthority, type TenantQueryAuthority } from '../tenancy/tenant-query-authority.js';
+import { aircraftComponentInstallationTenantRepository } from './aircraft-component-installation-tenant.repository.live.js';
 import {
   DueBasis,
   DueStatusResult,
@@ -66,39 +68,46 @@ type LimitDimension = {
 };
 
 export class ComponentLimitMonitoringService {
-  static async monitorAircraft(aircraftId: string): Promise<ComponentLimitMonitoringResult[]> {
-    const installations = await AircraftComponentInstallation.findAll({
-      where: {
-        aircraft_id: aircraftId,
-        removed_at: null,
-      },
-      include: [this.serializedComponentInclude()],
-      order: [['installed_at', 'DESC']],
-    });
+  static async monitorAircraft(
+    authority: TenantQueryAuthority,
+    aircraftId: string,
+  ): Promise<ComponentLimitMonitoringResult[]> {
+    assertTenantQueryAuthority(authority);
+    const installations = await aircraftComponentInstallationTenantRepository.listActiveOperationalLifeContexts(
+      authority,
+      aircraftId,
+    );
 
     const results = await Promise.all(
-      installations.map((installation) => this.monitorInstallationRecord(installation))
+      installations.map((installation) => this.monitorInstallationRecord(
+        installation as unknown as AircraftComponentInstallation,
+        () => ComponentLifeCalculationService.calculateForDeferredBroadMonitoring(authority, installation.id),
+      ))
     );
 
     return results.flat();
   }
 
   static async monitorInstallation(
+    authority: TenantQueryAuthority,
     installationId: string
   ): Promise<ComponentLimitMonitoringResult[]> {
-    const installation = await AircraftComponentInstallation.findByPk(installationId, {
-      include: [this.serializedComponentInclude()],
-    });
+    assertTenantQueryAuthority(authority);
+    const installation = await aircraftComponentInstallationTenantRepository.getOperationalLifeContext(authority, installationId);
 
     if (!installation) {
-      throw new Error('INSTALLATION_NOT_FOUND');
+      throw new Error('TENANT_RESOURCE_UNAVAILABLE');
     }
 
-    return this.monitorInstallationRecord(installation);
+    return this.monitorInstallationRecord(
+      installation as unknown as AircraftComponentInstallation,
+      () => ComponentLifeCalculationService.calculateForInstallation(authority, installationId),
+    );
   }
 
   private static async monitorInstallationRecord(
-    installation: AircraftComponentInstallation
+    installation: AircraftComponentInstallation,
+    calculateLife: () => Promise<ComponentLifeCalculationResult>,
   ): Promise<ComponentLimitMonitoringResult[]> {
     const serializedComponent = (installation as any).SerializedComponent || null;
     const componentModel = serializedComponent?.ComponentModel || null;
@@ -117,9 +126,7 @@ export class ComponentLimitMonitoringService {
       ];
     }
 
-    const lifeCalculation = await ComponentLifeCalculationService.calculateForInstallation(
-      installation.id
-    );
+    const lifeCalculation = await calculateLife();
 
     return limits.map((limit: ComponentLifeLimit) =>
       this.evaluateLimit({
@@ -491,33 +498,6 @@ export class ComponentLimitMonitoringService {
     dueStatusResult: DueStatusResult
   ) {
     return `${limitType} is ${dueStatusResult.status}. ${dueStatusResult.explanation}`;
-  }
-
-  private static serializedComponentInclude() {
-    return {
-      model: SerializedComponent,
-      as: 'SerializedComponent',
-      required: true,
-      include: [
-        {
-          model: ComponentModel,
-          as: 'ComponentModel',
-          required: false,
-          include: [
-            {
-              model: ComponentLifeLimit,
-              as: 'LifeLimits',
-              required: false,
-            },
-          ],
-        },
-        {
-          model: SerializedComponentLifeState,
-          as: 'LifeState',
-          required: false,
-        },
-      ],
-    };
   }
 
   private static calendarReferenceDate(params: {

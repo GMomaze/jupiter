@@ -3,7 +3,6 @@ import request from 'supertest';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import libraryRoutes from './library.routes.js';
 import { LibraryService } from './library.service.js';
-import { AdRelevanceService } from './ad-relevance.service.js';
 
 vi.mock('../../middleware/auth.middleware.js', () => ({
   ensureAuthenticated: (_req: unknown, _res: unknown, next: () => void) => next(),
@@ -37,7 +36,7 @@ describe('GET /library/model/:id', () => {
     vi.spyOn(LibraryService, 'getModelApplicabilityAssignments').mockResolvedValue({
       assignedAirworthinessDirectives: [],
     } as any);
-    vi.spyOn(AdRelevanceService, 'getReadOnlyRelevanceForModel').mockResolvedValue({} as any);
+    vi.spyOn(LibraryService, 'getModelAdApplicabilityScope').mockResolvedValue({} as any);
 
     const response = await request(createTestApp()).get(`/library/model/${model.id}`);
 
@@ -53,7 +52,7 @@ describe('GET /library/model/:id', () => {
     const attachableSpy = vi.spyOn(LibraryService, 'getAttachableServiceBulletins');
     const sidsSpy = vi.spyOn(LibraryService, 'getModelSids');
     const applicabilitySpy = vi.spyOn(LibraryService, 'getModelApplicabilityAssignments');
-    const relevanceSpy = vi.spyOn(AdRelevanceService, 'getReadOnlyRelevanceForModel');
+    const scopeSpy = vi.spyOn(LibraryService, 'getModelAdApplicabilityScope');
 
     const response = await request(createTestApp()).get(`/library/model/${missingId}`);
 
@@ -65,6 +64,6 @@ describe('GET /library/model/:id', () => {
     expect(attachableSpy).not.toHaveBeenCalled();
     expect(sidsSpy).not.toHaveBeenCalled();
     expect(applicabilitySpy).not.toHaveBeenCalled();
-    expect(relevanceSpy).not.toHaveBeenCalled();
+    expect(scopeSpy).not.toHaveBeenCalled();
   });
 });

@@ -1,0 +1,6 @@
+<% summary.forEach(stat => { %>
+  <div class="stat-card status-<%= stat.maintenance_status.toLowerCase() %>">
+    <label><%= stat.maintenance_status %></label>
+    <span class="count"><%= stat.count %></span>
+  </div>
+<% }) %>

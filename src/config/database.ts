@@ -1,6 +1,15 @@
 import pg from 'pg';
 import { Sequelize } from 'sequelize';
-import './environment.js';
+
+const denyLiveDatabase = process.env.JUPITER_DENY_LIVE_DB === 'YES';
+
+if (denyLiveDatabase) {
+  throw new Error(
+    'NO_DATABASE_TEST_BOUNDARY: live database infrastructure was imported'
+  );
+}
+
+await import('./environment.js');
 
 const { Pool } = pg;
 

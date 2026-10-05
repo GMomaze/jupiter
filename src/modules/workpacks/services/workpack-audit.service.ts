@@ -1,7 +1,27 @@
 import { WorkpackAuditLog, WorkpackSnagAuditLog } from '../../../models/index.js';
 import { createHash } from 'crypto';
+import type { TenantQueryAuthority } from '../../tenancy/tenant-query-authority.js';
+import { assertTenantQueryAuthority } from '../../tenancy/tenant-query-authority.js';
+import { workpackTenantRepository } from '../workpack-tenant.repository.js';
 
 export class WorkpackAuditService {
+  static async getSnagAuditEntries(
+    authority: TenantQueryAuthority,
+    snagId: string,
+    transaction?: any,
+  ) {
+    assertTenantQueryAuthority(authority);
+    const snag = await workpackTenantRepository.getSnagById(
+      authority, snagId, transaction ? { transaction } : {}
+    );
+    if (!snag) return [];
+    return WorkpackSnagAuditLog.findAll({
+      where: { snag_id: snag.id },
+      order: [['sequence', 'ASC']],
+      ...(transaction ? { transaction } : {}),
+    });
+  }
+
   static async appendExecutionAuditEntry(
     params: {
       executionId: string;
@@ -64,7 +84,7 @@ export class WorkpackAuditService {
   static async appendSnagAuditEntry(
     params: {
       snagId: string;
-      workpackId: string;
+      workpackId: string | null;
       userId?: string | undefined;
       action: string;
       field?: string | null;

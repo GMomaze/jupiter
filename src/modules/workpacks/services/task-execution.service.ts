@@ -1,9 +1,13 @@
+import { withTenantTransaction } from '../../tenancy/tenant-transaction.js';
 import { TaskCard } from '../../../models/index.js';
 import { AuditService } from '../../audit/audit.service.js';
 import { MeasurementService } from './measurement.service.js';
 import { SnagService } from './snag.service.js';
 import { WorkpackAuditService } from './workpack-audit.service.js';
 import { WorkpackExecutionService } from './workpack-execution.service.js';
+import type { TenantQueryAuthority } from '../../tenancy/tenant-query-authority.js';
+import { assertTenantQueryAuthority } from '../../tenancy/tenant-query-authority.js';
+import { workpackTenantRepository } from '../workpack-tenant.repository.js';
 
 type TransitionPack = {
   id: string;
@@ -19,14 +23,14 @@ type ExecutablePackResult = {
 };
 
 export class TaskExecutionService {
-  static async createExecutionSnag(params: {
+  static async createExecutionSnag(authority: TenantQueryAuthority, params: {
     workpack_id?: string | null;
     aircraft_id: string;
     component_id?: string | null;
     defect_text: string;
     created_by: string;
   }) {
-    return SnagService.createSnag(params);
+    return SnagService.createSnag(authority, params);
   }
 
   static async getExecutionSnags(workpackId: string) {
@@ -38,6 +42,7 @@ export class TaskExecutionService {
   }
 
   static async startTask(
+    authority: TenantQueryAuthority,
     taskId: string,
     actorId: string | undefined,
     actorRoles: string[],
@@ -65,12 +70,12 @@ export class TaskExecutionService {
       transaction: any
     ) => Promise<any>
   ) {
+    assertTenantQueryAuthority(authority);
     requireAuth(actorId);
 
-    return sequelize.transaction(async (transaction: any) => {
-      const task = await TaskCard.findByPk(taskId, {
-        transaction,
-        lock: transaction.LOCK.UPDATE
+    return withTenantTransaction(authority, async (transaction: any) => {
+      const task = await workpackTenantRepository.getTaskCardById(authority, taskId, {
+        transaction, lock: transaction.LOCK.UPDATE
       });
 
       if (!task) throw new Error('TASK_NOT_FOUND');
@@ -138,6 +143,7 @@ export class TaskExecutionService {
   }
 
   static async completeTask(
+    authority: TenantQueryAuthority,
     taskId: string,
     actorId: string | undefined,
     actorRoles: string[],
@@ -167,12 +173,12 @@ export class TaskExecutionService {
       transaction: any
     ) => Promise<any>
   ) {
+    assertTenantQueryAuthority(authority);
     requireAuth(actorId);
 
-    return sequelize.transaction(async (transaction: any) => {
-      const task = await TaskCard.findByPk(taskId, {
-        transaction,
-        lock: transaction.LOCK.UPDATE
+    return withTenantTransaction(authority, async (transaction: any) => {
+      const task = await workpackTenantRepository.getTaskCardById(authority, taskId, {
+        transaction, lock: transaction.LOCK.UPDATE
       });
 
       if (!task) throw new Error('TASK_NOT_FOUND');
@@ -282,6 +288,7 @@ export class TaskExecutionService {
   }
 
   static async signTask(
+    authority: TenantQueryAuthority,
     taskId: string,
     actorId: string | undefined,
     actorRoles: string[],
@@ -297,16 +304,16 @@ export class TaskExecutionService {
       transaction: any
     ) => Promise<any>
   ) {
+    assertTenantQueryAuthority(authority);
     requireAuth(actorId);
 
-    return sequelize.transaction(async (transaction: any) => {
+    return withTenantTransaction(authority, async (transaction: any) => {
       if (!actorRoles.includes('ENGINEER')) {
         throw new Error('TASK_CERTIFY_ROLE_BLOCKED');
       }
 
-      const task = await TaskCard.findByPk(taskId, {
-        transaction,
-        lock: transaction.LOCK.UPDATE
+      const task = await workpackTenantRepository.getTaskCardById(authority, taskId, {
+        transaction, lock: transaction.LOCK.UPDATE
       });
 
       if (!task) throw new Error('TASK_NOT_FOUND');
@@ -379,6 +386,7 @@ export class TaskExecutionService {
   }
 
   static async lockTask(
+    authority: TenantQueryAuthority,
     taskId: string,
     actorId: string | undefined,
     sequelize: any,
@@ -388,12 +396,12 @@ export class TaskExecutionService {
       transaction: any
     ) => Promise<ExecutablePackResult>
   ) {
+    assertTenantQueryAuthority(authority);
     requireAuth(actorId);
 
-    return sequelize.transaction(async (transaction: any) => {
-      const task = await TaskCard.findByPk(taskId, {
-        transaction,
-        lock: transaction.LOCK.UPDATE
+    return withTenantTransaction(authority, async (transaction: any) => {
+      const task = await workpackTenantRepository.getTaskCardById(authority, taskId, {
+        transaction, lock: transaction.LOCK.UPDATE
       });
 
       if (!task) throw new Error('TASK_NOT_FOUND');
@@ -422,6 +430,7 @@ export class TaskExecutionService {
   }
 
   static async saveWorkPerformed(
+    authority: TenantQueryAuthority,
     taskId: string,
     workPerformed: string,
     actorId: string | undefined,
@@ -451,12 +460,12 @@ export class TaskExecutionService {
       transaction: any
     ) => Promise<any>
   ) {
+    assertTenantQueryAuthority(authority);
     requireAuth(actorId);
 
-    return sequelize.transaction(async (transaction: any) => {
-      const task = await TaskCard.findByPk(taskId, {
-        transaction,
-        lock: transaction.LOCK.UPDATE
+    return withTenantTransaction(authority, async (transaction: any) => {
+      const task = await workpackTenantRepository.getTaskCardById(authority, taskId, {
+        transaction, lock: transaction.LOCK.UPDATE
       });
 
       if (!task) throw new Error('TASK_NOT_FOUND');

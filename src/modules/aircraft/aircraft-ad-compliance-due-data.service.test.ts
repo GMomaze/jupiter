@@ -1,9 +1,11 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { Aircraft, sequelize } from '../../models/index.js';
+import { sequelize } from '../../models/index.js';
 import { AuditService } from '../audit/audit.service.js';
 import { AircraftService } from './aircraft.service.js';
+import { aircraftTenantRepository } from './aircraft-tenant.repository.live.js';
+import { aircraftComplianceTestAuthority as authority } from './aircraft-compliance-tenant.test-support.js';
 
 const aircraftId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const otherAircraftId = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
@@ -17,7 +19,7 @@ function mockTransaction() {
 }
 
 function mockAircraft(found = true) {
-  vi.spyOn(Aircraft, 'findByPk').mockResolvedValue(found ? ({ id: aircraftId } as any) : null);
+  vi.spyOn(aircraftTenantRepository, 'getById').mockResolvedValue(found ? ({ id: aircraftId } as any) : undefined);
 }
 
 function aircraftComplianceRow(overrides: Record<string, any> = {}) {
@@ -50,7 +52,7 @@ describe('aircraft AD manual due data update', () => {
       .mockResolvedValueOnce([] as any);
     vi.spyOn(AuditService, 'log').mockResolvedValue({} as any);
 
-    const result = await AircraftService.updateAdOperationalComplianceDueData({
+    const result = await AircraftService.updateAdOperationalComplianceDueData(authority, {
       aircraftId,
       complianceId,
       actorUserId: 'user-id',
@@ -123,7 +125,7 @@ describe('aircraft AD manual due data update', () => {
       .mockResolvedValueOnce([] as any);
     vi.spyOn(AuditService, 'log').mockResolvedValue({} as any);
 
-    const result = await AircraftService.updateAdOperationalComplianceDueData({
+    const result = await AircraftService.updateAdOperationalComplianceDueData(authority, {
       aircraftId,
       complianceId,
       nextDueAt: '',
@@ -147,7 +149,7 @@ describe('aircraft AD manual due data update', () => {
     vi.spyOn(sequelize, 'transaction');
 
     await expect(
-      AircraftService.updateAdOperationalComplianceDueData({
+      AircraftService.updateAdOperationalComplianceDueData(authority, {
         aircraftId,
         complianceId,
         nextDueAt: '2026-02-31',
@@ -162,7 +164,7 @@ describe('aircraft AD manual due data update', () => {
     vi.spyOn(sequelize, 'transaction');
 
     await expect(
-      AircraftService.updateAdOperationalComplianceDueData({
+      AircraftService.updateAdOperationalComplianceDueData(authority, {
         aircraftId,
         complianceId,
         nextDueHours: '-1',
@@ -177,7 +179,7 @@ describe('aircraft AD manual due data update', () => {
     vi.spyOn(sequelize, 'transaction');
 
     await expect(
-      AircraftService.updateAdOperationalComplianceDueData({
+      AircraftService.updateAdOperationalComplianceDueData(authority, {
         aircraftId,
         complianceId,
       })
@@ -192,26 +194,24 @@ describe('aircraft AD manual due data update', () => {
     vi.spyOn(sequelize, 'query').mockResolvedValueOnce([] as any);
 
     await expect(
-      AircraftService.updateAdOperationalComplianceDueData({
+      AircraftService.updateAdOperationalComplianceDueData(authority, {
         aircraftId,
         complianceId,
       })
     ).rejects.toThrow('AIRCRAFT_COMPLIANCE_NOT_FOUND');
   });
 
-  it('blocks wrong-aircraft aircraft_compliance rows', async () => {
+  it('makes wrong-aircraft aircraft_compliance rows observationally unavailable', async () => {
     mockTransaction();
     mockAircraft();
-    vi.spyOn(sequelize, 'query').mockResolvedValueOnce([
-      aircraftComplianceRow({ aircraft_id: otherAircraftId }),
-    ] as any);
+    vi.spyOn(sequelize, 'query').mockResolvedValueOnce([] as any);
 
     await expect(
-      AircraftService.updateAdOperationalComplianceDueData({
+      AircraftService.updateAdOperationalComplianceDueData(authority, {
         aircraftId,
         complianceId,
       })
-    ).rejects.toThrow('AIRCRAFT_COMPLIANCE_AIRCRAFT_MISMATCH');
+    ).rejects.toThrow('AIRCRAFT_COMPLIANCE_NOT_FOUND');
   });
 
   it('blocks non-AD compliance items', async () => {
@@ -222,7 +222,7 @@ describe('aircraft AD manual due data update', () => {
     ] as any);
 
     await expect(
-      AircraftService.updateAdOperationalComplianceDueData({
+      AircraftService.updateAdOperationalComplianceDueData(authority, {
         aircraftId,
         complianceId,
       })

@@ -9,12 +9,14 @@ import {
 
 import sequelize from '../../config/database.js';
 import { ComponentModel } from '../ComponentModel.js';
+import type { Tenant } from '../Tenant.js';
 
 export class Aircraft extends Model<
   InferAttributes<Aircraft>,
   InferCreationAttributes<Aircraft>
 > {
   declare id: CreationOptional<string>;
+  declare readonly tenant_id: ForeignKey<Tenant['id']>;
   declare registration: string;
   declare serial_number: string;
 
@@ -45,10 +47,25 @@ Aircraft.init(
       primaryKey: true,
     },
 
+    tenant_id: {
+      type: DataTypes.UUID,
+      allowNull: false,
+      field: 'tenant_id',
+      references: { model: 'tenants', key: 'id' },
+      onUpdate: 'RESTRICT',
+      onDelete: 'RESTRICT',
+    },
+
     registration: {
       type: DataTypes.STRING,
       allowNull: false,
-      unique: true,
+      validate: {
+        notBlank(value: string) {
+          if (String(value).trim() === '') {
+            throw new Error('AIRCRAFT_REGISTRATION_BLANK');
+          }
+        },
+      },
     },
 
     serial_number: {
@@ -143,6 +160,24 @@ Aircraft.init(
     tableName: 'aircraft',
     underscored: true,
     version: true, // enables optimistic locking via version column
+    hooks: {
+      beforeUpdate(instance) {
+        if (instance.changed('tenant_id')) {
+          throw new Error('ROOT_OPERATIONAL_TENANT_OWNERSHIP_IMMUTABLE');
+        }
+      },
+      beforeBulkUpdate(options) {
+        const attributes = 'attributes' in options ? options.attributes : undefined;
+        if (
+          (attributes != null &&
+            typeof attributes === 'object' &&
+            Object.prototype.hasOwnProperty.call(attributes, 'tenant_id')) ||
+          options.fields?.includes('tenant_id')
+        ) {
+          throw new Error('ROOT_OPERATIONAL_TENANT_OWNERSHIP_IMMUTABLE');
+        }
+      },
+    },
   }
 );
 

@@ -9,7 +9,10 @@ import {
   Manufacturer,
   SerializedComponent,
   SerializedComponentLifeState,
+  Tenant,
+  User,
 } from '../../models/index.js';
+import { createTenantQueryAuthority } from '../tenancy/tenant-query-authority.js';
 import { UtilisationService } from '../utilisation/utilisation.service.js';
 import { ComponentLifeCalculationService } from './component-life-calculation.service.js';
 
@@ -28,6 +31,9 @@ async function createCalculationContext(options: {
   installCso?: number | null;
 }) {
   const suffix = randomUUID().slice(0, 8).toUpperCase();
+  const owner = await User.create({ email: `life-${suffix}@example.test`, password_hash: 'test', full_name: 'Life Test Owner', is_active: true });
+  const tenant = await Tenant.create({ code: `LIFE_${suffix}`, display_name: `Life Tenant ${suffix}`, status: 'ACTIVE', created_by_user_id: owner.id, updated_by_user_id: owner.id });
+  const authority = createTenantQueryAuthority({ state: 'VALID_ACTIVE_TENANT', tenant: { id: tenant.id, publicId: tenant.public_id, code: tenant.code, displayName: tenant.display_name, status: 'ACTIVE' }, membership: { id: randomUUID(), tenantId: tenant.id, userId: owner.id, status: 'ACTIVE' }, validatedAt: Date.now() });
   const registrationSequence = (++aircraftRegistrationCounter)
     .toString(36)
     .toUpperCase()
@@ -68,18 +74,20 @@ async function createCalculationContext(options: {
     total_time_hours: 0,
     total_time_cycles: 0,
     version: 0,
+    tenant_id: tenant.id,
   });
   const serializedComponent = await SerializedComponent.create({
     component_model_id: model.id,
     serial_number: `LIFE-SC-${suffix}`,
     status: 'INSTALLED',
+    custodian_tenant_id: tenant.id,
   });
 
   const aircraftHours = options.aircraftHours ?? 15.5;
   const aircraftCycles = options.aircraftCycles ?? 11;
 
   if (aircraftHours > 0 || aircraftCycles > 0) {
-    await UtilisationService.recordUtilisation({
+    await UtilisationService.recordUtilisation(authority, {
       aircraftId: aircraft.id,
       newTotalTimeHours: aircraftHours,
       newTotalTimeCycles: aircraftCycles,
@@ -103,12 +111,12 @@ async function createCalculationContext(options: {
     install_cso: options.installCso,
   });
 
-  return { aircraft, installation, serializedComponent };
+  return { aircraft, installation, serializedComponent, authority };
 }
 
 describe('ComponentLifeCalculationService', () => {
   it('calculates AIRCRAFT_HOURS TSN from install baseline and aircraft hour delta', async () => {
-    const { installation } = await createCalculationContext({
+    const { installation, authority } = await createCalculationContext({
       trackingBasis: 'AIRCRAFT_HOURS',
       aircraftHours: 15.5,
       installAircraftHours: 10.25,
@@ -116,7 +124,7 @@ describe('ComponentLifeCalculationService', () => {
       installTso: 20,
     });
 
-    const result = await ComponentLifeCalculationService.calculateForInstallation(installation.id);
+    const result = await ComponentLifeCalculationService.calculateForInstallation(authority, installation.id);
 
     expect(result.dimensions.tsn_hours.status).toBe('CALCULATED');
     expect(result.dimensions.tsn_hours.value).toBe(105.25);
@@ -124,7 +132,7 @@ describe('ComponentLifeCalculationService', () => {
   });
 
   it('calculates AIRCRAFT_HOURS TSO from install baseline and aircraft hour delta', async () => {
-    const { installation } = await createCalculationContext({
+    const { installation, authority } = await createCalculationContext({
       trackingBasis: 'AIRCRAFT_HOURS',
       aircraftHours: 22,
       installAircraftHours: 12,
@@ -132,7 +140,7 @@ describe('ComponentLifeCalculationService', () => {
       installTso: 7.5,
     });
 
-    const result = await ComponentLifeCalculationService.calculateForInstallation(installation.id);
+    const result = await ComponentLifeCalculationService.calculateForInstallation(authority, installation.id);
 
     expect(result.dimensions.tso_hours.status).toBe('CALCULATED');
     expect(result.dimensions.tso_hours.value).toBe(17.5);
@@ -140,7 +148,7 @@ describe('ComponentLifeCalculationService', () => {
   });
 
   it('calculates AIRCRAFT_CYCLES CSN from install baseline and aircraft cycle delta', async () => {
-    const { installation } = await createCalculationContext({
+    const { installation, authority } = await createCalculationContext({
       trackingBasis: 'AIRCRAFT_CYCLES',
       aircraftCycles: 12,
       installAircraftCycles: 7,
@@ -148,7 +156,7 @@ describe('ComponentLifeCalculationService', () => {
       installCso: 3,
     });
 
-    const result = await ComponentLifeCalculationService.calculateForInstallation(installation.id);
+    const result = await ComponentLifeCalculationService.calculateForInstallation(authority, installation.id);
 
     expect(result.dimensions.csn_cycles.status).toBe('CALCULATED');
     expect(result.dimensions.csn_cycles.value).toBe(45);
@@ -156,7 +164,7 @@ describe('ComponentLifeCalculationService', () => {
   });
 
   it('calculates AIRCRAFT_CYCLES CSO from install baseline and aircraft cycle delta', async () => {
-    const { installation } = await createCalculationContext({
+    const { installation, authority } = await createCalculationContext({
       trackingBasis: 'AIRCRAFT_CYCLES',
       aircraftCycles: 9,
       installAircraftCycles: 4,
@@ -164,7 +172,7 @@ describe('ComponentLifeCalculationService', () => {
       installCso: 8,
     });
 
-    const result = await ComponentLifeCalculationService.calculateForInstallation(installation.id);
+    const result = await ComponentLifeCalculationService.calculateForInstallation(authority, installation.id);
 
     expect(result.dimensions.cso_cycles.status).toBe('CALCULATED');
     expect(result.dimensions.cso_cycles.value).toBe(13);
@@ -172,14 +180,14 @@ describe('ComponentLifeCalculationService', () => {
   });
 
   it('returns UNKNOWN instead of guessing when required baselines are missing', async () => {
-    const { installation } = await createCalculationContext({
+    const { installation, authority } = await createCalculationContext({
       trackingBasis: 'AIRCRAFT_HOURS',
       aircraftHours: 15.5,
       installAircraftHours: null,
       installTsn: 100,
     });
 
-    const result = await ComponentLifeCalculationService.calculateForInstallation(installation.id);
+    const result = await ComponentLifeCalculationService.calculateForInstallation(authority, installation.id);
 
     expect(result.dimensions.tsn_hours.status).toBe('UNKNOWN');
     expect(result.dimensions.tsn_hours.value).toBeNull();
@@ -189,11 +197,11 @@ describe('ComponentLifeCalculationService', () => {
   });
 
   it('returns UNKNOWN for CALENDAR hour and cycle life', async () => {
-    const { installation } = await createCalculationContext({
+    const { installation, authority } = await createCalculationContext({
       trackingBasis: 'CALENDAR',
     });
 
-    const result = await ComponentLifeCalculationService.calculateForInstallation(installation.id);
+    const result = await ComponentLifeCalculationService.calculateForInstallation(authority, installation.id);
 
     expect(result.status).toBe('UNKNOWN');
     expect(result.dimensions.tsn_hours.missing_reasons[0]).toMatch(/CALENDAR/);
@@ -201,11 +209,11 @@ describe('ComponentLifeCalculationService', () => {
   });
 
   it('returns UNKNOWN placeholder for ENGINE_METER until engine meter authority exists', async () => {
-    const { installation } = await createCalculationContext({
+    const { installation, authority } = await createCalculationContext({
       trackingBasis: 'ENGINE_METER',
     });
 
-    const result = await ComponentLifeCalculationService.calculateForInstallation(installation.id);
+    const result = await ComponentLifeCalculationService.calculateForInstallation(authority, installation.id);
 
     expect(result.status).toBe('UNKNOWN');
     expect(result.dimensions.tsn_hours.missing_reasons[0]).toBe(
@@ -214,11 +222,11 @@ describe('ComponentLifeCalculationService', () => {
   });
 
   it('returns UNKNOWN placeholder for PROPELLER_METER until propeller meter authority exists', async () => {
-    const { installation } = await createCalculationContext({
+    const { installation, authority } = await createCalculationContext({
       trackingBasis: 'PROPELLER_METER',
     });
 
-    const result = await ComponentLifeCalculationService.calculateForInstallation(installation.id);
+    const result = await ComponentLifeCalculationService.calculateForInstallation(authority, installation.id);
 
     expect(result.status).toBe('UNKNOWN');
     expect(result.dimensions.tsn_hours.missing_reasons[0]).toBe(
@@ -227,7 +235,7 @@ describe('ComponentLifeCalculationService', () => {
   });
 
   it('returns stored life-state values for MANUAL_AUTHORISED', async () => {
-    const { installation, serializedComponent } = await createCalculationContext({
+    const { installation, serializedComponent, authority } = await createCalculationContext({
       trackingBasis: 'MANUAL_AUTHORISED',
     });
 
@@ -239,7 +247,7 @@ describe('ComponentLifeCalculationService', () => {
       cso_cycles: 8,
     });
 
-    const result = await ComponentLifeCalculationService.calculateForInstallation(installation.id);
+    const result = await ComponentLifeCalculationService.calculateForInstallation(authority, installation.id);
 
     expect(result.status).toBe('CALCULATED');
     expect(result.dimensions.tsn_hours.value).toBe(123.45);
@@ -249,7 +257,7 @@ describe('ComponentLifeCalculationService', () => {
   });
 
   it('includes explainability fields for calculated dimensions', async () => {
-    const { installation } = await createCalculationContext({
+    const { installation, authority } = await createCalculationContext({
       trackingBasis: 'AIRCRAFT_HOURS',
       aircraftHours: 14,
       installAircraftHours: 10,
@@ -257,7 +265,7 @@ describe('ComponentLifeCalculationService', () => {
       installTso: 5,
     });
 
-    const result = await ComponentLifeCalculationService.calculateForInstallation(installation.id);
+    const result = await ComponentLifeCalculationService.calculateForInstallation(authority, installation.id);
     const tsn = result.dimensions.tsn_hours;
 
     expect(tsn.tracking_basis).toBe('AIRCRAFT_HOURS');

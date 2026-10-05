@@ -1,6 +1,6 @@
-import { Router } from 'express';
+import { Router, type RequestHandler } from 'express';
 import csrf from 'csurf';
-import { WorkpackController } from './workpack.controller.js';
+import { WorkpackController as UngatedWorkpackController } from './workpack.controller.js';
 import { requireAuth } from '../../middleware/auth.middleware.js';
 import { requireAnyRole, requireRole } from '../../middleware/rbac.middleware.js';
 import multer from 'multer';
@@ -8,6 +8,23 @@ import multer from 'multer';
 const router = Router();
 const upload = multer({ storage: multer.memoryStorage() });
 const csrfProtection = csrf();
+let activeTenantGate: RequestHandler | null = null;
+
+const requireWorkpackTenant: RequestHandler = (req, res, next) => {
+  if (!activeTenantGate) return next(new Error('TENANT_GATE_REQUIRED'));
+  return activeTenantGate(req, res, next);
+};
+
+const WorkpackController = new Proxy(UngatedWorkpackController, {
+  get(target, property, receiver) {
+    const handler = Reflect.get(target, property, receiver);
+    if (property === 'handleImportTemplates' || typeof handler !== 'function') return handler;
+    return ((req, res, next) =>
+      requireWorkpackTenant(req, res, error =>
+        error ? next(error) : handler.call(target, req, res, next)
+      )) as RequestHandler;
+  },
+}) as typeof UngatedWorkpackController;
 
 /* ============================================================
     VIEW ROUTES
@@ -304,5 +321,10 @@ router.post(
   requireRole('SUPERVISOR'),
   WorkpackController.handleTaskLock
 );
+
+export function createWorkpackRouter(requireValidActiveTenantContext: RequestHandler) {
+  activeTenantGate = requireValidActiveTenantContext;
+  return router;
+}
 
 export default router;

@@ -3,6 +3,8 @@ import { Request, Response } from 'express';
 import { parse } from 'csv-parse/sync';
 import { QueryTypes } from 'sequelize';
 import sequelize from '../../config/database.js';
+import type { PlatformMutationEvidence } from '../platform-authority/authoritative-platform-mutation.js';
+import { executeAuthoritativePlatformMutation, requestPlatformMutationEvidence, requirePlatformMutationOperations } from '../platform-authority/authoritative-platform-mutation.js';
 import { AssetType, ComponentModel, Manufacturer } from '../../models/index.js';
 
 type PiperModelMasterStatus =
@@ -467,8 +469,8 @@ async function buildPreview(buffer: Buffer) {
   } satisfies PiperModelMasterPreview;
 }
 
-async function commitPreview(preview: PiperModelMasterPreview) {
-  return sequelize.transaction(async (transaction) => {
+async function commitPreview(evidence: PlatformMutationEvidence, preview: PiperModelMasterPreview) {
+  return executeAuthoritativePlatformMutation(requirePlatformMutationOperations(evidence, ['SHARED_MASTER_IMPORT', 'COMPONENT_MODEL_CREATE']), async (transaction) => {
     const rows = [];
     let created = 0;
     let skipped = 0;
@@ -540,7 +542,7 @@ async function commitPreview(preview: PiperModelMasterPreview) {
       skipped,
       rows,
     };
-  });
+  }, result => ({ after: result }));
 }
 
 export class PiperModelMasterImportController {
@@ -615,7 +617,7 @@ export class PiperModelMasterImportController {
       });
     }
 
-    const result = await commitPreview(importState.preview as PiperModelMasterPreview);
+    const result = await commitPreview(requestPlatformMutationEvidence(req, ['SHARED_MASTER_IMPORT', 'COMPONENT_MODEL_CREATE'], 'component_model_import'), importState.preview as PiperModelMasterPreview);
     delete req.session.piperModelMasterImportState;
 
     return res.render('library/models/result', {

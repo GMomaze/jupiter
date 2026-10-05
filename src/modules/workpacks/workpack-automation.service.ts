@@ -4,6 +4,9 @@ import {
   MaintenanceRequirement,
   AircraftComponent
 } from '../../models/index.js';
+import type { TenantQueryAuthority } from '../tenancy/tenant-query-authority.js';
+import { assertTenantQueryAuthority } from '../tenancy/tenant-query-authority.js';
+import { aircraftTenantRepository } from '../aircraft/aircraft-tenant.repository.live.js';
 import { QueryTypes } from 'sequelize';
 
 export class WorkpackAutomationService {
@@ -15,8 +18,17 @@ export class WorkpackAutomationService {
   static async attachRequirementToAircraft(
     aircraft_id: string,
     requirement: MaintenanceRequirement,
-    transaction: any
+    transaction: any,
+    tenantAuthority: TenantQueryAuthority
   ) {
+    assertTenantQueryAuthority(tenantAuthority);
+
+    const authoritativeAircraft = await aircraftTenantRepository.getById(
+      tenantAuthority,
+      aircraft_id,
+      { transaction },
+    );
+    if (!authoritativeAircraft) throw new Error('INVALID_AIRCRAFT');
 
     // 🔥 Get DRAFT workpack status
     const draftStatus = await sequelize.query(
@@ -33,6 +45,7 @@ export class WorkpackAutomationService {
     // 🔥 Find existing DRAFT workpack
     let workpack = await Workpack.findOne({
       where: {
+        tenant_id: tenantAuthority.tenantId,
         aircraft_id,
         status_id: draftStatusId
       },
@@ -46,6 +59,7 @@ export class WorkpackAutomationService {
 
       workpack = await Workpack.create(
         {
+          tenant_id: tenantAuthority.tenantId,
           aircraft_id,
           status_id: draftStatusId,
           work_order_number: workOrderNumber

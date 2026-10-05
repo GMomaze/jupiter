@@ -2,33 +2,45 @@
 
 **Document ID:** JUPITER-GOVERNANCE-INDEX
 
-**Revision:** 1.1
+**Revision:** 1.2
 
 **Status:** Canonical
 
-**Effective date:** 2026-08-18
+**Effective date:** 2026-09-07
 
-## Minimum mandatory authority chain
+## Minimal context boot
 
-A fresh session reads only the minimum canonical context required to establish
-authority and current work:
+A normal fresh session loads only:
 
 1. [`/AGENTS.md`](../../AGENTS.md) — repository entry and non-negotiable rules.
-2. [`JUPITER_AI_DEVELOPMENT_CONSTITUTION.md`](JUPITER_AI_DEVELOPMENT_CONSTITUTION.md)
-   — stable engineering and safety principles.
-3. [`SESSION_BOOT.md`](SESSION_BOOT.md) — minimum session startup and worktree
-   safety checks.
-4. [`ACTIVE_WORK.md`](ACTIVE_WORK.md) — the single current/paused work registry.
-5. The exact approved programme, feature, phase, or slice plan required for the
-   current task.
+2. [`ACTIVE_WORK.md`](ACTIVE_WORK.md) — the single current/paused work registry.
+3. [`TENANCY_STATE.md`](TENANCY_STATE.md) — compact current-state evidence for
+   Multi-Tenant SaaS work; it does not replace or create authority.
+4. Current Git HEAD and staged, modified, deleted, and untracked state.
+5. The exact current Project Owner instruction and authorized or defined task.
 
-Do not load unrelated governance, programme, feature, domain, or historical
-documents by default.
+Use the smallest authoritative and evidentiary context sufficient to perform the approved task safely. Canonical authority does not require all canonical documents to be loaded into every session.
+
+Do not recursively read documents merely because this index or another
+governance document lists them. The documents below retain their canonical
+authority but are loaded only when applicable.
 
 ## Conditional authority documents
 
 The following documents remain canonical but are loaded only when relevant to
 the authorized task.
+
+### Constitution
+
+Read
+[`JUPITER_AI_DEVELOPMENT_CONSTITUTION.md`](JUPITER_AI_DEVELOPMENT_CONSTITUTION.md)
+when the task requires stable engineering/safety interpretation, applicable
+security or tenancy architecture rules, or resolution of a governance conflict.
+
+### Detailed Session Boot
+
+Read [`SESSION_BOOT.md`](SESSION_BOOT.md) when boot interpretation, authority,
+scope, worktree safety, or a stop condition is unclear.
 
 ### Master Execution Plan
 
@@ -101,10 +113,11 @@ Conflicts must be reported before work continues.
 
 | Document | Responsibility | Default loading |
 |---|---|---|
-| Constitution | Stable global engineering and safety rules | Mandatory |
-| Session Boot | Minimum startup and authority confirmation | Mandatory |
+| Constitution | Stable global engineering and safety rules | Conditional |
+| Session Boot | Detailed startup and authority confirmation | Conditional |
 | Active Work | Concise registry of current and paused work | Mandatory |
-| Active Plan | Exact approved task/programme boundary | Mandatory when applicable |
+| Tenancy State | Compact Multi-Tenant SaaS handover evidence; never authorization | Mandatory for MT work |
+| Active Plan | Exact approved task/programme boundary | Conditional when referenced or required |
 | Master Execution Plan | Programme lifecycle and phase discipline | Conditional |
 | Current System Roadmap | Capability, maturity, and implementation-state evidence | Conditional |
 | Database Safety | Database, migration, backup, and credential safeguards | Conditional |
@@ -128,6 +141,12 @@ Do not by default:
 - load release policy for work with no verification/staging/release operation;
 - reopen historical evidence already resolved by an approved active plan unless
   re-verification is required.
+- reread already-established current-state evidence unless a discrepancy or
+  material change requires it;
+- expand an implementation investigation beyond files relevant to the approved
+  slice;
+- run broad test suites before focused verification unless the approved
+  verification boundary or observed risk requires them.
 
 Do not repeat canonical governance text in task reports. Report decisions,
 evidence, changes, verification results, blockers, and next gate only.

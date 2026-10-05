@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import multer from 'multer';
+import { randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -33,16 +34,6 @@ extension: extension || '.bin',
 /* ===============================
 MANUFACTURER LOGO UPLOAD
 ================================ */
-const manufacturerLogoStorage = multer.diskStorage({
-destination: (_req, _file, cb) => {
-cb(null, manufacturerLogoDir);
-},
-filename: (_req, file, cb) => {
-const { basename, extension } = sanitizeBaseName(file.originalname);
-cb(null, `${Date.now()}-${basename}${extension}`);
-},
-});
-
 function imageFileFilter(
 _req: Express.Request,
 file: Express.Multer.File,
@@ -57,7 +48,7 @@ cb(new Error('Only image uploads are allowed for manufacturer logos.'));
 }
 
 export const manufacturerLogoUpload = multer({
-storage: manufacturerLogoStorage,
+storage: multer.memoryStorage(),
 fileFilter: imageFileFilter,
 limits: {
 fileSize: 5 * 1024 * 1024,
@@ -74,7 +65,7 @@ cb(null, aircraftPhotoDir);
 },
 filename: (_req, file, cb) => {
 const { basename, extension } = sanitizeBaseName(file.originalname);
-cb(null, `${Date.now()}-${basename}${extension}`);
+cb(null, `${randomUUID()}-${basename}${extension}`);
 },
 });
 
@@ -103,7 +94,7 @@ filename: (_req, file, cb) => {
 });
 
 export const serviceBulletinImportUpload = multer({
-storage: serviceBulletinImportStorage,
+storage: multer.memoryStorage(),
 limits: {
 fileSize: 20 * 1024 * 1024,
 files: 2,

@@ -9,6 +9,9 @@ import {
   SupplementalInspectionDocument,
   sequelize,
 } from '../../../models/index.js';
+import type { TenantQueryAuthority } from '../../tenancy/tenant-query-authority.js';
+import { assertTenantQueryAuthority } from '../../tenancy/tenant-query-authority.js';
+import { aircraftTenantRepository } from '../../aircraft/aircraft-tenant.repository.live.js';
 import { ComplianceItem } from '../../../models/ComplianceItem.js';
 
 type TemplateItemType = 'STANDARD_TASK' | 'COMPLIANCE_ITEM' | 'SID';
@@ -79,6 +82,7 @@ export class WorkpackPreviewService {
   static async getWorkpackPreview(params: {
     templateId: string;
     aircraftId: string;
+    tenantAuthority: TenantQueryAuthority;
   }): Promise<WorkpackPreviewResult> {
     const result: WorkpackPreviewResult = {
       can_generate: false,
@@ -95,6 +99,7 @@ export class WorkpackPreviewService {
     };
 
     try {
+      assertTenantQueryAuthority(params.tenantAuthority);
       this.validateParams(params);
 
       const template = await MaintenanceTemplate.findByPk(params.templateId, {
@@ -118,9 +123,10 @@ export class WorkpackPreviewService {
         result.blocking_errors.push('TEMPLATE_INACTIVE');
       }
 
-      const aircraft = await Aircraft.findByPk(params.aircraftId, {
-        attributes: ['id', 'registration', 'model_id'],
-      });
+      const aircraft = await aircraftTenantRepository.getById(
+        params.tenantAuthority,
+        params.aircraftId,
+      ) as Aircraft | undefined;
 
       if (!aircraft) {
         result.blocking_errors.push('AIRCRAFT_NOT_FOUND');

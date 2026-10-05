@@ -3,6 +3,8 @@ import { randomUUID } from 'crypto';
 import { parse } from 'csv-parse/sync';
 import { QueryTypes } from 'sequelize';
 import sequelize from '../../config/database.js';
+import type { PlatformMutationEvidence } from '../platform-authority/authoritative-platform-mutation.js';
+import { executeAuthoritativePlatformMutation, requestPlatformMutationEvidence, requirePlatformMutationOperations } from '../platform-authority/authoritative-platform-mutation.js';
 import { TaskTemplate } from '../../models/core/TaskTemplate.js';
 
 const TARGET_FIELDS = [
@@ -415,10 +417,10 @@ async function hasExistingTaskTemplateDuplicate(
   return matches.length > 0;
 }
 
-async function commitStandardTaskPreview(preview: PreviewResult) {
+async function commitStandardTaskPreview(evidence: PlatformMutationEvidence, preview: PreviewResult) {
   const duplicateKeysInBatch = new Set<string>();
 
-  return sequelize.transaction(async (transaction) => {
+  return executeAuthoritativePlatformMutation(requirePlatformMutationOperations(evidence, ['SHARED_MASTER_IMPORT', 'MAINTENANCE_MASTER_CREATE']), async (transaction) => {
     const rows: CommitRowResult[] = [];
     let totalInserted = 0;
     let totalSkippedDuplicate = 0;
@@ -502,7 +504,7 @@ async function commitStandardTaskPreview(preview: PreviewResult) {
       totalSkippedDuplicate,
       rows,
     } satisfies CommitResult;
-  });
+  }, result => ({ after: result }));
 }
 
 function validateMapping(
@@ -793,7 +795,7 @@ export class StandardTaskImportController {
     }
 
     try {
-      const result = await commitStandardTaskPreview(importState.preview);
+      const result = await commitStandardTaskPreview(requestPlatformMutationEvidence(req, ['SHARED_MASTER_IMPORT', 'MAINTENANCE_MASTER_CREATE'], 'standard_task_import'), importState.preview);
       delete req.session.standardTaskImportState;
 
       return res.render('library/tasks/result', {

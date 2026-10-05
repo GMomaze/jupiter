@@ -1,0 +1,3 @@
+import type { NextFunction,Request,Response } from 'express';
+import { PlatformAuthorityRepository } from './platform-authority.repository.js';
+export const requirePlatformCapability=(repository:PlatformAuthorityRepository,capability:string)=>async(req:Request,_res:Response,next:NextFunction)=>{try{const userId=(req.user as any)?.id;if(typeof userId!=='string')throw new Error('AUTHENTICATED_HUMAN_REQUIRED');const authority=await repository.resolveHuman(userId);if(!authority||!authority.capabilities.has(capability))throw new Error('PLATFORM_CAPABILITY_REQUIRED');(req as any).platformAuthority=authority;next();}catch(error){next(error);}};

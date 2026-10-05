@@ -19,20 +19,28 @@ import {
   SupplementalInspectionDocument,
   TaskCard,
   TaskTemplate,
+  Tenant,
   UtilisationEvent,
+  User,
   WorkpackTask,
   sequelize,
 } from '../../models/index.js';
 import { CalendarDueMonitorService } from './calendar-due-monitor.service.js';
+import { createTenantQueryAuthority } from '../tenancy/tenant-query-authority.js';
 
 const testRunSuffix = Date.now().toString(36).toUpperCase();
 let aircraftRegistrationCounter = 0;
+const authorities = new Map<string, ReturnType<typeof createTenantQueryAuthority>>();
+const authorityFor = (aircraftId: string) => authorities.get(aircraftId)!;
 
 async function createAircraftContext(options?: {
   hours?: number;
   cycles?: number;
 }) {
   const suffix = randomUUID().slice(0, 8).toUpperCase();
+  const owner = await User.create({ email: `calendar-${suffix}@example.test`, password_hash: 'test', full_name: 'Calendar Owner', is_active: true });
+  const tenant = await Tenant.create({ code: `CAL_${suffix}`, display_name: `Calendar ${suffix}`, status: 'ACTIVE', created_by_user_id: owner.id, updated_by_user_id: owner.id });
+  const authority = createTenantQueryAuthority({ state: 'VALID_ACTIVE_TENANT', tenant: { id: tenant.id, code: tenant.code, displayName: tenant.display_name, status: 'ACTIVE' }, membership: { id: randomUUID(), tenantId: tenant.id, userId: owner.id, role: 'OWNER', status: 'ACTIVE' } });
   const registrationSequence = (++aircraftRegistrationCounter)
     .toString(36)
     .toUpperCase()
@@ -65,6 +73,7 @@ async function createAircraftContext(options?: {
     is_active: true,
   });
   const aircraft = await Aircraft.create({
+    tenant_id: tenant.id,
     registration: `ZS-CAL-${testRunSuffix}-${registrationSequence}`,
     serial_number: `CAL-AIR-${suffix}`,
     model_id: model.id,
@@ -74,12 +83,14 @@ async function createAircraftContext(options?: {
     total_time_cycles: options?.cycles ?? 50,
     version: 0,
   });
+  authorities.set(aircraft.id, authority);
 
-  return { aircraft, model, manufacturer, assetType, suffix };
+  return { aircraft, model, manufacturer, assetType, suffix, authority, tenant };
 }
 
 async function createComponentCalendarLimit(params: {
   aircraftId: string;
+  tenantId: string;
   componentModelId: string;
   suffix: string;
   limitType: string;
@@ -89,6 +100,7 @@ async function createComponentCalendarLimit(params: {
   installedAt?: string;
 }) {
   const serializedComponent = await SerializedComponent.create({
+    custodian_tenant_id: params.tenantId,
     component_model_id: params.componentModelId,
     serial_number: `CAL-SC-${params.suffix}-${randomUUID().slice(0, 4)}`,
     status: 'INSTALLED',
@@ -268,6 +280,7 @@ describe('CalendarDueMonitorService', () => {
     const { aircraft, model, suffix } = await createAircraftContext();
     await createComponentCalendarLimit({
       aircraftId: aircraft.id,
+      tenantId: authorityFor(aircraft.id).tenantId,
       componentModelId: model.id,
       suffix,
       limitType: `CALENDAR LIFE ${suffix}`,
@@ -276,7 +289,7 @@ describe('CalendarDueMonitorService', () => {
       referenceDate: today(),
     });
 
-    const report = await CalendarDueMonitorService.recalculateForAircraft(aircraft.id);
+    const report = await CalendarDueMonitorService.recalculateForAircraft(authorityFor(aircraft.id), aircraft.id);
     const result = report.results.find((item) => item.item_type === 'COMPONENT_CALENDAR_LIFE');
 
     expect(result?.source_service).toBe('ComponentLimitMonitoringService');
@@ -288,6 +301,7 @@ describe('CalendarDueMonitorService', () => {
     const { aircraft, model, suffix } = await createAircraftContext();
     await createComponentCalendarLimit({
       aircraftId: aircraft.id,
+      tenantId: authorityFor(aircraft.id).tenantId,
       componentModelId: model.id,
       suffix,
       limitType: 'HARD LIFE',
@@ -296,7 +310,7 @@ describe('CalendarDueMonitorService', () => {
       referenceDate: today(),
     });
 
-    const report = await CalendarDueMonitorService.recalculateForAircraft(aircraft.id);
+    const report = await CalendarDueMonitorService.recalculateForAircraft(authorityFor(aircraft.id), aircraft.id);
     const result = report.results.find((item) => item.item_type === 'COMPONENT_HARD_LIFE');
 
     expect(result?.status).toBe('DUE');
@@ -323,7 +337,7 @@ describe('CalendarDueMonitorService', () => {
       nextDueAt: addDays(-1),
     });
 
-    const report = await CalendarDueMonitorService.recalculateForComplianceUpdate(aircraft.id);
+    const report = await CalendarDueMonitorService.recalculateForComplianceUpdate(authorityFor(aircraft.id), aircraft.id);
     const result = report.results.find((entry) => entry.reference === ad.ad_number);
 
     expect(result?.item_type).toBe('AD');
@@ -347,7 +361,7 @@ describe('CalendarDueMonitorService', () => {
       nextDueAt: addDays(5),
     });
 
-    const report = await CalendarDueMonitorService.recalculateForComplianceUpdate(aircraft.id);
+    const report = await CalendarDueMonitorService.recalculateForComplianceUpdate(authorityFor(aircraft.id), aircraft.id);
     const result = report.results.find((entry) => entry.reference === `CAL-SB-${suffix}`);
 
     expect(result?.item_type).toBe('SB');
@@ -373,7 +387,7 @@ describe('CalendarDueMonitorService', () => {
       is_active: true,
     });
 
-    const report = await CalendarDueMonitorService.recalculateForApplicabilityChange(aircraft.id);
+    const report = await CalendarDueMonitorService.recalculateForApplicabilityChange(authorityFor(aircraft.id), aircraft.id);
     const result = report.results.find((entry) => entry.reference === sid.reference);
 
     expect(result?.item_type).toBe('SID');
@@ -396,7 +410,7 @@ describe('CalendarDueMonitorService', () => {
       completedAt: addDays(-40),
     });
 
-    const report = await CalendarDueMonitorService.recalculateManually({
+    const report = await CalendarDueMonitorService.recalculateManually(authorityFor(aircraft.id), {
       aircraftId: aircraft.id,
     });
     const result = report.results.find((entry) => entry.reference === task.task_card_number);
@@ -421,7 +435,7 @@ describe('CalendarDueMonitorService', () => {
       title: 'Calendar unknown AD',
     });
 
-    const report = await CalendarDueMonitorService.recalculateManually({
+    const report = await CalendarDueMonitorService.recalculateManually(authorityFor(aircraft.id), {
       aircraftId: aircraft.id,
     });
     const result = report.results.find((entry) => entry.reference === ad.ad_number);
@@ -445,7 +459,7 @@ describe('CalendarDueMonitorService', () => {
       completedAt: addDays(-40),
     });
 
-    const report = await CalendarDueMonitorService.recalculateManually({
+    const report = await CalendarDueMonitorService.recalculateManually(authorityFor(aircraft.id), {
       aircraftId: aircraft.id,
     });
     const result = report.results.find((entry) => entry.reference === task.task_card_number);
@@ -483,8 +497,8 @@ describe('CalendarDueMonitorService', () => {
       where: { aircraft_id: aircraft.id },
     });
 
-    await CalendarDueMonitorService.recalculateForUtilisationUpdate(aircraft.id);
-    await CalendarDueMonitorService.recalculateForFutureScheduler({ aircraftId: aircraft.id });
+    await CalendarDueMonitorService.recalculateForUtilisationUpdate(authorityFor(aircraft.id), aircraft.id);
+    await CalendarDueMonitorService.recalculateForFutureScheduler(authorityFor(aircraft.id), { aircraftId: aircraft.id });
 
     expect(
       await WorkpackTask.count({ where: { task_id: taskCard.id } })
@@ -492,5 +506,41 @@ describe('CalendarDueMonitorService', () => {
     expect(
       await UtilisationEvent.count({ where: { aircraft_id: aircraft.id } })
     ).toBe(utilisationEventCountBefore);
+  });
+
+  it('keeps broad monitoring tenant-local and foreign/nonexistent aircraft neutral', async () => {
+    const tenantA = await createAircraftContext();
+    const tenantB = await createAircraftContext();
+    await createComponentCalendarLimit({
+      aircraftId: tenantA.aircraft.id,
+      tenantId: tenantA.authority.tenantId,
+      componentModelId: tenantA.model.id,
+      suffix: tenantA.suffix,
+      limitType: 'CALENDAR_LIFE',
+      basis: 'CALENDAR',
+      limitMonths: 12,
+      referenceDate: today(),
+    });
+    await createComponentCalendarLimit({
+      aircraftId: tenantB.aircraft.id,
+      tenantId: tenantB.authority.tenantId,
+      componentModelId: tenantB.model.id,
+      suffix: tenantB.suffix,
+      limitType: 'CALENDAR_LIFE',
+      basis: 'CALENDAR',
+      limitMonths: 12,
+      referenceDate: today(),
+    });
+
+    const report = await CalendarDueMonitorService.recalculateAll(tenantA.authority);
+    expect(report.results.some((result) => result.aircraft_id === tenantA.aircraft.id)).toBe(true);
+    expect(report.results.some((result) => result.aircraft_id === tenantB.aircraft.id)).toBe(false);
+
+    await expect(
+      CalendarDueMonitorService.recalculateForAircraft(tenantA.authority, tenantB.aircraft.id),
+    ).rejects.toThrow('TENANT_RESOURCE_UNAVAILABLE');
+    await expect(
+      CalendarDueMonitorService.recalculateForAircraft(tenantA.authority, randomUUID()),
+    ).rejects.toThrow('TENANT_RESOURCE_UNAVAILABLE');
   });
 });

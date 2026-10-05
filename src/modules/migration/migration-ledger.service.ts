@@ -1,10 +1,16 @@
+import { withTenantTransaction } from '../tenancy/tenant-transaction.js';
 import sequelize from '../../config/database.js';
+import { QueryTypes } from 'sequelize';
 import {
   MigrationBatch,
   MigrationBatchRow,
   MigrationCreatedTarget,
 } from '../../models/index.js';
 import { AuditService } from '../audit/audit.service.js';
+import {
+  assertTenantQueryAuthority,
+  type TenantQueryAuthority,
+} from '../tenancy/tenant-query-authority.js';
 
 export class MigrationLedgerService {
   static readonly batchStatuses = [
@@ -34,6 +40,7 @@ export class MigrationLedgerService {
   ];
 
   static async createBatch(data: {
+    tenant_id: string;
     migration_type: string;
     status?: string;
     created_by?: string | null;
@@ -52,6 +59,7 @@ export class MigrationLedgerService {
 
     return MigrationBatch.create(
       {
+        tenant_id: data.tenant_id,
         migration_type: migrationType,
         status,
         created_by: data.created_by || null,
@@ -119,18 +127,42 @@ export class MigrationLedgerService {
     );
   }
 
-  static async saveLegacyAircraftComponentDryRun(data: {
+  static async saveLegacyAircraftComponentDryRun(authority: TenantQueryAuthority, data: {
     report: any;
     filters?: Record<string, unknown>;
     actor_id?: string | null;
   }) {
+    assertTenantQueryAuthority(authority);
     const report = data.report || {};
-    const rows = Array.isArray(report.rows) ? report.rows : [];
+    const rows: any[] = Array.isArray(report.rows) ? report.rows : [];
     const filters = data.filters || {};
 
-    return sequelize.transaction(async (transaction) => {
+    return withTenantTransaction(authority, async (transaction) => {
+      const sourceRowIds = rows.map((row: any) => String(row?.source?.id || '').trim());
+      if (sourceRowIds.some((id: string) => !id) || new Set(sourceRowIds).size !== sourceRowIds.length) {
+        throw new Error('TENANT_MIGRATION_BATCH_INVALID');
+      }
+      if (sourceRowIds.length > 0) {
+        const authorizedRows = await sequelize.query<{ id: string }>(
+          `SELECT ac.id
+             FROM aircraft_components ac
+             JOIN aircraft a ON a.id = ac.aircraft_id
+            WHERE ac.id IN (:sourceRowIds)
+              AND ac.custodian_tenant_id = :tenantId
+              AND a.tenant_id = :tenantId`,
+          {
+            replacements: { sourceRowIds, tenantId: authority.tenantId },
+            transaction,
+            type: QueryTypes.SELECT,
+          },
+        );
+        if (authorizedRows.length !== sourceRowIds.length) {
+          throw new Error('TENANT_MIGRATION_BATCH_INVALID');
+        }
+      }
       const batch = await this.createBatch(
         {
+          tenant_id: authority.tenantId,
           migration_type: 'LEGACY_AIRCRAFT_COMPONENT_TO_SERIALIZED',
           status: 'DRY_RUN',
           created_by: data.actor_id || null,
@@ -200,8 +232,13 @@ export class MigrationLedgerService {
     });
   }
 
-  static async getSavedDryRunBatch(batchId: string) {
-    const batch = await MigrationBatch.findByPk(batchId, {
+  static async getSavedDryRunBatch(authority: TenantQueryAuthority, batchId: string) {
+    assertTenantQueryAuthority(authority);
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(batchId)) {
+      return null;
+    }
+    const batch = await MigrationBatch.findOne({
+      where: { id: batchId, tenant_id: authority.tenantId },
       include: [
         {
           model: MigrationBatchRow,

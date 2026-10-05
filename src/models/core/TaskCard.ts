@@ -17,6 +17,7 @@ export class TaskCard extends Model {
   declare engineer_certified_by: string | null;
   declare engineer_certified_at: Date | null;
   declare aircraft_id: string;
+  declare tenant_id: string;
   declare component_id: string | null;
   declare version: number;
 }
@@ -54,6 +55,10 @@ TaskCard.init(
     engineer_certified_by: DataTypes.UUID,
     engineer_certified_at: DataTypes.DATE,
     aircraft_id: {
+      type: DataTypes.UUID,
+      allowNull: false,
+    },
+    tenant_id: {
       type: DataTypes.UUID,
       allowNull: false,
     },

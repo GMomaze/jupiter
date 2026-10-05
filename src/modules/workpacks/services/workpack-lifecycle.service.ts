@@ -1,3 +1,4 @@
+import { withTenantTransaction } from '../../tenancy/tenant-transaction.js';
 import {
   Aircraft,
   TaskCard,
@@ -6,6 +7,10 @@ import {
   WorkpackStatus,
   WorkpackTask,
 } from '../../../models/index.js';
+import type { TenantQueryAuthority } from '../../tenancy/tenant-query-authority.js';
+import { assertTenantQueryAuthority } from '../../tenancy/tenant-query-authority.js';
+import { aircraftTenantRepository } from '../../aircraft/aircraft-tenant.repository.live.js';
+import { workpackTenantRepository } from '../workpack-tenant.repository.js';
 import { AuditService } from '../../audit/audit.service.js';
 import { ComplianceService } from '../../compliance/compliance.service.js';
 import { Op, QueryTypes } from 'sequelize';
@@ -18,6 +23,20 @@ type WorkpackStatusCode =
   | 'CLOSED';
 
 export class WorkpackLifecycleService {
+  private static async assertTaskAuthority(
+    authority: TenantQueryAuthority,
+    workpackId: string,
+    transaction: any,
+  ) {
+    const links = await WorkpackTask.findAll({ where: { workpack_id: workpackId }, transaction });
+    for (const link of links) {
+      if (!await workpackTenantRepository.getTaskCardById(
+        authority, link.task_id, { transaction }
+      )) {
+        throw new Error('WORKPACK_TASK_UNAVAILABLE');
+      }
+    }
+  }
   private static allowedTransitions: Record<WorkpackStatusCode, WorkpackStatusCode[]> = {
     DRAFT: ['ISSUED'],
     ISSUED: ['IN_PROGRESS'],
@@ -368,21 +387,27 @@ export class WorkpackLifecycleService {
 
   static async create(
     data: { work_order_number: string; aircraft_id: string },
+    tenantAuthority: TenantQueryAuthority,
     actorId: string | undefined,
     sequelize: any,
     requireAuth: (actorId?: string) => void
   ) {
     requireAuth(actorId);
+    assertTenantQueryAuthority(tenantAuthority);
 
-    return sequelize.transaction(async (transaction: any) => {
-      const aircraft = await Aircraft.findByPk(data.aircraft_id, {
-        attributes: ['id'],
-        transaction,
-      });
+    return withTenantTransaction(tenantAuthority, async (transaction: any) => {
+      const aircraft = await aircraftTenantRepository.getById(
+        tenantAuthority,
+        data.aircraft_id,
+        { transaction },
+      );
       if (!aircraft) throw new Error('INVALID_AIRCRAFT');
 
       const existingWorkOrder = await Workpack.findOne({
-        where: { work_order_number: data.work_order_number },
+        where: {
+          tenant_id: tenantAuthority.tenantId,
+          work_order_number: data.work_order_number,
+        },
         transaction,
         lock: transaction.LOCK.UPDATE
       });
@@ -412,6 +437,7 @@ export class WorkpackLifecycleService {
       }
 
       const pack = await Workpack.create({
+        tenant_id: tenantAuthority.tenantId,
         work_order_number: data.work_order_number,
         aircraft_id: data.aircraft_id,
         status_id: draftStatus.id,
@@ -533,6 +559,7 @@ export class WorkpackLifecycleService {
               title: `${row.code}: ${row.title}`,
               description: row.description || row.title,
               aircraft_id: data.aircraft_id,
+              tenant_id: tenantAuthority.tenantId,
               compliance_item_id: row.compliance_item_id,
               status: 'OPEN',
               component_id: null,
@@ -605,20 +632,22 @@ export class WorkpackLifecycleService {
   }
 
   static async issue(
+    authority: TenantQueryAuthority,
     id: string,
     actorId: string | undefined,
     sequelize: any,
     requireAuth: (actorId?: string) => void
   ) {
+    assertTenantQueryAuthority(authority);
     requireAuth(actorId);
 
-    return sequelize.transaction(async (transaction: any) => {
-      const pack = await Workpack.findByPk(id, {
-        transaction,
-        lock: transaction.LOCK.UPDATE
+    return withTenantTransaction(authority, async (transaction: any) => {
+      const pack = await workpackTenantRepository.getById(authority, id, {
+        transaction, lock: transaction.LOCK.UPDATE
       });
 
       if (!pack) throw new Error('WORKPACK_NOT_FOUND');
+      await this.assertTaskAuthority(authority, id, transaction);
 
       const currentStatus = await WorkpackStatus.findByPk(pack.status_id, { transaction });
       if (!currentStatus) throw new Error('STATUS_NOT_FOUND');
@@ -652,17 +681,18 @@ export class WorkpackLifecycleService {
   }
 
   static async startWork(
+    authority: TenantQueryAuthority,
     id: string,
     actorId: string | undefined,
     sequelize: any,
     requireAuth: (actorId?: string) => void
   ) {
+    assertTenantQueryAuthority(authority);
     requireAuth(actorId);
 
-    return sequelize.transaction(async (transaction: any) => {
-      const pack = await Workpack.findByPk(id, {
-        transaction,
-        lock: transaction.LOCK.UPDATE
+    return withTenantTransaction(authority, async (transaction: any) => {
+      const pack = await workpackTenantRepository.getById(authority, id, {
+        transaction, lock: transaction.LOCK.UPDATE
       });
 
       if (!pack) throw new Error('WORKPACK_NOT_FOUND');
@@ -679,18 +709,19 @@ export class WorkpackLifecycleService {
   }
 
   static async getCertificationBlockingErrors(
+    authority: TenantQueryAuthority,
     id: string,
     actorRoles: string[],
     sequelize: any
   ) {
-    return sequelize.transaction(async (transaction: any) => {
-      const pack = await Workpack.findByPk(id, {
-        transaction,
-      });
+    assertTenantQueryAuthority(authority);
+    return withTenantTransaction(authority, async (transaction: any) => {
+      const pack = await workpackTenantRepository.getById(authority, id, { transaction });
 
       if (!pack) {
         return ['Workpack was not found.'];
       }
+      await this.assertTaskAuthority(authority, id, transaction);
 
       const currentStatus = await WorkpackStatus.findByPk(pack.status_id, { transaction });
       if (!currentStatus) {
@@ -710,21 +741,23 @@ export class WorkpackLifecycleService {
   }
 
   static async certify(
+    authority: TenantQueryAuthority,
     id: string,
     actorId: string | undefined,
     actorRoles: string[],
     sequelize: any,
     requireAuth: (actorId?: string) => void
   ) {
+    assertTenantQueryAuthority(authority);
     requireAuth(actorId);
 
-    return sequelize.transaction(async (transaction: any) => {
-      const pack = await Workpack.findByPk(id, {
-        transaction,
-        lock: transaction.LOCK.UPDATE
+    return withTenantTransaction(authority, async (transaction: any) => {
+      const pack = await workpackTenantRepository.getById(authority, id, {
+        transaction, lock: transaction.LOCK.UPDATE
       });
 
       if (!pack) throw new Error('WORKPACK_NOT_FOUND');
+      await this.assertTaskAuthority(authority, id, transaction);
 
       const currentStatus = await WorkpackStatus.findByPk(pack.status_id, { transaction });
       if (!currentStatus) throw new Error('STATUS_NOT_FOUND');
@@ -753,15 +786,15 @@ export class WorkpackLifecycleService {
     });
   }
 
-  static async getCloseBlockingErrors(id: string, sequelize: any) {
-    return sequelize.transaction(async (transaction: any) => {
-      const pack = await Workpack.findByPk(id, {
-        transaction,
-      });
+  static async getCloseBlockingErrors(authority: TenantQueryAuthority, id: string, sequelize: any) {
+    assertTenantQueryAuthority(authority);
+    return withTenantTransaction(authority, async (transaction: any) => {
+      const pack = await workpackTenantRepository.getById(authority, id, { transaction });
 
       if (!pack) {
         return ['Workpack was not found.'];
       }
+      await this.assertTaskAuthority(authority, id, transaction);
 
       const currentStatus = await WorkpackStatus.findByPk(pack.status_id, { transaction });
       if (!currentStatus) {
@@ -780,20 +813,22 @@ export class WorkpackLifecycleService {
   }
 
   static async close(
+    authority: TenantQueryAuthority,
     id: string,
     actorId: string | undefined,
     sequelize: any,
     requireAuth: (actorId?: string) => void
   ) {
+    assertTenantQueryAuthority(authority);
     requireAuth(actorId);
 
-    return sequelize.transaction(async (transaction: any) => {
-      const pack = await Workpack.findByPk(id, {
-        transaction,
-        lock: transaction.LOCK.UPDATE
+    return withTenantTransaction(authority, async (transaction: any) => {
+      const pack = await workpackTenantRepository.getById(authority, id, {
+        transaction, lock: transaction.LOCK.UPDATE
       });
 
       if (!pack) throw new Error('WORKPACK_NOT_FOUND');
+      await this.assertTaskAuthority(authority, id, transaction);
 
       const currentStatus = await WorkpackStatus.findByPk(pack.status_id, { transaction });
       if (!currentStatus) throw new Error('STATUS_NOT_FOUND');
@@ -818,17 +853,18 @@ export class WorkpackLifecycleService {
   }
 
   static async deleteDraft(
+    authority: TenantQueryAuthority,
     workpackId: string,
     actorId: string | undefined,
     sequelize: any,
     requireAuth: (actorId?: string) => void
   ) {
+    assertTenantQueryAuthority(authority);
     requireAuth(actorId);
 
-    return sequelize.transaction(async (transaction: any) => {
-      const pack = await Workpack.findByPk(workpackId, {
-        transaction,
-        lock: transaction.LOCK.UPDATE
+    return withTenantTransaction(authority, async (transaction: any) => {
+      const pack = await workpackTenantRepository.getById(authority, workpackId, {
+        transaction, lock: transaction.LOCK.UPDATE
       });
 
       if (!pack) throw new Error('WORKPACK_NOT_FOUND');

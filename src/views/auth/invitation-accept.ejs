@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Jupiter &ndash; Accept invitation</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <style>
+    body { margin: 0; font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #0f172a; color: #e2e8f0; display: flex; justify-content: center; align-items: center; min-height: 100vh; padding: 16px; }
+    .card { background: #1e293b; padding: 40px; border-radius: 12px; width: 100%; max-width: 440px; box-shadow: 0 10px 30px rgba(0,0,0,0.4); }
+    .title { text-align: center; font-size: 22px; font-weight: 600; margin-bottom: 8px; }
+    .subtitle { text-align: center; font-size: 13px; color: #94a3b8; margin-bottom: 24px; }
+    .form-group { margin-bottom: 16px; }
+    label { display: block; font-size: 13px; margin-bottom: 6px; color: #cbd5e1; }
+    input { width: 100%; padding: 10px 12px; border-radius: 6px; border: 1px solid #334155; background: #0f172a; color: #e2e8f0; font-size: 14px; box-sizing: border-box; }
+    .btn { width: 100%; padding: 12px; background: #2563eb; border: none; border-radius: 6px; color: white; font-weight: 600; font-size: 14px; cursor: pointer; }
+    .btn:hover { background: #1d4ed8; }
+    .error { background: #7f1d1d; color: #fecaca; padding: 10px; border-radius: 6px; font-size: 13px; margin-bottom: 18px; }
+    .success { background: #14532d; color: #bbf7d0; padding: 10px; border-radius: 6px; font-size: 13px; margin-bottom: 18px; }
+    .hint { font-size: 12px; color: #64748b; margin-top: 4px; }
+    .email { text-align: center; font-size: 14px; color: #cbd5e1; margin-bottom: 24px; }
+    .note { text-align: center; font-size: 12px; color: #64748b; margin-top: 20px; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="title">Jupiter</div>
+    <div class="subtitle">Accept your invitation</div>
+
+    <% if (messages && messages.error && messages.error.length) { %>
+      <div class="error"><%= messages.error[0] %></div>
+    <% } %>
+    <% if (messages && messages.success && messages.success.length) { %>
+      <div class="success"><%= messages.success[0] %></div>
+    <% } %>
+
+    <% if (completed) { %>
+      <div class="success">Account created successfully.</div>
+      <% if (awaitingActivation) { %>
+        <p style="text-align:center; color:#cbd5e1; font-size:14px;"><strong><%= companyName %></strong> is awaiting activation by the Jupiter System Owner.</p>
+        <p style="text-align:center; color:#94a3b8; font-size:13px;">You will be able to use Jupiter once the company has been activated.</p>
+      <% } %>
+    <% } else if (!valid) { %>
+      <p style="text-align:center; color:#94a3b8; font-size:14px;">This invitation is invalid, has expired or has already been used.</p>
+    <% } else if (!needsPassword) { %>
+      <p class="email">This invitation is for <strong><%= email %></strong>.</p>
+      <p style="text-align:center; color:#94a3b8; font-size:14px;">This invitation is for an existing Jupiter account. Please sign in, then return to this link to accept it.</p>
+      <p class="note"><a href="/auth/login" style="color:#60a5fa;">Sign in</a></p>
+    <% } else { %>
+      <p class="email">You have been invited to set up the initial administrator account for <strong><%= email %></strong>.</p>
+      <form method="POST" action="/auth/staff-invitations/accept" onsubmit="return validateForm(this);">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <input type="hidden" name="token" value="<%= token %>">
+        <input type="hidden" name="tenant" value="<%= tenant %>">
+        <div class="form-group">
+          <label for="password">Password</label>
+          <input type="password" id="password" name="password" minlength="12" required autocomplete="new-password">
+          <div class="hint">At least 12 characters.</div>
+        </div>
+        <div class="form-group">
+          <label for="confirmPassword">Confirm password</label>
+          <input type="password" id="confirmPassword" name="confirmPassword" minlength="12" required autocomplete="new-password">
+        </div>
+        <button class="btn" type="submit">Create account</button>
+      </form>
+      <p class="note">If you were not expecting this invitation, please disregard it.</p>
+    <% } %>
+  </div>
+
+  <script>
+    function validateForm(form) {
+      if (form.password.value !== form.confirmPassword.value) {
+        alert('Passwords do not match.');
+        return false;
+      }
+      return true;
+    }
+  </script>
+</body>
+</html>

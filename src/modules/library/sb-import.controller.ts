@@ -8,6 +8,8 @@ import {
   SbPreviewValues,
 } from './sb-import.adapters.js';
 import sequelize from '../../config/database.js';
+import type { PlatformMutationEvidence } from '../platform-authority/authoritative-platform-mutation.js';
+import { executeAuthoritativePlatformMutation, requestPlatformMutationEvidence, requirePlatformMutationOperations } from '../platform-authority/authoritative-platform-mutation.js';
 import { ServiceBulletin } from '../../models/ServiceBulletin.js';
 import { QueryTypes } from 'sequelize';
 import { formatModelDisplay } from '../../utils/model-display.js';
@@ -714,10 +716,10 @@ async function insertServiceBulletinRow(
   return insertedId;
 }
 
-async function commitSbPreview(preview: SbPreviewResult) {
+async function commitSbPreview(evidence: PlatformMutationEvidence, preview: SbPreviewResult) {
   const duplicateKeysInBatch = new Set<string>();
 
-  return sequelize.transaction(async (transaction) => {
+  return executeAuthoritativePlatformMutation(requirePlatformMutationOperations(evidence, ['SHARED_MASTER_IMPORT', 'REGULATORY_MASTER_CREATE', 'REGULATORY_RELATIONSHIP_MUTATE']), async (transaction) => {
     const rows: SbCommitRowResult[] = [];
     let totalInsertedSbs = 0;
     let totalSkippedDuplicate = 0;
@@ -825,7 +827,7 @@ async function commitSbPreview(preview: SbPreviewResult) {
       totalSkippedDuplicate,
       rows,
     } satisfies SbCommitResult;
-  });
+  }, result => ({ after: result }));
 }
 
 function applyBoundedFieldValidation(preview: SbPreviewResult) {
@@ -919,7 +921,7 @@ export class SbImportController {
     }
 
     try {
-      const result = await commitSbPreview(importState.preview);
+      const result = await commitSbPreview(requestPlatformMutationEvidence(req, ['SHARED_MASTER_IMPORT', 'REGULATORY_MASTER_CREATE', 'REGULATORY_RELATIONSHIP_MUTATE'], 'service_bulletin_import'), importState.preview);
       delete req.session.sbImportState;
 
       return res.render('library/sbs/result', {

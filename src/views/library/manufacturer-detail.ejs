@@ -60,15 +60,10 @@
         </div>
 
         <div class="md:col-span-2">
-          <label class="mb-1 block text-xs font-bold uppercase tracking-widest text-slate-500">Logo Path or URL</label>
-          <input type="text" name="logo_url" value="<%= manufacturer.logo_url || '' %>" class="w-full rounded border px-3 py-2 text-sm" placeholder="/uploads/manufacturers/logo.png or https://example.com/logo.png">
-        </div>
-
-        <div class="md:col-span-2">
           <label class="mb-1 block text-xs font-bold uppercase tracking-widest text-slate-500">Upload Logo File</label>
           <input type="file" name="logo_file" accept="image/*" class="w-full rounded border px-3 py-2 text-sm">
           <p class="mt-1 text-xs text-slate-500">
-            Uploading a file stores it locally in Jupiter and overrides the URL above for this save.
+            Uploading a validated image safely replaces the current logo. Without a file, the current logo is preserved.
           </p>
         </div>
 

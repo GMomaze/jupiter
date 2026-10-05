@@ -1,5 +1,6 @@
-import { Aircraft } from '../../models/index.js';
-import { AircraftComponentService } from '../aircraft/aircraft-component.service.js';
+import { assertTenantQueryAuthority, type TenantQueryAuthority } from '../tenancy/tenant-query-authority.js';
+import { aircraftTenantRepository } from '../aircraft/aircraft-tenant.repository.live.js';
+import { aircraftComponentInstallationTenantRepository } from '../aircraft/aircraft-component-installation-tenant.repository.live.js';
 import {
   ComponentLifeCalculationResult,
   ComponentLifeCalculationService,
@@ -127,19 +128,18 @@ export class UtilisationPropagationPreviewService {
     'IMPORT',
   ]);
 
-  static async preview(params: PreviewParams): Promise<UtilisationPropagationPreview> {
+  static async preview(authority: TenantQueryAuthority, params: PreviewParams): Promise<UtilisationPropagationPreview> {
+    assertTenantQueryAuthority(authority);
     const aircraftId = String(params.aircraftId || '').trim();
 
     if (!aircraftId) {
       throw new Error('AIRCRAFT_NOT_FOUND');
     }
 
-    const aircraft = await Aircraft.findByPk(aircraftId, {
-      attributes: ['id', 'registration', 'total_time_hours', 'total_time_cycles'],
-    });
+    const aircraft = await aircraftTenantRepository.getById(authority, aircraftId);
 
     if (!aircraft) {
-      throw new Error('AIRCRAFT_NOT_FOUND');
+      throw new Error('TENANT_RESOURCE_UNAVAILABLE');
     }
 
     const currentHours = this.normalizeHours(aircraft.total_time_hours);
@@ -174,10 +174,10 @@ export class UtilisationPropagationPreviewService {
     });
 
     const activeInstallations =
-      await AircraftComponentService.getActiveSerializedInstallationsForAircraft(aircraftId);
+      await aircraftComponentInstallationTenantRepository.listActiveOperationalLifeContexts(authority, aircraftId);
     const affectedComponents = await Promise.all(
       activeInstallations.map((installation: any) =>
-        this.buildAffectedComponentPreview(installation, proposedHours, proposedCycles)
+        this.buildAffectedComponentPreview(authority, installation, proposedHours, proposedCycles)
       )
     );
     const unknownComponents = affectedComponents.filter(
@@ -199,7 +199,7 @@ export class UtilisationPropagationPreviewService {
     return {
       aircraft: {
         id: aircraft.id,
-        registration: aircraft.registration,
+        registration: String(aircraft.registration || ''),
         current_total_time_hours: currentHours,
         current_total_time_cycles: currentCycles,
         proposed_total_time_hours: proposedHours,
@@ -241,6 +241,7 @@ export class UtilisationPropagationPreviewService {
   }
 
   private static async buildAffectedComponentPreview(
+    authority: TenantQueryAuthority,
     installation: any,
     proposedHours: number,
     proposedCycles: number
@@ -250,8 +251,8 @@ export class UtilisationPropagationPreviewService {
     const manufacturer = componentModel.Manufacturer || {};
     const assetType = componentModel.AssetType || {};
     const [currentLife, projectedLife] = await Promise.all([
-      ComponentLifeCalculationService.calculateForInstallation(installation.id),
-      ComponentLifeCalculationService.calculateForInstallationWithAircraftSnapshot(installation.id, {
+      ComponentLifeCalculationService.calculateForInstallation(authority, installation.id),
+      ComponentLifeCalculationService.calculateForInstallationWithAircraftSnapshot(authority, installation.id, {
         total_time_hours: proposedHours,
         total_time_cycles: proposedCycles,
       }),

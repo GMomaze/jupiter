@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Jupiter — Organisation unavailable</title>
+  <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body class="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center p-6">
+  <main class="w-full max-w-xl rounded-xl bg-slate-900 border border-slate-700 p-8 text-center shadow-xl">
+    <p class="text-xs font-bold uppercase tracking-[0.2em] text-slate-400">Jupiter AMMS</p>
+    <h1 class="mt-2 text-3xl font-black">Organisation unavailable</h1>
+    <p class="mt-4 text-sm text-slate-300">No organisation is currently available for this account.</p>
+    <p class="mt-2 text-sm text-slate-400">Contact your Jupiter administrator or support contact for assistance.</p>
+
+    <form method="POST" action="/auth/logout" class="mt-8">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <button type="submit" class="w-full rounded bg-slate-700 px-4 py-3 font-bold hover:bg-slate-600">Logout</button>
+    </form>
+  </main>
+</body>
+</html>

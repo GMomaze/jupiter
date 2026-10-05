@@ -2,12 +2,13 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
-  Aircraft,
   ComplianceAssignment,
   ComplianceItem,
   sequelize,
 } from '../../models/index.js';
 import { AircraftService } from './aircraft.service.js';
+import { aircraftTenantRepository } from './aircraft-tenant.repository.live.js';
+import { aircraftComplianceTestAuthority as authority } from './aircraft-compliance-tenant.test-support.js';
 
 const aircraftId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const otherAircraftId = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
@@ -22,11 +23,11 @@ function mockTransaction() {
 }
 
 function mockAircraft(found = true) {
-  vi.spyOn(Aircraft, 'findByPk').mockResolvedValue(found ? ({ id: aircraftId } as any) : null);
+  vi.spyOn(aircraftTenantRepository, 'getById').mockResolvedValue(found ? ({ id: aircraftId } as any) : undefined);
 }
 
 function mockAssignment(overrides: Record<string, any> = {}) {
-  vi.spyOn(ComplianceAssignment, 'findByPk').mockResolvedValue({
+  vi.spyOn(ComplianceAssignment, 'findOne').mockResolvedValue({
     id: assignmentId,
     compliance_item_id: complianceItemId,
     assignment_type: 'AIRCRAFT',
@@ -59,7 +60,7 @@ describe('aircraft AD operational compliance record creation', () => {
     mockNoExistingAircraftCompliance();
 
     const result =
-      await AircraftService.createAdOperationalComplianceRecordFromAssignment({
+      await AircraftService.createAdOperationalComplianceRecordFromAssignment(authority, {
         aircraftId,
         assignmentId,
         actorUserId: 'user-id',
@@ -88,7 +89,7 @@ describe('aircraft AD operational compliance record creation', () => {
     vi.spyOn(ComplianceAssignment, 'findByPk');
 
     await expect(
-      AircraftService.createAdOperationalComplianceRecordFromAssignment({
+      AircraftService.createAdOperationalComplianceRecordFromAssignment(authority, {
         aircraftId,
         assignmentId,
       })
@@ -102,7 +103,7 @@ describe('aircraft AD operational compliance record creation', () => {
     vi.spyOn(ComplianceAssignment, 'findByPk').mockResolvedValue(null);
 
     await expect(
-      AircraftService.createAdOperationalComplianceRecordFromAssignment({
+      AircraftService.createAdOperationalComplianceRecordFromAssignment(authority, {
         aircraftId,
         assignmentId,
       })
@@ -114,23 +115,23 @@ describe('aircraft AD operational compliance record creation', () => {
     mockAssignment({ is_active: false });
 
     await expect(
-      AircraftService.createAdOperationalComplianceRecordFromAssignment({
+      AircraftService.createAdOperationalComplianceRecordFromAssignment(authority, {
         aircraftId,
         assignmentId,
       })
     ).rejects.toThrow('AD_COMPLIANCE_ASSIGNMENT_INACTIVE');
   });
 
-  it('blocks wrong-aircraft assignments', async () => {
+  it('makes wrong-aircraft assignments observationally unavailable', async () => {
     mockAircraft();
-    mockAssignment({ aircraft_id: otherAircraftId });
+    vi.spyOn(ComplianceAssignment, 'findOne').mockResolvedValue(null);
 
     await expect(
-      AircraftService.createAdOperationalComplianceRecordFromAssignment({
+      AircraftService.createAdOperationalComplianceRecordFromAssignment(authority, {
         aircraftId,
         assignmentId,
       })
-    ).rejects.toThrow('AD_COMPLIANCE_ASSIGNMENT_AIRCRAFT_MISMATCH');
+    ).rejects.toThrow('AD_COMPLIANCE_ASSIGNMENT_NOT_FOUND');
   });
 
   it('blocks non-AD compliance items', async () => {
@@ -144,7 +145,7 @@ describe('aircraft AD operational compliance record creation', () => {
     });
 
     await expect(
-      AircraftService.createAdOperationalComplianceRecordFromAssignment({
+      AircraftService.createAdOperationalComplianceRecordFromAssignment(authority, {
         aircraftId,
         assignmentId,
       })
@@ -158,7 +159,7 @@ describe('aircraft AD operational compliance record creation', () => {
     vi.spyOn(sequelize, 'query').mockResolvedValueOnce([{ id: aircraftComplianceId }] as any);
 
     await expect(
-      AircraftService.createAdOperationalComplianceRecordFromAssignment({
+      AircraftService.createAdOperationalComplianceRecordFromAssignment(authority, {
         aircraftId,
         assignmentId,
       })

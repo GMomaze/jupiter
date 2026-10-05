@@ -10,7 +10,10 @@ import {
   ComponentModel,
   Manufacturer,
   SerializedComponent,
+  Tenant,
+  User,
 } from '../../models/index.js';
+import { createTenantQueryAuthority } from '../tenancy/tenant-query-authority.js';
 import { UtilisationService } from '../utilisation/utilisation.service.js';
 import { AircraftComponentService } from './aircraft-component.service.js';
 
@@ -19,6 +22,9 @@ let registrationSequence = 0;
 
 async function createSerializedInstallContext() {
   const suffix = randomUUID().slice(0, 8).toUpperCase();
+  const owner = await User.create({ email: `tracking-${suffix}@example.test`, password_hash: 'test', full_name: 'Tracking Test Owner', is_active: true });
+  const tenant = await Tenant.create({ code: `TRACKING_${suffix}`, display_name: `Tracking Tenant ${suffix}`, status: 'ACTIVE', created_by_user_id: owner.id, updated_by_user_id: owner.id });
+  const authority = createTenantQueryAuthority({ state: 'VALID_ACTIVE_TENANT', tenant: { id: tenant.id, publicId: tenant.public_id, code: tenant.code, displayName: tenant.display_name, status: 'ACTIVE' }, membership: { id: randomUUID(), tenantId: tenant.id, userId: owner.id, status: 'ACTIVE' }, validatedAt: Date.now() });
   registrationSequence += 1;
   const manufacturer = await Manufacturer.create({
     code: `MFR_${suffix}`,
@@ -56,14 +62,16 @@ async function createSerializedInstallContext() {
     total_time_hours: 0,
     total_time_cycles: 0,
     version: 0,
+    tenant_id: tenant.id,
   });
   const serializedComponent = await SerializedComponent.create({
     component_model_id: model.id,
     serial_number: `SC-${suffix}`,
     status: 'AVAILABLE',
+    custodian_tenant_id: tenant.id,
   });
 
-  await UtilisationService.recordUtilisation({
+  await UtilisationService.recordUtilisation(authority, {
     aircraftId: aircraft.id,
     newTotalTimeHours: 12.5,
     newTotalTimeCycles: 7,
@@ -72,15 +80,15 @@ async function createSerializedInstallContext() {
     reason: 'Seed install baseline utilisation',
   });
 
-  return { aircraft, model, serializedComponent };
+  return { aircraft, model, serializedComponent, authority };
 }
 
 describe('AircraftComponentService serialized tracking basis baselines', () => {
   it('requires tracking basis for serialized installation', async () => {
-    const { aircraft, serializedComponent } = await createSerializedInstallContext();
+    const { aircraft, serializedComponent, authority } = await createSerializedInstallContext();
 
     await expect(
-      AircraftComponentService.installSerializedComponent({
+      AircraftComponentService.installSerializedComponent(authority, {
         aircraft_id: aircraft.id,
         serialized_component_id: serializedComponent.id,
         installed_at: '2026-06-17',
@@ -89,10 +97,10 @@ describe('AircraftComponentService serialized tracking basis baselines', () => {
   });
 
   it('requires tracking basis for baseline capture', async () => {
-    const { aircraft, serializedComponent } = await createSerializedInstallContext();
+    const { aircraft, serializedComponent, authority } = await createSerializedInstallContext();
 
     await expect(
-      AircraftComponentService.baselineCaptureSerializedComponent({
+      AircraftComponentService.baselineCaptureSerializedComponent(authority, {
         aircraft_id: aircraft.id,
         serialized_component_id: serializedComponent.id,
         installed_at: '2026-06-17',
@@ -101,9 +109,9 @@ describe('AircraftComponentService serialized tracking basis baselines', () => {
   });
 
   it('creates exactly one active baseline installation and installs the serialized component', async () => {
-    const { aircraft, serializedComponent } = await createSerializedInstallContext();
+    const { aircraft, serializedComponent, authority } = await createSerializedInstallContext();
 
-    await AircraftComponentService.baselineCaptureSerializedComponent({
+    await AircraftComponentService.baselineCaptureSerializedComponent(authority, {
       aircraft_id: aircraft.id,
       serialized_component_id: serializedComponent.id,
       installed_at: '2026-06-17',
@@ -128,9 +136,9 @@ describe('AircraftComponentService serialized tracking basis baselines', () => {
   });
 
   it('keeps duplicate active baseline installation protection', async () => {
-    const { aircraft, serializedComponent } = await createSerializedInstallContext();
+    const { aircraft, serializedComponent, authority } = await createSerializedInstallContext();
 
-    await AircraftComponentService.baselineCaptureSerializedComponent({
+    await AircraftComponentService.baselineCaptureSerializedComponent(authority, {
       aircraft_id: aircraft.id,
       serialized_component_id: serializedComponent.id,
       installed_at: '2026-06-17',
@@ -143,7 +151,7 @@ describe('AircraftComponentService serialized tracking basis baselines', () => {
     );
 
     await expect(
-      AircraftComponentService.baselineCaptureSerializedComponent({
+      AircraftComponentService.baselineCaptureSerializedComponent(authority, {
         aircraft_id: aircraft.id,
         serialized_component_id: serializedComponent.id,
         installed_at: '2026-06-18',
@@ -159,9 +167,9 @@ describe('AircraftComponentService serialized tracking basis baselines', () => {
   });
 
   it('captures aircraft snapshot and CSN/CSO baselines on serialized install', async () => {
-    const { aircraft, serializedComponent } = await createSerializedInstallContext();
+    const { aircraft, serializedComponent, authority } = await createSerializedInstallContext();
 
-    await AircraftComponentService.installSerializedComponent({
+    await AircraftComponentService.installSerializedComponent(authority, {
       aircraft_id: aircraft.id,
       serialized_component_id: serializedComponent.id,
       installed_at: '2026-06-17',
@@ -186,9 +194,9 @@ describe('AircraftComponentService serialized tracking basis baselines', () => {
   });
 
   it('shows installed serialized components through active installation visibility after install', async () => {
-    const { aircraft, serializedComponent } = await createSerializedInstallContext();
+    const { aircraft, serializedComponent, authority } = await createSerializedInstallContext();
 
-    await AircraftComponentService.installSerializedComponent({
+    await AircraftComponentService.installSerializedComponent(authority, {
       aircraft_id: aircraft.id,
       serialized_component_id: serializedComponent.id,
       installed_at: '2026-06-17',
@@ -197,7 +205,7 @@ describe('AircraftComponentService serialized tracking basis baselines', () => {
     });
 
     const activeInstallations =
-      await AircraftComponentService.getActiveSerializedInstallationsForAircraft(aircraft.id);
+      await AircraftComponentService.getActiveSerializedInstallationsForAircraft(authority, aircraft.id);
 
     expect(activeInstallations).toHaveLength(1);
     expect(activeInstallations[0]?.serialized_component_id).toBe(serializedComponent.id);
@@ -208,9 +216,9 @@ describe('AircraftComponentService serialized tracking basis baselines', () => {
   });
 
   it('captures aircraft snapshot and CSN/CSO baselines on serialized removal', async () => {
-    const { aircraft, serializedComponent } = await createSerializedInstallContext();
+    const { aircraft, serializedComponent, authority } = await createSerializedInstallContext();
 
-    await AircraftComponentService.installSerializedComponent({
+    await AircraftComponentService.installSerializedComponent(authority, {
       aircraft_id: aircraft.id,
       serialized_component_id: serializedComponent.id,
       installed_at: '2026-06-17',
@@ -221,7 +229,7 @@ describe('AircraftComponentService serialized tracking basis baselines', () => {
       where: { serialized_component_id: serializedComponent.id, removed_at: null },
     });
 
-    await UtilisationService.recordUtilisation({
+    await UtilisationService.recordUtilisation(authority, {
       aircraftId: aircraft.id,
       newTotalTimeHours: 14.75,
       newTotalTimeCycles: 9,
@@ -230,7 +238,7 @@ describe('AircraftComponentService serialized tracking basis baselines', () => {
       reason: 'Seed removal baseline utilisation',
     });
 
-    await AircraftComponentService.removeSerializedComponent({
+    await AircraftComponentService.removeSerializedComponent(authority, {
       aircraft_id: aircraft.id,
       installation_id: installation?.id,
       removed_at: '2026-06-18',
@@ -252,10 +260,10 @@ describe('AircraftComponentService serialized tracking basis baselines', () => {
   });
 
   it('rejects negative and fractional cycle baselines', async () => {
-    const { aircraft, serializedComponent } = await createSerializedInstallContext();
+    const { aircraft, serializedComponent, authority } = await createSerializedInstallContext();
 
     await expect(
-      AircraftComponentService.installSerializedComponent({
+      AircraftComponentService.installSerializedComponent(authority, {
         aircraft_id: aircraft.id,
         serialized_component_id: serializedComponent.id,
         installed_at: '2026-06-17',
@@ -265,7 +273,7 @@ describe('AircraftComponentService serialized tracking basis baselines', () => {
     ).rejects.toThrow(/INVALID_INSTALL_CSN/);
 
     await expect(
-      AircraftComponentService.installSerializedComponent({
+      AircraftComponentService.installSerializedComponent(authority, {
         aircraft_id: aircraft.id,
         serialized_component_id: serializedComponent.id,
         installed_at: '2026-06-17',
@@ -426,5 +434,31 @@ describe('AircraftComponentService serialized tracking basis baselines', () => {
       expect(template).toContain('Legacy Component Records');
       expect(template).toContain('Remove / Unallocate');
     }
+  });
+
+  it('uses available serialized components as operational UX dropdown fallback candidates', () => {
+    const operationalPartial = readFileSync(
+      'src/views/aircraft/partials/installed-components-operational-ux.ejs',
+      'utf8'
+    );
+
+    expect(operationalPartial).toContain("typeof availableSerializedComponents !== 'undefined'");
+    expect(operationalPartial).toContain('fallbackSerializedCandidates');
+    expect(operationalPartial).toContain('installedUxAvailableCandidates');
+    expect(operationalPartial).toContain('serialized_component_id: component.id');
+    expect(operationalPartial).not.toContain('serialized_component_id: component.component_model_id');
+  });
+
+  it('explains empty serialized candidate state and links to component creation', () => {
+    const operationalPartial = readFileSync(
+      'src/views/aircraft/partials/installed-components-operational-ux.ejs',
+      'utf8'
+    );
+
+    expect(operationalPartial).toContain(
+      'No available serialized components found. Create a serialized component first, then return here to allocate it to this aircraft.'
+    );
+    expect(operationalPartial).toContain('href="/library/serialized-components/create"');
+    expect(operationalPartial).toContain('Create Serialized Component');
   });
 });

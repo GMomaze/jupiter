@@ -1,3 +1,4 @@
+import { withTenantTransaction } from '../../tenancy/tenant-transaction.js';
 import {
   Aircraft,
   AircraftComponent,
@@ -11,6 +12,9 @@ import {
   WorkpackStatus,
   WorkpackTask,
 } from '../../../models/index.js';
+import type { TenantQueryAuthority } from '../../tenancy/tenant-query-authority.js';
+import { assertTenantQueryAuthority } from '../../tenancy/tenant-query-authority.js';
+import { workpackTenantRepository } from '../workpack-tenant.repository.js';
 import { AuditService } from '../../audit/audit.service.js';
 import { Op } from 'sequelize';
 
@@ -106,12 +110,14 @@ export class WorkpackServiceBulletinService {
   }
 
   static async addServiceBulletins(
+    authority: TenantQueryAuthority,
     workpackId: string,
     serviceBulletinIds: string[],
     actorId: string | undefined,
     sequelize: any,
     requireAuth: (actorId?: string) => void
   ) {
+    assertTenantQueryAuthority(authority);
     requireAuth(actorId);
 
     const uniqueIds = Array.from(
@@ -122,10 +128,9 @@ export class WorkpackServiceBulletinService {
       throw new Error('NO_SERVICE_BULLETINS_SELECTED');
     }
 
-    return sequelize.transaction(async (transaction: any) => {
-      const pack = await Workpack.findByPk(workpackId, {
-        transaction,
-        lock: transaction.LOCK.UPDATE,
+    return withTenantTransaction(authority, async (transaction: any) => {
+      const pack = await workpackTenantRepository.getById(authority, workpackId, {
+        transaction, lock: transaction.LOCK.UPDATE,
       });
 
       if (!pack) throw new Error('WORKPACK_NOT_FOUND');
@@ -193,6 +198,7 @@ export class WorkpackServiceBulletinService {
               .join('\n\n'),
             status: 'OPEN',
             aircraft_id: pack.aircraft_id,
+            tenant_id: authority.tenantId,
             component_id: null,
             service_bulletin_id: bulletin.id,
             version: 0,

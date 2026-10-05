@@ -14,7 +14,7 @@ export class UserService {
         u.password_hash, 
         u.is_active
       FROM users u
-      WHERE u.email = $1 AND u.is_active = true
+      WHERE u.email = $1 AND u.is_active = true AND u.retired_at IS NULL
     `;
     const { rows } = await pool.query(query, [email.toLowerCase().trim()]);
     return rows[0] || null;

@@ -1,8 +1,13 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+vi.mock('../platform-authority/authoritative-platform-mutation.js', () => ({
+  requirePlatformMutationOperations: (evidence: unknown) => evidence,
+  executeAuthoritativePlatformMutation: async (_evidence: unknown, work: (tx: any, audit: any) => Promise<unknown>) => work({ LOCK: { UPDATE: 'UPDATE' } }, { setBefore: vi.fn() }),
+}));
 import { AirworthinessDirective } from '../../models/AirworthinessDirective.js';
 import { ServiceBulletin } from '../../models/ServiceBulletin.js';
 import { SupplementalInspectionDocument } from '../../models/SupplementalInspectionDocument.js';
 import { LibraryService } from './library.service.js';
+const evidence = {} as any;
 
 describe('Compliance single-record creation service', () => {
   afterEach(() => {
@@ -19,7 +24,7 @@ describe('Compliance single-record creation service', () => {
       id: 'ad-1',
     } as any);
 
-    await LibraryService.createAirworthinessDirective({
+    await LibraryService.createAirworthinessDirective(evidence, {
       ad_number: ' 2026-01-01 ',
       revision: ' A ',
       subject_heading: ' Wing spar inspection ',
@@ -46,7 +51,8 @@ describe('Compliance single-record creation service', () => {
         interval_hours: 100,
         interval_months: 12,
         summary: 'Inspect before next annual.',
-      })
+      }),
+      expect.objectContaining({ transaction: expect.anything() })
     );
   });
 
@@ -56,11 +62,12 @@ describe('Compliance single-record creation service', () => {
     ] as any);
 
     await expect(
-      LibraryService.createAirworthinessDirective({
+      LibraryService.createAirworthinessDirective(evidence, {
         ad_number: '2026-01-01',
         revision: 'a',
         subject_heading: 'Duplicate AD',
-      })
+      }),
+      expect.objectContaining({ transaction: expect.anything() })
     ).rejects.toThrow(/already exists/);
   });
 
@@ -70,7 +77,7 @@ describe('Compliance single-record creation service', () => {
       id: 'sb-1',
     } as any);
 
-    await LibraryService.createLibraryServiceBulletin({
+    await LibraryService.createLibraryServiceBulletin(evidence, {
       category: 'SL',
       reference: ' SL 1141A ',
       title: 'Landing gear inspection',
@@ -95,7 +102,8 @@ describe('Compliance single-record creation service', () => {
         document_url: 'piper-sl-1141a.pdf',
         description: 'Inspect the landing gear attach points.',
         source_primary: 'MANUAL',
-      })
+      }),
+      expect.objectContaining({ transaction: expect.anything() })
     );
   });
 
@@ -105,7 +113,7 @@ describe('Compliance single-record creation service', () => {
       id: 'sb-required',
     } as any);
 
-    await LibraryService.createLibraryServiceBulletin({
+    await LibraryService.createLibraryServiceBulletin(evidence, {
       category: 'SB',
       reference: 'SB 500',
       title: 'Default compliance',
@@ -115,7 +123,8 @@ describe('Compliance single-record creation service', () => {
     expect(createSpy).toHaveBeenCalledWith(
       expect.objectContaining({
         compliance_type: 'REQUIRED',
-      })
+      }),
+      expect.objectContaining({ transaction: expect.anything() })
     );
   });
 
@@ -125,7 +134,7 @@ describe('Compliance single-record creation service', () => {
     ] as any);
 
     await expect(
-      LibraryService.createLibraryServiceBulletin({
+      LibraryService.createLibraryServiceBulletin(evidence, {
         reference: 'SB 223',
         title: 'Duplicate SB',
         manufacturer: 'Piper',
@@ -139,7 +148,7 @@ describe('Compliance single-record creation service', () => {
       id: 'sid-1',
     } as any);
 
-    await LibraryService.createSupplementalInspectionDocument({
+    await LibraryService.createSupplementalInspectionDocument(evidence, {
       manufacturer: 'Cessna',
       reference: 'SID 55-10-01',
       title: 'Empennage inspection',
@@ -167,7 +176,8 @@ describe('Compliance single-record creation service', () => {
         repeat_interval_hours: 500,
         repeat_interval_months: 60,
         is_active: true,
-      })
+      }),
+      expect.objectContaining({ transaction: expect.anything() })
     );
   });
 
@@ -175,7 +185,7 @@ describe('Compliance single-record creation service', () => {
     vi.spyOn(SupplementalInspectionDocument, 'findAll').mockResolvedValue([]);
 
     await expect(
-      LibraryService.createSupplementalInspectionDocument({
+      LibraryService.createSupplementalInspectionDocument(evidence, {
         manufacturer: 'Cessna',
         reference: '',
         title: 'Missing reference',
@@ -187,7 +197,7 @@ describe('Compliance single-record creation service', () => {
     ] as any);
 
     await expect(
-      LibraryService.createSupplementalInspectionDocument({
+      LibraryService.createSupplementalInspectionDocument(evidence, {
         manufacturer: 'Cessna',
         reference: 'SID 55-10-01',
         title: 'Duplicate SID',
@@ -199,7 +209,7 @@ describe('Compliance single-record creation service', () => {
     vi.spyOn(SupplementalInspectionDocument, 'findAll').mockResolvedValue([]);
 
     await expect(
-      LibraryService.createSupplementalInspectionDocument({
+      LibraryService.createSupplementalInspectionDocument(evidence, {
         manufacturer: 'Cessna',
         reference: 'SID NEG',
         title: 'Negative interval',

@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { v4 as uuid } from 'uuid';
 import { WorkpackService } from '../../src/modules/workpacks/workpack.service.js';
 import { pool } from '../../src/config/database.js';
+import { createTenantQueryAuthority, type TenantQueryAuthority } from '../../src/modules/tenancy/tenant-query-authority.js';
 import { 
   createAircraft, 
   createWorkpackStatus 
@@ -11,6 +12,8 @@ describe('Phase 7 Work Pack Integrity', () => {
   let userId: string;
   let aircraftId: string;
   let draftStatusId: string;
+  let tenantId: string;
+  let authority: TenantQueryAuthority;
 
   beforeEach(async () => {
     userId = uuid();
@@ -22,7 +25,20 @@ describe('Phase 7 Work Pack Integrity', () => {
       [userId, `test-${userId}@test.com`, 'hash', 'Workpack Tester', true]
     );
 
-    const aircraft = await createAircraft();
+    tenantId = uuid();
+    await pool.query(
+      `INSERT INTO tenants (id, public_id, code, display_name, status, created_by_user_id, updated_by_user_id)
+       VALUES ($1, $2, $3, $4, 'ACTIVE', $5, $5)`,
+      [tenantId, uuid(), `WP_${tenantId.replace(/-/g, '').slice(0, 12).toUpperCase()}`, 'Workpack test tenant', userId]
+    );
+    authority = createTenantQueryAuthority({
+      state: 'VALID_ACTIVE_TENANT',
+      tenant: { id: tenantId, publicId: uuid(), code: 'WP_TEST', displayName: 'Workpack test tenant', status: 'ACTIVE' },
+      membership: { id: uuid(), tenantId, userId, status: 'ACTIVE' },
+      validatedAt: Date.now(),
+    });
+
+    const aircraft = await createAircraft(undefined, undefined, tenantId);
     aircraftId = aircraft.id;
 
     const draftStatus = await createWorkpackStatus('DRAFT');
@@ -35,9 +51,9 @@ describe('Phase 7 Work Pack Integrity', () => {
 
   it('Should successfully ISSUE a pack with tasks', async () => {
     const wp = await pool.query(
-      `INSERT INTO workpacks (id, work_order_number, aircraft_id, status_id, version)
-       VALUES ($1, $2, $3, $4, 0) RETURNING id`,
-      [uuid(), `WO-${uuid().slice(0,8)}`, aircraftId, draftStatusId]
+      `INSERT INTO workpacks (id, tenant_id, work_order_number, aircraft_id, status_id, version)
+       VALUES ($1, $2, $3, $4, $5, 0) RETURNING id`,
+      [uuid(), tenantId, `WO-${uuid().slice(0,8)}`, aircraftId, draftStatusId]
     );
 
     const task = await pool.query(
@@ -46,8 +62,8 @@ describe('Phase 7 Work Pack Integrity', () => {
       [uuid(), 'TC-1', 'Task', 'Desc', 'OPEN', aircraftId]
     );
 
-    await WorkpackService.addTask(wp.rows[0].id, task.rows[0].id, userId);
-    await WorkpackService.issue(wp.rows[0].id, userId);
+    await WorkpackService.addTask(authority, wp.rows[0].id, task.rows[0].id, userId);
+    await WorkpackService.issue(authority, wp.rows[0].id, userId);
 
     const { rows } = await pool.query(
       `SELECT s.code FROM workpacks w 
@@ -61,9 +77,9 @@ describe('Phase 7 Work Pack Integrity', () => {
 
   it('Should add aircraft-relevant service bulletins to a draft workpack', async () => {
     const wp = await pool.query(
-      `INSERT INTO workpacks (id, work_order_number, aircraft_id, status_id, version)
-       VALUES ($1, $2, $3, $4, 0) RETURNING id`,
-      [uuid(), `WO-${uuid().slice(0,8)}`, aircraftId, draftStatusId]
+      `INSERT INTO workpacks (id, tenant_id, work_order_number, aircraft_id, status_id, version)
+       VALUES ($1, $2, $3, $4, $5, 0) RETURNING id`,
+      [uuid(), tenantId, `WO-${uuid().slice(0,8)}`, aircraftId, draftStatusId]
     );
 
     const aircraftRow = await pool.query(
@@ -92,7 +108,7 @@ describe('Phase 7 Work Pack Integrity', () => {
       [bulletinId, modelId]
     );
 
-    await WorkpackService.addServiceBulletins(wp.rows[0].id, [bulletinId], userId);
+    await WorkpackService.addServiceBulletins(authority, wp.rows[0].id, [bulletinId], userId);
 
     const addedTasks = await pool.query(
       `SELECT tc.title

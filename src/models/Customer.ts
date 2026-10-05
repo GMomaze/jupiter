@@ -3,6 +3,7 @@ import sequelize from '../config/database.js';
 
 export class Customer extends Model {
   declare id: string;
+  declare readonly tenant_id: string;
   declare name: string;
   declare contact_person: string;
   declare email: string;
@@ -35,6 +36,14 @@ Customer.init(
       type: DataTypes.UUID,
       primaryKey: true,
       defaultValue: DataTypes.UUIDV4,
+    },
+    tenant_id: {
+      type: DataTypes.UUID,
+      allowNull: false,
+      field: 'tenant_id',
+      references: { model: 'tenants', key: 'id' },
+      onUpdate: 'RESTRICT',
+      onDelete: 'RESTRICT',
     },
     name: {
       type: DataTypes.STRING,
@@ -115,6 +124,13 @@ Customer.init(
     account_reference: {
       type: DataTypes.STRING,
       allowNull: true,
+      validate: {
+        notBlank(value: string | null) {
+          if (value != null && String(value).trim() === '') {
+            throw new Error('CUSTOMER_ACCOUNT_REFERENCE_BLANK');
+          }
+        },
+      },
     },
     status: {
       type: DataTypes.STRING,
@@ -148,5 +164,23 @@ Customer.init(
       { fields: ['name'] },
       { fields: ['account_reference'] },
     ],
+    hooks: {
+      beforeUpdate(instance) {
+        if (instance.changed('tenant_id')) {
+          throw new Error('ROOT_OPERATIONAL_TENANT_OWNERSHIP_IMMUTABLE');
+        }
+      },
+      beforeBulkUpdate(options) {
+        const attributes = 'attributes' in options ? options.attributes : undefined;
+        if (
+          (attributes != null &&
+            typeof attributes === 'object' &&
+            Object.prototype.hasOwnProperty.call(attributes, 'tenant_id')) ||
+          options.fields?.includes('tenant_id')
+        ) {
+          throw new Error('ROOT_OPERATIONAL_TENANT_OWNERSHIP_IMMUTABLE');
+        }
+      },
+    },
   }
 );

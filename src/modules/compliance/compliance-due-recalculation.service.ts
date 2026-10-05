@@ -1,5 +1,7 @@
 import { QueryTypes } from 'sequelize';
-import { Aircraft, ComplianceItem, sequelize } from '../../models/index.js';
+import { ComplianceItem, sequelize } from '../../models/index.js';
+import { aircraftTenantRepository } from '../aircraft/aircraft-tenant.repository.live.js';
+import { assertTenantQueryAuthority, type TenantQueryAuthority } from '../tenancy/tenant-query-authority.js';
 import {
   DueBasis,
   DueLimitEvaluation,
@@ -102,28 +104,30 @@ type SidIntervalRow = {
 };
 
 export class ComplianceDueRecalculationService {
-  static async recalculateForUtilisationEvent(aircraftId: string) {
-    return this.recalculateForAircraft(aircraftId, 'UTILISATION_EVENT');
+  static async recalculateForUtilisationEvent(authority: TenantQueryAuthority, aircraftId: string) {
+    return this.recalculateForAircraft(authority, aircraftId, 'UTILISATION_EVENT');
   }
 
-  static async recalculateForComplianceEntry(aircraftId: string) {
-    return this.recalculateForAircraft(aircraftId, 'COMPLIANCE_ENTRY');
+  static async recalculateForComplianceEntry(authority: TenantQueryAuthority, aircraftId: string) {
+    return this.recalculateForAircraft(authority, aircraftId, 'COMPLIANCE_ENTRY');
   }
 
-  static async recalculateForApplicabilityChange(aircraftId: string) {
-    return this.recalculateForAircraft(aircraftId, 'APPLICABILITY_CHANGE');
+  static async recalculateForApplicabilityChange(authority: TenantQueryAuthority, aircraftId: string) {
+    return this.recalculateForAircraft(authority, aircraftId, 'APPLICABILITY_CHANGE');
   }
 
-  static async recalculateManually(aircraftId: string) {
-    return this.recalculateForAircraft(aircraftId, 'MANUAL_RECALCULATION');
+  static async recalculateManually(authority: TenantQueryAuthority, aircraftId: string) {
+    return this.recalculateForAircraft(authority, aircraftId, 'MANUAL_RECALCULATION');
   }
 
   static async recalculateForAircraft(
+    authority: TenantQueryAuthority,
     aircraftId: string,
     recalculationSource = 'MANUAL_RECALCULATION'
   ): Promise<ComplianceDueResult[]> {
-    const aircraft = await this.getAircraftSnapshot(aircraftId);
-    const applicability = await ApplicabilityEngineService.getApplicabilityForAircraft(aircraftId);
+    assertTenantQueryAuthority(authority);
+    const aircraft = await this.getAircraftSnapshot(authority, aircraftId);
+    const applicability = await ApplicabilityEngineService.getTenantApplicabilityForAircraft(authority, aircraftId);
     const complianceRows = await this.getAircraftComplianceRows(aircraftId);
     const complianceBySource = new Map(
       complianceRows
@@ -601,18 +605,16 @@ export class ComplianceDueRecalculationService {
     return /TERMINATING|TERMINATED|NO_FURTHER_ACTION/.test(text);
   }
 
-  private static async getAircraftSnapshot(aircraftId: string): Promise<AircraftSnapshot> {
-    const aircraft = await Aircraft.findByPk(aircraftId, {
-      attributes: ['id', 'model_id', 'total_time_hours', 'total_time_cycles'],
-    });
+  private static async getAircraftSnapshot(authority: TenantQueryAuthority, aircraftId: string): Promise<AircraftSnapshot> {
+    const aircraft = await aircraftTenantRepository.getById(authority, aircraftId);
 
     if (!aircraft) {
-      throw new Error('INVALID_AIRCRAFT');
+      throw new Error('TENANT_RESOURCE_UNAVAILABLE');
     }
 
     return {
       id: aircraft.id,
-      model_id: aircraft.model_id || null,
+      model_id: String(aircraft.model_id || '') || null,
       total_time_hours: this.numberOrNull(aircraft.total_time_hours),
       total_time_cycles: this.numberOrNull(aircraft.total_time_cycles),
     };

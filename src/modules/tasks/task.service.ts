@@ -1,3 +1,4 @@
+import { withTenantTransaction } from '../tenancy/tenant-transaction.js';
 import { pool } from '../../config/database.js';
 
 type TaskStatus =

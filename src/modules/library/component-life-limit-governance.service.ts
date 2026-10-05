@@ -1,6 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import { QueryTypes, Transaction } from 'sequelize';
 import sequelize from '../../config/database.js';
+import type { PlatformMutationEvidence } from '../platform-authority/authoritative-platform-mutation.js';
+import { executeAuthoritativePlatformMutation, requirePlatformMutationOperations } from '../platform-authority/authoritative-platform-mutation.js';
 
 export type LifeLimitProposalInput = {
   component_model_id: string;
@@ -122,9 +124,9 @@ export class ComponentLifeLimitGovernanceService {
     );
     return { proposal: proposals[0], history, legacyLimits };
   }
-  static async propose(actorId: string, input: LifeLimitProposalInput, suppliedTransaction?: Transaction) {
+  static async propose(evidence: PlatformMutationEvidence, actorId: string, input: LifeLimitProposalInput, suppliedTransaction?: Transaction) {
     this.validateProposalInput(input);
-    const work = async (transaction: Transaction) => {
+    const work = async (transaction: Transaction, audit: import('../platform-authority/authoritative-platform-mutation.js').PlatformMutationAuditCapture) => {
       await this.requirePermission(actorId, PROPOSE, transaction);
       const id = randomUUID();
       const lineageId = randomUUID();
@@ -147,11 +149,12 @@ export class ComponentLifeLimitGovernanceService {
       await this.history(transaction, proposal!, null, 'PROPOSAL_CREATED', actorId, input.proposal_reason, false, null, 'PROPOSED', {}, this.snapshot(proposal!));
       return proposal!;
     };
-    if (suppliedTransaction) { await this.requireSerializable(suppliedTransaction); return work(suppliedTransaction); }
-    return sequelize.transaction({ isolationLevel: Transaction.ISOLATION_LEVELS.SERIALIZABLE }, work);
+    const run = async (transaction: Transaction) => { await this.requireSerializable(transaction); return executeAuthoritativePlatformMutation(requirePlatformMutationOperations(evidence, ['LIFE_LIMIT_PROPOSE']), work, row => ({ resourceId: row.id, after: row }), transaction); };
+    return suppliedTransaction ? run(suppliedTransaction) : sequelize.transaction({ isolationLevel: Transaction.ISOLATION_LEVELS.SERIALIZABLE }, run);
   }
 
   static async proposeRevision(
+    evidence: PlatformMutationEvidence,
     actorId: string,
     targetProposalId: string,
     purpose: 'REPLACEMENT' | 'WITHDRAWAL',
@@ -160,9 +163,10 @@ export class ComponentLifeLimitGovernanceService {
   ) {
     if (purpose === 'REPLACEMENT') this.validateProposalInput(input);
     else this.validateWithdrawalInput(input);
-    const work = async (transaction: Transaction) => {
+    const work = async (transaction: Transaction, audit: import('../platform-authority/authoritative-platform-mutation.js').PlatformMutationAuditCapture) => {
       await this.requirePermission(actorId, PROPOSE, transaction);
       const target = await this.proposalForUpdate(targetProposalId, transaction);
+      audit.setBefore(this.snapshot(target));
       if (target.status !== 'APPROVED') throw new Error('COMPONENT_LIFE_LIMIT_INVALID_REVISION_TARGET');
       const [proposal] = await sequelize.query<ProposalRow>(
         `INSERT INTO public.component_life_limit_proposals (
@@ -199,16 +203,17 @@ export class ComponentLifeLimitGovernanceService {
       await this.history(transaction, proposal!, null, event, actorId, input.proposal_reason, false, null, 'PROPOSED', {}, this.snapshot(proposal!));
       return proposal!;
     };
-    if (suppliedTransaction) { await this.requireSerializable(suppliedTransaction); return work(suppliedTransaction); }
-    return sequelize.transaction({ isolationLevel: Transaction.ISOLATION_LEVELS.SERIALIZABLE }, work);
+    const run = async (transaction: Transaction) => { await this.requireSerializable(transaction); return executeAuthoritativePlatformMutation(requirePlatformMutationOperations(evidence, ['LIFE_LIMIT_PROPOSE']), work, row => ({ resourceId: row.id, after: row }), transaction); };
+    return suppliedTransaction ? run(suppliedTransaction) : sequelize.transaction({ isolationLevel: Transaction.ISOLATION_LEVELS.SERIALIZABLE }, run);
   }
 
-  static async approve(actorId: string, proposalId: string, decisionReason: string, evidenceConfirmed: boolean, suppliedTransaction?: Transaction) {
+  static async approve(evidence: PlatformMutationEvidence, actorId: string, proposalId: string, decisionReason: string, evidenceConfirmed: boolean, suppliedTransaction?: Transaction) {
     if (!evidenceConfirmed) throw new Error('COMPONENT_LIFE_LIMIT_EVIDENCE_CONFIRMATION_REQUIRED');
     this.requireText(decisionReason, 'decision_reason');
-    const work = async (transaction: Transaction) => {
+    const work = async (transaction: Transaction, audit: import('../platform-authority/authoritative-platform-mutation.js').PlatformMutationAuditCapture) => {
       await this.requirePermission(actorId, APPROVE, transaction);
       const proposal = await this.proposalForUpdate(proposalId, transaction);
+      audit.setBefore(this.snapshot(proposal));
       if (proposal.status !== 'PROPOSED') throw new Error('COMPONENT_LIFE_LIMIT_INVALID_TRANSITION');
       if (proposal.proposed_by === actorId) throw new Error('COMPONENT_LIFE_LIMIT_SELF_DECISION_FORBIDDEN');
       const [decision] = await sequelize.query<{ publication_id: string | null }>(
@@ -221,15 +226,16 @@ export class ComponentLifeLimitGovernanceService {
         : null;
       return { proposal: approved, publication };
     };
-    if (suppliedTransaction) { await this.requireSerializable(suppliedTransaction); return work(suppliedTransaction); }
-    return sequelize.transaction({ isolationLevel: Transaction.ISOLATION_LEVELS.SERIALIZABLE }, work);
+    const run = async (transaction: Transaction) => { await this.requireSerializable(transaction); return executeAuthoritativePlatformMutation(requirePlatformMutationOperations(evidence, ['LIFE_LIMIT_APPROVE']), work, row => ({ resourceId: row.proposal.id, after: row }), transaction); };
+    return suppliedTransaction ? run(suppliedTransaction) : sequelize.transaction({ isolationLevel: Transaction.ISOLATION_LEVELS.SERIALIZABLE }, run);
   }
 
-  static async reject(actorId: string, proposalId: string, decisionReason: string, suppliedTransaction?: Transaction) {
+  static async reject(evidence: PlatformMutationEvidence, actorId: string, proposalId: string, decisionReason: string, suppliedTransaction?: Transaction) {
     this.requireText(decisionReason, 'decision_reason');
-    const work = async (transaction: Transaction) => {
+    const work = async (transaction: Transaction, audit: import('../platform-authority/authoritative-platform-mutation.js').PlatformMutationAuditCapture) => {
       await this.requirePermission(actorId, APPROVE, transaction);
       const proposal = await this.proposalForUpdate(proposalId, transaction);
+      audit.setBefore(this.snapshot(proposal));
       if (proposal.status !== 'PROPOSED') throw new Error('COMPONENT_LIFE_LIMIT_INVALID_TRANSITION');
       if (proposal.proposed_by === actorId) throw new Error('COMPONENT_LIFE_LIMIT_SELF_DECISION_FORBIDDEN');
       await sequelize.query(
@@ -238,14 +244,14 @@ export class ComponentLifeLimitGovernanceService {
       );
       return this.proposalForUpdate(proposalId, transaction);
     };
-    if (suppliedTransaction) { await this.requireSerializable(suppliedTransaction); return work(suppliedTransaction); }
-    return sequelize.transaction({ isolationLevel: Transaction.ISOLATION_LEVELS.SERIALIZABLE }, work);
+    const run = async (transaction: Transaction) => { await this.requireSerializable(transaction); return executeAuthoritativePlatformMutation(requirePlatformMutationOperations(evidence, ['LIFE_LIMIT_APPROVE']), work, row => ({ resourceId: row.id, after: row }), transaction); };
+    return suppliedTransaction ? run(suppliedTransaction) : sequelize.transaction({ isolationLevel: Transaction.ISOLATION_LEVELS.SERIALIZABLE }, run);
   }
 
-  static async activate(actorId: string, publicationId: string, activationReason: string, activationConfirmed: boolean, suppliedTransaction?: Transaction) {
+  static async activate(evidence: PlatformMutationEvidence, actorId: string, publicationId: string, activationReason: string, activationConfirmed: boolean, suppliedTransaction?: Transaction) {
     if (!activationConfirmed) throw new Error('COMPONENT_LIFE_LIMIT_ACTIVATION_CONFIRMATION_REQUIRED');
     this.requireText(activationReason, 'activation_reason');
-    const work = async (transaction: Transaction) => {
+    const work = async (transaction: Transaction, audit: import('../platform-authority/authoritative-platform-mutation.js').PlatformMutationAuditCapture) => {
       await this.requirePermission(actorId, ACTIVATE, transaction);
       const [publication] = await sequelize.query<PublicationRow & { proposed_by: string; decision_by: string | null }>(
         `SELECT pub.*, proposal.proposed_by, proposal.decision_by
@@ -255,6 +261,7 @@ export class ComponentLifeLimitGovernanceService {
         { replacements: { publicationId }, type: QueryTypes.SELECT, transaction }
       );
       if (!publication) throw new Error('COMPONENT_LIFE_LIMIT_PUBLICATION_NOT_FOUND');
+      audit.setBefore(this.snapshot(publication));
       if (publication.publication_state !== 'DORMANT') throw new Error('COMPONENT_LIFE_LIMIT_INVALID_ACTIVATION_TRANSITION');
       if (publication.proposed_by === actorId) throw new Error('COMPONENT_LIFE_LIMIT_SELF_ACTIVATION_FORBIDDEN');
       await sequelize.query(
@@ -267,8 +274,8 @@ export class ComponentLifeLimitGovernanceService {
       );
       return activated!;
     };
-    if (suppliedTransaction) { await this.requireSerializable(suppliedTransaction); return work(suppliedTransaction); }
-    return sequelize.transaction({ isolationLevel: Transaction.ISOLATION_LEVELS.SERIALIZABLE }, work);
+    const run = async (transaction: Transaction) => { await this.requireSerializable(transaction); return executeAuthoritativePlatformMutation(requirePlatformMutationOperations(evidence, ['LIFE_LIMIT_ACTIVATE']), work, row => ({ resourceId: row.id, after: row }), transaction); };
+    return suppliedTransaction ? run(suppliedTransaction) : sequelize.transaction({ isolationLevel: Transaction.ISOLATION_LEVELS.SERIALIZABLE }, run);
   }
 
   private static async terminateTarget(transaction: Transaction, request: ProposalRow, actorId: string, reason: string) {

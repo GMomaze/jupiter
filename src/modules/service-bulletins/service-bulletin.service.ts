@@ -6,6 +6,8 @@ import {
   AssetType,
   ServiceBulletinModel,
 } from '../../models/index.js';
+import type { PlatformMutationEvidence } from '../platform-authority/authoritative-platform-mutation.js';
+import { executeAuthoritativePlatformMutation, requirePlatformMutationOperations } from '../platform-authority/authoritative-platform-mutation.js';
 
 export class ServiceBulletinService {
   static readonly providers = ['VERYON', 'ATP'] as const;
@@ -79,7 +81,7 @@ export class ServiceBulletinService {
     );
   }
 
-  static async getCreateOptions() {
+  static async getCreateOptions(transaction?: import('sequelize').Transaction) {
     return ComponentModel.findAll({
       attributes: ['id', 'model_name', 'manufacturer_id', 'asset_type_id', 'is_active'],
       include: [
@@ -96,6 +98,7 @@ export class ServiceBulletinService {
       ],
       where: { is_active: true },
       order: [['model_name', 'ASC']],
+      ...(transaction ? { transaction } : {}),
     });
   }
 
@@ -163,7 +166,7 @@ export class ServiceBulletinService {
     };
   }
 
-  static async create(data: {
+  static async create(evidence: PlatformMutationEvidence, data: {
     sb_number: string;
     title?: string;
     model_id: string;
@@ -173,9 +176,11 @@ export class ServiceBulletinService {
     description?: string;
     issued_on?: string;
   }) {
+    return executeAuthoritativePlatformMutation(requirePlatformMutationOperations(evidence, ['REGULATORY_MASTER_CREATE', 'REGULATORY_RELATIONSHIP_MUTATE']), async (transaction, audit) => {
     const normalizedSbNumber = data.sb_number.trim().toUpperCase();
     const model = await ComponentModel.findByPk(data.model_id, {
       attributes: ['id', 'manufacturer_id'],
+      transaction,
     });
 
     const existing = model
@@ -191,13 +196,23 @@ export class ServiceBulletinService {
             },
           ],
           order: [['created_at', 'ASC']],
+          transaction,
+          lock: transaction.LOCK.UPDATE,
         })
       : await ServiceBulletin.findOne({
           where: { sb_number: normalizedSbNumber },
           order: [['created_at', 'ASC']],
+          transaction,
+          lock: transaction.LOCK.UPDATE,
         });
 
     if (existing) {
+      const existingLink = await ServiceBulletinModel.findOne({
+        where: { service_bulletin_id: existing.id, model_id: data.model_id },
+        transaction,
+        lock: transaction.LOCK.UPDATE,
+      });
+      audit.setBefore({ bulletin: existing.toJSON(), relationship: existingLink?.toJSON() ?? null });
       await ServiceBulletinModel.findOrCreate({
         where: {
           service_bulletin_id: existing.id,
@@ -207,6 +222,7 @@ export class ServiceBulletinService {
           service_bulletin_id: existing.id,
           model_id: data.model_id,
         },
+        transaction,
       });
 
       await existing.update({
@@ -217,7 +233,7 @@ export class ServiceBulletinService {
         document_url: existing.document_url || data.document_url?.trim() || null,
         description: existing.description || data.description?.trim() || null,
         issued_on: existing.issued_on || data.issued_on || null,
-      });
+      }, { transaction });
 
       return existing;
     }
@@ -238,13 +254,14 @@ export class ServiceBulletinService {
       document_url: data.document_url?.trim() || null,
       description: data.description?.trim() || null,
       issued_on: data.issued_on || null,
-    });
+    }, { transaction });
 
     await ServiceBulletinModel.create({
       service_bulletin_id: created.id,
       model_id: data.model_id,
-    });
+    }, { transaction });
 
     return created;
+    }, row => ({ resourceId: row.id, after: row.toJSON() }));
   }
 }

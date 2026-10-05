@@ -5,6 +5,8 @@ import {
   WorkpackStatus,
   WorkpackTask,
 } from '../../../models/index.js';
+import type { TenantQueryAuthority } from '../../tenancy/tenant-query-authority.js';
+import { assertTenantQueryAuthority } from '../../tenancy/tenant-query-authority.js';
 
 export class WorkpackExecutionService {
   static mapTaskStatusToExecutionStatus(taskStatus: string): string {
@@ -109,7 +111,8 @@ export class WorkpackExecutionService {
     return execution;
   }
 
-  static async getExecutablePackForTask(taskId: string, transaction: any) {
+  static async getExecutablePackForTask(authority: TenantQueryAuthority, taskId: string, transaction: any) {
+    assertTenantQueryAuthority(authority);
     const links = await WorkpackTask.findAll({
       where: { task_id: taskId },
       transaction
@@ -121,10 +124,13 @@ export class WorkpackExecutionService {
 
     const workpackIds = links.map(link => link.workpack_id);
     const packs = await Workpack.findAll({
-      where: { id: workpackIds },
+      where: { id: workpackIds, tenant_id: authority.tenantId },
       transaction,
       lock: transaction.LOCK.UPDATE
     });
+    if (packs.length !== workpackIds.length) {
+      throw new Error('TASK_NOT_ASSIGNED_TO_WORKPACK');
+    }
 
     const packStatuses = await WorkpackStatus.findAll({
       where: { id: packs.map(pack => pack.status_id) },

@@ -13,6 +13,7 @@ export type MigrationBatchStatus =
 
 export class MigrationBatch extends Model {
   declare id: string;
+  declare tenant_id: string;
   declare migration_type: string;
   declare status: MigrationBatchStatus;
   declare created_by: string | null;
@@ -37,6 +38,10 @@ MigrationBatch.init(
       type: DataTypes.UUID,
       primaryKey: true,
       defaultValue: DataTypes.UUIDV4,
+    },
+    tenant_id: {
+      type: DataTypes.UUID,
+      allowNull: false,
     },
     migration_type: {
       type: DataTypes.STRING,
@@ -81,6 +86,7 @@ MigrationBatch.init(
     tableName: 'migration_batches',
     underscored: true,
     indexes: [
+      { fields: ['tenant_id'] },
       { fields: ['migration_type'] },
       { fields: ['status'] },
     ],

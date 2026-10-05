@@ -4,12 +4,14 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   AdApplicabilityAllocation,
   AirworthinessDirective,
-  Aircraft,
+  ComponentModel,
   ComplianceAssignment,
   ComplianceItem,
   sequelize,
 } from '../../models/index.js';
 import { AircraftService } from './aircraft.service.js';
+import { aircraftTenantRepository } from './aircraft-tenant.repository.live.js';
+import { aircraftComplianceTestAuthority as authority } from './aircraft-compliance-tenant.test-support.js';
 
 const aircraftId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const allocationId = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
@@ -35,13 +37,8 @@ function mockTransaction() {
 }
 
 function mockAircraft() {
-  vi.spyOn(Aircraft, 'findByPk').mockResolvedValue({
-    id: aircraftId,
-    model_id: 'model-id',
-    ComponentModel: {
-      manufacturer_id: 'manufacturer-id',
-    },
-  } as any);
+  vi.spyOn(aircraftTenantRepository, 'getById').mockResolvedValue({ id: aircraftId, model_id: 'model-id' } as any);
+  vi.spyOn(ComponentModel, 'findByPk').mockResolvedValue({ id: 'model-id', manufacturer_id: 'manufacturer-id' } as any);
 }
 
 function mockAcceptedAllocation(overrides: Record<string, any> = {}) {
@@ -76,7 +73,7 @@ describe('aircraft AD compliance assignment creation', () => {
     vi.spyOn(ComplianceAssignment, 'create').mockResolvedValue({ id: assignmentId } as any);
 
     const result =
-      await AircraftService.createAdComplianceAssignmentFromAcceptedAllocation({
+      await AircraftService.createAdComplianceAssignmentFromAcceptedAllocation(authority, {
         aircraftId,
         allocationId,
         actorUserId: 'user-id',
@@ -127,7 +124,7 @@ describe('aircraft AD compliance assignment creation', () => {
     vi.spyOn(ComplianceAssignment, 'create');
 
     const result =
-      await AircraftService.createAdComplianceAssignmentFromAcceptedAllocation({
+      await AircraftService.createAdComplianceAssignmentFromAcceptedAllocation(authority, {
         aircraftId,
         allocationId,
       });
@@ -151,7 +148,7 @@ describe('aircraft AD compliance assignment creation', () => {
     } as any);
 
     const result =
-      await AircraftService.createAdComplianceAssignmentFromAcceptedAllocation({
+      await AircraftService.createAdComplianceAssignmentFromAcceptedAllocation(authority, {
         aircraftId,
         allocationId,
       });
@@ -177,7 +174,7 @@ describe('aircraft AD compliance assignment creation', () => {
       mockApplicablePreview();
 
       await expect(
-        AircraftService.createAdComplianceAssignmentFromAcceptedAllocation({
+        AircraftService.createAdComplianceAssignmentFromAcceptedAllocation(authority, {
           aircraftId,
           allocationId,
         })
@@ -191,7 +188,7 @@ describe('aircraft AD compliance assignment creation', () => {
     mockApplicablePreview([]);
 
     await expect(
-      AircraftService.createAdComplianceAssignmentFromAcceptedAllocation({
+      AircraftService.createAdComplianceAssignmentFromAcceptedAllocation(authority, {
         aircraftId,
         allocationId,
       })
@@ -205,7 +202,7 @@ describe('aircraft AD compliance assignment creation', () => {
     vi.spyOn(AirworthinessDirective, 'findByPk').mockResolvedValue(null);
 
     await expect(
-      AircraftService.createAdComplianceAssignmentFromAcceptedAllocation({
+      AircraftService.createAdComplianceAssignmentFromAcceptedAllocation(authority, {
         aircraftId,
         allocationId,
       })

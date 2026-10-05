@@ -49,7 +49,7 @@ describe('component model detail tabs', () => {
     const maintenancePanelStart = template.indexOf('id="component-model-tab-maintenance-requirements"');
     const compliancePanel = template.slice(compliancePanelStart, maintenancePanelStart);
 
-    expect(compliancePanel).toContain('Airworthiness Directives');
+    expect(compliancePanel).toContain('Compliance Data —');
     expect(compliancePanel).toContain('action="/library/model/<%= model.id %>/airworthiness-directives/assign"');
     expect(compliancePanel).toContain('Structural Inspection Directives');
     expect(compliancePanel).toContain('action="/library/model/<%= model.id %>/sids/import?_csrf=<%= encodeURIComponent(csrfToken) %>"');
@@ -57,10 +57,10 @@ describe('component model detail tabs', () => {
     expect(compliancePanel).toContain('Attach Existing Service Bulletins');
     expect(compliancePanel).toContain('action="/library/model/<%= model.id %>/service-bulletins/attach"');
     expect(compliancePanel).toContain('action="/library/service-bulletin"');
-    expect(compliancePanel).toContain('Read-only AD Relevance Suggestions');
-    expect(template).toContain("label: 'Exact Model Suggestions'");
-    expect(template).toContain("label: 'Manufacturer Suggestions'");
-    expect(template).toContain("label: 'Broad Review'");
+    expect(compliancePanel).toContain('Assigned / Accepted for This Model');
+    expect(template).toContain("label: 'Strong Model Suggestions'");
+    expect(template).toContain("label: 'Manufacturer-Level Review'");
+    expect(template).toContain("label: 'Broad / Ambiguous Review'");
     expect(compliancePanel).toContain('id="select-all-attachable-sbs"');
     expect(compliancePanel).toContain('id="sb-grid-body"');
     expect(compliancePanel).toContain('id="add-sb-row"');
@@ -120,15 +120,14 @@ describe('component model detail tabs', () => {
     expect(template.match(/name="_csrf" value="<%= csrfToken %>"/g)?.length).toBe(8);
   });
 
-  it('keeps AD relevance suggestions read-only', () => {
+  it('keeps scoped AD suggestions read-only', () => {
     const compliancePanelStart = template.indexOf('id="component-model-tab-compliance"');
     const maintenancePanelStart = template.indexOf('id="component-model-tab-maintenance-requirements"');
     const compliancePanel = template.slice(compliancePanelStart, maintenancePanelStart);
-    const suggestionStart = compliancePanel.indexOf('Read-only AD Relevance Suggestions');
-    const sidStart = compliancePanel.indexOf('Structural Inspection Directives');
-    const suggestionPanel = compliancePanel.slice(suggestionStart, sidStart);
+    const suggestionStart = compliancePanel.indexOf('scopedAdSuggestionGroups.forEach');
+    const searchStart = compliancePanel.indexOf('Search and Add from Full AD Library');
+    const suggestionPanel = compliancePanel.slice(suggestionStart, searchStart);
 
-    expect(suggestionPanel).toContain('readOnlyAdSuggestionGroups.forEach');
     expect(suggestionPanel).toContain('directive.relevance_reason');
     expect(suggestionPanel).not.toContain('<form');
     expect(suggestionPanel).not.toContain('type="checkbox"');
@@ -146,8 +145,6 @@ describe('component model detail tabs', () => {
   });
 
   it('renders AD subject fields instead of subject heading only', () => {
-    expect(template).toContain('Subject Heading:');
-    expect(template).toContain('Subject:');
     expect(template).toContain('directive.subject || directive.subject_heading ||');
   });
 

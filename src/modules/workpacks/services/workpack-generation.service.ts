@@ -1,3 +1,4 @@
+import { withTenantTransaction } from '../../tenancy/tenant-transaction.js';
 import { access, readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
@@ -16,6 +17,9 @@ import {
   WorkpackTask,
   sequelize,
 } from '../../../models/index.js';
+import type { TenantQueryAuthority } from '../../tenancy/tenant-query-authority.js';
+import { assertTenantQueryAuthority } from '../../tenancy/tenant-query-authority.js';
+import { aircraftTenantRepository } from '../../aircraft/aircraft-tenant.repository.live.js';
 import { ComplianceItem } from '../../../models/ComplianceItem.js';
 import {
   PlanningValidationError,
@@ -78,6 +82,7 @@ export class WorkpackGenerationService {
     createdBy: string;
     planningSessionId?: string;
     selectedItemIds?: string[];
+    tenantAuthority: TenantQueryAuthority;
   }): Promise<WorkpackGenerationResult> {
     const result: WorkpackGenerationResult = {
       workpack_id: null,
@@ -90,6 +95,7 @@ export class WorkpackGenerationService {
     };
 
     try {
+      assertTenantQueryAuthority(params.tenantAuthority);
       this.validateParams(params);
       await this.validatePhaseDependency();
 
@@ -102,9 +108,10 @@ export class WorkpackGenerationService {
         throw new Error('TEMPLATE_NOT_ACTIVE');
       }
 
-      const aircraft = await Aircraft.findByPk(params.aircraftId, {
-        attributes: ['id', 'model_id'],
-      });
+      const aircraft = await aircraftTenantRepository.getById(
+        params.tenantAuthority,
+        params.aircraftId,
+      ) as Aircraft | undefined;
       if (!aircraft) {
         throw new Error('AIRCRAFT_NOT_FOUND');
       }
@@ -124,6 +131,7 @@ export class WorkpackGenerationService {
       const preview = await WorkpackPreviewService.getWorkpackPreview({
         templateId: template.id,
         aircraftId: aircraft.id,
+        tenantAuthority: params.tenantAuthority,
       });
 
       const normalizedSelectedIds = Array.isArray(params.selectedItemIds)
@@ -174,7 +182,8 @@ export class WorkpackGenerationService {
         throw new Error('TEMPLATE_SELECTION_EMPTY');
       }
 
-      const transactionResult = await sequelize.transaction(
+      const transactionResult = await withTenantTransaction(
+        params.tenantAuthority,
         async (transaction: Transaction) => {
           const draftStatus = await WorkpackStatus.findOne({
             where: { code: 'DRAFT' },
@@ -201,6 +210,7 @@ export class WorkpackGenerationService {
 
           const workpack = await Workpack.create(
             {
+              tenant_id: params.tenantAuthority.tenantId,
               aircraft_id: aircraft.id,
               status_id: draftStatus.id,
               // Traceability only. Runtime workpack behavior must stay independent from planning sessions.
@@ -551,6 +561,7 @@ export class WorkpackGenerationService {
     const commonPayload: Record<string, unknown> = {
       task_card_number: `${workpack.work_order_number}-T${sequenceLabel}`,
       aircraft_id: aircraftId,
+      tenant_id: workpack.tenant_id,
       status: 'OPEN',
       component_id: null,
       version: 0,

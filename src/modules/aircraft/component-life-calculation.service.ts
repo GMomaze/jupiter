@@ -1,10 +1,11 @@
 import {
   Aircraft,
   AircraftComponentInstallation,
-  SerializedComponent,
   SerializedComponentLifeState,
   SerializedComponentMaintenanceEvent,
 } from '../../models/index.js';
+import { assertTenantQueryAuthority, type TenantQueryAuthority } from '../tenancy/tenant-query-authority.js';
+import { aircraftComponentInstallationTenantRepository } from './aircraft-component-installation-tenant.repository.live.js';
 
 export type LifeCalculationStatus = 'CALCULATED' | 'UNKNOWN';
 export type LifeDimension = 'tsn_hours' | 'tso_hours' | 'csn_cycles' | 'cso_cycles';
@@ -41,114 +42,67 @@ const dimensions: LifeDimension[] = ['tsn_hours', 'tso_hours', 'csn_cycles', 'cs
 
 export class ComponentLifeCalculationService {
   static async calculateForInstallation(
+    authority: TenantQueryAuthority,
     installationId: string
   ): Promise<ComponentLifeCalculationResult> {
+    assertTenantQueryAuthority(authority);
     const normalizedInstallationId = String(installationId || '').trim();
 
     if (!normalizedInstallationId) {
       throw new Error('INSTALLATION_ID_REQUIRED');
     }
 
-    const installation = await AircraftComponentInstallation.findByPk(normalizedInstallationId, {
-      include: [
-        {
-          model: Aircraft,
-          as: 'Aircraft',
-          attributes: ['id', 'total_time_hours', 'total_time_cycles'],
-          required: true,
-        },
-        {
-          model: SerializedComponent,
-          as: 'SerializedComponent',
-          attributes: ['id'],
-          required: true,
-          include: [
-            {
-              model: SerializedComponentLifeState,
-              as: 'LifeState',
-              required: false,
-            },
-            {
-              model: SerializedComponentMaintenanceEvent,
-              as: 'MaintenanceEvents',
-              required: false,
-            },
-          ],
-        },
-      ],
-    });
+    const installation = await aircraftComponentInstallationTenantRepository.getOperationalLifeContext(authority, normalizedInstallationId);
 
     if (!installation) {
-      throw new Error('INSTALLATION_NOT_FOUND');
+      throw new Error('TENANT_RESOURCE_UNAVAILABLE');
     }
 
-    const serializedComponent = (installation as any).SerializedComponent || null;
-    const aircraft = (installation as any).Aircraft || null;
-    const lifeState = serializedComponent?.LifeState || null;
-    const maintenanceEvents = serializedComponent?.MaintenanceEvents || [];
-    const trackingBasis = this.normalizeTrackingBasis(installation.tracking_basis);
-    const result = this.calculateFromContext({
-      installation,
-      aircraft,
-      lifeState,
-      maintenanceEvents,
-      trackingBasis,
-    });
-
-    return result;
+    return this.calculateResolvedInstallation(installation as unknown as AircraftComponentInstallation);
   }
 
   static async calculateForInstallationWithAircraftSnapshot(
+    authority: TenantQueryAuthority,
     installationId: string,
     aircraftSnapshot: ProposedAircraftSnapshot
   ): Promise<ComponentLifeCalculationResult> {
+    assertTenantQueryAuthority(authority);
     const normalizedInstallationId = String(installationId || '').trim();
 
     if (!normalizedInstallationId) {
       throw new Error('INSTALLATION_ID_REQUIRED');
     }
 
-    const installation = await AircraftComponentInstallation.findByPk(normalizedInstallationId, {
-      include: [
-        {
-          model: SerializedComponent,
-          as: 'SerializedComponent',
-          attributes: ['id'],
-          required: true,
-          include: [
-            {
-              model: SerializedComponentLifeState,
-              as: 'LifeState',
-              required: false,
-            },
-            {
-              model: SerializedComponentMaintenanceEvent,
-              as: 'MaintenanceEvents',
-              required: false,
-            },
-          ],
-        },
-      ],
-    });
+    const installation = await aircraftComponentInstallationTenantRepository.getOperationalLifeContext(authority, normalizedInstallationId);
 
     if (!installation) {
-      throw new Error('INSTALLATION_NOT_FOUND');
+      throw new Error('TENANT_RESOURCE_UNAVAILABLE');
     }
 
-    const serializedComponent = (installation as any).SerializedComponent || null;
-    const lifeState = serializedComponent?.LifeState || null;
-    const maintenanceEvents = serializedComponent?.MaintenanceEvents || [];
-    const trackingBasis = this.normalizeTrackingBasis(installation.tracking_basis);
+    return this.calculateResolvedInstallation(installation as unknown as AircraftComponentInstallation, aircraftSnapshot);
+  }
 
+  static async calculateForDeferredBroadMonitoring(
+    authority: TenantQueryAuthority,
+    installationId: string,
+  ): Promise<ComponentLifeCalculationResult> {
+    assertTenantQueryAuthority(authority);
+    const installation = await aircraftComponentInstallationTenantRepository.getOperationalLifeContext(
+      authority,
+      installationId,
+    );
+    if (!installation) throw new Error('TENANT_RESOURCE_UNAVAILABLE');
+    return this.calculateResolvedInstallation(installation as unknown as AircraftComponentInstallation);
+  }
+
+  private static calculateResolvedInstallation(installation: AircraftComponentInstallation, aircraftSnapshot?: ProposedAircraftSnapshot) {
+    const serializedComponent = (installation as any).SerializedComponent || null;
     return this.calculateFromContext({
       installation,
-      aircraft: {
-        total_time_hours: aircraftSnapshot.total_time_hours,
-        total_time_cycles: aircraftSnapshot.total_time_cycles,
-      } as Aircraft,
-      lifeState,
-      maintenanceEvents,
-      trackingBasis,
+      aircraft: aircraftSnapshot ? { ...aircraftSnapshot } as Aircraft : ((installation as any).Aircraft || null),
+      lifeState: serializedComponent?.LifeState || null,
+      maintenanceEvents: serializedComponent?.MaintenanceEvents || [],
+      trackingBasis: this.normalizeTrackingBasis(installation.tracking_basis),
     });
   }
 

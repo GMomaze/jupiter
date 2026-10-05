@@ -4,6 +4,9 @@ import {
   PlanningSession,
   Workpack,
 } from '../../../models/index.js';
+import type { TenantQueryAuthority } from '../../tenancy/tenant-query-authority.js';
+import { assertTenantQueryAuthority } from '../../tenancy/tenant-query-authority.js';
+import { aircraftTenantRepository } from '../../aircraft/aircraft-tenant.repository.live.js';
 import {
   WorkpackPreviewItem,
   WorkpackPreviewResult,
@@ -31,11 +34,14 @@ type PlanningSessionStatus =
 
 export class PlanningSessionService {
   static async listSessionsForUser(params: {
+    tenantAuthority: TenantQueryAuthority;
     userId: string;
     aircraftId?: string;
     status?: string;
   }) {
+    assertTenantQueryAuthority(params.tenantAuthority);
     const where: Record<string, unknown> = {
+      tenant_id: params.tenantAuthority.tenantId,
       user_id: params.userId,
     };
     const normalizedAircraftId = String(params.aircraftId || '').trim();
@@ -80,12 +86,15 @@ export class PlanningSessionService {
   }
 
   static async deleteSession(params: {
+    tenantAuthority: TenantQueryAuthority;
     sessionId: string;
     userId: string;
   }) {
+    assertTenantQueryAuthority(params.tenantAuthority);
     const session = await PlanningSession.findOne({
       where: {
         id: params.sessionId,
+        tenant_id: params.tenantAuthority.tenantId,
         user_id: params.userId,
       },
     });
@@ -101,10 +110,16 @@ export class PlanningSessionService {
     await session.destroy();
   }
 
-  static async getSessionForUser(sessionId: string, userId: string) {
+  static async getSessionForUser(
+    tenantAuthority: TenantQueryAuthority,
+    sessionId: string,
+    userId: string,
+  ) {
+    assertTenantQueryAuthority(tenantAuthority);
     return PlanningSession.findOne({
       where: {
         id: sessionId,
+        tenant_id: tenantAuthority.tenantId,
         user_id: userId,
       },
       include: [
@@ -137,7 +152,16 @@ export class PlanningSessionService {
     templateId: string;
     maintenanceType: string;
     selectedItemIds: string[];
+    tenantAuthority: TenantQueryAuthority;
   }) {
+    assertTenantQueryAuthority(params.tenantAuthority);
+
+    const authoritativeAircraft = await aircraftTenantRepository.getById(
+      params.tenantAuthority,
+      params.aircraftId,
+    );
+    if (!authoritativeAircraft) throw new Error('AIRCRAFT_UNAVAILABLE');
+
     const state = await this.buildSessionState(params);
 
     const normalizedMaintenanceType = String(params.maintenanceType || '').trim().toUpperCase();
@@ -157,6 +181,7 @@ export class PlanningSessionService {
         ? await PlanningSession.findOne({
             where: {
               id: params.sessionId,
+              tenant_id: params.tenantAuthority.tenantId,
               user_id: params.userId,
               status: ['DRAFT', 'IN_PROGRESS', 'READY_FOR_GENERATION'],
             },
@@ -167,6 +192,7 @@ export class PlanningSessionService {
       session = await PlanningSession.findOne({
         where: {
           user_id: params.userId,
+          tenant_id: params.tenantAuthority.tenantId,
           aircraft_id: params.aircraftId,
           template_id: params.templateId,
           maintenance_type: normalizedMaintenanceType,
@@ -198,6 +224,7 @@ export class PlanningSessionService {
     }
 
     return PlanningSession.create({
+      tenant_id: params.tenantAuthority.tenantId,
       user_id: params.userId,
       created_by: params.userId,
       aircraft_id: params.aircraftId,
@@ -214,10 +241,14 @@ export class PlanningSessionService {
     sessionId: string;
     userId: string;
     createdBy: string;
+    tenantAuthority: TenantQueryAuthority;
   }) {
+    assertTenantQueryAuthority(params.tenantAuthority);
+
     const session = await PlanningSession.findOne({
       where: {
         id: params.sessionId,
+        tenant_id: params.tenantAuthority.tenantId,
         user_id: params.userId,
         status: ['DRAFT', 'IN_PROGRESS', 'READY_FOR_GENERATION'],
       },
@@ -236,6 +267,7 @@ export class PlanningSessionService {
       aircraftId: session.aircraft_id,
       templateId: session.template_id,
       selectedItemIds: Array.isArray(session.selected_item_ids) ? session.selected_item_ids : [],
+      tenantAuthority: params.tenantAuthority,
     });
     const candidateItems = liveState.items;
     const selectedItemIds = this.normalizeSelectedItemIds(
@@ -268,6 +300,7 @@ export class PlanningSessionService {
       createdBy: params.createdBy,
       planningSessionId: session.id,
       selectedItemIds,
+      tenantAuthority: params.tenantAuthority,
     });
 
     if (generationResult.status === 'SUCCESS' && generationResult.workpack_id) {
@@ -306,10 +339,12 @@ export class PlanningSessionService {
     aircraftId: string;
     templateId: string;
     selectedItemIds: string[];
+    tenantAuthority: TenantQueryAuthority;
   }): Promise<PlanningSessionState> {
     const preview = await WorkpackPreviewService.getWorkpackPreview({
       templateId: params.templateId,
       aircraftId: params.aircraftId,
+      tenantAuthority: params.tenantAuthority,
     });
 
     return {

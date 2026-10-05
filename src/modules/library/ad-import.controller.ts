@@ -3,6 +3,8 @@ import { randomUUID } from 'crypto';
 import { Request, Response } from 'express';
 import { parse } from 'csv-parse/sync';
 import sequelize from '../../config/database.js';
+import type { PlatformMutationEvidence } from '../platform-authority/authoritative-platform-mutation.js';
+import { executeAuthoritativePlatformMutation, requestPlatformMutationEvidence, requirePlatformMutationOperations } from '../platform-authority/authoritative-platform-mutation.js';
 import { AirworthinessDirective } from '../../models/AirworthinessDirective.js';
 import { AdRelationship } from '../../models/AdRelationship.js';
 
@@ -417,10 +419,10 @@ function buildRelationshipRows(adId: string, values: AdPreviewValues) {
   return rows.filter((row) => row.related_ad_number);
 }
 
-async function commitAdPreview(preview: AdPreviewResult) {
+async function commitAdPreview(evidence: PlatformMutationEvidence, preview: AdPreviewResult) {
   const duplicateKeysInBatch = new Set<string>();
 
-  return sequelize.transaction(async (transaction) => {
+  return executeAuthoritativePlatformMutation(requirePlatformMutationOperations(evidence, ['SHARED_MASTER_IMPORT', 'REGULATORY_MASTER_CREATE', 'REGULATORY_RELATIONSHIP_MUTATE']), async (transaction) => {
     const rows: AdCommitRowResult[] = [];
     let totalInsertedAds = 0;
     let totalRelationshipRowsInserted = 0;
@@ -539,7 +541,7 @@ async function commitAdPreview(preview: AdPreviewResult) {
       totalSkippedDuplicate,
       rows,
     } satisfies AdCommitResult;
-  });
+  }, result => ({ after: result }));
 }
 
 function createEmptyAdValues(): AdPreviewValues {
@@ -1075,7 +1077,7 @@ export class AdImportController {
     }
 
     try {
-      const result = await commitAdPreview(importState.preview);
+      const result = await commitAdPreview(requestPlatformMutationEvidence(req, ['SHARED_MASTER_IMPORT', 'REGULATORY_MASTER_CREATE', 'REGULATORY_RELATIONSHIP_MUTATE'], 'airworthiness_directive_import'), importState.preview);
       delete req.session.adImportState;
 
       return res.render('library/ads/result', {

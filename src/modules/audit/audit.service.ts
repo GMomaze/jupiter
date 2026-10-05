@@ -1,4 +1,15 @@
 import { AuditLog, User } from '../../models/index.js';
+import {
+  TENANT_AUDIT_SOURCES,
+  type AuditTenantRepository,
+  type TenantAuditFilters,
+  type TenantAuditSource,
+} from './audit-tenant.repository.js';
+import { auditTenantRepository } from './audit-tenant.repository.live.js';
+import {
+  assertTenantQueryAuthority,
+  type TenantQueryAuthority,
+} from '../tenancy/tenant-query-authority.js';
 
 export class AuditService {
 
@@ -43,41 +54,25 @@ export class AuditService {
     );
   }
 
-  static async getLogs(filters: {
-    table_name?: string;
-    actor_id?: string;
-  } = {}) {
-
-    const where: any = {};
-
-    if (filters.table_name) where.table_name = filters.table_name;
-    if (filters.actor_id) where.actor_id = filters.actor_id;
-
-    const logs = await AuditLog.findAll({
-      where,
-      include: [
-        {
-          model: User,
-          as: 'actor',
-          attributes: ['id', 'email', 'full_name'],
-          required: false
-        }
-      ],
-      order: [['created_at', 'DESC']],
-      limit: 100
-    });
-
-    return logs.map(log => ({
-      id: log.id,
-      table_name: log.table_name,
-      row_id: (log as any).row_id,
-      action: log.action,
-      old_values: log.old_values,
-      new_values: log.new_values,
-      reason: log.reason,
-      created_at: log.created_at,
-      actor_name: (log as any).actor?.email || null
-    }));
+  static async getLogs(
+    authority: TenantQueryAuthority,
+    filters: { table_name?: unknown } = {},
+    repository: AuditTenantRepository = auditTenantRepository,
+  ) {
+    assertTenantQueryAuthority(authority);
+    const requestedTable = typeof filters.table_name === 'string'
+      ? filters.table_name.trim().toLowerCase()
+      : '';
+    if (
+      requestedTable &&
+      !TENANT_AUDIT_SOURCES.includes(requestedTable as TenantAuditSource)
+    ) {
+      return [];
+    }
+    const tenantFilters: TenantAuditFilters = requestedTable
+      ? { tableName: requestedTable as TenantAuditSource }
+      : {};
+    return repository.listAuthorized(authority, tenantFilters);
   }
 }
 

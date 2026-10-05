@@ -2,35 +2,48 @@
 
 **Document ID:** JUPITER-SESSION-BOOT
 
-**Revision:** 1.1
+**Revision:** 1.2
 
 **Status:** Canonical
 
-**Effective date:** 2026-08-18
+**Effective date:** 2026-09-07
 
-Complete the minimum canonical boot before performing project work.
+This document provides detailed boot rules when boot interpretation, authority,
+or safety requires them. A normal session follows the minimal sequence already
+stated in `/AGENTS.md`; it does not load this document or the full governance
+set merely because a session started.
 
 ## Mandatory boot
 
 1. Read repository-root [`AGENTS.md`](../../AGENTS.md).
-2. Read [`GOVERNANCE_INDEX.md`](GOVERNANCE_INDEX.md).
-3. Read [`JUPITER_AI_DEVELOPMENT_CONSTITUTION.md`](JUPITER_AI_DEVELOPMENT_CONSTITUTION.md).
-4. Record repository path, branch, HEAD, staged state, modified files, and
+2. Read [`ACTIVE_WORK.md`](ACTIVE_WORK.md).
+3. For Multi-Tenant SaaS work, read [`TENANCY_STATE.md`](TENANCY_STATE.md) as
+   current-state evidence only; `ACTIVE_WORK.md` remains authorization authority.
+4. Record repository path, branch, HEAD, staged state, modified/deleted files, and
    untracked files.
 5. Identify pre-existing/user-owned work and any overlap with the requested task.
-6. Read [`ACTIVE_WORK.md`](ACTIVE_WORK.md).
-7. Read only the exact active approved programme/phase/slice plan required for
-   the task and the current Project Owner instruction.
-8. Establish the authorized phase/slice, mode, scope, expected files, protected
+6. Establish the exact current Project Owner instruction and authorized or
+   defined task. Load an exact plan only when referenced or required.
+7. Establish the authorized phase/slice, mode, scope, expected files, protected
    overlaps, and verification boundary.
-9. Stop if authority, scope, target, or safe execution cannot be established.
+8. Stop if authority, scope, target, or safe execution cannot be established.
 
 ## Conditional context
 
 Do not load additional governance, historical, domain, database, source, or test
 material by default.
 
-Read additional material only when it is necessary for the authorized task.
+Read additional material only when required by the active task, a direct
+minimal-boot reference, an authority/safety conflict, schema/migration/database
+work, applicable security/tenancy architecture, or specific verification
+evidence.
+
+Canonical authority does not require all canonical documents to be loaded into every session. Do not recursively read documents merely because another governance document lists them.
+
+Read
+[`JUPITER_AI_DEVELOPMENT_CONSTITUTION.md`](JUPITER_AI_DEVELOPMENT_CONSTITUTION.md)
+when stable engineering/safety interpretation, applicable security or tenancy
+architecture, or a governance conflict requires it.
 
 Read [`MASTER_EXECUTION_PLAN.md`](MASTER_EXECUTION_PLAN.md) only when the task
 requires programme sequencing, master-plan authority, or resolution of an
@@ -65,6 +78,10 @@ Do not:
 - repeat canonical governance text in reports;
 - reopen evidence already established in the active approved phase unless the
   task requires re-verification or the evidence may have changed.
+- read historical programme narratives by default;
+- inspect implementation files outside the approved slice;
+- run broad test suites before focused tests unless the verification boundary
+  or observed risk requires them.
 
 Historical documents are evidence only and are read only when explicitly
 required by the active task or canonical governance.

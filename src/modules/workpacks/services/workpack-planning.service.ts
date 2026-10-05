@@ -1,3 +1,4 @@
+import { withTenantTransaction } from '../../tenancy/tenant-transaction.js';
 import { QueryTypes } from 'sequelize';
 import {
   Aircraft,
@@ -7,6 +8,9 @@ import {
   WorkpackStatus,
   WorkpackTask,
 } from '../../../models/index.js';
+import type { TenantQueryAuthority } from '../../tenancy/tenant-query-authority.js';
+import { assertTenantQueryAuthority } from '../../tenancy/tenant-query-authority.js';
+import { workpackTenantRepository } from '../workpack-tenant.repository.js';
 import { AuditService } from '../../audit/audit.service.js';
 
 export class WorkpackPlanningService {
@@ -192,18 +196,19 @@ export class WorkpackPlanningService {
   }
 
   static async addTask(
+    authority: TenantQueryAuthority,
     workpackId: string,
     taskId: string,
     actorId: string | undefined,
     sequelize: any,
     requireAuth: (actorId?: string) => void
   ) {
+    assertTenantQueryAuthority(authority);
     requireAuth(actorId);
 
-    return sequelize.transaction(async (transaction: any) => {
-      const pack = await Workpack.findByPk(workpackId, {
-        transaction,
-        lock: transaction.LOCK.UPDATE
+    return withTenantTransaction(authority, async (transaction: any) => {
+      const pack = await workpackTenantRepository.getById(authority, workpackId, {
+        transaction, lock: transaction.LOCK.UPDATE
       });
 
       if (!pack) throw new Error('WORKPACK_NOT_FOUND');
@@ -213,7 +218,9 @@ export class WorkpackPlanningService {
 
       await this.ensurePackEditable(workpackId, status.code, sequelize, transaction);
 
-      const task = await TaskCard.findByPk(taskId, { transaction });
+      const task = await workpackTenantRepository.getTaskCardForLink(
+        authority, taskId, pack.aircraft_id, { transaction, lock: transaction.LOCK.UPDATE }
+      );
       if (!task) throw new Error('INVALID_TASK');
       if (task.aircraft_id !== pack.aircraft_id) {
         throw new Error('Task belongs to a different aircraft and cannot be added to this workpack.');
@@ -235,18 +242,19 @@ export class WorkpackPlanningService {
   }
 
   static async removeTask(
+    authority: TenantQueryAuthority,
     workpackId: string,
     taskId: string,
     actorId: string | undefined,
     sequelize: any,
     requireAuth: (actorId?: string) => void
   ) {
+    assertTenantQueryAuthority(authority);
     requireAuth(actorId);
 
-    return sequelize.transaction(async (transaction: any) => {
-      const pack = await Workpack.findByPk(workpackId, {
-        transaction,
-        lock: transaction.LOCK.UPDATE
+    return withTenantTransaction(authority, async (transaction: any) => {
+      const pack = await workpackTenantRepository.getById(authority, workpackId, {
+        transaction, lock: transaction.LOCK.UPDATE
       });
 
       if (!pack) throw new Error('WORKPACK_NOT_FOUND');
@@ -272,18 +280,19 @@ export class WorkpackPlanningService {
   }
 
   static async addTaskFromTemplate(
+    authority: TenantQueryAuthority,
     workpackId: string,
     templateId: string,
     actorId: string | undefined,
     sequelize: any,
     requireAuth: (actorId?: string) => void
   ) {
+    assertTenantQueryAuthority(authority);
     requireAuth(actorId);
 
-    return sequelize.transaction(async (transaction: any) => {
-      const pack = await Workpack.findByPk(workpackId, {
-        transaction,
-        lock: transaction.LOCK.UPDATE
+    return withTenantTransaction(authority, async (transaction: any) => {
+      const pack = await workpackTenantRepository.getById(authority, workpackId, {
+        transaction, lock: transaction.LOCK.UPDATE
       });
 
       if (!pack) throw new Error('WORKPACK_NOT_FOUND');
@@ -348,6 +357,7 @@ export class WorkpackPlanningService {
         status: 'OPEN',
         template_source_id: template.id,
         aircraft_id: aircraft.id,
+        tenant_id: authority.tenantId,
         component_id: null,
         version: 0
       }, { transaction });

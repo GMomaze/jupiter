@@ -12,8 +12,13 @@ import { WorkpackGenerationService } from './services/workpack-generation.servic
 import { WorkpackPreviewService } from './services/workpack-preview.service.js';
 import { PlanningSessionService } from './services/planning-session.service.js';
 import { PlanningValidationError } from './services/planning-validation.service.js';
+import { assertTenantQueryAuthority, type TenantQueryAuthority } from '../tenancy/tenant-query-authority.js';
+import { withTenantTransaction } from '../tenancy/tenant-transaction.js';
 import { WorkpackComponentIntegrationService } from './services/workpack-component-integration.service.js';
 import { WorkpackOperationalMaturityService } from './services/workpack-operational-maturity.service.js';
+import { workpackTenantRepository } from './workpack-tenant.repository.js';
+import { aircraftTenantRepository } from '../aircraft/aircraft-tenant.repository.live.js';
+import { aircraftComponentTenantRepository } from '../aircraft/aircraft-component-tenant.repository.live.js';
 import {
   DocumentVerificationError,
   DocumentVerificationService,
@@ -41,6 +46,19 @@ import {
 } from '../../models/index.js';
 
 export class WorkpackController {
+  private static authority(req: Request): TenantQueryAuthority {
+    assertTenantQueryAuthority(req.tenantAuthority);
+    return req.tenantAuthority;
+  }
+
+  private static async requireOwnedWorkpack(req: Request, workpackId: string) {
+    const pack = await workpackTenantRepository.getById(
+      WorkpackController.authority(req), workpackId
+    );
+    if (!pack) throw new Error('WORKPACK_NOT_FOUND');
+    return pack;
+  }
+
   private static getParam(value: string | string[] | undefined) {
     return Array.isArray(value) ? value[0] || '' : value || '';
   }
@@ -133,8 +151,8 @@ export class WorkpackController {
     return WorkpackController.renderCrsValidationBlock(title, issues);
   }
 
-  private static async findPackForSnags(packId: string, includeAuditEntries: boolean) {
-    return Workpack.findByPk(packId, {
+  private static async findPackForSnags(authority: TenantQueryAuthority, packId: string, includeAuditEntries: boolean) {
+    return withTenantTransaction(authority, (transaction) => Workpack.findByPk(packId, {
       attributes: [
         'id',
         'work_order_number',
@@ -209,7 +227,8 @@ export class WorkpackController {
         : [
             [{ model: WorkpackSnag, as: 'Snags' }, 'snag_no', 'DESC'],
           ],
-    });
+      transaction,
+    }));
   }
 
   private static async sendPdf(
@@ -248,12 +267,12 @@ export class WorkpackController {
     `;
   }
 
-  private static async getCloseValidationIssues(packId: string) {
-    return WorkpackService.getCloseBlockingErrors(packId);
+  private static async getCloseValidationIssues(authority: TenantQueryAuthority, packId: string) {
+    return WorkpackService.getCloseBlockingErrors(authority, packId);
   }
 
-  private static async getCertificationValidationIssues(packId: string, roleCodes: string[]) {
-    return WorkpackService.getCertificationBlockingErrors(packId, roleCodes);
+  private static async getCertificationValidationIssues(authority: TenantQueryAuthority, packId: string, roleCodes: string[]) {
+    return WorkpackService.getCertificationBlockingErrors(authority, packId, roleCodes);
   }
 
   private static normalizeAuditEntry(
@@ -349,8 +368,8 @@ export class WorkpackController {
     return '';
   }
 
-  private static async getPackForAudit(packId: string) {
-    return Workpack.findByPk(packId, {
+  private static async getPackForAudit(authority: TenantQueryAuthority, packId: string) {
+    return withTenantTransaction(authority, (transaction) => Workpack.findByPk(packId, {
       attributes: ['id', 'work_order_number', 'aircraft_id', 'status_id', 'created_at', 'updated_at'],
       include: [
         {
@@ -371,11 +390,12 @@ export class WorkpackController {
           required: false,
         },
       ],
-    });
+      transaction,
+    }));
   }
 
-  private static async getWorkpackAuditTimeline(packId: string) {
-    const pack = await this.getPackForAudit(packId);
+  private static async getWorkpackAuditTimeline(authority: TenantQueryAuthority, packId: string) {
+    const pack = await this.getPackForAudit(authority, packId);
     if (!pack) {
       return { pack: null, entries: [] };
     }
@@ -406,7 +426,7 @@ export class WorkpackController {
       });
     }
 
-    const [genericAudit, executionAudit, snagAudit] = await Promise.all([
+    const [genericAudit, executionAudit, snagAudit] = await withTenantTransaction(authority, (transaction) => Promise.all([
       AuditLog.findAll({
         where: { [Op.or]: genericAuditWhere },
         include: [
@@ -418,6 +438,7 @@ export class WorkpackController {
           },
         ],
         order: [['created_at', 'ASC']],
+        transaction,
       }),
       WorkpackAuditLog.findAll({
         where: { workpack_id: packId },
@@ -436,6 +457,7 @@ export class WorkpackController {
           },
         ],
         order: [['created_at', 'ASC'], ['sequence', 'ASC']],
+        transaction,
       }),
       WorkpackSnagAuditLog.findAll({
         where: { workpack_id: packId },
@@ -454,8 +476,9 @@ export class WorkpackController {
           },
         ],
         order: [['created_at', 'ASC'], ['sequence', 'ASC']],
+        transaction,
       }),
-    ]);
+    ]));
 
     const taskById = new Map(tasks.map((task) => [String(task.id), task]));
     const snagById = new Map(snags.map((snag) => [String(snag.id), snag]));
@@ -553,7 +576,8 @@ export class WorkpackController {
       } | null;
     }
   ) {
-    const pack = await Workpack.findByPk(packId, {
+    await WorkpackController.requireOwnedWorkpack(req, packId);
+    const pack = await withTenantTransaction(WorkpackController.authority(req), (transaction) => Workpack.findByPk(packId, {
       include: [WorkpackStatus, WorkpackController.workpackAircraftInclude, {
         model: TaskCard,
         include: [
@@ -563,10 +587,11 @@ export class WorkpackController {
           { model: User, as: 'EngineerCertifier' },
           { model: AircraftComponent, as: 'Component', required: false },
         ],
-      }]
-    });
+      }],
+      transaction,
+    }));
     if (!pack) return res.status(404).send('Workpack not found');
-    const tasks = await WorkpackController.attachLatestExecutions(packId, (pack as any).TaskCards || []);
+    const tasks = await WorkpackController.attachLatestExecutions(WorkpackController.authority(req), packId, (pack as any).TaskCards || []);
     const snags = await TaskExecutionService.getExecutionSnags(packId);
     const openSnags = await TaskExecutionService.getOpenExecutionSnags(packId);
     const aircraftId = String((pack as any).aircraft_id || (pack as any).Aircraft?.id || '').trim();
@@ -574,9 +599,8 @@ export class WorkpackController {
       ? await SnagService.getSnagPatternSummaryForAircraft(aircraftId)
       : [];
     const componentExecutionContext = await WorkpackComponentIntegrationService.buildForWorkpack({
-      aircraftId,
-      tasks,
-      snags,
+      authority: WorkpackController.authority(req),
+      workpackId: packId,
     });
     const operationalMaturity = WorkpackOperationalMaturityService.build({
       tasks,
@@ -739,7 +763,7 @@ export class WorkpackController {
     return [...preferredMeasurements, ...extraStructuredMeasurements];
   }
 
-  private static async attachLatestExecutions(packId: string, tasks: any[]) {
+  private static async attachLatestExecutions(authority: TenantQueryAuthority, packId: string, tasks: any[]) {
     if (!tasks.length) {
       return tasks;
     }
@@ -747,7 +771,7 @@ export class WorkpackController {
     let executions: any[] = [];
 
     try {
-      executions = await WorkpackExecution.findAll({
+      executions = await withTenantTransaction(authority, (transaction) => WorkpackExecution.findAll({
         attributes: [
           'id',
           'workpack_id',
@@ -779,7 +803,8 @@ export class WorkpackController {
           ['attempt_no', 'DESC'],
           [{ model: WorkpackMeasurement, as: 'Measurements' }, 'position', 'ASC'],
         ],
-      });
+        transaction,
+      }));
     } catch (e: any) {
       const sql = String(e?.sql || e?.parent?.sql || '');
       const code = e?.parent?.code || e?.original?.code;
@@ -927,7 +952,9 @@ export class WorkpackController {
          FROM workpacks w
          JOIN aircraft a ON a.id = w.aircraft_id
          JOIN rf_workpack_status s ON s.id = w.status_id
+         WHERE w.tenant_id = :tenantId
          ORDER BY w.created_at DESC`
+        , { replacements: { tenantId: WorkpackController.authority(req).tenantId } }
       );
 
       res.render('workpacks/index', { workpacks, user: req.user });
@@ -955,11 +982,15 @@ export class WorkpackController {
         where: { code: ['DRAFT', 'ISSUED'] }
       });
       
-      const workpacks = await Workpack.findAll({
-        where: { status_id: editablePlanningStatuses.map((status) => status.id) },
+      const workpacks = await withTenantTransaction(WorkpackController.authority(req), (transaction) => Workpack.findAll({
+        where: {
+          tenant_id: WorkpackController.authority(req).tenantId,
+          status_id: editablePlanningStatuses.map((status) => status.id),
+        },
         include: [WorkpackStatus, WorkpackController.workpackAircraftInclude, TaskCard],
-        order: [['created_at', 'DESC']]
-      });
+        order: [['created_at', 'DESC']],
+        transaction,
+      }));
 
       await Promise.all(
         workpacks.map(async (wp: any) => {
@@ -980,19 +1011,22 @@ export class WorkpackController {
         })
       );
 
-      const unassignedTasks = await TaskCard.findAll({
-        where: sequelize.literal(`NOT EXISTS (SELECT 1 FROM workpack_tasks wt WHERE wt.task_id = "TaskCard"."id")`),
-        order: [['created_at', 'ASC']]
-      });
       const draftWorkpacks = workpacks.filter((wp: any) => wp.getDataValue('planning_editable'));
       const compatibleDraftAircraftIds = new Set(
         draftWorkpacks
           .map((wp: any) => String(wp.aircraft_id || '').trim())
           .filter(Boolean)
       );
-      const filteredUnassignedTasks = unassignedTasks.filter((task: any) =>
-        compatibleDraftAircraftIds.has(String(task.aircraft_id || '').trim())
-      );
+      const filteredUnassignedTasks = compatibleDraftAircraftIds.size
+        ? await withTenantTransaction(WorkpackController.authority(req), (transaction) => TaskCard.findAll({
+            where: {
+              aircraft_id: { [Op.in]: [...compatibleDraftAircraftIds] },
+              [Op.and]: sequelize.literal(`NOT EXISTS (SELECT 1 FROM workpack_tasks wt WHERE wt.task_id = "TaskCard"."id")`),
+            },
+            order: [['created_at', 'ASC']],
+            transaction,
+          }))
+        : [];
       const unassignedTasksByAircraftId = filteredUnassignedTasks.reduce((acc: Record<string, any[]>, task: any) => {
         const aircraftId = String(task.aircraft_id || '').trim();
         if (!aircraftId) {
@@ -1007,10 +1041,7 @@ export class WorkpackController {
         return acc;
       }, {});
 
-      const aircraft = await Aircraft.findAll({
-        attributes: ['id', 'registration', 'model_id'],
-        order: [['registration', 'ASC']],
-      });
+      const aircraft = await aircraftTenantRepository.list(WorkpackController.authority(req));
       const taskTemplateRows = await TaskTemplate.findAll({
         attributes: [
           'id',
@@ -1058,25 +1089,14 @@ export class WorkpackController {
         )
       ).sort();
       const planningAircraft = planningAircraftId
-        ? await Aircraft.findByPk(planningAircraftId, {
-            attributes: ['id', 'registration', 'model_id'],
-            include: [
-              {
-                model: AircraftComponent,
-                as: 'installed_components',
-                attributes: ['id', 'model_id', 'serial_number', 'position_code', 'current_status'],
-                required: false,
-                include: [
-                  {
-                    model: ComponentModel,
-                    attributes: ['id', 'model_name'],
-                    required: false,
-                  },
-                ],
-              },
-            ],
-          })
+        ? await aircraftTenantRepository.getById(
+            WorkpackController.authority(req), planningAircraftId
+          ) as any
         : null;
+      if (planningAircraft) {
+        planningAircraft.installed_components = await aircraftComponentTenantRepository
+          .listForAircraft(WorkpackController.authority(req), planningAircraftId);
+      }
       const planningCandidateTemplates =
         planningAircraft && planningMaintenanceType
           ? maintenanceTemplates.filter((template: any) => {
@@ -1089,6 +1109,7 @@ export class WorkpackController {
           : [];
       const planningSessions = (req as any).user?.id
         ? await PlanningSessionService.listSessionsForUser({
+            tenantAuthority: WorkpackController.authority(req),
             userId: String((req as any).user.id),
             ...(sessionAircraftId ? { aircraftId: sessionAircraftId } : {}),
             ...(sessionStatus ? { status: sessionStatus } : {}),
@@ -1098,7 +1119,8 @@ export class WorkpackController {
       const serviceBulletinsByWorkpackId = Object.fromEntries(await Promise.all(workpacks.map(async (wp: any) => {
         if (!wp.aircraft_id) return [wp.id, []];
         try {
-          const sbs = await AircraftService.getServiceBulletinsForAircraft(wp.aircraft_id, { open_only: 'true' });
+          assertTenantQueryAuthority(req.tenantAuthority);
+          const sbs = await AircraftService.getServiceBulletinsForAircraft(req.tenantAuthority, wp.aircraft_id, { open_only: 'true' });
           const existing = new Set((wp.TaskCards || []).map((t: any) => t.service_bulletin_id).filter(Boolean));
           return [wp.id, sbs.filter((b: any) => !existing.has(b.id))];
         } catch (err) {
@@ -1147,6 +1169,7 @@ export class WorkpackController {
       const preview = await WorkpackPreviewService.getWorkpackPreview({
         templateId,
         aircraftId,
+        tenantAuthority: WorkpackController.authority(req),
       });
 
       res.render('workpacks/preview', {
@@ -1171,7 +1194,11 @@ export class WorkpackController {
     try {
       const sessionId = WorkpackController.getParam(req.params.sessionId);
       const userId = String((req as any).user?.id || '').trim();
-      const session = await PlanningSessionService.getSessionForUser(sessionId, userId);
+      const session = await PlanningSessionService.getSessionForUser(
+        WorkpackController.authority(req),
+        sessionId,
+        userId,
+      );
 
       if (!session) {
         return res.status(404).send('Planning session not found');
@@ -1180,6 +1207,7 @@ export class WorkpackController {
       const livePreview = await WorkpackPreviewService.getWorkpackPreview({
         templateId: String((session as any).template_id || '').trim(),
         aircraftId: String((session as any).aircraft_id || '').trim(),
+        tenantAuthority: WorkpackController.authority(req),
       });
 
       const preview = PlanningSessionService.hydratePreviewFromSession(session, livePreview);
@@ -1208,6 +1236,9 @@ export class WorkpackController {
 
   static async handleSavePlanningSession(req: Request, res: Response) {
     try {
+      const authoritativeTenantId = req.tenantContext?.tenant.id;
+      if (!authoritativeTenantId) throw new Error('ACTIVE_TENANT_CONTEXT_REQUIRED');
+
       const sessionId = String(req.body.session_id || '').trim() || undefined;
       const templateId = WorkpackController.getParam(req.body.template_id);
       const aircraftId = WorkpackController.getParam(req.body.aircraft_id);
@@ -1222,6 +1253,7 @@ export class WorkpackController {
         aircraftId,
         maintenanceType,
         selectedItemIds,
+        tenantAuthority: WorkpackController.authority(req),
       });
 
       return res.redirect(`/workpacks/planning-sessions/${session.id}`);
@@ -1239,6 +1271,7 @@ export class WorkpackController {
       const sessionId = WorkpackController.getParam(req.params.sessionId);
       const userId = String((req as any).user?.id || '').trim();
       await PlanningSessionService.deleteSession({
+        tenantAuthority: WorkpackController.authority(req),
         sessionId,
         userId,
       });
@@ -1254,6 +1287,9 @@ export class WorkpackController {
 
   static async handleGenerateFromTemplatePreview(req: Request, res: Response) {
     try {
+      const authoritativeTenantId = req.tenantContext?.tenant.id;
+      if (!authoritativeTenantId) throw new Error('ACTIVE_TENANT_CONTEXT_REQUIRED');
+
       const templateId = WorkpackController.getParam(req.params.templateId);
       const aircraftId = WorkpackController.getParam(req.params.aircraftId);
       const createdBy = String((req as any).user?.id || '').trim();
@@ -1268,6 +1304,7 @@ export class WorkpackController {
       const preview = await WorkpackPreviewService.getWorkpackPreview({
         templateId,
         aircraftId,
+        tenantAuthority: WorkpackController.authority(req),
       });
 
       if (!preview.can_generate) {
@@ -1278,7 +1315,9 @@ export class WorkpackController {
           maintenanceType,
           selectedItemIds,
           planningSession: sessionId
-            ? await PlanningSessionService.getSessionForUser(sessionId, createdBy)
+            ? await PlanningSessionService.getSessionForUser(
+                WorkpackController.authority(req), sessionId, createdBy
+              )
             : null,
           commitResult: {
             workpack_id: null,
@@ -1296,6 +1335,7 @@ export class WorkpackController {
             sessionId,
             userId: createdBy,
             createdBy,
+            tenantAuthority: WorkpackController.authority(req),
           })
         : null;
       const commitResult = finalizeResult
@@ -1305,9 +1345,12 @@ export class WorkpackController {
             aircraftId,
             createdBy,
             selectedItemIds,
+            tenantAuthority: WorkpackController.authority(req),
           });
       const planningSession = finalizeResult
-        ? await PlanningSessionService.getSessionForUser(sessionId, createdBy)
+        ? await PlanningSessionService.getSessionForUser(
+            WorkpackController.authority(req), sessionId, createdBy
+          )
         : null;
 
       return res.render('workpacks/preview', {
@@ -1335,6 +1378,7 @@ export class WorkpackController {
         const preview = await WorkpackPreviewService.getWorkpackPreview({
           templateId,
           aircraftId,
+          tenantAuthority: WorkpackController.authority(req),
         });
 
         return res.status(400).render('workpacks/preview', {
@@ -1348,7 +1392,9 @@ export class WorkpackController {
           maintenanceType,
           selectedItemIds,
           planningSession: sessionId
-            ? await PlanningSessionService.getSessionForUser(sessionId, createdBy)
+            ? await PlanningSessionService.getSessionForUser(
+                WorkpackController.authority(req), sessionId, createdBy
+              )
             : null,
           commitResult: {
             workpack_id: null,
@@ -1371,11 +1417,15 @@ export class WorkpackController {
 
   static async renderHangar(req: Request, res: Response) {
     const statuses = await WorkpackStatus.findAll({ where: { code: ['ISSUED', 'IN_PROGRESS'] } });
-    const activePacks = await Workpack.findAll({
-      where: { status_id: statuses.map(s => s.id) },
+    const activePacks = await withTenantTransaction(WorkpackController.authority(req), (transaction) => Workpack.findAll({
+      where: {
+        tenant_id: WorkpackController.authority(req).tenantId,
+        status_id: statuses.map(s => s.id),
+      },
       include: [WorkpackStatus, WorkpackController.workpackAircraftInclude],
-      order: [['updated_at', 'DESC']]
-    });
+      order: [['updated_at', 'DESC']],
+      transaction,
+    }));
     res.render('workpacks/hangar', { activePacks, user: req.user });
   }
 
@@ -1385,9 +1435,10 @@ export class WorkpackController {
   }
 
   static async renderPackAudit(req: Request, res: Response) {
+    await WorkpackController.requireOwnedWorkpack(req, WorkpackController.getParam(req.params.id));
     try {
       const packId = WorkpackController.getParam(req.params.id);
-      const { pack, entries } = await WorkpackController.getWorkpackAuditTimeline(packId);
+      const { pack, entries } = await WorkpackController.getWorkpackAuditTimeline(WorkpackController.authority(req), packId);
 
       if (!pack) {
         return res.status(404).send('Workpack not found');
@@ -1461,7 +1512,7 @@ export class WorkpackController {
 
   static async renderQA(req: Request, res: Response) {
     const status = await WorkpackStatus.findOne({ where: { code: 'CERTIFIED' } });
-    const packs = await Workpack.findAll({ where: { status_id: status?.id }, include: [WorkpackStatus, WorkpackController.workpackAircraftInclude, TaskCard] });
+    const packs = await withTenantTransaction(WorkpackController.authority(req), (transaction) => Workpack.findAll({ where: { tenant_id: WorkpackController.authority(req).tenantId, status_id: status?.id }, include: [WorkpackStatus, WorkpackController.workpackAircraftInclude, TaskCard], transaction }));
     const reviewPacks = packs.map(p => {
       const ts = (p as any).TaskCards || [];
       const total = ts.length;
@@ -1473,12 +1524,14 @@ export class WorkpackController {
 
   static async renderPackTasks(req: Request, res: Response) {
     const packId = WorkpackController.getParam(req.params.id);
-    const pack = await Workpack.findByPk(packId, {
+    await WorkpackController.requireOwnedWorkpack(req, packId);
+    const pack = await withTenantTransaction(WorkpackController.authority(req), (transaction) => Workpack.findByPk(packId, {
       include: [
         WorkpackStatus,
         WorkpackController.workpackAircraftInclude,
       ],
-    });
+      transaction,
+    }));
     if (!pack) return res.status(404).send('Workpack not found');
     const snags = await WorkpackSnag.findAll({
       where: { workpack_id: packId },
@@ -1500,7 +1553,7 @@ export class WorkpackController {
           sequelize
         )
       : [];
-    const linkedTasks = await TaskCard.findAll({
+    const linkedTasks = await withTenantTransaction(WorkpackController.authority(req), (transaction) => TaskCard.findAll({
       include: [
         {
           model: Workpack,
@@ -1520,13 +1573,14 @@ export class WorkpackController {
         ['task_card_number', 'ASC'],
         ['created_at', 'ASC'],
       ],
-    });
-    const tasks = (await WorkpackController.attachLatestExecutions(packId, linkedTasks as any[]))
+      transaction,
+    }));
+    const tasks = (await WorkpackController.attachLatestExecutions(WorkpackController.authority(req), packId, linkedTasks as any[]))
       .filter((t: any) => !t.service_bulletin_id);
     const aircraftId = String((pack as any).aircraft_id || (pack as any).Aircraft?.id || '').trim();
     const componentExecutionContext = await WorkpackComponentIntegrationService.buildForWorkpack({
-      aircraftId,
-      tasks,
+      authority: WorkpackController.authority(req),
+      workpackId: packId,
     });
     res.render('workpacks/tasks', {
       pack,
@@ -1540,21 +1594,23 @@ export class WorkpackController {
   }
 
   static async renderPackServiceBulletins(req: Request, res: Response) {
+    await WorkpackController.requireOwnedWorkpack(req, WorkpackController.getParam(req.params.id));
     const packId = WorkpackController.getParam(req.params.id);
-    const pack = await Workpack.findByPk(packId, { include: [WorkpackStatus, WorkpackController.workpackAircraftInclude, { model: TaskCard, include: [{ model: ServiceBulletin, as: 'ServiceBulletin' }, { model: User, as: 'Assignee' }] }] });
+    const pack = await withTenantTransaction(WorkpackController.authority(req), (transaction) => Workpack.findByPk(packId, { include: [WorkpackStatus, WorkpackController.workpackAircraftInclude, { model: TaskCard, include: [{ model: ServiceBulletin, as: 'ServiceBulletin' }, { model: User, as: 'Assignee' }] }], transaction }));
     if (!pack) return res.status(404).send('Workpack not found');
-    const serviceBulletinTasks = (await WorkpackController.attachLatestExecutions(packId, (pack as any).TaskCards || []))
+    const serviceBulletinTasks = (await WorkpackController.attachLatestExecutions(WorkpackController.authority(req), packId, (pack as any).TaskCards || []))
       .filter((t: any) => !!t.service_bulletin_id);
     res.render('workpacks/service-bulletins', { pack, serviceBulletinTasks, user: req.user });
   }
 
   static async renderPackSnags(req: Request, res: Response) {
+    await WorkpackController.requireOwnedWorkpack(req, WorkpackController.getParam(req.params.id));
     try {
       let pack;
       const packId = WorkpackController.getParam(req.params.id);
 
       try {
-        pack = await WorkpackController.findPackForSnags(packId, true);
+        pack = await WorkpackController.findPackForSnags(WorkpackController.authority(req), packId, true);
       } catch (e: any) {
         const sql = String(e?.sql || e?.parent?.sql || '');
         const isMissingSnagAuditTable =
@@ -1566,7 +1622,7 @@ export class WorkpackController {
         }
 
         console.warn('[WorkpackController] renderPackSnags missing workpack_snag_audit_log, retrying without audit history');
-        pack = await WorkpackController.findPackForSnags(packId, false);
+        pack = await WorkpackController.findPackForSnags(WorkpackController.authority(req), packId, false);
       }
 
       if (!pack) return res.status(404).send('Workpack not found');
@@ -1580,7 +1636,14 @@ export class WorkpackController {
   // ACTIONS
   static async handleCreate(req: Request, res: Response) {
     try {
-      await WorkpackService.create(req.body, (req as any).user?.id);
+      const authoritativeTenantId = req.tenantContext?.tenant.id;
+      if (!authoritativeTenantId) throw new Error('ACTIVE_TENANT_CONTEXT_REQUIRED');
+
+      await WorkpackService.create(
+        req.body,
+        WorkpackController.authority(req),
+        (req as any).user?.id
+      );
       return WorkpackController.actionResponse(req, res);
     } catch (e: any) {
       const msg = WorkpackController.getFriendlyErrorMessage(e);
@@ -1592,7 +1655,7 @@ export class WorkpackController {
 
   static async handleAddTask(req: Request, res: Response) {
     try {
-      await WorkpackService.addTask(req.body.workpack_id, WorkpackController.getParam(req.params.taskId), (req as any).user?.id);
+      await WorkpackService.addTask(WorkpackController.authority(req), req.body.workpack_id, WorkpackController.getParam(req.params.taskId), (req as any).user?.id);
       return WorkpackController.actionResponse(req, res);
     } catch (e: any) {
       const msg = WorkpackController.getFriendlyErrorMessage(e);
@@ -1606,21 +1669,21 @@ export class WorkpackController {
 
   static async handleRemoveTask(req: Request, res: Response) {
     try {
-      await WorkpackService.removeTask(WorkpackController.getParam(req.params.id), WorkpackController.getParam(req.params.taskId), (req as any).user?.id);
+      await WorkpackService.removeTask(WorkpackController.authority(req), WorkpackController.getParam(req.params.id), WorkpackController.getParam(req.params.taskId), (req as any).user?.id);
       return WorkpackController.actionResponse(req, res);
     } catch (e: any) { res.status(400).send(e.message); }
   }
 
   static async handleIssue(req: Request, res: Response) {
     try {
-      await WorkpackService.issue(WorkpackController.getParam(req.params.id), (req as any).user?.id);
+      await WorkpackService.issue(WorkpackController.authority(req), WorkpackController.getParam(req.params.id), (req as any).user?.id);
       res.redirect('/workpacks/hangar');
     } catch (e: any) { res.status(400).send(e.message); }
   }
 
   static async handleStart(req: Request, res: Response) {
     try {
-      await WorkpackService.startWork(WorkpackController.getParam(req.params.id), (req as any).user?.id);
+      await WorkpackService.startWork(WorkpackController.authority(req), WorkpackController.getParam(req.params.id), (req as any).user?.id);
       res.redirect('/workpacks/hangar');
     } catch (e: any) { res.status(400).send(e.message); }
   }
@@ -1628,7 +1691,7 @@ export class WorkpackController {
   static async handleClose(req: Request, res: Response) {
     try {
       const packId = WorkpackController.getParam(req.params.id);
-      await WorkpackService.close(packId, (req as any).user?.id);
+      await WorkpackService.close(WorkpackController.authority(req), packId, (req as any).user?.id);
       await WorkpackController.sendPdf(res, packId, 'CRS', (workpackId) =>
         ServicePdfService.generateCRS(workpackId)
       );
@@ -1637,7 +1700,7 @@ export class WorkpackController {
       const issues =
         Array.isArray(e?.blockingErrors) && e.blockingErrors.length > 0
           ? e.blockingErrors
-          : await WorkpackController.getCloseValidationIssues(packId);
+          : await WorkpackController.getCloseValidationIssues(WorkpackController.authority(req), packId);
 
       if (issues.length > 0) {
         if (req.headers['hx-request']) {
@@ -1665,7 +1728,7 @@ export class WorkpackController {
       const user: any = (req as any).user;
       const roleCodes = (user?.roles || []).map((role: any) => role.code).filter(Boolean);
 
-      await WorkpackService.certify(packId, user?.id, roleCodes);
+      await WorkpackService.certify(WorkpackController.authority(req), packId, user?.id, roleCodes);
 
       return res.redirect(`/workpacks/${packId}/execution`);
     } catch (e: any) {
@@ -1675,7 +1738,7 @@ export class WorkpackController {
       const issues =
         Array.isArray(e?.blockingErrors) && e.blockingErrors.length > 0
           ? e.blockingErrors
-          : await WorkpackController.getCertificationValidationIssues(packId, roleCodes);
+          : await WorkpackController.getCertificationValidationIssues(WorkpackController.authority(req), packId, roleCodes);
 
       if (issues.length > 0) {
         if (req.headers['hx-request']) {
@@ -1700,6 +1763,7 @@ export class WorkpackController {
   static async handleServicePdf(req: Request, res: Response) {
     try {
       const packId = WorkpackController.getParam(req.params.id);
+      await WorkpackController.requireOwnedWorkpack(req, packId);
       const validation = await WorkpackController.validateCrsRequest(packId);
       if (validation) {
         return res.status(400).send(validation.html);
@@ -1714,6 +1778,7 @@ export class WorkpackController {
   static async handleReleasePdf(req: Request, res: Response) {
     try {
       const packId = WorkpackController.getParam(req.params.id);
+      await WorkpackController.requireOwnedWorkpack(req, packId);
       const verification = await DocumentVerificationService.verifyCrsDocument(packId);
       if (!verification.valid || !verification.data) {
         return res
@@ -1749,6 +1814,7 @@ export class WorkpackController {
   static async handleCrmaPdf(req: Request, res: Response) {
     try {
       const packId = WorkpackController.getParam(req.params.id);
+      await WorkpackController.requireOwnedWorkpack(req, packId);
       const taskIds = WorkpackController.getTaskIdsFromQuery(
         (req.query.taskIds as string | string[] | undefined) ||
         (req.query.taskId as string | string[] | undefined)
@@ -1794,6 +1860,7 @@ export class WorkpackController {
       const user: any = (req as any).user;
       const roleCodes = (user?.roles || []).map((role: any) => role.code).filter(Boolean);
       const t = await WorkpackService.signTask(
+        WorkpackController.authority(req),
         WorkpackController.getParam(req.params.taskId),
         user?.id,
         roleCodes
@@ -1804,7 +1871,7 @@ export class WorkpackController {
 
   static async handleAddTemplateTask(req: Request, res: Response) {
     try {
-      await WorkpackService.addTaskFromTemplate(req.body.workpack_id, WorkpackController.getParam(req.params.templateId), (req as any).user?.id);
+      await WorkpackService.addTaskFromTemplate(WorkpackController.authority(req), req.body.workpack_id, WorkpackController.getParam(req.params.templateId), (req as any).user?.id);
       return WorkpackController.actionResponse(req, res);
     } catch (e: any) {
       const msg = WorkpackController.getFriendlyErrorMessage(e);
@@ -1820,7 +1887,7 @@ export class WorkpackController {
   static async handleAddServiceBulletins(req: Request, res: Response) {
     try {
       const ids = Array.isArray(req.body.service_bulletin_ids) ? req.body.service_bulletin_ids : [req.body.service_bulletin_ids].filter(Boolean);
-      await WorkpackService.addServiceBulletins(WorkpackController.getParam(req.params.id), ids, (req as any).user?.id);
+      await WorkpackService.addServiceBulletins(WorkpackController.authority(req), WorkpackController.getParam(req.params.id), ids, (req as any).user?.id);
       return WorkpackController.actionResponse(req, res);
     } catch (e: any) {
       const msg = e?.message === 'NO_SERVICE_BULLETINS_SELECTED' ? 'Select at least one SB.' : WorkpackController.getFriendlyErrorMessage(e);
@@ -1831,7 +1898,7 @@ export class WorkpackController {
 
   static async handleDeleteDraft(req: Request, res: Response) {
     try {
-      await WorkpackService.deleteDraft(WorkpackController.getParam(req.params.id), (req as any).user?.id);
+      await WorkpackService.deleteDraft(WorkpackController.authority(req), WorkpackController.getParam(req.params.id), (req as any).user?.id);
       return WorkpackController.actionResponse(req, res);
     } catch (e: any) {
       const msg = WorkpackController.getFriendlyErrorMessage(e);
@@ -1844,9 +1911,9 @@ export class WorkpackController {
     try {
       const packId = WorkpackController.getParam(req.params.id);
       const user: any = (req as any).user;
-      const pack = await Workpack.findByPk(packId, {
-        attributes: ['id', 'aircraft_id'],
-      });
+      const pack = await workpackTenantRepository.getById(
+        WorkpackController.authority(req), packId
+      );
 
       if (!pack) {
         return res.status(404).send('Workpack not found');
@@ -1867,7 +1934,7 @@ export class WorkpackController {
         throw new Error('UNAUTHENTICATED');
       }
 
-      await TaskExecutionService.createExecutionSnag({
+      await TaskExecutionService.createExecutionSnag(WorkpackController.authority(req), {
         workpack_id: packId,
         aircraft_id: (pack as any).aircraft_id,
         component_id: componentId,
@@ -1907,7 +1974,7 @@ export class WorkpackController {
         throw new Error('UNAUTHENTICATED');
       }
 
-      await TaskExecutionService.createExecutionSnag({
+      await TaskExecutionService.createExecutionSnag(WorkpackController.authority(req), {
         workpack_id: workpackId,
         aircraft_id: aircraftId,
         component_id: componentId,
@@ -1941,7 +2008,7 @@ export class WorkpackController {
         throw new Error('UNAUTHENTICATED');
       }
 
-      await TaskExecutionService.createExecutionSnag({
+      await TaskExecutionService.createExecutionSnag(WorkpackController.authority(req), {
         workpack_id: null,
         aircraft_id: aircraftId,
         component_id: componentId,
@@ -1961,6 +2028,7 @@ export class WorkpackController {
       const user: any = (req as any).user;
       const roleCodes = (user?.roles || []).map((role: any) => role.code).filter(Boolean);
       await WorkpackService.startSnag(
+        WorkpackController.authority(req),
         WorkpackController.getParam(req.params.snagId),
         user?.id,
         roleCodes
@@ -1981,6 +2049,7 @@ export class WorkpackController {
       const user: any = (req as any).user;
       const roleCodes = (user?.roles || []).map((role: any) => role.code).filter(Boolean);
       await WorkpackService.resolveSnag(
+        WorkpackController.authority(req),
         WorkpackController.getParam(req.params.snagId),
         {
           resolution_notes: req.body.resolution_notes ?? '',
@@ -2005,7 +2074,12 @@ export class WorkpackController {
       const packId = WorkpackController.getParam(req.params.id);
       const user: any = (req as any).user;
       const roleCodes = (user?.roles || []).map((role: any) => role.code).filter(Boolean);
-      await WorkpackService.closeSnag(WorkpackController.getParam(req.params.snagId), user?.id, roleCodes);
+      await WorkpackService.closeSnag(
+        WorkpackController.authority(req),
+        WorkpackController.getParam(req.params.snagId),
+        user?.id,
+        roleCodes,
+      );
       return res.redirect(`/workpacks/${packId}/snags`);
     } catch (e: any) {
       res.status(400).send(WorkpackController.getFriendlyErrorMessage(e));
@@ -2016,7 +2090,7 @@ export class WorkpackController {
     try {
       const user: any = (req as any).user;
       const roleCodes = (user?.roles || []).map((role: any) => role.code).filter(Boolean);
-      const t = await WorkpackService.startTask(WorkpackController.getParam(req.params.taskId), user?.id, roleCodes);
+      const t = await WorkpackService.startTask(WorkpackController.authority(req), WorkpackController.getParam(req.params.taskId), user?.id, roleCodes);
       return WorkpackController.actionResponse(req, res, t);
     } catch (e: any) { res.status(400).send(WorkpackController.getFriendlyErrorMessage(e)); }
   }
@@ -2026,6 +2100,7 @@ export class WorkpackController {
       const user: any = (req as any).user;
       const roleCodes = (user?.roles || []).map((role: any) => role.code).filter(Boolean);
       const t = await WorkpackService.completeTask(
+        WorkpackController.authority(req),
         WorkpackController.getParam(req.params.taskId),
         user?.id,
         roleCodes,
@@ -2041,6 +2116,7 @@ export class WorkpackController {
       const user: any = (req as any).user;
       const roleCodes = (user?.roles || []).map((role: any) => role.code).filter(Boolean);
       const t = await WorkpackService.saveWorkPerformed(
+        WorkpackController.authority(req),
         WorkpackController.getParam(req.params.taskId),
         req.body.work_performed ?? '',
         user?.id,
@@ -2053,7 +2129,7 @@ export class WorkpackController {
 
   static async handleTaskLock(req: Request, res: Response) {
     try {
-      const t = await WorkpackService.lockTask(WorkpackController.getParam(req.params.taskId), (req as any).user?.id);
+      const t = await WorkpackService.lockTask(WorkpackController.authority(req), WorkpackController.getParam(req.params.taskId), (req as any).user?.id);
       return WorkpackController.actionResponse(req, res, t);
     } catch (e: any) { res.status(400).send(e.message); }
   }

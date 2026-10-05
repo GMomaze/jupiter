@@ -14,7 +14,6 @@ import {
   SupplementalInspectionDocument,
   SidModelApplicability,
   TaskTemplate,
-  SerializedComponent,
   SerializedComponentLifeState,
   SerializedComponentMaintenanceEvent,
   ComponentLifeLimit,
@@ -35,6 +34,21 @@ import { DueStatusService } from '../due-status/due-status.service.js';
 import { formatModelDisplay } from '../../utils/model-display.js';
 import { AdRelevanceService, type AdRelevanceDirective } from './ad-relevance.service.js';
 import { AdApplicabilityAllocationService } from './ad-applicability-allocation.service.js';
+import {
+  assertTenantQueryAuthority,
+  type TenantQueryAuthority,
+} from '../tenancy/tenant-query-authority.js';
+import { withTenantTransaction } from '../tenancy/tenant-transaction.js';
+import { serializedComponentTenantRepository } from './serialized-component-tenant.repository.live.js';
+import {
+  loadGlobalReconciliationDataForMigration,
+  serializedComponentReconciliationRepository,
+} from './serialized-component-reconciliation.repository.live.js';
+import type { PlatformMutationEvidence } from '../platform-authority/authoritative-platform-mutation.js';
+import { executeAuthoritativePlatformMutation, requirePlatformMutationOperations } from '../platform-authority/authoritative-platform-mutation.js';
+import { requireManufacturerLogoCommit, type ManufacturerLogoCommit } from '../uploads/manufacturer-file-boundary.js';
+import { platformFileOperationRepository } from '../uploads/platform-file-operation.repository.js';
+import { canonicalUploadReference } from '../uploads/upload-delivery.service.js';
 
 export class LibraryService {
   private static readonly adServiceBulletinReferenceFields = [
@@ -359,7 +373,7 @@ export class LibraryService {
     });
   }
 
-  static async createAssetType(data: {
+  static async createAssetType(evidence: PlatformMutationEvidence, data: {
     code?: unknown;
     label?: unknown;
     description?: unknown;
@@ -406,13 +420,11 @@ export class LibraryService {
       throw new Error('Required aircraft asset types must have a required quantity greater than 0.');
     }
 
-    const duplicate = await AssetType.findOne({ where: { code } });
-    if (duplicate) {
-      throw new Error('Asset type code already exists.');
-    }
-
     try {
-      return await AssetType.create({
+      return await executeAuthoritativePlatformMutation(requirePlatformMutationOperations(evidence, ['REFERENCE_CREATE']), async transaction => {
+      const duplicate = await AssetType.findOne({ where: { code }, transaction });
+      if (duplicate) throw new Error('Asset type code already exists.');
+      return AssetType.create({
         code,
         label,
         description,
@@ -421,7 +433,8 @@ export class LibraryService {
         required_quantity: requiredQuantity,
         is_active: isActive,
         system_locked: false,
-      });
+      }, { transaction });
+      }, row => ({ resourceId: row.id, after: row.toJSON() }));
     } catch (error: any) {
       if (error?.name === 'SequelizeUniqueConstraintError') {
         throw new Error('Asset type code already exists.');
@@ -554,14 +567,27 @@ export class LibraryService {
       adPageSize?: number | string | null;
     } = {}
   ) {
-    const assignableAdResult = await this.getAssignableAirworthinessDirectives(
-      modelId,
-      options.adNumberSearch,
-      {
-        page: options.adPage,
-        pageSize: options.adPageSize,
-      }
-    );
+    const normalizedAdNumberSearch = String(options.adNumberSearch || '').trim();
+    const requestedPageSize = Number(String(options.adPageSize ?? '').trim());
+    const emptyPageSize = [200, 400, 800, 1000].includes(requestedPageSize)
+      ? requestedPageSize
+      : 200;
+    const assignableAdResult = normalizedAdNumberSearch
+      ? await this.getAssignableAirworthinessDirectives(modelId, normalizedAdNumberSearch, {
+          page: options.adPage,
+          pageSize: options.adPageSize,
+        })
+      : {
+          rows: [],
+          pagination: {
+            total: 0,
+            page: 1,
+            pageSize: emptyPageSize,
+            totalPages: 1,
+            hasPrevious: false,
+            hasNext: false,
+          },
+        };
 
     const [
       assignedAirworthinessDirectives,
@@ -585,6 +611,128 @@ export class LibraryService {
       assignableSupplementalInspectionDocuments,
       assignedStandardTasks,
       assignableStandardTasks,
+    };
+  }
+
+  static async getModelAdApplicabilityScope(
+    modelId: string,
+    manufacturerId: string | null | undefined,
+    assignedAirworthinessDirectives: any[] = []
+  ) {
+    const normalizedManufacturerId = String(manufacturerId || '').trim();
+    const allocations = normalizedManufacturerId
+      ? ((await sequelize.query(
+          `
+          SELECT
+            aaa.id AS allocation_id,
+            aaa.airworthiness_directive_id AS id,
+            aaa.target_type,
+            aaa.target_id,
+            aaa.matched_manufacturer_id,
+            aaa.matched_component_model_id,
+            aaa.status AS allocation_status,
+            aaa.classification,
+            aaa.match_reason AS relevance_reason,
+            ad.ad_number,
+            ad.revision,
+            ad.subject_heading,
+            ad.subject,
+            ad.status,
+            ad.effective_date,
+            ad.make,
+            ad.model,
+            ad.product_type
+          FROM ad_applicability_allocations aaa
+          JOIN airworthiness_directives ad
+            ON ad.id = aaa.airworthiness_directive_id
+          WHERE aaa.status <> 'IGNORED'
+            AND COALESCE(ad.is_active, TRUE) = TRUE
+            AND (
+              aaa.target_id IN (:modelId, :manufacturerId)
+              OR aaa.matched_component_model_id = :modelId
+              OR aaa.matched_manufacturer_id = :manufacturerId
+            )
+          ORDER BY ad.ad_number ASC, ad.revision ASC NULLS LAST
+          `,
+          {
+            replacements: { modelId, manufacturerId: normalizedManufacturerId },
+            type: QueryTypes.SELECT,
+          }
+        )) as any[])
+      : [];
+
+    const assignedIds = new Set(
+      assignedAirworthinessDirectives.map((directive) => String(directive.id))
+    );
+    const assignedOrAccepted = assignedAirworthinessDirectives.map((directive) => ({
+      ...directive,
+      relationship_status: 'ASSIGNED',
+    }));
+    const strongModelSuggestions: any[] = [];
+    const manufacturerReview: any[] = [];
+    const broadReview: any[] = [];
+
+    for (const allocation of allocations) {
+      if (allocation.allocation_status === 'IGNORED') {
+        continue;
+      }
+      const targetId = String(allocation.target_id || '');
+      const matchedModelId = String(allocation.matched_component_model_id || '');
+      const matchedManufacturerId = String(allocation.matched_manufacturer_id || '');
+      const isCurrentModel = targetId === modelId || matchedModelId === modelId;
+      const isCurrentManufacturer =
+        targetId === normalizedManufacturerId ||
+        matchedManufacturerId === normalizedManufacturerId;
+      const isModelTarget =
+        isCurrentModel && ['MODEL', 'MANUAL_LINK'].includes(allocation.target_type);
+      const isExactModelClassification = ['EXACT_MODEL_CODE', 'EXACT_MODEL_NAME'].includes(
+        allocation.classification
+      );
+
+      if (
+        allocation.allocation_status === 'ACCEPTED' &&
+        isModelTarget &&
+        !assignedIds.has(String(allocation.id))
+      ) {
+        assignedIds.add(String(allocation.id));
+        assignedOrAccepted.push({ ...allocation, relationship_status: 'ACCEPTED_MODEL' });
+        continue;
+      }
+
+      if (
+        allocation.allocation_status === 'SUGGESTED' &&
+        isModelTarget &&
+        isExactModelClassification
+      ) {
+        strongModelSuggestions.push(allocation);
+        continue;
+      }
+
+      if (
+        isCurrentManufacturer &&
+        allocation.target_type === 'BROAD_RULE' &&
+        ['BROAD_SERIES', 'BROAD_ALL', 'MULTI_MODEL_REVIEW'].includes(
+          allocation.classification
+        )
+      ) {
+        broadReview.push(allocation);
+        continue;
+      }
+
+      if (
+        isCurrentManufacturer &&
+        allocation.target_type === 'MANUFACTURER' &&
+        allocation.classification === 'MANUFACTURER_MATCH'
+      ) {
+        manufacturerReview.push(allocation);
+      }
+    }
+
+    return {
+      assignedOrAccepted,
+      strongModelSuggestions,
+      manufacturerReview,
+      broadReview,
     };
   }
 
@@ -633,6 +781,19 @@ export class LibraryService {
     const requestedPage = Number.isInteger(parsedPage) && parsedPage > 0 ? parsedPage : 1;
     const parsedPageSize = Number(String(options.pageSize ?? '').trim());
     const pageSize = allowedPageSizes.has(parsedPageSize) ? parsedPageSize : 200;
+    if (!normalizedSearch) {
+      return {
+        rows: [],
+        pagination: {
+          total: 0,
+          page: 1,
+          pageSize,
+          totalPages: 1,
+          hasPrevious: false,
+          hasNext: false,
+        },
+      };
+    }
     const searchClause = normalizedSearch ? 'AND ad.ad_number ILIKE :adNumberSearch' : '';
     const assignmentExclusionClause = `
         AND NOT EXISTS (
@@ -1062,7 +1223,8 @@ export class LibraryService {
     });
   }
 
-  static async refreshAdApplicabilityReviewAllocations(actorUserId: string | null = null) {
+  static async refreshAdApplicabilityReviewAllocations(evidence: PlatformMutationEvidence, actorUserId: string | null = null) {
+    const fixedEvidence = requirePlatformMutationOperations(evidence, ['REGULATORY_RELATIONSHIP_MUTATE']);
     const [models, activeAdCount] = await Promise.all([
       ComponentModel.findAll({
         attributes: ['id', 'manufacturer_id'],
@@ -1094,7 +1256,7 @@ export class LibraryService {
         modelId,
         assignedDirectives
       );
-      const result = await AdApplicabilityAllocationService.persistSuggestedAllocations({
+      const result = await AdApplicabilityAllocationService.persistSuggestedAllocations(fixedEvidence, {
         relevance,
         modelId,
         manufacturerId: model.manufacturer_id || null,
@@ -1234,7 +1396,9 @@ export class LibraryService {
     };
   }
 
-  static async refreshAdServiceBulletinReferences() {
+  static async refreshAdServiceBulletinReferences(evidence: PlatformMutationEvidence) {
+    let auditAfter: unknown;
+    return executeAuthoritativePlatformMutation(requirePlatformMutationOperations(evidence, ['REGULATORY_RELATIONSHIP_MUTATE']), async (transaction, audit) => {
     const [directives, bulletins] = await Promise.all([
       AirworthinessDirective.findAll({
         attributes: [
@@ -1246,13 +1410,23 @@ export class LibraryService {
           'citation',
         ],
         order: [['ad_number', 'ASC'], ['created_at', 'ASC']],
+        transaction,
       }),
       ServiceBulletin.findAll({
         attributes: ['id', 'sb_number', 'reference'],
         order: [['reference', 'ASC'], ['sb_number', 'ASC']],
+        transaction,
       }),
     ]);
     const matches = this.buildServiceBulletinReferenceMatches(bulletins);
+    const directiveIds = directives.map(row => row.id);
+    const beforeReferences = directiveIds.length ? await AdServiceBulletinReference.findAll({
+      where: { airworthiness_directive_id: { [Op.in]: directiveIds } },
+      transaction,
+      lock: transaction.LOCK.UPDATE,
+      order: [['id', 'ASC']],
+    }) : [];
+    audit.setBefore(beforeReferences.map(row => row.toJSON()));
     const totals = {
       adsScanned: directives.length,
       referencesFound: 0,
@@ -1279,6 +1453,7 @@ export class LibraryService {
             [Op.in]: extractedReferences.map((reference) => reference.normalized_reference_text),
           },
         },
+        transaction,
       });
       const existingByNormalized = new Map(
         existingRows.map((row) => [row.normalized_reference_text, row])
@@ -1296,7 +1471,7 @@ export class LibraryService {
             airworthiness_directive_id: directive.id,
             ...extractedReference,
             ...match,
-          } as any);
+          } as any, { transaction });
           totals.created += 1;
           continue;
         }
@@ -1328,7 +1503,7 @@ export class LibraryService {
             match_status: match.match_status,
             matched_service_bulletin_id: match.matched_service_bulletin_id,
             match_reason: match.match_reason,
-          });
+          }, { transaction });
 
           if (shouldUpgradeToMatched) {
             totals.upgradedMatched += 1;
@@ -1343,16 +1518,22 @@ export class LibraryService {
       }
     }
 
+    auditAfter = directiveIds.length ? (await AdServiceBulletinReference.findAll({
+      where: { airworthiness_directive_id: { [Op.in]: directiveIds } }, transaction, order: [['id', 'ASC']],
+    })).map(row => row.toJSON()) : [];
     return totals;
+    }, () => ({ after: auditAfter }));
   }
 
   static async reviewAdApplicabilityAllocation(
+    evidence: PlatformMutationEvidence,
     allocationId: string,
     status: 'ACCEPTED' | 'IGNORED',
     actorUserId: string | null,
     reviewReason?: string | null
   ) {
-    return AdApplicabilityAllocationService.reviewAllocation({
+    const fixedEvidence = requirePlatformMutationOperations(evidence, ['REGULATORY_RELATIONSHIP_MUTATE']);
+    return AdApplicabilityAllocationService.reviewAllocation(fixedEvidence, {
       allocationId,
       status,
       actorUserId,
@@ -1361,11 +1542,13 @@ export class LibraryService {
   }
 
   static async restoreAdApplicabilityAllocation(
+    evidence: PlatformMutationEvidence,
     allocationId: string,
     actorUserId: string | null,
     reviewReason?: string | null
   ) {
-    return AdApplicabilityAllocationService.restoreAllocation({
+    const fixedEvidence = requirePlatformMutationOperations(evidence, ['REGULATORY_RELATIONSHIP_MUTATE']);
+    return AdApplicabilityAllocationService.restoreAllocation(fixedEvidence, {
       allocationId,
       actorUserId,
       reviewReason: reviewReason ?? null,
@@ -1373,11 +1556,13 @@ export class LibraryService {
   }
 
   static async linkAdApplicabilityAllocationToModel(
+    evidence: PlatformMutationEvidence,
     allocationId: string,
     componentModelId: string,
     actorUserId: string | null,
     reviewReason?: string | null
   ) {
+    const fixedEvidence = requirePlatformMutationOperations(evidence, ['REGULATORY_RELATIONSHIP_MUTATE']);
     const normalizedModelId = String(componentModelId || '').trim();
 
     if (!normalizedModelId) {
@@ -1392,7 +1577,7 @@ export class LibraryService {
       throw new Error('Component model not found.');
     }
 
-    return AdApplicabilityAllocationService.linkAllocationToModel({
+    return AdApplicabilityAllocationService.linkAllocationToModel(fixedEvidence, {
       allocationId,
       componentModelId: String(model.id),
       manufacturerId: model.manufacturer_id || null,
@@ -1402,11 +1587,13 @@ export class LibraryService {
   }
 
   static async linkAdApplicabilityAllocationToManufacturer(
+    evidence: PlatformMutationEvidence,
     allocationId: string,
     manufacturerId: string,
     actorUserId: string | null,
     reviewReason?: string | null
   ) {
+    const fixedEvidence = requirePlatformMutationOperations(evidence, ['REGULATORY_RELATIONSHIP_MUTATE']);
     const normalizedManufacturerId = String(manufacturerId || '').trim();
 
     if (!normalizedManufacturerId) {
@@ -1421,7 +1608,7 @@ export class LibraryService {
       throw new Error('Manufacturer not found.');
     }
 
-    return AdApplicabilityAllocationService.linkAllocationToManufacturer({
+    return AdApplicabilityAllocationService.linkAllocationToManufacturer(fixedEvidence, {
       allocationId,
       manufacturerId: String(manufacturer.id),
       actorUserId,
@@ -1429,7 +1616,7 @@ export class LibraryService {
     });
   }
 
-  static async createAirworthinessDirective(data: {
+  static async createAirworthinessDirective(evidence: PlatformMutationEvidence, data: {
     ad_number?: unknown;
     revision?: unknown;
     subject_heading?: unknown;
@@ -1445,11 +1632,13 @@ export class LibraryService {
     const adNumber = this.normalizeRequiredString(data.ad_number, 'AD number');
     const subjectHeading = this.normalizeRequiredString(data.subject_heading, 'Title / subject');
     const revision = this.normalizeOptionalString(data.revision);
+    return executeAuthoritativePlatformMutation(requirePlatformMutationOperations(evidence, ['REGULATORY_MASTER_CREATE']), async transaction => {
     const existing = await AirworthinessDirective.findAll({
       where: {
         ad_number: { [Op.iLike]: adNumber },
       },
       attributes: ['id', 'ad_number', 'revision'],
+      transaction,
     });
     const duplicate = existing.find((directive) =>
       this.valuesMatch((directive as any).revision, revision)
@@ -1472,7 +1661,8 @@ export class LibraryService {
       interval_months: this.normalizeOptionalWholeNumber(data.interval_months, 'Interval months'),
       summary: this.normalizeOptionalString(data.summary),
       is_active: true,
-    });
+    }, { transaction });
+    }, row => ({ resourceId: row.id, after: row.toJSON() }));
   }
 
   static async getServiceBulletins() {
@@ -1577,7 +1767,7 @@ export class LibraryService {
     return bulletin;
   }
 
-  static async createLibraryServiceBulletin(data: {
+  static async createLibraryServiceBulletin(evidence: PlatformMutationEvidence, data: {
     category?: unknown;
     reference?: unknown;
     sb_number?: unknown;
@@ -1599,12 +1789,14 @@ export class LibraryService {
     const title = this.normalizeRequiredString(data.title, 'Title');
     const manufacturer = this.normalizeRequiredString(data.manufacturer, 'Manufacturer');
     const revision = this.normalizeOptionalString(data.revision);
+    return executeAuthoritativePlatformMutation(requirePlatformMutationOperations(evidence, ['REGULATORY_MASTER_CREATE']), async transaction => {
     const existing = await ServiceBulletin.findAll({
       where: {
         manufacturer: { [Op.iLike]: manufacturer },
         reference: { [Op.iLike]: reference },
       },
       attributes: ['id', 'manufacturer', 'reference', 'revision'],
+      transaction,
     });
     const duplicate = existing.find((bulletin) =>
       this.valuesMatch((bulletin as any).revision, revision)
@@ -1630,7 +1822,8 @@ export class LibraryService {
       status: this.normalizeOptionalString(data.status) || 'ACTIVE',
       source_primary: 'MANUAL',
       is_active: true,
-    });
+    }, { transaction });
+    }, row => ({ resourceId: row.id, after: row.toJSON() }));
   }
 
   static async getComplianceItems() {
@@ -1744,7 +1937,7 @@ export class LibraryService {
     });
   }
 
-  static async createSupplementalInspectionDocument(data: {
+  static async createSupplementalInspectionDocument(evidence: PlatformMutationEvidence, data: {
     manufacturer?: unknown;
     reference?: unknown;
     title?: unknown;
@@ -1764,12 +1957,14 @@ export class LibraryService {
     const manufacturer = this.normalizeRequiredString(data.manufacturer, 'Manufacturer');
     const reference = this.normalizeRequiredString(data.reference, 'Reference');
     const title = this.normalizeRequiredString(data.title, 'Title');
+    return executeAuthoritativePlatformMutation(requirePlatformMutationOperations(evidence, ['REGULATORY_MASTER_CREATE']), async transaction => {
     const existing = await SupplementalInspectionDocument.findAll({
       where: {
         manufacturer: { [Op.iLike]: manufacturer },
         reference: { [Op.iLike]: reference },
       },
       attributes: ['id', 'manufacturer', 'reference'],
+      transaction,
     });
 
     if (existing.length > 0) {
@@ -1807,7 +2002,8 @@ export class LibraryService {
         data.is_active === undefined || data.is_active === null
           ? true
           : this.parseBoolean(data.is_active),
-    });
+    }, { transaction });
+    }, row => ({ resourceId: row.id, after: row.toJSON() }));
   }
 
   static async getSupplementalInspectionDocumentById(id: string) {
@@ -1851,107 +2047,38 @@ export class LibraryService {
     });
   }
 
-  static async getSerializedComponents() {
-    return SerializedComponent.findAll({
-      attributes: [
-        'id',
-        'component_model_id',
-        'serial_number',
-        'part_number',
-        'status',
-        'condition',
-        'notes',
-        'created_at',
-      ],
+  static async getSerializedComponents(authority: TenantQueryAuthority) {
+    assertTenantQueryAuthority(authority);
+    const components = await serializedComponentTenantRepository.list(authority);
+    const modelIds = [...new Set(components.map((component) => component.component_model_id).filter(Boolean))];
+    const models = modelIds.length === 0 ? [] : await ComponentModel.findAll({
+      where: { id: { [Op.in]: modelIds } },
+      attributes: ['id', 'model_name', 'model_code'],
       include: [
-        {
-          model: ComponentModel,
-          as: 'ComponentModel',
-          attributes: ['id', 'model_name', 'model_code'],
-          required: false,
-          include: [
-            {
-              model: Manufacturer,
-              attributes: ['id', 'name', 'code'],
-              required: false,
-            },
-            {
-              model: AssetType,
-              attributes: ['id', 'code', 'label'],
-              required: false,
-            },
-          ],
-        },
+        { model: Manufacturer, attributes: ['id', 'name', 'code'], required: false },
+        { model: AssetType, attributes: ['id', 'code', 'label'], required: false },
       ],
-      order: [['created_at', 'DESC'], ['serial_number', 'ASC']],
     });
+    const modelById = new Map(models.map((model) => [model.id, model]));
+    return components.map((component) => {
+      (component as any).ComponentModel = modelById.get(String(component.component_model_id)) || null;
+      return component;
+    }).sort((left: any, right: any) =>
+      String(right.created_at || '').localeCompare(String(left.created_at || '')) ||
+      String(left.serial_number || '').localeCompare(String(right.serial_number || ''))
+    );
   }
 
-  static async getSerializedComponentReconciliationReport() {
-    const [legacyRows, serializedRows, totalSerializedComponentsResult] = await Promise.all([
-      sequelize.query(
-        `
-          SELECT
-            ac.id AS legacy_component_id,
-            ac.aircraft_id,
-            aircraft.registration AS aircraft_registration,
-            ac.model_id AS legacy_model_id,
-            ac.serial_number AS legacy_serial_number,
-            ac.position_code AS legacy_position,
-            ac.current_status AS legacy_status,
-            ac.removed_at AS legacy_removed_at,
-            cm.model_code AS legacy_model_code,
-            cm.model_name AS legacy_model_name,
-            cm.asset_type_id AS legacy_asset_type_id,
-            at.code AS legacy_asset_type_code
-          FROM aircraft_components ac
-          LEFT JOIN aircraft
-            ON aircraft.id = ac.aircraft_id
-          LEFT JOIN component_models cm
-            ON cm.id = ac.model_id
-          LEFT JOIN rf_asset_type at
-            ON at.id = cm.asset_type_id
-          ORDER BY aircraft.registration ASC NULLS LAST, ac.position_code ASC NULLS LAST, ac.serial_number ASC NULLS LAST
-        `,
-        { type: QueryTypes.SELECT }
-      ),
-      sequelize.query(
-        `
-          SELECT
-            aci.id AS serialized_installation_id,
-            aci.aircraft_id,
-            aircraft.registration AS aircraft_registration,
-            aci.position AS serialized_position,
-            aci.removed_at AS serialized_removed_at,
-            sc.id AS serialized_component_id,
-            sc.component_model_id AS serialized_model_id,
-            sc.serial_number AS serialized_serial_number,
-            sc.status AS serialized_status,
-            cm.model_code AS serialized_model_code,
-            cm.model_name AS serialized_model_name,
-            cm.asset_type_id AS serialized_asset_type_id,
-            at.code AS serialized_asset_type_code,
-            sls.id AS life_state_id
-          FROM aircraft_component_installations aci
-          JOIN serialized_components sc
-            ON sc.id = aci.serialized_component_id
-          LEFT JOIN aircraft
-            ON aircraft.id = aci.aircraft_id
-          LEFT JOIN component_models cm
-            ON cm.id = sc.component_model_id
-          LEFT JOIN rf_asset_type at
-            ON at.id = cm.asset_type_id
-          LEFT JOIN serialized_component_life_states sls
-            ON sls.serialized_component_id = sc.id
-          ORDER BY aircraft.registration ASC NULLS LAST, aci.position ASC NULLS LAST, sc.serial_number ASC NULLS LAST
-        `,
-        { type: QueryTypes.SELECT }
-      ),
-      sequelize.query(
-        'SELECT COUNT(*)::int AS total_serialized_components FROM serialized_components',
-        { type: QueryTypes.SELECT }
-      ),
-    ]);
+  static async getSerializedComponentReconciliationReport(): Promise<any>;
+  static async getSerializedComponentReconciliationReport(authority: TenantQueryAuthority): Promise<any>;
+  static async getSerializedComponentReconciliationReport(
+    authority: TenantQueryAuthority | undefined = undefined,
+  ) {
+    const data = authority
+      ? await serializedComponentReconciliationRepository.load(authority)
+      : await loadGlobalReconciliationDataForMigration();
+    const legacyRows = data.legacyRows;
+    const serializedRows = data.serializedInstallationRows;
 
     const activeLegacyRows = (legacyRows as any[]).filter((row) =>
       this.isActiveLegacyReconciliationRow(row)
@@ -2059,8 +2186,7 @@ export class LibraryService {
       detailRows.length > 0
         ? Number(((migrationReadyCount / detailRows.length) * 100).toFixed(1))
         : 100;
-    const totalSerializedComponents =
-      Number((totalSerializedComponentsResult as any[])?.[0]?.total_serialized_components || 0);
+    const totalSerializedComponents = data.totalSerializedComponents;
 
     return {
       generated_at: new Date().toISOString(),
@@ -2500,6 +2626,7 @@ export class LibraryService {
   }
 
   static async linkSbModelAllocationToModels(
+    evidence: PlatformMutationEvidence,
     allocationId: string,
     modelIds: string[],
     reviewedBy: string | null
@@ -2512,7 +2639,8 @@ export class LibraryService {
       throw new Error('Select at least one model to link.');
     }
 
-    return sequelize.transaction(async (transaction) => {
+    let auditAfter: unknown;
+    return executeAuthoritativePlatformMutation(requirePlatformMutationOperations(evidence, ['REGULATORY_RELATIONSHIP_MUTATE']), async (transaction, audit) => {
       const allocations = await sequelize.query<any>(
         `
         SELECT
@@ -2535,17 +2663,37 @@ export class LibraryService {
       if (!allocation) {
         throw new Error('SB model applicability allocation was not found.');
       }
-
       const selectedModels = await ComponentModel.findAll({
         attributes: ['id', 'model_name', 'model_code'],
         where: { id: { [Op.in]: uniqueModelIds } },
         transaction,
+        lock: transaction.LOCK.UPDATE,
       });
-      const selectedModelIds = selectedModels.map((model: any) => String(model.id));
+      const selectedModelIds = selectedModels.map((model: any) => String(model.id)).sort();
 
       if (selectedModelIds.length !== uniqueModelIds.length) {
         throw new Error('One or more selected component models no longer exist.');
       }
+
+      const relationshipsBefore = await sequelize.query<any>(
+        `
+        SELECT *
+        FROM service_bulletin_models
+        WHERE service_bulletin_id = :serviceBulletinId
+          AND model_id IN (:modelIds)
+        ORDER BY model_id ASC
+        FOR UPDATE
+        `,
+        {
+          replacements: {
+            serviceBulletinId: allocation.service_bulletin_id,
+            modelIds: selectedModelIds,
+          },
+          transaction,
+          type: QueryTypes.SELECT,
+        }
+      );
+      audit.setBefore({ allocation, relationships: relationshipsBefore });
 
       for (const modelId of selectedModelIds) {
         await sequelize.query(
@@ -2606,15 +2754,41 @@ export class LibraryService {
         }
       );
 
+      const [allocationsAfter, relationshipsAfter] = await Promise.all([
+        sequelize.query<any>(
+          `SELECT * FROM sb_model_applicability_allocations WHERE id = :allocationId`,
+          { replacements: { allocationId }, transaction, type: QueryTypes.SELECT }
+        ),
+        sequelize.query<any>(
+          `
+          SELECT *
+          FROM service_bulletin_models
+          WHERE service_bulletin_id = :serviceBulletinId
+            AND model_id IN (:modelIds)
+          ORDER BY model_id ASC
+          `,
+          {
+            replacements: {
+              serviceBulletinId: allocation.service_bulletin_id,
+              modelIds: selectedModelIds,
+            },
+            transaction,
+            type: QueryTypes.SELECT,
+          }
+        ),
+      ]);
+      auditAfter = { allocation: allocationsAfter[0], relationships: relationshipsAfter };
+
       return {
         linkedCount: selectedModelIds.length,
         rawModelsAffectedText: allocation.raw_models_affected_text,
       };
-    });
+    }, () => ({ resourceId: allocationId, after: auditAfter }));
   }
 
-  static async recheckExactSbModelAllocations(reviewedBy: string | null) {
-    return sequelize.transaction(async (transaction) => {
+  static async recheckExactSbModelAllocations(evidence: PlatformMutationEvidence, reviewedBy: string | null) {
+    let auditAfter: unknown;
+    return executeAuthoritativePlatformMutation(requirePlatformMutationOperations(evidence, ['REGULATORY_RELATIONSHIP_MUTATE']), async (transaction, audit) => {
       const allocations = await sequelize.query<any>(
         `
         SELECT
@@ -2636,6 +2810,7 @@ export class LibraryService {
           type: QueryTypes.SELECT,
         }
       );
+      audit.setBefore(allocations);
 
       let scanned = 0;
       let matched = 0;
@@ -2763,6 +2938,10 @@ export class LibraryService {
         }
       }
 
+      auditAfter = allocations.length ? await sequelize.query<any>(
+        `SELECT * FROM sb_model_applicability_allocations WHERE id IN (:ids) ORDER BY id`,
+        { replacements: { ids: allocations.map(row => row.id) }, transaction, type: QueryTypes.SELECT },
+      ) : [];
       return {
         scanned,
         matched,
@@ -2771,7 +2950,7 @@ export class LibraryService {
         multipleMatches,
         samples,
       };
-    });
+    }, () => ({ after: auditAfter }));
   }
 
   private static normalizeSbModelCodeToken(value: unknown) {
@@ -2979,8 +3158,9 @@ export class LibraryService {
     };
   }
 
-  static async expandSafeSbShorthandAllocations(reviewedBy: string | null) {
-    return sequelize.transaction(async (transaction) => {
+  static async expandSafeSbShorthandAllocations(evidence: PlatformMutationEvidence, reviewedBy: string | null) {
+    let auditAfter: unknown;
+    return executeAuthoritativePlatformMutation(requirePlatformMutationOperations(evidence, ['REGULATORY_RELATIONSHIP_MUTATE']), async (transaction, audit) => {
       const [allocations, modelRows] = await Promise.all([
         sequelize.query<any>(
           `
@@ -3018,6 +3198,7 @@ export class LibraryService {
           }
         ),
       ]);
+      audit.setBefore(allocations);
 
       const modelsByCode = new Map<string, any[]>();
       modelRows.forEach((model) => {
@@ -3186,6 +3367,10 @@ export class LibraryService {
         }
       }
 
+      auditAfter = allocations.length ? await sequelize.query<any>(
+        `SELECT * FROM sb_model_applicability_allocations WHERE id IN (:ids) ORDER BY id`,
+        { replacements: { ids: allocations.map(row => row.id) }, transaction, type: QueryTypes.SELECT },
+      ) : [];
       return {
         scanned,
         expanded,
@@ -3198,10 +3383,11 @@ export class LibraryService {
         samples,
         unsafeExamples,
       };
-    });
+    }, () => ({ after: auditAfter }));
   }
 
   static async ignoreSbModelAllocation(
+    evidence: PlatformMutationEvidence,
     allocationId: string,
     ignoredReason: string,
     reviewedBy: string | null
@@ -3216,7 +3402,15 @@ export class LibraryService {
       throw new Error('Ignore reason is required.');
     }
 
-    const [updatedCount] = await sequelize.query(
+    let auditAfter: unknown;
+    return executeAuthoritativePlatformMutation(requirePlatformMutationOperations(evidence, ['REGULATORY_RELATIONSHIP_MUTATE']), async (transaction, audit) => {
+    const [current] = await sequelize.query<any>(
+      `SELECT * FROM sb_model_applicability_allocations WHERE id=:allocationId FOR UPDATE`,
+      { replacements: { allocationId }, transaction, type: QueryTypes.SELECT },
+    );
+    if (!current) throw new Error('SB model applicability allocation was not found.');
+    audit.setBefore(current);
+    const updated = await sequelize.query<any>(
       `
       UPDATE sb_model_applicability_allocations
       SET
@@ -3226,7 +3420,7 @@ export class LibraryService {
         reviewed_at = CURRENT_TIMESTAMP,
         updated_at = CURRENT_TIMESTAMP
       WHERE id = :allocationId
-      RETURNING id
+      RETURNING *
       `,
       {
         replacements: {
@@ -3234,13 +3428,16 @@ export class LibraryService {
           reason,
           reviewedBy,
         },
-        type: QueryTypes.UPDATE,
+        type: QueryTypes.SELECT,
+        transaction,
       }
     );
 
-    if (Number(updatedCount || 0) === 0) {
+    if (updated.length === 0) {
       throw new Error('SB model applicability allocation was not found.');
     }
+    auditAfter = updated[0];
+    }, () => ({ resourceId: allocationId, after: auditAfter }));
   }
 
   private static async findSbAllocationDefaultAssetType(transaction: any) {
@@ -3281,6 +3478,7 @@ export class LibraryService {
   }
 
   static async createIncompleteModelFromSbAllocation(
+    evidence: PlatformMutationEvidence,
     allocationId: string,
     proposedModelCode: string,
     proposedModelName: string,
@@ -3299,7 +3497,8 @@ export class LibraryService {
 
     const displayName = modelName || modelCode;
 
-    return sequelize.transaction(async (transaction) => {
+    let auditAfter: unknown;
+    return executeAuthoritativePlatformMutation(requirePlatformMutationOperations(evidence, ['COMPONENT_MODEL_CREATE', 'REGULATORY_RELATIONSHIP_MUTATE']), async (transaction, audit) => {
       const allocations = await sequelize.query<any>(
         `
         SELECT
@@ -3330,7 +3529,6 @@ export class LibraryService {
       if (!allocation) {
         throw new Error('SB model applicability allocation was not found.');
       }
-
       const [manufacturer, assetType] = await Promise.all([
         this.findSbAllocationManufacturer(allocation.manufacturer, transaction),
         this.findSbAllocationDefaultAssetType(transaction),
@@ -3345,9 +3543,10 @@ export class LibraryService {
           AND (
             UPPER(BTRIM(model_code)) = UPPER(BTRIM(:modelCode))
             OR UPPER(BTRIM(model_name)) = UPPER(BTRIM(:modelCode))
-          )
+        )
         ORDER BY created_at ASC NULLS LAST
         LIMIT 1
+        FOR UPDATE
         `,
         {
           replacements: {
@@ -3362,6 +3561,29 @@ export class LibraryService {
 
       let modelId = existingModels[0]?.id || null;
       let created = false;
+
+      const relationshipsBefore = modelId
+        ? await sequelize.query<any>(
+          `
+          SELECT *
+          FROM service_bulletin_models
+          WHERE service_bulletin_id = :serviceBulletinId
+            AND model_id = :modelId
+          ORDER BY model_id ASC
+          FOR UPDATE
+          `,
+          {
+            replacements: { serviceBulletinId: allocation.service_bulletin_id, modelId },
+            transaction,
+            type: QueryTypes.SELECT,
+          }
+        )
+        : [];
+      audit.setBefore({
+        allocation,
+        relationships: relationshipsBefore,
+        componentModel: existingModels[0] || null,
+      });
 
       if (!modelId) {
         const note = [
@@ -3450,128 +3672,100 @@ export class LibraryService {
         }
       );
 
+      const [allocationsAfter, relationshipsAfter, modelsAfter] = await Promise.all([
+        sequelize.query<any>(
+          `SELECT * FROM sb_model_applicability_allocations WHERE id = :allocationId`,
+          { replacements: { allocationId }, transaction, type: QueryTypes.SELECT }
+        ),
+        sequelize.query<any>(
+          `
+          SELECT *
+          FROM service_bulletin_models
+          WHERE service_bulletin_id = :serviceBulletinId
+            AND model_id = :modelId
+          ORDER BY model_id ASC
+          `,
+          {
+            replacements: { serviceBulletinId: allocation.service_bulletin_id, modelId },
+            transaction,
+            type: QueryTypes.SELECT,
+          }
+        ),
+        sequelize.query<any>(
+          `SELECT * FROM component_models WHERE id = :modelId`,
+          { replacements: { modelId }, transaction, type: QueryTypes.SELECT }
+        ),
+      ]);
+      auditAfter = {
+        allocation: allocationsAfter[0],
+        relationships: relationshipsAfter,
+        componentModel: modelsAfter[0],
+      };
+
       return {
         modelId,
         modelName: displayName,
         modelCode,
         created,
       };
-    });
+    }, result => ({ resourceId: result.modelId, after: auditAfter }));
   }
 
-  static async getSerializedComponentById(id: string) {
-    return SerializedComponent.findByPk(id, {
-      attributes: [
-        'id',
-        'component_model_id',
-        'serial_number',
-        'part_number',
-        'status',
-        'condition',
-        'notes',
-        'created_at',
-        'updated_at',
-      ],
-      include: [
-        {
-          model: ComponentModel,
-          as: 'ComponentModel',
-          attributes: ['id', 'model_name', 'model_code'],
-          required: false,
-          include: [
-            {
-              model: Manufacturer,
-              attributes: ['id', 'name', 'code'],
-              required: false,
-            },
-            {
-              model: AssetType,
-              attributes: ['id', 'code', 'label'],
-              required: false,
-            },
-          ],
-        },
-        {
-          model: AircraftComponentInstallation,
-          as: 'Installations',
-          attributes: ['id', 'aircraft_id', 'position', 'installed_at', 'removed_at'],
-          where: { removed_at: null },
-          required: false,
-          include: [
-            {
-              model: Aircraft,
-              as: 'Aircraft',
-              attributes: ['id', 'registration', 'status'],
-              required: false,
-            },
-          ],
-        },
-        {
-          model: SerializedComponentLifeState,
-          as: 'LifeState',
-          required: false,
-        },
-        {
-          model: SerializedComponentMaintenanceEvent,
-          as: 'MaintenanceEvents',
-          required: false,
-          limit: 10,
-          order: [['occurred_at', 'DESC']],
-        },
-      ],
+  static async getSerializedComponentById(authority: TenantQueryAuthority, id: string) {
+    assertTenantQueryAuthority(authority);
+    const component = await serializedComponentTenantRepository.getById(authority, id);
+    if (!component) return undefined;
+    const [componentModel, installations, lifeState, maintenanceEvents] = await Promise.all([
+      ComponentModel.findByPk(component.component_model_id, {
+        attributes: ['id', 'model_name', 'model_code'],
+        include: [
+          { model: Manufacturer, attributes: ['id', 'name', 'code'], required: false },
+          { model: AssetType, attributes: ['id', 'code', 'label'], required: false },
+        ],
+      }),
+      AircraftComponentInstallation.findAll({
+        where: { serialized_component_id: component.id, removed_at: null },
+        include: [{
+          model: Aircraft, as: 'Aircraft', attributes: ['id', 'registration', 'status'],
+          where: { tenant_id: authority.tenantId }, required: true,
+        }],
+      }),
+      SerializedComponentLifeState.findOne({ where: { serialized_component_id: component.id } }),
+      SerializedComponentMaintenanceEvent.findAll({
+        where: { serialized_component_id: component.id }, limit: 10,
+        order: [['occurred_at', 'DESC']],
+      }),
+    ]);
+    Object.assign(component, {
+      ComponentModel: componentModel, Installations: installations,
+      LifeState: lifeState, MaintenanceEvents: maintenanceEvents,
     });
+    return component;
   }
 
-  static async getSerializedComponentLifeDashboard(id: string) {
+  static async getSerializedComponentLifeDashboard(authority: TenantQueryAuthority, id: string) {
+    assertTenantQueryAuthority(authority);
     const serializedComponentId = String(id || '').trim();
 
     if (!serializedComponentId) {
       return null;
     }
 
-    const serializedComponent = await SerializedComponent.findByPk(serializedComponentId, {
-      attributes: [
-        'id',
-        'component_model_id',
-        'serial_number',
-        'part_number',
-        'status',
-        'condition',
-        'notes',
-        'created_at',
-        'updated_at',
-      ],
-      include: [
-        {
-          model: ComponentModel,
-          as: 'ComponentModel',
-          attributes: ['id', 'model_name', 'model_code'],
-          required: false,
-          include: [
-            {
-              model: Manufacturer,
-              attributes: ['id', 'name', 'code'],
-              required: false,
-            },
-            {
-              model: AssetType,
-              attributes: ['id', 'code', 'label'],
-              required: false,
-            },
-            {
-              model: ComponentLifeLimit,
-              as: 'LifeLimits',
-              required: false,
-            },
-          ],
-        },
-      ],
-    });
+    const serializedComponent = await serializedComponentTenantRepository.getById(authority, serializedComponentId);
 
     if (!serializedComponent) {
       return null;
     }
 
+    const componentModel = await ComponentModel.findByPk(serializedComponent.component_model_id, {
+      attributes: ['id', 'model_name', 'model_code'],
+      include: [
+        { model: Manufacturer, attributes: ['id', 'name', 'code'], required: false },
+        { model: AssetType, attributes: ['id', 'code', 'label'], required: false },
+        { model: ComponentLifeLimit, as: 'LifeLimits', required: false },
+      ],
+    });
+    (serializedComponent as any).ComponentModel = componentModel;
     const [installations, lifeState, lifeAdjustmentEvents, maintenanceEvents] = await Promise.all([
       AircraftComponentInstallation.findAll({
         where: { serialized_component_id: serializedComponentId },
@@ -3580,7 +3774,7 @@ export class LibraryService {
             model: Aircraft,
             as: 'Aircraft',
             attributes: ['id', 'registration', 'serial_number', 'status'],
-            required: false,
+            where: { tenant_id: authority.tenantId }, required: true,
           },
         ],
         order: [
@@ -3628,12 +3822,12 @@ export class LibraryService {
 
     const currentInstallation =
       installations.find((installation: any) => !installation.removed_at) || null;
-    const componentModel = (serializedComponent as any).ComponentModel || null;
+    const scopedComponentModel = (serializedComponent as any).ComponentModel || null;
     const maintenanceEventGroups =
       this.groupSerializedComponentMaintenanceEvents(maintenanceEvents);
-    const lifeLimits = componentModel?.LifeLimits || [];
+    const lifeLimits = scopedComponentModel?.LifeLimits || [];
     const dueStatus = this.evaluateSerializedComponentLifeLimits(lifeLimits, lifeState);
-    const applicableServiceBulletins = componentModel?.id
+    const applicableServiceBulletins = scopedComponentModel?.id
       ? await ServiceBulletin.findAll({
           where: {
             is_active: true,
@@ -3643,7 +3837,7 @@ export class LibraryService {
             {
               model: ComponentModel,
               as: 'ApplicableModels',
-              where: { id: componentModel.id },
+              where: { id: scopedComponentModel.id },
               through: { attributes: [] },
               attributes: ['id', 'model_code', 'model_name'],
               required: true,
@@ -4059,6 +4253,7 @@ export class LibraryService {
   }
 
   static async adjustSerializedComponentLifeState(
+    authority: TenantQueryAuthority,
     id: string,
     data: {
       tsn_hours?: unknown;
@@ -4075,6 +4270,7 @@ export class LibraryService {
       recorded_by?: string | null;
     }
   ) {
+    assertTenantQueryAuthority(authority);
     const serializedComponentId = String(id || '').trim();
     const reason = String(data.reason || '').trim();
     const sourceReference = String(data.source_reference || '').trim();
@@ -4127,12 +4323,10 @@ export class LibraryService {
       throw new Error('CSO greater than CSN requires explicit documented reason confirmation.');
     }
 
-    return sequelize.transaction(async (transaction) => {
-      const serializedComponent = await SerializedComponent.findByPk(serializedComponentId, {
-        attributes: ['id', 'serial_number'],
-        transaction,
-        lock: transaction.LOCK.UPDATE,
-      });
+    return withTenantTransaction(authority, async (transaction) => {
+      const serializedComponent = await serializedComponentTenantRepository.getForUpdate(
+        authority, serializedComponentId, { transaction, lock: transaction.LOCK.UPDATE },
+      );
 
       if (!serializedComponent) {
         throw new Error('SERIALIZED_COMPONENT_NOT_FOUND');
@@ -4185,6 +4379,7 @@ export class LibraryService {
   }
 
   static async recordSerializedComponentOverhaul(
+    authority: TenantQueryAuthority,
     id: string,
     data: {
       overhaul_date?: unknown;
@@ -4200,6 +4395,7 @@ export class LibraryService {
       recorded_by?: string | null;
     }
   ) {
+    assertTenantQueryAuthority(authority);
     const serializedComponentId = String(id || '').trim();
     const overhaulDate = this.parseOptionalDate(data.overhaul_date, 'Overhaul date');
     const overhaulProvider = String(data.overhaul_provider || '').trim();
@@ -4240,12 +4436,10 @@ export class LibraryService {
       ),
     };
 
-    return sequelize.transaction(async (transaction) => {
-      const serializedComponent = await SerializedComponent.findByPk(serializedComponentId, {
-        attributes: ['id', 'serial_number'],
-        transaction,
-        lock: transaction.LOCK.UPDATE,
-      });
+    return withTenantTransaction(authority, async (transaction) => {
+      const serializedComponent = await serializedComponentTenantRepository.getForUpdate(
+        authority, serializedComponentId, { transaction, lock: transaction.LOCK.UPDATE },
+      );
 
       if (!serializedComponent) {
         throw new Error('SERIALIZED_COMPONENT_NOT_FOUND');
@@ -4303,6 +4497,7 @@ export class LibraryService {
   }
 
   static async recordSerializedComponentGenericMaintenanceEvent(
+    authority: TenantQueryAuthority,
     id: string,
     data: {
       event_type?: unknown;
@@ -4313,6 +4508,7 @@ export class LibraryService {
       recorded_by?: string | null;
     }
   ) {
+    assertTenantQueryAuthority(authority);
     const serializedComponentId = String(id || '').trim();
     const eventType = String(data.event_type || '').trim().toUpperCase();
     const occurredAt = this.parseOptionalDate(data.occurred_at, 'Occurred date');
@@ -4344,12 +4540,10 @@ export class LibraryService {
       throw new Error('Maintenance event notes are required.');
     }
 
-    return sequelize.transaction(async (transaction) => {
-      const serializedComponent = await SerializedComponent.findByPk(serializedComponentId, {
-        attributes: ['id', 'serial_number'],
-        transaction,
-        lock: transaction.LOCK.UPDATE,
-      });
+    return withTenantTransaction(authority, async (transaction) => {
+      const serializedComponent = await serializedComponentTenantRepository.getForUpdate(
+        authority, serializedComponentId, { transaction, lock: transaction.LOCK.UPDATE },
+      );
 
       if (!serializedComponent) {
         throw new Error('SERIALIZED_COMPONENT_NOT_FOUND');
@@ -4376,7 +4570,7 @@ export class LibraryService {
     });
   }
 
-  static async createSerializedComponent(data: {
+  static async createSerializedComponent(authority: TenantQueryAuthority, data: {
     component_model_id: string;
     serial_number: string;
     part_number?: string | undefined;
@@ -4384,7 +4578,15 @@ export class LibraryService {
     condition?: string | undefined;
     notes?: string | undefined;
   }) {
-    return SerializedComponent.create({
+    assertTenantQueryAuthority(authority);
+    if (['custodian_tenant_id', 'custodianTenantId', 'tenant_id', 'tenantId'].some(
+      (field) => Object.prototype.hasOwnProperty.call(data, field),
+    )) throw new Error('TENANT_QUERY_FAILED');
+    const existing = await serializedComponentTenantRepository.findBySerialIdentity(
+      authority, data.component_model_id, data.serial_number,
+    );
+    if (existing) throw new Error('TENANT_QUERY_FAILED');
+    return serializedComponentTenantRepository.create(authority, {
       component_model_id: data.component_model_id,
       serial_number: data.serial_number.trim(),
       part_number: data.part_number?.trim() || null,
@@ -4395,6 +4597,7 @@ export class LibraryService {
   }
 
   static async updateSerializedComponent(
+    authority: TenantQueryAuthority,
     id: string,
     data: {
       component_model_id?: string | undefined;
@@ -4405,7 +4608,11 @@ export class LibraryService {
       notes?: string | undefined;
     }
   ) {
-    const serializedComponent = await this.getSerializedComponentById(id);
+    assertTenantQueryAuthority(authority);
+    if (['custodian_tenant_id', 'custodianTenantId', 'tenant_id', 'tenantId'].some(
+      (field) => Object.prototype.hasOwnProperty.call(data, field),
+    )) throw new Error('TENANT_QUERY_FAILED');
+    const serializedComponent = await this.getSerializedComponentById(authority, id);
 
     if (!serializedComponent) {
       throw new Error('SERIALIZED_COMPONENT_NOT_FOUND');
@@ -4467,9 +4674,17 @@ export class LibraryService {
       }
     }
 
-    await serializedComponent.update(updates);
+    const nextModelIdentity = String(updates.component_model_id || serializedComponent.component_model_id);
+    const conflict = await serializedComponentTenantRepository.findBySerialIdentity(
+      authority, nextModelIdentity, nextSerialNumber,
+    );
+    if (conflict && conflict.id !== serializedComponent.id) throw new Error('TENANT_QUERY_FAILED');
+    const result = await serializedComponentTenantRepository.updateById(
+      authority, id, updates,
+    );
+    if (result.outcome === 'UNAVAILABLE') throw new Error('SERIALIZED_COMPONENT_NOT_FOUND');
 
-    return this.getSerializedComponentById(id);
+    return this.getSerializedComponentById(authority, id);
   }
 
   static async getManufacturerById(id: string) {
@@ -4506,12 +4721,11 @@ export class LibraryService {
     });
   }
 
-  static async createManufacturer(data: {
+  static async createManufacturer(evidence: PlatformMutationEvidence, data: {
     name: string;
     code?: string | undefined;
     description?: string | undefined;
     website?: string | undefined;
-    logo_url?: string | undefined;
     address_line_1?: string | undefined;
     address_line_2?: string | undefined;
     city?: string | undefined;
@@ -4524,13 +4738,14 @@ export class LibraryService {
     support_email?: string | undefined;
     support_phone?: string | undefined;
     notes?: string | undefined;
-    }) {
+    }, logoCommit: ManufacturerLogoCommit | null = null) {
+    const trustedLogo = requireManufacturerLogoCommit(logoCommit);
     const payload = await this.mapManufacturerPayload({
       name: data.name.trim(),
       code: data.code?.trim().toUpperCase() || null,
       description: data.description?.trim() || null,
       website: data.website?.trim() || null,
-      logo_url: data.logo_url?.trim() || null,
+      logo_url: trustedLogo?.reference ?? null,
       address_line_1: data.address_line_1?.trim() || null,
       address_line_2: data.address_line_2?.trim() || null,
       city: data.city?.trim() || null,
@@ -4545,17 +4760,20 @@ export class LibraryService {
       notes: data.notes?.trim() || null,
     });
 
-    return Manufacturer.create(payload);
+    const operations = trustedLogo ? ['MANUFACTURER_CREATE', 'MANUFACTURER_FILE_REPLACE'] as const : ['MANUFACTURER_CREATE'] as const;
+    return executeAuthoritativePlatformMutation(requirePlatformMutationOperations(evidence, operations),
+      transaction => Manufacturer.create(payload, { transaction }),
+      row => ({ resourceId: row.id, after: row.toJSON() }));
   }
 
   static async updateManufacturer(
+    evidence: PlatformMutationEvidence,
     id: string,
     data: {
       name: string;
       code?: string | undefined;
       description?: string | undefined;
       website?: string | undefined;
-      logo_url?: string | undefined;
       address_line_1?: string | undefined;
       address_line_2?: string | undefined;
       city?: string | undefined;
@@ -4568,14 +4786,15 @@ export class LibraryService {
       support_email?: string | undefined;
       support_phone?: string | undefined;
       notes?: string | undefined;
-    }
+    },
+    logoCommit: ManufacturerLogoCommit | null = null
   ) {
-    const payload = await this.mapManufacturerPayload({
+    const trustedLogo = requireManufacturerLogoCommit(logoCommit);
+    const requestedPayload = {
       name: data.name.trim(),
       code: data.code?.trim().toUpperCase() || null,
       description: data.description?.trim() || null,
       website: data.website?.trim() || null,
-      logo_url: data.logo_url?.trim() || null,
       address_line_1: data.address_line_1?.trim() || null,
       address_line_2: data.address_line_2?.trim() || null,
       city: data.city?.trim() || null,
@@ -4588,23 +4807,30 @@ export class LibraryService {
       support_email: data.support_email?.trim() || null,
       support_phone: data.support_phone?.trim() || null,
       notes: data.notes?.trim() || null,
-    });
+    };
     const attributes = await this.getSelectableManufacturerAttributes();
-
-    await Manufacturer.update(
-      payload,
-      { where: { id } }
-    );
-
-    return Manufacturer.findByPk(id, {
-      attributes,
-    });
+    const operations = trustedLogo ? ['MANUFACTURER_UPDATE', 'MANUFACTURER_FILE_REPLACE'] as const : ['MANUFACTURER_UPDATE'] as const;
+    return executeAuthoritativePlatformMutation(requirePlatformMutationOperations(evidence, operations), async (transaction, audit) => {
+      const current = await Manufacturer.findByPk(id, { attributes, transaction, lock: transaction.LOCK.UPDATE });
+      if (!current) throw new Error('Manufacturer not found.');
+      audit.setBefore(current.toJSON());
+      if (trustedLogo) {
+        const prefix = '/uploads/manufacturers/';
+        const currentReference = current.logo_url || null;
+        const candidate = currentReference?.startsWith(prefix) ? currentReference.slice(prefix.length) : null;
+        const previousName = candidate && canonicalUploadReference('manufacturers', candidate) === currentReference ? candidate : null;
+        await platformFileOperationRepository.recordPreviousName(trustedLogo.operationId, previousName, transaction);
+      }
+      const payload = await this.mapManufacturerPayload({ ...requestedPayload, logo_url: trustedLogo?.reference ?? current.logo_url ?? null });
+      await Manufacturer.update(payload, { where: { id }, transaction });
+      return Manufacturer.findByPk(id, { attributes, transaction });
+    }, row => ({ resourceId: id, after: row?.toJSON() }));
   }
 
   /**
    * CREATE: Add a new model
    */
-  static async createModel(data: {
+  static async createModel(evidence: PlatformMutationEvidence, data: {
     manufacturer_id: string;
     asset_type_id: string;
     model_name: string;
@@ -4616,7 +4842,7 @@ export class LibraryService {
     maintenance_notes?: string | undefined;
     is_life_limited?: boolean | undefined;
   }) {
-    return ComponentModel.create({
+    return executeAuthoritativePlatformMutation(requirePlatformMutationOperations(evidence, ['COMPONENT_MODEL_CREATE']), transaction => ComponentModel.create({
       manufacturer_id: data.manufacturer_id,
       asset_type_id: data.asset_type_id,
       model_name: data.model_name,
@@ -4627,13 +4853,14 @@ export class LibraryService {
       service_interval_months: data.service_interval_months ?? null,
       maintenance_notes: data.maintenance_notes?.trim() || null,
       is_life_limited: data.is_life_limited ?? false,
-    });
+    }, { transaction }), row => ({ resourceId: row.id, after: row.toJSON() }));
   }
 
   /**
    * UPDATE: Update existing model
    */
   static async updateModel(
+    evidence: PlatformMutationEvidence,
     id: string,
     data: {
       model_name: string;
@@ -4646,6 +4873,10 @@ export class LibraryService {
       is_life_limited?: boolean | undefined;
     }
   ) {
+    return executeAuthoritativePlatformMutation(requirePlatformMutationOperations(evidence, ['COMPONENT_MODEL_UPDATE']), async (transaction, audit) => {
+    const current = await ComponentModel.findByPk(id, { transaction, lock: transaction.LOCK.UPDATE });
+    if (!current) throw new Error('Model not found.');
+    audit.setBefore(current.toJSON());
     await ComponentModel.update(
       {
         model_name: data.model_name,
@@ -4657,37 +4888,40 @@ export class LibraryService {
         maintenance_notes: data.maintenance_notes?.trim() || null,
         is_life_limited: data.is_life_limited ?? false,
       },
-      { where: { id } }
+      { where: { id }, transaction }
     );
 
     return ComponentModel.findByPk(id, {
       attributes: LibraryService.componentModelAttributes,
+      transaction,
     });
+    }, row => ({ resourceId: id, after: row?.toJSON() }));
   }
 
   /**
    * CREATE maintenance requirement
    */
-  static async createRequirement(data: {
+  static async createRequirement(evidence: PlatformMutationEvidence, data: {
     model_id: string;
     title: string;
     interval_hours?: number | undefined;
     interval_months?: number | undefined;
     description?: string | undefined;
   }) {
-    return MaintenanceRequirement.create({
+    return executeAuthoritativePlatformMutation(requirePlatformMutationOperations(evidence, ['MAINTENANCE_MASTER_CREATE']), transaction => MaintenanceRequirement.create({
       model_id: data.model_id,
       title: data.title,
       interval_hours: data.interval_hours ?? null,
       interval_months: data.interval_months ?? null,
       description: data.description ?? null,
-    });
+    }, { transaction }), row => ({ resourceId: row.id, after: row.toJSON() }));
   }
 
   /**
    * UPDATE maintenance requirement
    */
   static async updateRequirement(
+    evidence: PlatformMutationEvidence,
     id: string,
     data: {
       title: string;
@@ -4696,6 +4930,10 @@ export class LibraryService {
       description?: string | undefined;
     }
   ) {
+    return executeAuthoritativePlatformMutation(requirePlatformMutationOperations(evidence, ['MAINTENANCE_MASTER_UPDATE']), async (transaction, audit) => {
+    const current = await MaintenanceRequirement.findByPk(id, { transaction, lock: transaction.LOCK.UPDATE });
+    if (!current) throw new Error('Maintenance requirement not found.');
+    audit.setBefore(current.toJSON());
     await MaintenanceRequirement.update(
       {
         title: data.title,
@@ -4703,24 +4941,28 @@ export class LibraryService {
         interval_months: data.interval_months ?? null,
         description: data.description ?? null,
       },
-      { where: { id } }
+      { where: { id }, transaction }
     );
 
-    return MaintenanceRequirement.findByPk(id);
+    return MaintenanceRequirement.findByPk(id, { transaction });
+    }, row => ({ resourceId: id, after: row?.toJSON() }));
   }
 
   /**
    * DELETE maintenance requirement
    */
-  static async deleteRequirement(id: string) {
-    const deleted = await MaintenanceRequirement.destroy({
-      where: { id },
-    });
+  static async deleteRequirement(evidence: PlatformMutationEvidence, id: string) {
+    return executeAuthoritativePlatformMutation(requirePlatformMutationOperations(evidence, ['MAINTENANCE_MASTER_DELETE']), async (transaction, audit) => {
+    const current = await MaintenanceRequirement.findByPk(id, { transaction, lock: transaction.LOCK.UPDATE });
+    if (!current) throw new Error('Maintenance requirement not found.');
+    audit.setBefore(current.toJSON());
+    const deleted = await MaintenanceRequirement.destroy({ where: { id }, transaction });
 
     return deleted > 0;
+    }, () => ({ resourceId: id, after: null }));
   }
 
-  static async createServiceBulletin(data: {
+  static async createServiceBulletin(evidence: PlatformMutationEvidence, data: {
     model_id: string;
     sb_number: string;
     title: string;
@@ -4729,7 +4971,8 @@ export class LibraryService {
     compliance_type?: string | undefined;
     revision?: string | undefined;
     document_url?: string | undefined;
-  }) {
+  }, suppliedTransaction?: import('sequelize').Transaction) {
+    return executeAuthoritativePlatformMutation(requirePlatformMutationOperations(evidence, ['REGULATORY_MASTER_CREATE', 'REGULATORY_RELATIONSHIP_MUTATE']), async (transaction, audit) => {
     const normalizedSbNumber = data.sb_number.trim().toUpperCase();
     const model = await ComponentModel.findByPk(data.model_id, {
       attributes: ['id', 'manufacturer_id'],
@@ -4740,6 +4983,7 @@ export class LibraryService {
           required: false,
         },
       ],
+      transaction,
     });
     const modelManufacturer = (model as any)?.Manufacturer;
     const manufacturer =
@@ -4758,13 +5002,26 @@ export class LibraryService {
             },
           ],
           order: [['created_at', 'ASC']],
+          transaction,
+          lock: transaction.LOCK.UPDATE,
         })
       : await ServiceBulletin.findOne({
           where: { sb_number: normalizedSbNumber },
           order: [['created_at', 'ASC']],
+          transaction,
+          lock: transaction.LOCK.UPDATE,
         });
 
     if (existing) {
+      const existingLink = await ServiceBulletinModel.findOne({
+        where: { service_bulletin_id: existing.id, model_id: data.model_id },
+        transaction,
+        lock: transaction.LOCK.UPDATE,
+      });
+      audit.setBefore({
+        bulletin: typeof (existing as any).toJSON === 'function' ? existing.toJSON() : { ...(existing as any), update: undefined },
+        relationship: existingLink ? (typeof (existingLink as any).toJSON === 'function' ? existingLink.toJSON() : { ...(existingLink as any) }) : null,
+      });
       await ServiceBulletinModel.findOrCreate({
         where: {
           service_bulletin_id: existing.id,
@@ -4774,6 +5031,7 @@ export class LibraryService {
           service_bulletin_id: existing.id,
           model_id: data.model_id,
         },
+        transaction,
       });
 
       await existing.update({
@@ -4785,7 +5043,7 @@ export class LibraryService {
           this.normalizeServiceBulletinCompliance(data.compliance_type),
         revision: existing.revision || data.revision?.trim() || null,
         document_url: existing.document_url || data.document_url?.trim() || null,
-      });
+      }, { transaction });
 
       return existing;
     }
@@ -4804,7 +5062,7 @@ export class LibraryService {
         status: 'ACTIVE',
         revision: data.revision?.trim() || null,
         document_url: data.document_url?.trim() || null,
-      });
+      }, { transaction });
     } catch (error: any) {
       console.error('[LibraryService] Service Bulletin create failed', {
         manufacturer,
@@ -4825,12 +5083,15 @@ export class LibraryService {
         service_bulletin_id: bulletin.id,
         model_id: data.model_id,
       },
+      transaction,
     });
 
     return bulletin;
+    }, row => ({ resourceId: row.id, after: row.toJSON() }), suppliedTransaction);
   }
 
   static async createServiceBulletinsBulk(
+    evidence: PlatformMutationEvidence,
     modelId: string,
     entries: Array<{
       sb_number?: string | null;
@@ -4874,21 +5135,47 @@ export class LibraryService {
       document_url?: string;
     }>;
 
-    for (const entry of normalizedEntries) {
-      await this.createServiceBulletin(entry);
-    }
-
-    return normalizedEntries.length;
+    let auditAfter: unknown;
+    return executeAuthoritativePlatformMutation(requirePlatformMutationOperations(evidence, ['REGULATORY_MASTER_CREATE', 'REGULATORY_RELATIONSHIP_MUTATE']), async (transaction, audit) => {
+      const numbers = normalizedEntries.map(entry => entry.sb_number.trim().toUpperCase());
+      const beforeBulletins = numbers.length ? await ServiceBulletin.findAll({
+        where: { sb_number: { [Op.in]: numbers } }, transaction, lock: transaction.LOCK.UPDATE,
+      }) : [];
+      const beforeLinks = beforeBulletins.length ? await ServiceBulletinModel.findAll({
+        where: { service_bulletin_id: { [Op.in]: beforeBulletins.map(row => row.id) }, model_id: modelId },
+        transaction, lock: transaction.LOCK.UPDATE,
+      }) : [];
+      audit.setBefore({ bulletins: beforeBulletins.map(row => row.toJSON()), relationships: beforeLinks.map(row => row.toJSON()) });
+      for (const entry of normalizedEntries) await this.createServiceBulletin(evidence, entry, transaction);
+      const afterBulletins = numbers.length ? await ServiceBulletin.findAll({
+        where: { sb_number: { [Op.in]: numbers } }, transaction,
+      }) : [];
+      const afterLinks = afterBulletins.length ? await ServiceBulletinModel.findAll({
+        where: { service_bulletin_id: { [Op.in]: afterBulletins.map(row => row.id) }, model_id: modelId }, transaction,
+      }) : [];
+      auditAfter = { bulletins: afterBulletins.map(row => row.toJSON()), relationships: afterLinks.map(row => row.toJSON()) };
+      return normalizedEntries.length;
+    }, () => ({ resourceId: modelId, after: auditAfter }));
   }
 
-  static async attachServiceBulletinsToModel(modelId: string, serviceBulletinIds: string[]) {
+  static async attachServiceBulletinsToModel(evidence: PlatformMutationEvidence, modelId: string, serviceBulletinIds: string[]) {
+    let auditAfter: unknown;
+    return executeAuthoritativePlatformMutation(requirePlatformMutationOperations(evidence, ['REGULATORY_RELATIONSHIP_MUTATE']), async (transaction, audit) => {
     const uniqueIds = Array.from(
       new Set((serviceBulletinIds || []).map((id) => String(id).trim()).filter(Boolean))
     );
 
     if (uniqueIds.length === 0) {
+      audit.setBefore([]);
+      auditAfter = [];
       return 0;
     }
+    const existingLinks = await ServiceBulletinModel.findAll({
+      where: { service_bulletin_id: { [Op.in]: uniqueIds }, model_id: modelId },
+      transaction,
+      lock: transaction.LOCK.UPDATE,
+    });
+    audit.setBefore(existingLinks.map(row => row.toJSON()));
 
     let attachedCount = 0;
 
@@ -4902,6 +5189,7 @@ export class LibraryService {
           service_bulletin_id: serviceBulletinId,
           model_id: modelId,
         },
+        transaction,
       });
 
       if (created) {
@@ -4909,16 +5197,21 @@ export class LibraryService {
       }
     }
 
+    auditAfter = (await ServiceBulletinModel.findAll({
+      where: { service_bulletin_id: { [Op.in]: uniqueIds }, model_id: modelId }, transaction,
+    })).map(row => row.toJSON());
     return attachedCount;
+    }, () => ({ resourceId: modelId, after: auditAfter }));
   }
 
-  private static async ensureAdComplianceItem(directive: AirworthinessDirective) {
+  private static async ensureAdComplianceItem(directive: AirworthinessDirective, transaction: import('sequelize').Transaction) {
     const existing = await ComplianceItem.findOne({
       where: {
         source_type: 'AD',
         source_id: directive.id,
       } as any,
       order: [['created_at', 'ASC']],
+      transaction,
     });
 
     if (existing) {
@@ -4945,13 +5238,14 @@ export class LibraryService {
       )
         ? String(directive.status || '').trim().toUpperCase()
         : 'ACTIVE',
-    } as any);
+    } as any, { transaction });
   }
 
-  static async assignAirworthinessDirectiveToModel(modelId: string, directiveId: string) {
+  static async assignAirworthinessDirectiveToModel(evidence: PlatformMutationEvidence, modelId: string, directiveId: string, suppliedTransaction?: import('sequelize').Transaction) {
+    return executeAuthoritativePlatformMutation(requirePlatformMutationOperations(evidence, ['REGULATORY_RELATIONSHIP_MUTATE']), async (transaction, audit) => {
     const [model, directive] = await Promise.all([
-      ComponentModel.findByPk(modelId, { attributes: ['id'] }),
-      AirworthinessDirective.findByPk(directiveId),
+      ComponentModel.findByPk(modelId, { attributes: ['id'], transaction }),
+      AirworthinessDirective.findByPk(directiveId, { transaction }),
     ]);
 
     if (!model) {
@@ -4962,22 +5256,25 @@ export class LibraryService {
       throw new Error('Airworthiness directive not found.');
     }
 
-    const complianceItem = await this.ensureAdComplianceItem(directive);
+    const complianceItem = await this.ensureAdComplianceItem(directive, transaction);
     const existing = await ComplianceAssignment.findOne({
       where: {
         compliance_item_id: complianceItem.id,
         assignment_type: 'MODEL',
         model_id: modelId,
       },
+      transaction,
+      lock: transaction.LOCK.UPDATE,
     });
 
     if (existing) {
+      audit.setBefore(existing.toJSON());
       if (!existing.is_active) {
         await existing.update({
           is_active: true,
           assignment_source: 'MANUAL',
           aircraft_id: null,
-        });
+        }, { transaction });
       }
 
       return existing;
@@ -4990,13 +5287,16 @@ export class LibraryService {
       aircraft_id: null,
       assignment_source: 'MANUAL',
       is_active: true,
-    });
+    }, { transaction });
+    }, row => ({ resourceId: row.id, after: row.toJSON() }), suppliedTransaction);
   }
 
   static async assignAirworthinessDirectiveToModelByNumber(
+    evidence: PlatformMutationEvidence,
     modelId: string,
     adNumber: string
   ) {
+    const fixedEvidence = requirePlatformMutationOperations(evidence, ['REGULATORY_RELATIONSHIP_MUTATE']);
     const normalizedAdNumber = String(adNumber || '').trim();
 
     if (!normalizedAdNumber) {
@@ -5039,13 +5339,14 @@ export class LibraryService {
       throw new Error(`AD ${normalizedAdNumber} is already assigned to this model.`);
     }
 
-    return this.assignAirworthinessDirectiveToModel(modelId, String(directive.id));
+    return this.assignAirworthinessDirectiveToModel(fixedEvidence, modelId, String(directive.id));
   }
 
-  static async assignSupplementalInspectionDocumentToModel(modelId: string, sidId: string) {
+  static async assignSupplementalInspectionDocumentToModel(evidence: PlatformMutationEvidence, modelId: string, sidId: string) {
+    return executeAuthoritativePlatformMutation(requirePlatformMutationOperations(evidence, ['REGULATORY_RELATIONSHIP_MUTATE']), async (transaction, audit) => {
     const [model, sid] = await Promise.all([
-      ComponentModel.findByPk(modelId, { attributes: ['id'] }),
-      SupplementalInspectionDocument.findByPk(sidId, { attributes: ['id'] }),
+      ComponentModel.findByPk(modelId, { attributes: ['id'], transaction }),
+      SupplementalInspectionDocument.findByPk(sidId, { attributes: ['id'], transaction }),
     ]);
 
     if (!model) {
@@ -5061,11 +5362,14 @@ export class LibraryService {
         sid_id: sidId,
         model_id: modelId,
       },
+      transaction,
+      lock: transaction.LOCK.UPDATE,
     });
 
     if (existing) {
+      audit.setBefore(existing.toJSON());
       if (!existing.is_active) {
-        await existing.update({ is_active: true });
+        await existing.update({ is_active: true }, { transaction });
       }
 
       return existing;
@@ -5075,13 +5379,15 @@ export class LibraryService {
       sid_id: sidId,
       model_id: modelId,
       is_active: true,
-    });
+    }, { transaction });
+    }, row => ({ resourceId: row.id, after: row.toJSON() }));
   }
 
-  static async assignStandardTaskToModel(modelId: string, taskTemplateId: string) {
+  static async assignStandardTaskToModel(evidence: PlatformMutationEvidence, modelId: string, taskTemplateId: string) {
+    return executeAuthoritativePlatformMutation(requirePlatformMutationOperations(evidence, ['MAINTENANCE_MASTER_UPDATE']), async (transaction, audit) => {
     const [model, taskTemplate] = await Promise.all([
-      ComponentModel.findByPk(modelId, { attributes: ['id'] }),
-      TaskTemplate.findByPk(taskTemplateId),
+      ComponentModel.findByPk(modelId, { attributes: ['id'], transaction }),
+      TaskTemplate.findByPk(taskTemplateId, { transaction }),
     ]);
 
     if (!model) {
@@ -5091,19 +5397,24 @@ export class LibraryService {
     if (!taskTemplate) {
       throw new Error('Standard task not found.');
     }
+    audit.setBefore(taskTemplate.toJSON());
 
     await taskTemplate.update({
       scope: 'MODEL',
       aircraft_model_id: modelId,
       aircraft_id: null,
-    });
+    }, { transaction });
 
     return taskTemplate;
+    }, row => ({ resourceId: row.id, after: row.toJSON() }));
   }
 
-  static async importModelSidsFromCsv(modelId: string, buffer: Buffer) {
+  static async importModelSidsFromCsv(evidence: PlatformMutationEvidence, modelId: string, buffer: Buffer) {
+    let auditAfter: unknown;
+    return executeAuthoritativePlatformMutation(requirePlatformMutationOperations(evidence, ['SHARED_MASTER_IMPORT', 'REGULATORY_RELATIONSHIP_MUTATE', 'REGULATORY_MASTER_CREATE']), async (transaction, audit) => {
     const model = await ComponentModel.findByPk(modelId, {
       attributes: ['id', 'model_name'],
+      transaction,
     });
 
     if (!model) {
@@ -5125,7 +5436,7 @@ export class LibraryService {
       bom: true,
     }) as Record<string, unknown>[];
 
-    const existingSids = (await SupplementalInspectionDocument.findAll()) as any[];
+    const existingSids = (await SupplementalInspectionDocument.findAll({ transaction })) as any[];
     const existingModelSids = (await this.getModelSids(modelId)) as any[];
 
     const existingBySidNumber = new Map<string, any>();
@@ -5157,6 +5468,8 @@ export class LibraryService {
     let attached = 0;
     let skippedDuplicates = 0;
     let skippedInvalid = 0;
+    const beforeStates: unknown[] = [];
+    const afterStates: unknown[] = [];
 
     for (const record of records) {
       const sidNumber = this.normalizeSidNumber(
@@ -5234,9 +5547,11 @@ export class LibraryService {
       };
 
       if (!sid) {
-        sid = await SupplementalInspectionDocument.create(payload as any);
+        sid = await SupplementalInspectionDocument.create(payload as any, { transaction });
         created += 1;
       } else {
+        await sid.reload({ transaction, lock: transaction.LOCK.UPDATE });
+        beforeStates.push({ sid: sid.toJSON() });
         await sid.update({
           manufacturer: sid.manufacturer || payload.manufacturer,
           reference: sid.reference || payload.reference,
@@ -5255,9 +5570,13 @@ export class LibraryService {
           inspection_operation:
             sid.inspection_operation || payload.inspection_operation,
           source_document: sid.source_document || payload.source_document,
-        });
+        }, { transaction });
       }
 
+      const currentLink = await SidModelApplicability.findOne({
+        where: { sid_id: sid.id, model_id: modelId }, transaction, lock: transaction.LOCK.UPDATE,
+      });
+      if (currentLink) beforeStates.push({ relationship: currentLink.toJSON() });
       const [link, linkCreated] = await SidModelApplicability.findOrCreate({
         where: {
           sid_id: sid.id,
@@ -5268,12 +5587,17 @@ export class LibraryService {
           model_id: modelId,
           is_active: true,
         },
+        transaction,
       });
       const reactivated = !linkCreated && !link.is_active;
 
       if (reactivated) {
-        await link.update({ is_active: true });
+        await link.update({ is_active: true }, { transaction });
       }
+      afterStates.push({
+        sid: typeof sid.toJSON === 'function' ? sid.toJSON() : { ...sid },
+        relationship: typeof link.toJSON === 'function' ? link.toJSON() : { ...link },
+      });
 
       if (linkCreated || reactivated) {
         attached += 1;
@@ -5289,6 +5613,8 @@ export class LibraryService {
       existingBySummary.set(summaryKey, sid);
     }
 
+    audit.setBefore(beforeStates);
+    auditAfter = afterStates;
     return {
       created,
       attached,
@@ -5296,5 +5622,6 @@ export class LibraryService {
       skippedInvalid,
       processed: records.length,
     };
+    }, () => ({ resourceId: modelId, after: auditAfter }));
   }
 }

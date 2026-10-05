@@ -1,8 +1,12 @@
+
 const path = require('path');
 const dotenv = require('dotenv');
 const {
   buildGovernanceRepairConfig,
 } = require('./sequelize-governance-repair-config.cjs');
+const {
+  buildUnifiedMigrationConfig,
+} = require('./sequelize-migration-config.cjs');
 
 const databaseEnvironmentKeys = [
   'DB_HOST',
@@ -58,5 +62,14 @@ Object.defineProperty(configurations, 'production-governance-repair', {
     return buildGovernanceRepairConfig(process.env, databaseConfig);
   },
 });
+
+for (const target of ['development', 'test', 'production']) {
+  Object.defineProperty(configurations, `migration-${target}`, {
+    enumerable: true,
+    get() {
+      return buildUnifiedMigrationConfig(process.env, target);
+    },
+  });
+}
 
 module.exports = configurations;

@@ -1,11 +1,11 @@
-import {
-  Aircraft,
-  AircraftComponent,
-  ComponentModel,
-  UtilisationEvent,
-  sequelize,
-} from '../../models/index.js';
+import { withTenantTransaction } from '../tenancy/tenant-transaction.js';
+import { sequelize } from '../../models/index.js';
 import { AuditService } from '../audit/audit.service.js';
+import { assertTenantQueryAuthority, type TenantQueryAuthority } from '../tenancy/tenant-query-authority.js';
+import { aircraftTenantRepository } from '../aircraft/aircraft-tenant.repository.live.js';
+import type { AircraftRootUpdateInstance } from '../aircraft/aircraft-tenant.repository.js';
+import { aircraftComponentTenantRepository } from '../aircraft/aircraft-component-tenant.repository.live.js';
+import { aircraftUtilisationTenantRepository } from './aircraft-utilisation-tenant.repository.live.js';
 
 type UtilisationSourceType =
   | 'MANUAL_ENTRY'
@@ -54,36 +54,31 @@ export class UtilisationService {
     'IMPORT',
   ]);
 
-  static async recordUtilisation(params: RecordUtilisationParams) {
+  static async recordUtilisation(authority: TenantQueryAuthority, params: RecordUtilisationParams) {
+    assertTenantQueryAuthority(authority);
     const normalized = this.normalizeInput(params);
 
     if (params.transaction) {
-      return this.recordUtilisationInTransaction(normalized, params.transaction);
+      return this.recordUtilisationInTransaction(authority, normalized, params.transaction);
     }
 
-    return sequelize.transaction((transaction) =>
-      this.recordUtilisationInTransaction(normalized, transaction)
+    return withTenantTransaction(authority, (transaction) =>
+      this.recordUtilisationInTransaction(authority, normalized, transaction)
     );
   }
 
   private static async recordUtilisationInTransaction(
+    authority: TenantQueryAuthority,
     input: NormalizedUtilisationInput,
     transaction: any
   ) {
-    const aircraft = await Aircraft.findByPk(input.aircraftId, {
-      attributes: [
-        'id',
-        'status',
-        'total_time_hours',
-        'total_time_cycles',
-        'version',
-      ],
+    const aircraft = await aircraftTenantRepository.getForRootUpdate(authority, input.aircraftId, {
       transaction,
       lock: transaction.LOCK.UPDATE,
     });
 
     if (!aircraft) {
-      throw new Error('AIRCRAFT_NOT_FOUND');
+      throw new Error('TENANT_RESOURCE_UNAVAILABLE');
     }
 
     const previousHours = this.normalizeHours(aircraft.total_time_hours);
@@ -100,9 +95,13 @@ export class UtilisationService {
       this.validateCorrection(input);
     }
 
-    const event = await UtilisationEvent.create(
+    if (input.correctionOfEventId) {
+      const correctionEvent = await aircraftUtilisationTenantRepository.resolveCorrectionEvent(authority, input.correctionOfEventId, input.aircraftId, transaction);
+      if (!correctionEvent) throw new Error('TENANT_RESOURCE_UNAVAILABLE');
+    }
+
+    const event = await aircraftUtilisationTenantRepository.createForAircraft(authority, input.aircraftId,
       {
-        aircraft_id: input.aircraftId,
         source_type: isCorrection ? 'CORRECTION' : input.sourceType,
         source_reference: input.sourceReference,
         effective_date: input.effectiveDate,
@@ -120,7 +119,7 @@ export class UtilisationService {
         },
         created_by: input.createdBy,
       },
-      { transaction }
+      transaction
     );
 
     const oldSnapshot = {
@@ -178,6 +177,7 @@ export class UtilisationService {
     );
 
     await this.runLegacyTboGroundingCheck({
+      authority,
       aircraft,
       aircraftId: input.aircraftId,
       newTotalHours: input.newTotalTimeHours,
@@ -268,22 +268,14 @@ export class UtilisationService {
   }
 
   private static async runLegacyTboGroundingCheck(params: {
-    aircraft: Aircraft;
+    authority: TenantQueryAuthority;
+    aircraft: AircraftRootUpdateInstance;
     aircraftId: string;
     newTotalHours: number;
     utilisationEventId: string;
     transaction: any;
   }) {
-    const installed = await AircraftComponent.findAll({
-      where: { aircraft_id: params.aircraftId },
-      include: [
-        {
-          model: ComponentModel,
-          attributes: ['id', 'default_tbo_hours'],
-        },
-      ],
-      transaction: params.transaction,
-    });
+    const installed = await aircraftComponentTenantRepository.listForUtilisationGrounding(params.authority, params.aircraftId, { transaction: params.transaction });
 
     for (const record of installed) {
       const model = (record as any).ComponentModel;

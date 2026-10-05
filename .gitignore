@@ -65,10 +65,22 @@ temp/
 .aider*
 
 # Runtime uploads
-uploads/
+/uploads/
 
 # Misc docs/work
 docs/work/
 *.odt
 *.docx
 node_modules
+
+# Local database backups (machine-specific — never commit)
+backups/
+*.dump
+*.sha256
+
+# IDE (Visual Studio solution artifacts)
+.vs/
+
+# Local secret notes (never version controlled)
+docs/MyKy
+phase_seurity_1.md

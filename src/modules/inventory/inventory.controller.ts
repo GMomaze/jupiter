@@ -1,9 +1,17 @@
 import { Request, Response } from 'express';
 import { InventoryService } from './inventory.service.js';
+import { assertTenantQueryAuthority } from '../tenancy/tenant-query-authority.js';
 
 export class InventoryController {
   private static getParam(value: string | string[] | undefined) {
     return Array.isArray(value) ? value[0] || '' : value || '';
+  }
+
+  private static authorityAndActor(req: Request) {
+    assertTenantQueryAuthority(req.tenantAuthority);
+    const actorId = String((req.user as { id?: unknown } | undefined)?.id || '').trim();
+    if (!actorId) throw new Error('AUTHENTICATED_ACTOR_REQUIRED');
+    return { authority: req.tenantAuthority, actorId };
   }
 
   /**
@@ -12,10 +20,10 @@ export class InventoryController {
   static async handleRemoval(req: Request, res: Response) {
     const componentId = InventoryController.getParam(req.params.componentId);
     const { remarks } = req.body;
-    const userId = (req as any).user?.id || '00000000-0000-0000-0000-000000000001';
 
     try {
-      await InventoryService.removeComponent(componentId, userId, remarks || 'Routine Removal');
+      const { authority, actorId } = InventoryController.authorityAndActor(req);
+      await InventoryService.removeComponent(authority, componentId, actorId, remarks);
       
       if (req.headers['hx-request']) {
         res.setHeader('HX-Refresh', 'true');
@@ -33,13 +41,12 @@ export class InventoryController {
    */
   static async handleInstallation(req: Request, res: Response) {
     const componentId = InventoryController.getParam(req.params.componentId);
-    const { aircraft_id } = req.body; // Target aircraft from form
-    const userId = (req as any).user?.id || '00000000-0000-0000-0000-000000000001';
+    const { aircraft_id, remarks } = req.body;
 
     try {
       if (!aircraft_id) throw new Error('Aircraft ID is required for installation.');
-
-      await InventoryService.installComponent(componentId, aircraft_id, userId);
+      const { authority, actorId } = InventoryController.authorityAndActor(req);
+      await InventoryService.installComponent(authority, componentId, aircraft_id, actorId, remarks);
       
       if (req.headers['hx-request']) {
         res.setHeader('HX-Refresh', 'true');

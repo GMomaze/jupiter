@@ -1,17 +1,19 @@
-import { Router } from 'express';
+import { Router, type RequestHandler } from 'express';
 import multer from 'multer';
 import csrf from 'csurf';
 import { LibraryService } from './library.service.js';
 import { LibraryController } from './library.controller.js';
 import { StandardTaskImportController } from './standard-task-import.controller.js';
 import { AdImportController } from './ad-import.controller.js';
-import { AdRelevanceService, type AdRelevanceDirective } from './ad-relevance.service.js';
 import { SbImportController } from './sb-import.controller.js';
 import { PiperModelMasterImportController } from './piper-model-master-import.controller.js';
 import { ensureAuthenticated } from '../../middleware/auth.middleware.js';
 import { requireAnyPermission, requirePermission } from '../../middleware/rbac.middleware.js';
 import { manufacturerLogoUpload } from '../../middleware/upload.middleware.js';
+import { requestPlatformMutationEvidence } from '../platform-authority/authoritative-platform-mutation.js';
 import { ComponentLifeLimitGovernanceController } from './component-life-limit-governance.controller.js';
+import { assertTenantQueryAuthority } from '../tenancy/tenant-query-authority.js';
+import { runManufacturerFileMutation } from '../uploads/manufacturer-file-boundary.js';
 
 const router = Router();
 const sidCsvUpload = multer({ storage: multer.memoryStorage() });
@@ -20,6 +22,20 @@ const adImportUpload = multer({ storage: multer.memoryStorage() });
 const sbImportUpload = multer({ storage: multer.memoryStorage() });
 const piperModelMasterImportUpload = multer({ storage: multer.memoryStorage() });
 const csrfProtection = csrf();
+let reconciliationTenantGate: RequestHandler | null = null;
+
+const requireReconciliationTenant: RequestHandler = (req, res, next) => {
+  if (!reconciliationTenantGate) {
+    return next(new Error('TENANT_GATE_REQUIRED'));
+  }
+  return reconciliationTenantGate(req, res, next);
+};
+
+const requireMigrationTenant: RequestHandler = (req, res, next) =>
+  requireReconciliationTenant(req, res, next);
+
+const requireOperationalTenant: RequestHandler = (req, res, next) =>
+  requireReconciliationTenant(req, res, next);
 
 function getParam(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] || '' : value || '';
@@ -47,6 +63,11 @@ function getFriendlyLibraryErrorMessage(error: any) {
   }
 
   return message || 'Unable to save manufacturer.';
+}
+
+function requireTenantAuthority(req: { tenantAuthority?: unknown }) {
+  assertTenantQueryAuthority(req.tenantAuthority);
+  return req.tenantAuthority;
 }
 
 function getAssetTypeFormModel(source: Record<string, any> = {}) {
@@ -335,9 +356,10 @@ router.get(
 router.get(
   '/serialized-components',
   requirePermission('LIBRARY_EDIT'),
-  async (_req, res, next) => {
+  requireOperationalTenant,
+  async (req, res, next) => {
     try {
-      const serializedComponents = await LibraryService.getSerializedComponents();
+      const serializedComponents = await LibraryService.getSerializedComponents(requireTenantAuthority(req));
 
       res.render('library/serialized-components', {
         serializedComponents,
@@ -351,18 +373,21 @@ router.get(
 router.get(
   '/serialized-components/reconciliation',
   requirePermission('LIBRARY_EDIT'),
+  requireReconciliationTenant,
   LibraryController.renderSerializedReconciliationReport
 );
 
 router.get(
   '/serialized-components/migration-dry-run',
   requirePermission('LIBRARY_EDIT'),
+  requireMigrationTenant,
   LibraryController.renderSerializedMigrationDryRunReport
 );
 
 router.post(
   '/serialized-components/migration-dry-run/save',
   requirePermission('LIBRARY_EDIT'),
+  requireMigrationTenant,
   csrfProtection,
   LibraryController.saveSerializedMigrationDryRunReport
 );
@@ -370,12 +395,14 @@ router.post(
 router.get(
   '/serialized-components/migration-dry-run/batches/:batchId',
   requirePermission('LIBRARY_EDIT'),
+  requireMigrationTenant,
   LibraryController.renderSavedSerializedMigrationDryRunReport
 );
 
 router.get(
   '/serialized-components/create',
   requirePermission('LIBRARY_EDIT'),
+  requireOperationalTenant,
   async (_req, res, next) => {
     try {
       const [assetTypes, manufacturers] = await Promise.all([
@@ -435,9 +462,11 @@ router.get(
 router.get(
   '/serialized-components/:id/edit',
   requirePermission('LIBRARY_EDIT'),
+  requireOperationalTenant,
   async (req, res, next) => {
     try {
       const serializedComponent = await LibraryService.getSerializedComponentById(
+        requireTenantAuthority(req),
         getParam(req.params.id)
       );
 
@@ -466,9 +495,11 @@ router.get(
 router.get(
   '/serialized-components/:id/life',
   requirePermission('LIBRARY_EDIT'),
+  requireOperationalTenant,
   async (req, res, next) => {
     try {
       const dashboard = await LibraryService.getSerializedComponentLifeDashboard(
+        requireTenantAuthority(req),
         getParam(req.params.id)
       );
 
@@ -549,6 +580,7 @@ router.post(
 router.post(
   '/serialized-components',
   requirePermission('LIBRARY_EDIT'),
+  requireOperationalTenant,
   csrfProtection,
   async (req, res, next) => {
     try {
@@ -569,14 +601,17 @@ router.post(
         throw new Error('Serial number is required.');
       }
 
-      await LibraryService.createSerializedComponent({
-        component_model_id: String(component_model_id),
-        serial_number: String(serial_number),
-        part_number,
-        status,
-        condition,
-        notes,
-      });
+      await LibraryService.createSerializedComponent(
+        requireTenantAuthority(req),
+        {
+          component_model_id: String(component_model_id),
+          serial_number: String(serial_number),
+          part_number,
+          status,
+          condition,
+          notes,
+        }
+      );
 
       res.redirect('/library/serialized-components');
     } catch (error) {
@@ -588,10 +623,11 @@ router.post(
 router.post(
   '/serialized-components/:id/update',
   requirePermission('LIBRARY_EDIT'),
+  requireOperationalTenant,
   csrfProtection,
   async (req, res, next) => {
     try {
-      await LibraryService.updateSerializedComponent(getParam(req.params.id), {
+      await LibraryService.updateSerializedComponent(requireTenantAuthority(req), getParam(req.params.id), {
         component_model_id: req.body.component_model_id,
         serial_number: req.body.serial_number,
         part_number: req.body.part_number,
@@ -610,12 +646,13 @@ router.post(
 router.post(
   '/serialized-components/:id/life-adjustment',
   requirePermission('LIBRARY_EDIT'),
+  requireOperationalTenant,
   csrfProtection,
   async (req, res) => {
     const serializedComponentId = getParam(req.params.id);
 
     try {
-      await LibraryService.adjustSerializedComponentLifeState(serializedComponentId, {
+      await LibraryService.adjustSerializedComponentLifeState(requireTenantAuthority(req), serializedComponentId, {
         tsn_hours: req.body.tsn_hours,
         tso_hours: req.body.tso_hours,
         csn_cycles: req.body.csn_cycles,
@@ -642,12 +679,13 @@ router.post(
 router.post(
   '/serialized-components/:id/overhaul',
   requirePermission('LIBRARY_EDIT'),
+  requireOperationalTenant,
   csrfProtection,
   async (req, res) => {
     const serializedComponentId = getParam(req.params.id);
 
     try {
-      await LibraryService.recordSerializedComponentOverhaul(serializedComponentId, {
+      await LibraryService.recordSerializedComponentOverhaul(requireTenantAuthority(req), serializedComponentId, {
         overhaul_date: req.body.overhaul_date,
         overhaul_provider: req.body.overhaul_provider,
         overhaul_reference: req.body.overhaul_reference,
@@ -673,12 +711,14 @@ router.post(
 router.post(
   '/serialized-components/:id/maintenance-events',
   requirePermission('LIBRARY_EDIT'),
+  requireOperationalTenant,
   csrfProtection,
   async (req, res) => {
     const serializedComponentId = getParam(req.params.id);
 
     try {
       await LibraryService.recordSerializedComponentGenericMaintenanceEvent(
+        requireTenantAuthority(req),
         serializedComponentId,
         {
           event_type: req.body.event_type,
@@ -705,7 +745,7 @@ router.get('/asset-types/new', requirePermission('LIBRARY_EDIT'), async (_req, r
 
 router.post('/asset-types', requirePermission('LIBRARY_EDIT'), async (req, res) => {
   try {
-    const assetType = await LibraryService.createAssetType({
+    const assetType = await LibraryService.createAssetType(requestPlatformMutationEvidence(req, ['REFERENCE_CREATE'], 'rf_asset_type'), {
       code: req.body.code,
       label: req.body.label,
       description: req.body.description,
@@ -756,14 +796,13 @@ router.get('/manufacturers/:id', async (req, res, next) => {
   }
 });
 
-router.post('/manufacturers', requirePermission('LIBRARY_EDIT'), manufacturerLogoUpload.single('logo_file'), csrfProtection, async (req, res, next) => {
+router.post('/manufacturers', csrfProtection, manufacturerLogoUpload.single('logo_file'), async (req, res, next) => {
   try {
     const {
       name,
       code,
       description,
       website,
-      logo_url,
       address_line_1,
       address_line_2,
       city,
@@ -777,18 +816,17 @@ router.post('/manufacturers', requirePermission('LIBRARY_EDIT'), manufacturerLog
       support_phone,
       notes,
     } = req.body;
-    const uploadedLogoPath = req.file ? `/uploads/manufacturers/${req.file.filename}` : undefined;
-
     if (!name || !String(name).trim()) {
       throw new Error('Manufacturer name is required.');
     }
 
-    await LibraryService.createManufacturer({
+    const operations = req.file ? ['MANUFACTURER_CREATE', 'MANUFACTURER_FILE_REPLACE'] as const : ['MANUFACTURER_CREATE'] as const;
+    const evidence = requestPlatformMutationEvidence(req, operations, 'manufacturer');
+    await runManufacturerFileMutation({ evidence, file: req.file, mutate: logoCommit => LibraryService.createManufacturer(evidence, {
       name,
       code,
       description,
       website,
-      logo_url: uploadedLogoPath || logo_url,
       address_line_1,
       address_line_2,
       city,
@@ -801,7 +839,7 @@ router.post('/manufacturers', requirePermission('LIBRARY_EDIT'), manufacturerLog
       support_email,
       support_phone,
       notes,
-    });
+    }, logoCommit) });
 
     req.flash('success', `Manufacturer ${String(name).trim()} created successfully.`);
     res.redirect('/library/manufacturers');
@@ -824,7 +862,7 @@ router.post('/manufacturers', requirePermission('LIBRARY_EDIT'), manufacturerLog
   }
 });
 
-router.post('/manufacturers/:id/update', requirePermission('LIBRARY_EDIT'), manufacturerLogoUpload.single('logo_file'), csrfProtection, async (req, res, next) => {
+router.post('/manufacturers/:id/update', csrfProtection, manufacturerLogoUpload.single('logo_file'), async (req, res, next) => {
   const manufacturerId = getParam(req.params.id);
 
   try {
@@ -833,7 +871,6 @@ router.post('/manufacturers/:id/update', requirePermission('LIBRARY_EDIT'), manu
       code,
       description,
       website,
-      logo_url,
       address_line_1,
       address_line_2,
       city,
@@ -847,18 +884,17 @@ router.post('/manufacturers/:id/update', requirePermission('LIBRARY_EDIT'), manu
       support_phone,
       notes,
     } = req.body;
-    const uploadedLogoPath = req.file ? `/uploads/manufacturers/${req.file.filename}` : undefined;
-
     if (!name || !String(name).trim()) {
       throw new Error('Manufacturer name is required.');
     }
 
-    await LibraryService.updateManufacturer(manufacturerId, {
+    const operations = req.file ? ['MANUFACTURER_UPDATE', 'MANUFACTURER_FILE_REPLACE'] as const : ['MANUFACTURER_UPDATE'] as const;
+    const evidence = requestPlatformMutationEvidence(req, operations, 'manufacturer', manufacturerId);
+    await runManufacturerFileMutation({ evidence, file: req.file, replacement: true, mutate: logoCommit => LibraryService.updateManufacturer(evidence, manufacturerId, {
       name,
       code,
       description,
       website,
-      logo_url: uploadedLogoPath || logo_url,
       address_line_1,
       address_line_2,
       city,
@@ -871,7 +907,7 @@ router.post('/manufacturers/:id/update', requirePermission('LIBRARY_EDIT'), manu
       support_email,
       support_phone,
       notes,
-    });
+    }, logoCommit) });
 
     res.redirect(`/library/manufacturers/${manufacturerId}`);
   } catch (error) {
@@ -974,9 +1010,10 @@ router.get('/model/:id', async (req, res, next) => {
       adPage: normalizedAdPage,
       adPageSize: normalizedAdPageSize,
     });
-    const adRelevance = await AdRelevanceService.getReadOnlyRelevanceForModel(
+    const modelAdApplicabilityScope = await LibraryService.getModelAdApplicabilityScope(
       id,
-      (applicabilityAssignments.assignedAirworthinessDirectives || []) as AdRelevanceDirective[]
+      model.manufacturer_id,
+      applicabilityAssignments.assignedAirworthinessDirectives || []
     );
 
     res.render('library/model-detail', {
@@ -986,7 +1023,7 @@ router.get('/model/:id', async (req, res, next) => {
       attachableServiceBulletins,
       sids,
       applicabilityAssignments,
-      adRelevance,
+      modelAdApplicabilityScope,
       adNumberSearch,
       adPage: normalizedAdPage,
       adPageSize: normalizedAdPageSize,
@@ -1009,6 +1046,7 @@ router.post(
       }
 
       const result = await LibraryService.importModelSidsFromCsv(
+        requestPlatformMutationEvidence(req, ['SHARED_MASTER_IMPORT', 'REGULATORY_RELATIONSHIP_MUTATE', 'REGULATORY_MASTER_CREATE'], 'supplemental_inspection_document_import', modelId),
         modelId,
         req.file.buffer
       );
@@ -1039,7 +1077,7 @@ router.post(
  * POST /library/model
  * Create new model
  */
-router.post('/model', requirePermission('LIBRARY_EDIT'), async (req, res, next) => {
+router.post('/model', async (req, res, next) => {
   try {
     const {
       manufacturer_id,
@@ -1054,7 +1092,7 @@ router.post('/model', requirePermission('LIBRARY_EDIT'), async (req, res, next) 
       is_life_limited,
     } = req.body;
 
-    await LibraryService.createModel({
+    await LibraryService.createModel(requestPlatformMutationEvidence(req, ['COMPONENT_MODEL_CREATE'], 'component_model'), {
       manufacturer_id,
       asset_type_id,
       model_name,
@@ -1084,7 +1122,7 @@ router.post('/model', requirePermission('LIBRARY_EDIT'), async (req, res, next) 
 /**
  * POST /library/model/:id/update
  */
-router.post('/model/:id/update', requirePermission('LIBRARY_EDIT'), async (req, res, next) => {
+router.post('/model/:id/update', async (req, res, next) => {
   try {
     const id = getParam(req.params.id);
 
@@ -1099,7 +1137,7 @@ router.post('/model/:id/update', requirePermission('LIBRARY_EDIT'), async (req, 
       is_life_limited,
     } = req.body;
 
-    await LibraryService.updateModel(id, {
+    await LibraryService.updateModel(requestPlatformMutationEvidence(req, ['COMPONENT_MODEL_UPDATE'], 'component_model', id), id, {
       model_name,
       model_code,
       default_tbo_hours: default_tbo_hours
@@ -1137,7 +1175,7 @@ router.post('/requirement', requirePermission('LIBRARY_EDIT'), async (req, res, 
       description,
     } = req.body;
 
-    await LibraryService.createRequirement({
+    await LibraryService.createRequirement(requestPlatformMutationEvidence(req, ['MAINTENANCE_MASTER_CREATE'], 'maintenance_requirement'), {
       model_id,
       title,
       interval_hours: interval_hours
@@ -1170,7 +1208,7 @@ router.post('/requirement/:id/update', requirePermission('LIBRARY_EDIT'), async 
       model_id,
     } = req.body;
 
-    await LibraryService.updateRequirement(id, {
+    await LibraryService.updateRequirement(requestPlatformMutationEvidence(req, ['MAINTENANCE_MASTER_UPDATE'], 'maintenance_requirement', id), id, {
       title,
       interval_hours: interval_hours
         ? Number(interval_hours)
@@ -1195,7 +1233,7 @@ router.post('/requirement/:id/delete', requirePermission('LIBRARY_EDIT'), async 
     const id = getParam(req.params.id);
     const { model_id } = req.body;
 
-    await LibraryService.deleteRequirement(id);
+    await LibraryService.deleteRequirement(requestPlatformMutationEvidence(req, ['MAINTENANCE_MASTER_DELETE'], 'maintenance_requirement', id), id);
 
     res.redirect(`/library/model/${model_id}`);
   } catch (error) {
@@ -1244,6 +1282,7 @@ router.post('/service-bulletin', requirePermission('LIBRARY_EDIT'), async (req, 
       );
 
       await LibraryService.createServiceBulletinsBulk(
+        requestPlatformMutationEvidence(req, ['REGULATORY_MASTER_CREATE', 'REGULATORY_RELATIONSHIP_MUTATE'], 'service_bulletin', model_id),
         model_id,
         Array.from({ length: maxRows }, (_, index) => ({
           sb_number: String(sbNumbers[index] ?? ''),
@@ -1256,7 +1295,7 @@ router.post('/service-bulletin', requirePermission('LIBRARY_EDIT'), async (req, 
         }))
       );
     } else {
-      await LibraryService.createServiceBulletin({
+      await LibraryService.createServiceBulletin(requestPlatformMutationEvidence(req, ['REGULATORY_MASTER_CREATE', 'REGULATORY_RELATIONSHIP_MUTATE'], 'service_bulletin'), {
         model_id,
         sb_number,
         title: title || description,
@@ -1288,7 +1327,7 @@ router.post('/model/:id/service-bulletins/attach', requirePermission('LIBRARY_ED
       ? [selected]
       : [];
 
-    await LibraryService.attachServiceBulletinsToModel(id, serviceBulletinIds);
+    await LibraryService.attachServiceBulletinsToModel(requestPlatformMutationEvidence(req, ['REGULATORY_RELATIONSHIP_MUTATE'], 'service_bulletin_model', id), id, serviceBulletinIds);
 
     res.redirect(`/library/model/${id}`);
   } catch (error) {
@@ -1313,11 +1352,11 @@ router.post('/model/:id/airworthiness-directives/assign', requirePermission('LIB
         throw new Error('Use either AD number assignment or selected AD rows, not both.');
       }
 
-      await LibraryService.assignAirworthinessDirectiveToModelByNumber(id, adNumber);
+      await LibraryService.assignAirworthinessDirectiveToModelByNumber(requestPlatformMutationEvidence(req, ['REGULATORY_RELATIONSHIP_MUTATE'], 'compliance_assignment', id), id, adNumber);
       req.flash('success', `AD ${adNumber} assigned to this model.`);
     } else {
       for (const directiveId of directiveIds) {
-        await LibraryService.assignAirworthinessDirectiveToModel(id, String(directiveId));
+        await LibraryService.assignAirworthinessDirectiveToModel(requestPlatformMutationEvidence(req, ['REGULATORY_RELATIONSHIP_MUTATE'], 'compliance_assignment', id), id, String(directiveId));
       }
     }
 
@@ -1339,7 +1378,7 @@ router.post('/model/:id/sids/assign', requirePermission('LIBRARY_EDIT'), csrfPro
       : [];
 
     for (const sidId of sidIds) {
-      await LibraryService.assignSupplementalInspectionDocumentToModel(id, String(sidId));
+      await LibraryService.assignSupplementalInspectionDocumentToModel(requestPlatformMutationEvidence(req, ['REGULATORY_RELATIONSHIP_MUTATE'], 'sid_model_applicability', id), id, String(sidId));
     }
 
     res.redirect(`/library/model/${id}`);
@@ -1359,7 +1398,7 @@ router.post('/model/:id/standard-tasks/assign', requirePermission('LIBRARY_EDIT'
       : [];
 
     for (const taskTemplateId of taskTemplateIds) {
-      await LibraryService.assignStandardTaskToModel(id, String(taskTemplateId));
+      await LibraryService.assignStandardTaskToModel(requestPlatformMutationEvidence(req, ['MAINTENANCE_MASTER_UPDATE'], 'task_template', String(taskTemplateId)), id, String(taskTemplateId));
     }
 
     res.redirect(`/library/model/${id}`);
@@ -1367,5 +1406,10 @@ router.post('/model/:id/standard-tasks/assign', requirePermission('LIBRARY_EDIT'
     next(error);
   }
 });
+
+export function createLibraryRouter(requireValidActiveTenantContext: RequestHandler) {
+  reconciliationTenantGate = requireValidActiveTenantContext;
+  return router;
+}
 
 export default router;

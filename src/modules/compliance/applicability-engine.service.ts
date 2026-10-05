@@ -1,5 +1,9 @@
 import { QueryTypes } from 'sequelize';
 import { sequelize } from '../../models/index.js';
+import {
+  assertTenantQueryAuthority,
+  type TenantQueryAuthority,
+} from '../tenancy/tenant-query-authority.js';
 
 export type ApplicabilityItem = {
   source_type: 'AD' | 'SB' | 'SID';
@@ -91,7 +95,7 @@ export class ApplicabilityEngineService {
     });
   }
 
-  private static async getAircraft(aircraftId: string) {
+  private static async getAircraft(aircraftId: string, tenantId?: string) {
     const rows = await sequelize.query<AircraftRow>(
       `
       SELECT
@@ -99,10 +103,11 @@ export class ApplicabilityEngineService {
         a.model_id
       FROM aircraft a
       WHERE a.id = :aircraftId
+        ${tenantId === undefined ? '' : 'AND a.tenant_id = :tenantId'}
       LIMIT 1
       `,
       {
-        replacements: { aircraftId },
+        replacements: tenantId === undefined ? { aircraftId } : { aircraftId, tenantId },
         type: QueryTypes.SELECT,
       }
     );
@@ -251,6 +256,23 @@ export class ApplicabilityEngineService {
     aircraftId: string
   ): Promise<ApplicabilityResult> {
     const aircraft = await this.getAircraft(aircraftId);
+
+    return this.getApplicabilityForResolvedAircraft(aircraft);
+  }
+
+  static async getTenantApplicabilityForAircraft(
+    authority: TenantQueryAuthority,
+    aircraftId: string
+  ): Promise<ApplicabilityResult> {
+    assertTenantQueryAuthority(authority);
+    const aircraft = await this.getAircraft(aircraftId, authority.tenantId);
+
+    return this.getApplicabilityForResolvedAircraft(aircraft);
+  }
+
+  private static async getApplicabilityForResolvedAircraft(
+    aircraft: AircraftRow | null
+  ): Promise<ApplicabilityResult> {
 
     if (!aircraft) {
       throw new Error('INVALID_AIRCRAFT');

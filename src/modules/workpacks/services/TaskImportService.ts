@@ -1,3 +1,4 @@
+import { withTenantTransaction } from '../../tenancy/tenant-transaction.js';
 import { parse } from 'csv-parse/sync';
 import { QueryTypes } from 'sequelize';
 import { sequelize } from '../../../models/index.js';

@@ -1,5 +1,18 @@
 <% const installedUx = installedComponentOperationalUx || { summary: {}, position_context: { occupied_positions: [], recent_positions: [], suggested_positions: [] }, available_candidates: [], active_installations: [], explanation: '' }; %>
-<% const installedUxSummary = installedUx.summary || {}; %>
+<%
+    const fallbackSerializedCandidates = (typeof availableSerializedComponents !== 'undefined' ? availableSerializedComponents : []).map((component) => ({
+        serialized_component_id: component.id,
+        asset_type_code: component.ComponentModel?.AssetType?.code || 'UNCLASSIFIED',
+        manufacturer_name: component.ComponentModel?.Manufacturer?.name || 'Unknown',
+        model_name: component.ComponentModel?.model_name || 'Unknown Model',
+        serial_number: component.serial_number,
+        part_number: component.part_number || null,
+    }));
+    const installedUxAvailableCandidates = (installedUx.available_candidates && installedUx.available_candidates.length)
+        ? installedUx.available_candidates
+        : fallbackSerializedCandidates;
+%>
+<% const installedUxSummary = { ...(installedUx.summary || {}), available_candidate_count: (installedUx.summary || {}).available_candidate_count ?? installedUxAvailableCandidates.length }; %>
 <% const positionContext = installedUx.position_context || { occupied_positions: [], recent_positions: [], suggested_positions: [] }; %>
 
 <section id="installed-components-panel" class="aircraft-tab-panel hidden">
@@ -134,12 +147,20 @@
                             class="mt-2 block w-full rounded border border-slate-300 px-3 py-2 text-sm"
                         >
                             <option value="">Select Serialized Component</option>
-                            <% (installedUx.available_candidates || []).forEach((candidate) => { %>
+                            <% installedUxAvailableCandidates.forEach((candidate) => { %>
                                 <option value="<%= candidate.serialized_component_id %>">
                                     <%= candidate.asset_type_code %> | <%= candidate.manufacturer_name || 'Unknown' %> | <%= candidate.model_name %> | S/N <%= candidate.serial_number %><% if (candidate.part_number) { %> | P/N <%= candidate.part_number %><% } %>
                                 </option>
                             <% }) %>
                         </select>
+                        <% if (installedUxAvailableCandidates.length === 0) { %>
+                            <p class="mt-2 text-sm text-amber-700">
+                                No available serialized components found. Create a serialized component first, then return here to allocate it to this aircraft.
+                            </p>
+                            <a href="/library/serialized-components/create" class="mt-2 inline-flex text-sm font-semibold text-blue-600 hover:underline">
+                                Create Serialized Component
+                            </a>
+                        <% } %>
                     </div>
 
                     <div>
@@ -297,7 +318,7 @@
                             class="mt-2 block w-full rounded border border-slate-300 px-3 py-2 text-sm"
                         >
                         <p id="serialized-component-search-count" class="mt-2 text-xs text-slate-500">
-                            <%= (installedUx.available_candidates || []).length %> available candidate<%= (installedUx.available_candidates || []).length === 1 ? '' : 's' %> visible.
+                            <%= installedUxAvailableCandidates.length %> available candidate<%= installedUxAvailableCandidates.length === 1 ? '' : 's' %> visible.
                         </p>
 
                         <div class="mt-4">
@@ -311,12 +332,20 @@
                                 class="mt-2 block w-full rounded border border-slate-300 px-3 py-2 text-sm"
                             >
                                 <option value="">Select Serialized Component</option>
-                                <% (installedUx.available_candidates || []).forEach((candidate) => { %>
+                                <% installedUxAvailableCandidates.forEach((candidate) => { %>
                                     <option value="<%= candidate.serialized_component_id %>">
                                         <%= candidate.asset_type_code %> | <%= candidate.manufacturer_name || 'Unknown' %> | <%= candidate.model_name %> | S/N <%= candidate.serial_number %><% if (candidate.part_number) { %> | P/N <%= candidate.part_number %><% } %>
                                     </option>
                                 <% }) %>
                             </select>
+                            <% if (installedUxAvailableCandidates.length === 0) { %>
+                                <p class="mt-2 text-sm text-amber-700">
+                                    No available serialized components found. Create a serialized component first, then return here to allocate it to this aircraft.
+                                </p>
+                                <a href="/library/serialized-components/create" class="mt-2 inline-flex text-sm font-semibold text-blue-600 hover:underline">
+                                    Create Serialized Component
+                                </a>
+                            <% } %>
                         </div>
                     </div>
 
@@ -817,7 +846,7 @@
         <% } %>
     </div>
 
-    <script type="application/json" id="serialized-component-candidate-data"><%- JSON.stringify(installedUx.available_candidates || []) %></script>
+    <script type="application/json" id="serialized-component-candidate-data"><%- JSON.stringify(installedUxAvailableCandidates) %></script>
     <script>
         (() => {
             const intentInputs = Array.from(document.querySelectorAll('[data-serialized-allocation-intent]'));

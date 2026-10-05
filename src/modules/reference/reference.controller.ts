@@ -1,5 +1,7 @@
 import { Request, Response } from 'express';
 import { BaseReferenceService } from './BaseReferenceService.js';
+import { requestPlatformMutationEvidence } from '../platform-authority/authoritative-platform-mutation.js';
+import { referenceOperationPolicy } from '../platform-authority/shared-operation-policy.js';
 
 export const listReference = (tableName: string) => async (req: Request, res: Response) => {
   const service = new BaseReferenceService(tableName);
@@ -18,7 +20,8 @@ export const updateReference = (tableName: string) => async (req: Request, res: 
   const { label, description } = req.body;
 
   // Rule 1.5: Edit label/description only
-  await service.update(id, { label, description });
+  const operation = referenceOperationPolicy(tableName, 'UPDATE');
+  await service.update(requestPlatformMutationEvidence(req, [operation.capability === 'RBAC_DEFINITION_MANAGE' ? 'RBAC_DEFINITION_MANAGE' : 'REFERENCE_UPDATE'], tableName, id), id, { label, description });
 
   // Rule 1.5: HTMX reload on save (triggers a refresh of the list)
   res.setHeader('HX-Trigger', 'referenceUpdated');
