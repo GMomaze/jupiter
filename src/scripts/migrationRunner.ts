@@ -8,6 +8,10 @@ import {
   type MigrationTarget,
 } from '../config/migrationSafety.js';
 import { loadMigrationTargetEnvironment } from '../config/migrationEnvironment.js';
+import {
+  prepareMigrationCompatibility,
+  finalizeMigrationCompatibility,
+} from '../config/migrationCompatibility.js';
 
 const require = createRequire(import.meta.url);
 const { buildUnifiedMigrationConfig, MIGRATION_TARGETS } = require(
@@ -82,11 +86,12 @@ async function main(): Promise<void> {
   try {
     await client.connect();
     await assertMigrationLiveIdentity(client, config);
+    await prepareMigrationCompatibility(client, target);
+    await runSequelize(target);
+    await finalizeMigrationCompatibility(client, target);
   } finally {
     await client.end().catch(() => undefined);
   }
-
-  await runSequelize(target);
 }
 
 main().catch(error => {
