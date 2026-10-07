@@ -7,6 +7,7 @@ export const NO_DATABASE_TEST_ALLOWLIST = [
   'src/config/firstOrganisationProvisioningSafety.test.ts',
   'src/config/migrationEnvironment.test.ts',
   'src/config/migrationCompatibility.test.ts',
+  'src/config/migrationRunnerBaseline.test.ts',
   'src/config/migration619-retirement.test.ts',
   'src/config/migrationSafety.test.ts',
   'src/config/testDatabaseSafety.test.ts',

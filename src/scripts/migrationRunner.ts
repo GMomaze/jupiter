@@ -12,6 +12,7 @@ import {
   prepareMigrationCompatibility,
   finalizeMigrationCompatibility,
 } from '../config/migrationCompatibility.js';
+import { applyAndVerifyDatabasePrivilegeBaseline } from '../config/databasePrivilegeBaseline.js';
 
 const require = createRequire(import.meta.url);
 const { buildUnifiedMigrationConfig, MIGRATION_TARGETS } = require(
@@ -89,9 +90,21 @@ async function main(): Promise<void> {
     await prepareMigrationCompatibility(client, target);
     await runSequelize(target);
     await finalizeMigrationCompatibility(client, target);
+    await applyPrivilegeBaselineForTarget(client, target);
   } finally {
     await client.end().catch(() => undefined);
   }
+}
+
+async function applyPrivilegeBaselineForTarget(
+  client: pg.Client,
+  target: MigrationTarget,
+): Promise<void> {
+  if (target === 'test') return;
+  await applyAndVerifyDatabasePrivilegeBaseline(
+    client,
+    target === 'production' ? ['jupiter_app'] : ['jupiter_app', 'jupiter_test'],
+  );
 }
 
 main().catch(error => {
