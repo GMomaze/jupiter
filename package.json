@@ -15,7 +15,7 @@
     "test:governance-ownership-positive": "cross-env NODE_ENV=test RUN_GOVERNANCE_OWNERSHIP_POSITIVE_TEST=YES vitest run tests/integration/component_life_limit_governance_ownership_positive.test.ts",
     "test:e2e": "cross-env NODE_ENV=test playwright test",
     "test:e2e:server": "cross-env NODE_ENV=test PORT=3000 tsx src/server.ts",
-    "build": "tsc",
+    "build": "node clean-dist.cjs && tsc && node copy-views.cjs",
     "db:migrate": "npm run migration:development",
     "db:migrate:undo": "tsx src/scripts/blockedRawDatabaseCommand.ts migrate:undo",
     "db:seed": "tsx src/scripts/blockedRawDatabaseCommand.ts seed",

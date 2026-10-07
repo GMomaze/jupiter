@@ -19,6 +19,7 @@ export const NO_DATABASE_TEST_ALLOWLIST = [
   'tests/config/unified_migration_config.test.ts',
   'tests/config/no_database_test_boundary.test.ts',
   'tests/config/migration_ledger_comparison.test.ts',
+  'tests/config/productionBuildAssets.test.ts',
   'tests/config/mt4c3a7_scenario_runner.test.ts',
   'tests/config/mt4c3a7_live_scenario.test.ts',
   'tests/config/tenant_root_direct_model_boundary.test.ts',
