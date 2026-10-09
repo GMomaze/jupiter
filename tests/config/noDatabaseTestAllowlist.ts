@@ -2,6 +2,7 @@ export const NO_DATABASE_TEST_ALLOWLIST = [
   'src/config/databasePrivilegeBaseline.test.ts',
   'src/config/dbDevelopmentRebuildCommand.test.ts',
   'src/config/systemOwnerCanonical.test.ts',
+  'src/config/systemOwnerProvisioning.test.ts',
   'src/config/developmentRebuildSafety.test.ts',
   'src/config/databasePrivilegeRbacPreservation.test.ts',
   'src/config/firstOrganisationProvisioningSafety.test.ts',

@@ -30,6 +30,7 @@
     "organisation:bootstrap:first": "tsx src/scripts/provisionFirstOrganisation.ts",
     "platform:bootstrap:preflight": "tsx src/scripts/preflightInitialSystemOwner.ts",
     "platform:bootstrap:execute": "tsx src/scripts/bootstrapInitialSystemOwner.ts",
+    "platform:setup-owner": "tsx src/scripts/setupInitialSystemOwner.ts",
     "platform:owner:create": "tsx src/scripts/createInitialSystemOwnerUser.ts",
     "platform:owner:password": "cross-env NODE_ENV=development ALLOW_SET_SYSTEM_OWNER_PASSWORD=YES PLATFORM_OWNER_EMAIL=systemowner@jupiter.local tsx src/scripts/setDevelopmentSystemOwnerPassword.ts",
     "development:rebuild": "tsx src/scripts/developmentRebuild.ts",
