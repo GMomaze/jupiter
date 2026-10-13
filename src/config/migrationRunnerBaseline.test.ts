@@ -9,8 +9,9 @@ describe('migration runner production privilege baseline integration', () => {
     expect(source).toContain('applyPrivilegeBaselineForTarget');
   });
 
-  it('grants only jupiter_app on production and both roles otherwise', () => {
-    expect(source).toContain(
+  it('resolves the baseline runtime roles dynamically (never a hard jupiter_test requirement)', () => {
+    expect(source).toContain('resolveRuntimeRolesForPrivilegeBaseline');
+    expect(source).not.toContain(
       "target === 'production' ? ['jupiter_app'] : ['jupiter_app', 'jupiter_test']"
     );
   });
@@ -28,5 +29,11 @@ describe('migration runner production privilege baseline integration', () => {
     );
     expect(finalizeIndex).toBeGreaterThan(-1);
     expect(baselineIndex).toBeGreaterThan(finalizeIndex);
+  });
+
+  it('always removes the temporary role even when the migration fails', () => {
+    expect(source).toContain('runMigrationWithCleanup');
+    expect(source).toContain('() => runSequelize(target)');
+    expect(source).toContain('() => finalizeMigrationCompatibility(client, target)');
   });
 });

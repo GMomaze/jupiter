@@ -11,6 +11,8 @@ import { loadMigrationTargetEnvironment } from '../config/migrationEnvironment.j
 import {
   prepareMigrationCompatibility,
   finalizeMigrationCompatibility,
+  resolveRuntimeRolesForPrivilegeBaseline,
+  runMigrationWithCleanup,
 } from '../config/migrationCompatibility.js';
 import { applyAndVerifyDatabasePrivilegeBaseline } from '../config/databasePrivilegeBaseline.js';
 
@@ -88,8 +90,11 @@ async function main(): Promise<void> {
     await client.connect();
     await assertMigrationLiveIdentity(client, config);
     await prepareMigrationCompatibility(client, target);
-    await runSequelize(target);
-    await finalizeMigrationCompatibility(client, target);
+    await runMigrationWithCleanup(
+      'MIGRATION_RUNNER',
+      () => runSequelize(target),
+      () => finalizeMigrationCompatibility(client, target),
+    );
     await applyPrivilegeBaselineForTarget(client, target);
   } finally {
     await client.end().catch(() => undefined);
@@ -101,10 +106,11 @@ async function applyPrivilegeBaselineForTarget(
   target: MigrationTarget,
 ): Promise<void> {
   if (target === 'test') return;
-  await applyAndVerifyDatabasePrivilegeBaseline(
-    client,
-    target === 'production' ? ['jupiter_app'] : ['jupiter_app', 'jupiter_test'],
-  );
+  // Verify only the runtime roles that actually exist. On an operational
+  // installation the test-only `jupiter_test` role is absent (and the temporary
+  // compatibility role was already removed), so it is never a hard requirement.
+  const runtimeRoles = await resolveRuntimeRolesForPrivilegeBaseline(client);
+  await applyAndVerifyDatabasePrivilegeBaseline(client, runtimeRoles);
 }
 
 main().catch(error => {

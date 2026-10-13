@@ -130,9 +130,15 @@ export async function prepareMigrationCompatibility(
   }
 
   if (existing.comment !== MARKER) {
-    throw new Error(
-      'MIGRATION_COMPATIBILITY: unexpected pre-existing jupiter_test role without temporary marker',
-    );
+    if (target === 'production') {
+      throw new Error(
+        'MIGRATION_COMPATIBILITY: unexpected pre-existing jupiter_test role without temporary marker',
+      );
+    }
+    // A permanent (unmarked) jupiter_test role legitimately satisfies the
+    // immutable migrations on a development/test-style host, so do not create a
+    // temporary role over it.
+    return Object.freeze({ created: false });
   }
 
   assertLockedAttributes(existing);
@@ -148,9 +154,13 @@ export async function finalizeMigrationCompatibility(
   const existing = await readRoleState(client);
   if (!existing) return;
   if (existing.comment !== MARKER) {
-    throw new Error(
-      'MIGRATION_COMPATIBILITY: refusing to drop jupiter_test without temporary marker',
-    );
+    if (target === 'production') {
+      throw new Error(
+        'MIGRATION_COMPATIBILITY: refusing to drop jupiter_test without temporary marker',
+      );
+    }
+    // A permanent jupiter_test role is not ours to drop.
+    return;
   }
 
   assertLockedAttributes(existing);
@@ -177,5 +187,60 @@ export async function finalizeMigrationCompatibility(
   if (dropped.rows[0]?.still_exists) {
     throw new Error('MIGRATION_COMPATIBILITY: temporary role still exists after drop');
   }
+}
+
+/**
+ * Resolves the runtime roles to verify during the privilege baseline for a
+ * non-test target. `jupiter_test` is test-only and must never be a hard
+ * requirement on an operational installation; it is included only when it
+ * already exists permanently (a local development host).
+ */
+export async function resolveRuntimeRolesForPrivilegeBaseline(
+  client: MigrationCompatibilityQueryable,
+): Promise<readonly string[]> {
+  const result = await client.query(
+    `SELECT EXISTS(SELECT 1 FROM pg_catalog.pg_roles WHERE rolname='jupiter_test') AS present`,
+  );
+  return result.rows[0]?.present
+    ? Object.freeze(['jupiter_app', 'jupiter_test'])
+    : Object.freeze(['jupiter_app']);
+}
+
+/**
+ * Runs a migration step and its temporary-role cleanup step, preserving both
+ * original error objects (and their stack traces) when they both fail.
+ *
+ * - migration fails + cleanup succeeds  -> propagate the migration error.
+ * - migration succeeds + cleanup fails  -> propagate the cleanup error.
+ * - migration fails + cleanup fails     -> throw AggregateError with both.
+ * - both succeed                        -> resolve normally.
+ */
+export async function runMigrationWithCleanup(
+  context: string,
+  migrate: () => Promise<void>,
+  cleanup: () => Promise<void>,
+): Promise<void> {
+  let migrationError: unknown = null;
+  try {
+    await migrate();
+  } catch (error) {
+    migrationError = error;
+  }
+
+  let cleanupError: unknown = null;
+  try {
+    await cleanup();
+  } catch (error) {
+    cleanupError = error;
+  }
+
+  if (migrationError && cleanupError) {
+    throw new AggregateError(
+      [migrationError, cleanupError],
+      `${context}: migration and temporary-role cleanup both failed`,
+    );
+  }
+  if (migrationError) throw migrationError;
+  if (cleanupError) throw cleanupError;
 }
 

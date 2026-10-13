@@ -9,6 +9,12 @@ import {
   type DevelopmentRebuildIdentity,
 } from '../config/developmentRebuildSafety.js';
 import { applyAndVerifyDatabasePrivilegeBaseline } from '../config/databasePrivilegeBaseline.js';
+import {
+  prepareMigrationCompatibility,
+  finalizeMigrationCompatibility,
+  resolveRuntimeRolesForPrivilegeBaseline,
+  runMigrationWithCleanup,
+} from '../config/migrationCompatibility.js';
 
 const IDENTITY_SQL = `SELECT current_database() AS database_name,
   current_user,
@@ -122,7 +128,16 @@ async function main(): Promise<void> {
     if (!governanceApproved) {
       await markAdministratorMigrationsDeferred(admin);
     }
-    await runSequelizeCli(['db:migrate', '--env', 'migration-development']);
+    // Run the guarded migration compatibility bootstrap around the sequelize
+    // migration so the immutable migrations 583/584/595/596/620 that reference
+    // the test-only `jupiter_test` role succeed on a database where that role
+    // does not exist, and the temporary role is always removed afterward.
+    await prepareMigrationCompatibility(admin, 'development');
+    await runMigrationWithCleanup(
+      'DEVELOPMENT_REBUILD',
+      () => runSequelizeCli(['db:migrate', '--env', 'migration-development']),
+      () => finalizeMigrationCompatibility(admin, 'development'),
+    );
     console.log(
       governanceApproved
         ? 'MIGRATE complete (full chain including administrator migrations 582/583/584).'
@@ -139,8 +154,10 @@ async function main(): Promise<void> {
     ]);
     console.log('REQUIRED SEEDS complete.');
 
-    // HARDEN
-    await applyAndVerifyDatabasePrivilegeBaseline(admin);
+    // HARDEN — verify only the runtime roles that actually exist, so an
+    // operational installation is never forced to carry a permanent test-only role.
+    const runtimeRoles = await resolveRuntimeRolesForPrivilegeBaseline(admin);
+    await applyAndVerifyDatabasePrivilegeBaseline(admin, runtimeRoles);
     console.log('HARDEN complete.');
 
     console.log('DEVELOPMENT REBUILD SUCCEEDED.');
