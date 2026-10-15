@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type { Transaction } from 'sequelize';
 import { QueryTypes } from 'sequelize';
-import sequelize from '../../config/database.js';
+import sequelize, { adminPool } from '../../config/database.js';
 import {
   executeAuthoritativePlatformMutation,
   requirePlatformMutationOperations,
@@ -513,15 +513,7 @@ export class TenantLifecycleCommandRepository {
       if (!current || current.id !== located.id || current.status !== from) throw unavailable();
       if (operation === 'TENANT_ACTIVATE') {
         assertAuthoritativeTargetTenant(current.id);
-        await sequelize.query(`SELECT set_config('jupiter.tenant_id', :tenantId, true)`, {
-          replacements: { tenantId: current.id }, transaction,
-        });
-        const admins = await sequelize.query(`SELECT 1 FROM tenant_memberships tm
-          JOIN tenant_membership_roles tmr ON tmr.membership_id=tm.id AND tmr.revoked_at IS NULL
-          JOIN rf_role r ON r.id=tmr.role_id AND r.code='ADMIN'
-          WHERE tm.tenant_id=:tenantId AND tm.status='ACTIVE' LIMIT 1`,
-        { replacements: { tenantId: current.id }, type: QueryTypes.SELECT, transaction });
-        if (admins.length !== 1) throw unavailable();
+        if (!(await this.hasActiveTenantAdmin(current.id))) throw unavailable();
       }
       const reason = suspensionReason?.trim() || null;
       if (operation === 'TENANT_SUSPEND' && !reason) throw unavailable();
@@ -539,5 +531,32 @@ export class TenantLifecycleCommandRepository {
       afterAudit = auditState(updated);
       return identity(updated);
     }, result => ({ resourceId: result.tenantId, after: afterAudit }), suppliedTransaction);
+  }
+
+  private async hasActiveTenantAdmin(tenantId: string): Promise<boolean> {
+    const client = await adminPool.connect();
+    try {
+      await client.query('BEGIN');
+      // Scope the read to the target tenant so the check works under the RLS-
+      // subject test role (jupiter_test) as well as the RLS-exempt production
+      // admin role (postgres). The tenant id is the authorized activation target.
+      await client.query(`SELECT set_config('jupiter.tenant_id', $1, true)`, [tenantId]);
+      const result = await client.query(
+        `SELECT EXISTS (
+           SELECT 1 FROM tenant_memberships tm
+           JOIN tenant_membership_roles tmr ON tmr.membership_id = tm.id AND tmr.revoked_at IS NULL
+           JOIN rf_role r ON r.id = tmr.role_id AND r.code = 'ADMIN' AND r.is_active = true
+           WHERE tm.tenant_id = $1 AND tm.status = 'ACTIVE'
+         ) AS has_active_admin`,
+        [tenantId],
+      );
+      await client.query('COMMIT');
+      return result.rows[0]?.has_active_admin === true;
+    } catch (error) {
+      await client.query('ROLLBACK').catch(() => undefined);
+      throw error;
+    } finally {
+      client.release();
+    }
   }
 }
