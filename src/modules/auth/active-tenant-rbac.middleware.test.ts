@@ -4,11 +4,11 @@ import { createActiveTenantRbacHydration } from './active-tenant-rbac.middleware
 const context: any = { state: 'VALID_ACTIVE_TENANT', tenant: { id: 'tenant-a' }, membership: { id: 'member-a', userId: 'user-a' } };
 describe('active tenant RBAC hydration', () => {
   it('loads only the authenticated active membership roles and permissions', async () => {
-    const query = vi.fn().mockResolvedValue({ rows: [{ code: 'ADMIN', permissions: [{ code: 'LIBRARY_EDIT' }] }] });
+    const query = vi.fn().mockResolvedValue({ rows: [{ role_code: 'ADMIN', permissions: [{ code: 'LIBRARY_EDIT' }] }] });
     const req: any = { user: { id: 'user-a', roles: [{ code: 'GLOBAL' }] }, tenantContext: context };
     const next = vi.fn();
     await createActiveTenantRbacHydration({ query } as any)(req, {} as any, next);
-    expect(query).toHaveBeenCalledWith(expect.stringContaining('tenant_membership_roles'), ['member-a', 'tenant-a', 'user-a']);
+    expect(query).toHaveBeenCalledWith(expect.stringContaining('resolve_authenticated_membership_roles'), ['user-a', 'member-a', 'tenant-a']);
     expect(req.user.roles).toEqual([{ code: 'ADMIN', permissions: [{ code: 'LIBRARY_EDIT' }] }]);
     expect(next).toHaveBeenCalledWith();
   });

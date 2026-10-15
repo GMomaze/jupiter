@@ -38,7 +38,7 @@ describe('active tenant RBAC hydration — global mounting', () => {
 describe('active tenant RBAC hydration — operational authority chain', () => {
   it('hydrates tenant-local ADMIN so requireRole and requirePermission pass on operational routes', async () => {
     const query = vi.fn().mockResolvedValue({
-      rows: [{ code: 'ADMIN', permissions: [{ code: 'AD_AIRCRAFT_EDIT' }, { code: 'LIBRARY_EDIT' }] }],
+      rows: [{ role_code: 'ADMIN', permissions: [{ code: 'AD_AIRCRAFT_EDIT' }, { code: 'LIBRARY_EDIT' }] }],
     });
     const req: any = { user: { id: 'user-a' }, tenantContext: VALID_CONTEXT, headers: {} };
 
@@ -54,23 +54,23 @@ describe('active tenant RBAC hydration — operational authority chain', () => {
   });
 
   it('discards non-active-tenant roles and hydrates only the active membership authority', async () => {
-    const query = vi.fn().mockResolvedValue({ rows: [{ code: 'ADMIN', permissions: [] }] });
+    const query = vi.fn().mockResolvedValue({ rows: [{ role_code: 'ADMIN', permissions: [] }] });
     const req: any = { user: { id: 'user-a', roles: [{ code: 'VIEWER' }] }, tenantContext: VALID_CONTEXT };
 
     await createActiveTenantRbacHydration({ query } as any)(req, {} as any, vi.fn());
 
-    expect(query).toHaveBeenCalledWith(expect.stringContaining('tenant_memberships'), ['member-a', 'tenant-a', 'user-a']);
+    expect(query).toHaveBeenCalledWith(expect.stringContaining('resolve_authenticated_membership_roles'), ['user-a', 'member-a', 'tenant-a']);
     expect(req.user.roles).toEqual([{ code: 'ADMIN', permissions: [] }]);
     expect(req.user.roles.map((r: any) => r.code)).not.toContain('VIEWER');
   });
 
-  it('filters to ACTIVE memberships in the authority query', async () => {
+  it('delegates the ACTIVE-membership filter to the resolver function', async () => {
     const query = vi.fn().mockResolvedValue({ rows: [] });
     const req: any = { user: { id: 'user-a' }, tenantContext: VALID_CONTEXT };
 
     await createActiveTenantRbacHydration({ query } as any)(req, {} as any, vi.fn());
 
-    expect(query).toHaveBeenCalledWith(expect.stringContaining("tm.status = 'ACTIVE'"), expect.any(Array));
+    expect(query).toHaveBeenCalledWith(expect.stringContaining('resolve_authenticated_membership_roles'), ['user-a', 'member-a', 'tenant-a']);
   });
 
   it('fails closed with no active tenant context (no tenant-local authority)', async () => {

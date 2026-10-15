@@ -14,20 +14,11 @@ export function createActiveTenantRbacHydration(database: Queryable) {
         return next();
       }
       const result = await database.query(
-        `SELECT r.code,
-                COALESCE(json_agg(json_build_object('code', p.code) ORDER BY p.code)
-                  FILTER (WHERE p.id IS NOT NULL AND p.is_active = true), '[]'::json) AS permissions
-           FROM tenant_memberships tm
-           JOIN tenant_membership_roles tmr ON tmr.membership_id = tm.id AND tmr.revoked_at IS NULL
-           JOIN rf_role r ON r.id = tmr.role_id AND r.is_active = true
-           LEFT JOIN rf_role_permissions rp ON rp.role_id = r.id
-           LEFT JOIN rf_permission p ON p.id = rp.permission_id
-          WHERE tm.id = $1 AND tm.tenant_id = $2 AND tm.user_id = $3 AND tm.status = 'ACTIVE'
-          GROUP BY r.id, r.code ORDER BY r.code`,
-        [context.membership.id, context.tenant.id, user.id],
+        `SELECT role_code, permissions FROM public.resolve_authenticated_membership_roles($1, $2, $3)`,
+        [user.id, context.membership.id, context.tenant.id],
       );
-      user.roles = result.rows.map((row: { code: string; permissions?: unknown }) => ({
-        code: row.code,
+      user.roles = result.rows.map((row: { role_code: string; permissions?: unknown }) => ({
+        code: row.role_code,
         permissions: Array.isArray(row.permissions) ? row.permissions : [],
       }));
       return next();
