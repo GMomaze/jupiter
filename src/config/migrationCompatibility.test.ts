@@ -77,7 +77,7 @@ describe('migration compatibility (temporary jupiter_test)', () => {
   it('revokes known grants and drops the temporary role with no residue', async () => {
     const client = mockClient([
       { sql: /pg_shdescription/, rows: [lockedRole()] },
-      { sql: /owns_database/, rows: [{ owns_database: false, owns_schema: false, owns_relation: false, owns_function: false, has_membership: false, history_privilege: false, resolver_execute: false }] },
+      { sql: /owns_database/, rows: [{ owns_database: false, owns_schema: false, owns_relation: false, owns_function: false, has_membership: false, history_privilege: false, resolver_execute: false, role_resolver_execute: false }] },
       { sql: /still_exists/, rows: [{ still_exists: false }] },
     ]) as MigrationCompatibilityQueryable & { calls: string[] };
     await finalizeMigrationCompatibility(client, 'production');
@@ -86,10 +86,36 @@ describe('migration compatibility (temporary jupiter_test)', () => {
     expect(client.calls.some((sql) => sql.includes('DROP ROLE jupiter_test'))).toBe(true);
   });
 
+  it('revokes the migration-625 role resolver EXECUTE grant during cleanup', async () => {
+    const client = mockClient([
+      { sql: /pg_shdescription/, rows: [lockedRole()] },
+      { sql: /owns_database/, rows: [{ owns_database: false, owns_schema: false, owns_relation: false, owns_function: false, has_membership: false, history_privilege: false, resolver_execute: false, role_resolver_execute: false }] },
+      { sql: /still_exists/, rows: [{ still_exists: false }] },
+    ]) as MigrationCompatibilityQueryable & { calls: string[] };
+    await finalizeMigrationCompatibility(client, 'production');
+    expect(
+      client.calls.some((sql) => sql.includes('resolve_authenticated_membership_roles') && sql.includes('REVOKE EXECUTE')),
+    ).toBe(true);
+    expect(
+      client.calls.some((sql) => sql.includes('resolve_authenticated_membership_roles') && sql.includes('role_resolver_execute')),
+    ).toBe(true);
+  });
+
   it('fails closed and refuses to drop when residue remains', async () => {
     const client = mockClient([
       { sql: /pg_shdescription/, rows: [lockedRole()] },
-      { sql: /owns_database/, rows: [{ owns_database: false, owns_schema: false, owns_relation: true, owns_function: false, has_membership: false, history_privilege: false, resolver_execute: false }] },
+      { sql: /owns_database/, rows: [{ owns_database: false, owns_schema: false, owns_relation: true, owns_function: false, has_membership: false, history_privilege: false, resolver_execute: false, role_resolver_execute: false }] },
+    ]) as MigrationCompatibilityQueryable & { calls: string[] };
+    await expect(finalizeMigrationCompatibility(client, 'production')).rejects.toThrow(
+      /residue detected/,
+    );
+    expect(client.calls.some((sql) => sql.includes('DROP ROLE'))).toBe(false);
+  });
+
+  it('fails closed when the migration-625 role resolver EXECUTE grant residue remains', async () => {
+    const client = mockClient([
+      { sql: /pg_shdescription/, rows: [lockedRole()] },
+      { sql: /owns_database/, rows: [{ owns_database: false, owns_schema: false, owns_relation: false, owns_function: false, has_membership: false, history_privilege: false, resolver_execute: false, role_resolver_execute: true }] },
     ]) as MigrationCompatibilityQueryable & { calls: string[] };
     await expect(finalizeMigrationCompatibility(client, 'production')).rejects.toThrow(
       /residue detected/,
@@ -203,6 +229,7 @@ describe('historical migration integrity', () => {
       ['migrations/595_add_legacy_component_custody_and_movement_history.ts', /TO jupiter_app, jupiter_test/],
       ['migrations/596_restrict_legacy_component_history_runtime_privileges.ts', /FROM jupiter_app, jupiter_test/],
       ['migrations/620_create_membership_resolver_function.ts', /RUNTIME_ROLES = \['jupiter_app', 'jupiter_test'\]/],
+      ['migrations/625_create_membership_role_resolver_function.ts', /RUNTIME_ROLES = \['jupiter_app', 'jupiter_test'\]/],
     ];
     for (const [file, pattern] of checks) {
       const source = readFileSync(resolve(process.cwd(), file), 'utf8');

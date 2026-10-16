@@ -3,7 +3,7 @@ import type { MigrationTarget } from './migrationSafety.js';
 /**
  * Migration-runner compatibility for the immutable governance migrations that
  * reference the guarded test-only role `jupiter_test` (migrations 583, 584,
- * 595, 596 and 620). On a genuinely fresh production-style `jupiter_db` that
+ * 595, 596, 620 and 625). On a genuinely fresh production-style `jupiter_db` that
  * role does not exist, so the historical migrations would fail. This module
  * creates a tightly-locked, clearly-marked TEMPORARY `NOLOGIN` role before the
  * chain, lets the immutable migrations run unchanged, and then removes the
@@ -19,6 +19,7 @@ const MARKER = 'jupiter_migration_compatibility_temporary_role';
 
 const HISTORY_TABLE = 'aircraft_component_movement_history';
 const RESOLVER_FUNCTION = 'public.resolve_authenticated_memberships(uuid)';
+const ROLE_RESOLVER_FUNCTION = 'public.resolve_authenticated_membership_roles(uuid, uuid, uuid)';
 
 export interface MigrationCompatibilityQueryable {
   query(sql: string): Promise<{ rows: Record<string, unknown>[] }>;
@@ -65,6 +66,9 @@ BEGIN
   IF to_regprocedure('${RESOLVER_FUNCTION}') IS NOT NULL THEN
     REVOKE EXECUTE ON FUNCTION ${RESOLVER_FUNCTION} FROM ${ROLE};
   END IF;
+  IF to_regprocedure('${ROLE_RESOLVER_FUNCTION}') IS NOT NULL THEN
+    REVOKE EXECUTE ON FUNCTION ${ROLE_RESOLVER_FUNCTION} FROM ${ROLE};
+  END IF;
 END $$`;
 
 const VERIFY_NO_RESIDUE_SQL = `SELECT
@@ -75,7 +79,8 @@ const VERIFY_NO_RESIDUE_SQL = `SELECT
   EXISTS (SELECT 1 FROM pg_catalog.pg_auth_members WHERE roleid = (SELECT oid FROM pg_catalog.pg_roles WHERE rolname = '${ROLE}')
           OR member = (SELECT oid FROM pg_catalog.pg_roles WHERE rolname = '${ROLE}')) AS has_membership,
   has_table_privilege('${ROLE}', 'public.${HISTORY_TABLE}', 'SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER') AS history_privilege,
-  has_function_privilege('${ROLE}', '${RESOLVER_FUNCTION}', 'EXECUTE') AS resolver_execute`;
+  has_function_privilege('${ROLE}', '${RESOLVER_FUNCTION}', 'EXECUTE') AS resolver_execute,
+  has_function_privilege('${ROLE}', '${ROLE_RESOLVER_FUNCTION}', 'EXECUTE') AS role_resolver_execute`;
 
 const DROP_TEMPORARY_ROLE_SQL = `DROP ROLE ${ROLE}`;
 
@@ -176,7 +181,8 @@ export async function finalizeMigrationCompatibility(
     row.owns_function ||
     row.has_membership ||
     row.history_privilege ||
-    row.resolver_execute
+    row.resolver_execute ||
+    row.role_resolver_execute
   ) {
     throw new Error('MIGRATION_COMPATIBILITY: temporary role residue detected; refusing to drop');
   }
