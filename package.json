@@ -35,6 +35,7 @@
     "platform:owner:password": "cross-env NODE_ENV=development ALLOW_SET_SYSTEM_OWNER_PASSWORD=YES PLATFORM_OWNER_EMAIL=systemowner@jupiter.local tsx src/scripts/setDevelopmentSystemOwnerPassword.ts",
     "development:rebuild": "tsx src/scripts/developmentRebuild.ts",
     "db:development:rebuild": "cross-env NODE_ENV=development tsx src/scripts/dbDevelopmentRebuild.ts",
+    "reset:non-production": "tsx src/scripts/resetNonProductionDatabase.ts",
     "seed:required": "tsx src/scripts/seedDevelopment.ts required",
     "seed:optional": "tsx src/scripts/seedDevelopment.ts optional",
     "seed:demo": "tsx src/scripts/seedDevelopment.ts demo",
