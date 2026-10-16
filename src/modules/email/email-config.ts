@@ -47,6 +47,10 @@ export function buildInvitationAcceptUrl(
   )}&tenant=${encodeURIComponent(tenantId)}`;
 }
 
+export function buildPasswordResetUrl(appBaseUrl: string, token: string): string {
+  return `${appBaseUrl}/auth/password-reset/complete?token=${encodeURIComponent(token)}`;
+}
+
 const NOTIFICATION_EMAIL_PATTERN = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 
 /**

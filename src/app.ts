@@ -65,6 +65,9 @@ import { TenantAdminRecoveryRepository } from './modules/tenancy/tenant-admin-re
 import { createStaffInvitationAcceptanceRouter } from './modules/auth/staff-invitation.routes.js';
 import { StaffInvitationService, StaffMembershipAdministrationRepository } from './modules/auth/staff-membership-administration.js';
 import { SmtpStaffInvitationDelivery } from './modules/email/smtp-staff-invitation-delivery.js';
+import { createPasswordRecoveryRouter } from './modules/auth/password-recovery.routes.js';
+import { PasswordRecoveryRepository, PasswordRecoveryService } from './modules/auth/password-recovery.js';
+import { SmtpPasswordResetDelivery } from './modules/email/smtp-password-reset-delivery.js';
 import { SmtpSystemOwnerNotificationDelivery } from './modules/email/smtp-system-owner-notification-delivery.js';
 import { SmtpTenantActivationDelivery } from './modules/email/smtp-tenant-activation-delivery.js';
 import { loadSystemOwnerNotificationEmail } from './modules/email/email-config.js';
@@ -530,6 +533,12 @@ const staffInvitationService = new StaffInvitationService(
   },
 );
 const staffRoutes = createStaffRouter(requireValidActiveTenantContext, { administration: staffMembershipAdministration, invitationService: staffInvitationService });
+const passwordRecoveryRoutes = createPasswordRecoveryRouter({
+  service: new PasswordRecoveryService(
+    new PasswordRecoveryRepository(pool),
+    new SmtpPasswordResetDelivery(),
+  ),
+});
 const platformUserInvitationRepository = new PlatformUserInvitationRepository(pool);
 const platformUserInvitationService = new PlatformUserInvitationService(platformUserInvitationRepository, new SmtpPlatformUserInvitationDelivery());
 const tenantLifecycleCommandRoutes = createTenantLifecycleCommandRouter(
@@ -547,6 +556,7 @@ app.get('/offline', (_req, res) => {
 
 app.use('/auth', authRoutes);
 app.use('/auth/staff', staffRoutes);
+app.use('/auth/password-reset', passwordRecoveryRoutes);
 app.use('/auth/staff-invitations', createStaffInvitationAcceptanceRouter(staffInvitationService));
 app.use('/customer-auth', customerAuthRoutes);
 app.use('/customer-portal', createCustomerPortalSuspensionMiddleware(tenantSuspensionAccessCoordinator), customerPortalRoutes);

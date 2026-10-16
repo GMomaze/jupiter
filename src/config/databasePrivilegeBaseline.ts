@@ -28,6 +28,7 @@ export const RESTRICTED_RUNTIME_TABLE_PRIVILEGES: ReadonlyArray<
   ['staff_invitations', ['SELECT', 'INSERT', 'UPDATE']],
   ['tenant_membership_authority_audit', ['SELECT', 'INSERT']],
   ['platform_user_invitations', ['SELECT', 'INSERT', 'UPDATE']],
+  ['staff_password_recovery_audit', ['SELECT', 'INSERT']],
 ];
 
 const RESTRICTED_RUNTIME_TABLE_NAMES = RESTRICTED_RUNTIME_TABLE_PRIVILEGES.map(

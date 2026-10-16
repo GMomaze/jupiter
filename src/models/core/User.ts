@@ -8,6 +8,8 @@ export class User extends Model {
   declare full_name: string;
   declare is_active: boolean;
   declare retired_at: Date | null;
+  declare password_reset_token_hash: string | null;
+  declare password_reset_expires_at: Date | null;
   declare Roles?: any[];
 }
 
@@ -36,6 +38,14 @@ User.init(
       defaultValue: true,
     },
     retired_at: {
+      type: DataTypes.DATE,
+      allowNull: true,
+    },
+    password_reset_token_hash: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
+    password_reset_expires_at: {
       type: DataTypes.DATE,
       allowNull: true,
     },

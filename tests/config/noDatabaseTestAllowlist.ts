@@ -43,6 +43,7 @@ export const NO_DATABASE_TEST_ALLOWLIST = [
   'src/modules/auth/mp2-r1a1-identity-membership.test.ts',
   'src/modules/auth/initial-admin-onboarding-notification.test.ts',
   'src/modules/auth/staff-invitation.routes.test.ts',
+  'src/modules/auth/password-recovery.test.ts',
   'src/modules/auth/active-tenant-rbac.middleware.test.ts',
   'src/modules/auth/active-tenant-rbac-operational.test.ts',
   'src/modules/platform-authority/platform-user-invitation.test.ts',
