@@ -117,12 +117,24 @@ export class PasswordRecoveryRepository {
     correlationId: string,
   ): Promise<CompleteResetOutcome> {
     return this.transaction(async (client) => {
+      // Re-validates eligibility inside the same transaction and under the same
+      // user-row lock as token consumption: the canonical System Owner and any
+      // active HUMAN platform principal are excluded regardless of when their
+      // status changed since issuance, and inactive/retired accounts are
+      // rejected. A concurrent completion is serialized by the row lock.
       const locked = await client.query(
-        `SELECT id, password_reset_expires_at
-           FROM users
-          WHERE password_reset_token_hash=$1 AND is_active=true AND retired_at IS NULL
+        `SELECT u.id, u.password_reset_expires_at
+           FROM users u
+          WHERE u.password_reset_token_hash=$1
+            AND u.is_active=true
+            AND u.retired_at IS NULL
+            AND u.id <> $2
+            AND NOT EXISTS (
+              SELECT 1 FROM platform_principals pp
+              WHERE pp.principal_type='HUMAN' AND pp.status='ACTIVE' AND pp.user_id = u.id
+            )
           FOR UPDATE`,
-        [tokenHash],
+        [tokenHash, SYSTEM_OWNER_USER_ID],
       );
       const row = locked.rows[0] as { id: string; password_reset_expires_at: string | null } | undefined;
 

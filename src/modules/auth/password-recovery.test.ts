@@ -155,4 +155,18 @@ describe('PasswordRecoveryRepository scope (cross-tenant/privilege safety)', () 
     expect(source).toMatch(/u\.id <> \$2/);
     expect(source).toContain('SYSTEM_OWNER_USER_ID');
   });
+
+  it('re-validates eligibility at completion under the user-row lock', async () => {
+    const source = await sourceText();
+    const forUpdate = source.indexOf('FOR UPDATE');
+    expect(forUpdate).toBeGreaterThan(-1);
+    // The FOR UPDATE locking query (completeReset) must re-check the same
+    // exclusions as issuance, not just is_active/retired_at.
+    const completionSql = source.slice(Math.max(0, forUpdate - 600), forUpdate + 16);
+    expect(completionSql).toContain('u.id <> $2');
+    expect(completionSql).toContain('platform_principals');
+    expect(completionSql).toContain("pp.status='ACTIVE'");
+    expect(completionSql).toContain('is_active=true');
+    expect(completionSql).toContain('retired_at IS NULL');
+  });
 });
