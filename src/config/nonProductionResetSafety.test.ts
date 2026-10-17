@@ -247,11 +247,24 @@ describe('credential variable contract', () => {
 });
 
 describe('backup archive validation', () => {
-  const toc = '; TOC Entries: 543\n5; 2615 SCHEMA - public postgres\n';
-
-  it('accepts a readable custom-format archive listing', () => {
+  it('accepts a PostgreSQL 18.6 archive listing (leading whitespace before TOC Entries)', () => {
+    const pg18 = ';     TOC Entries: 993\n5; 2615 SCHEMA - public postgres\n';
     expect(() =>
-      assertBackupArchiveValid({ exitCode: 0, stdout: toc, stderr: '' }),
+      assertBackupArchiveValid({ exitCode: 0, stdout: pg18, stderr: '' }),
+    ).not.toThrow();
+  });
+
+  it('retains compatibility with a PostgreSQL 17 archive listing', () => {
+    const pg17 = ';     TOC Entries: 543\n5; 2615 SCHEMA - public postgres\n';
+    expect(() =>
+      assertBackupArchiveValid({ exitCode: 0, stdout: pg17, stderr: '' }),
+    ).not.toThrow();
+  });
+
+  it('accepts a single-space TOC Entries header variant', () => {
+    const single = '; TOC Entries: 993\n5; 2615 SCHEMA - public postgres\n';
+    expect(() =>
+      assertBackupArchiveValid({ exitCode: 0, stdout: single, stderr: '' }),
     ).not.toThrow();
   });
 
@@ -273,9 +286,15 @@ describe('backup archive validation', () => {
     ).toThrow(/empty or unreadable/);
   });
 
-  it('rejects a listing missing the custom-archive table of contents header', () => {
+  it('rejects a listing missing the table of contents header', () => {
     expect(() =>
       assertBackupArchiveValid({ exitCode: 0, stdout: 'not a toc', stderr: '' }),
+    ).toThrow(/missing table of contents/);
+  });
+
+  it('rejects a malformed TOC Entries header without an entry count', () => {
+    expect(() =>
+      assertBackupArchiveValid({ exitCode: 0, stdout: ';     TOC Entries:\n', stderr: '' }),
     ).toThrow(/missing table of contents/);
   });
 });

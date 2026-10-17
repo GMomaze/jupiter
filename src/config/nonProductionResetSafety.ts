@@ -159,6 +159,8 @@ export interface BackupArchiveListing {
  * complete database restoration — that requires a separate rehearsed
  * `pg_restore` run and is deliberately out of scope here.
  */
+const TOC_ENTRIES_HEADER = /;\s*TOC Entries:\s*\d+/;
+
 export function assertBackupArchiveValid(listing: BackupArchiveListing): void {
   if (listing.exitCode !== 0) {
     throw new Error(
@@ -169,7 +171,7 @@ export function assertBackupArchiveValid(listing: BackupArchiveListing): void {
   if (toc.length === 0) {
     throw new Error('NON_PRODUCTION_RESET: backup archive listing is empty or unreadable');
   }
-  if (!toc.includes('; TOC Entries:')) {
+  if (!TOC_ENTRIES_HEADER.test(toc)) {
     throw new Error(
       'NON_PRODUCTION_RESET: backup archive is not a valid PostgreSQL custom-format archive (missing table of contents)',
     );
