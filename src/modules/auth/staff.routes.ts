@@ -60,18 +60,58 @@ router.post('/toggle-role', async (req, res, next) => {
   }
 });
 
-router.post('/invite', async(req,res,next)=>{try{
-  await invitations.invite(requireTenantAuthority(req),{email:req.body?.email,fullName:req.body?.fullName,actorUserId:(req.user as {id?:unknown}|undefined)?.id,reason:req.body?.reason,correlationId:req.headers['x-correlation-id']});
-  return res.status(202).json({accepted:true});
-}catch(error){if(error instanceof Error&&error.message===STAFF_MEMBERSHIP_UNAVAILABLE)return res.status(404).send();next(error);}});
+router.post('/invite', async (req, res, next) => {
+  try {
+    const email = typeof req.body?.email === 'string' ? req.body.email.trim() : '';
+    await invitations.invite(requireTenantAuthority(req), {
+      email,
+      fullName: req.body?.fullName,
+      actorUserId: (req.user as { id?: unknown } | undefined)?.id,
+      reason: req.body?.reason,
+      correlationId: req.headers['x-correlation-id'],
+    });
+    req.flash('success', email ? `Invitation sent to ${email}.` : 'Invitation sent.');
+    return res.redirect('/auth/staff');
+  } catch (error) {
+    if (error instanceof Error && error.message === STAFF_MEMBERSHIP_UNAVAILABLE) {
+      req.flash('error', 'Invitation could not be sent — check the email and details.');
+      return res.redirect('/auth/staff');
+    }
+    next(error);
+  }
+});
 
-for(const [path,status] of [['disable','DISABLED'],['reinstate','ACTIVE']] as const){
-  router.post(`/:userId/${path}`,async(req,res,next)=>{try{
-    const actor=(req.user as {id?:unknown}|undefined)?.id, target=req.params.userId, reason=req.body?.reason;
-    if(typeof actor!=='string'||typeof target!=='string'||typeof reason!=='string'||!reason.trim())throw new Error(STAFF_MEMBERSHIP_UNAVAILABLE);
-    await administration.setMembershipStatus(requireTenantAuthority(req),target,status,actor,reason.trim(),typeof req.headers['x-correlation-id']==='string'?req.headers['x-correlation-id']:randomUUID());
-    return res.status(200).json({status});
-  }catch(error){if(error instanceof Error&&error.message===STAFF_MEMBERSHIP_UNAVAILABLE)return res.status(404).send();if(error instanceof Error&&error.message==='LAST_ACTIVE_TENANT_ADMIN_REQUIRED')return res.status(409).send();next(error);}});
+for (const [path, status] of [['disable', 'DISABLED'], ['reinstate', 'ACTIVE']] as const) {
+  router.post(`/:userId/${path}`, async (req, res, next) => {
+    try {
+      const actor = (req.user as { id?: unknown } | undefined)?.id;
+      const target = req.params.userId;
+      const reason = req.body?.reason;
+      if (typeof actor !== 'string' || typeof target !== 'string' || typeof reason !== 'string' || !reason.trim()) {
+        throw new Error(STAFF_MEMBERSHIP_UNAVAILABLE);
+      }
+      await administration.setMembershipStatus(
+        requireTenantAuthority(req),
+        target,
+        status,
+        actor,
+        reason.trim(),
+        typeof req.headers['x-correlation-id'] === 'string' ? req.headers['x-correlation-id'] : randomUUID(),
+      );
+      req.flash('success', status === 'DISABLED' ? 'User access disabled.' : 'User access reinstated.');
+      return res.redirect('/auth/staff');
+    } catch (error) {
+      if (error instanceof Error && error.message === STAFF_MEMBERSHIP_UNAVAILABLE) {
+        req.flash('error', 'User could not be updated.');
+        return res.redirect('/auth/staff');
+      }
+      if (error instanceof Error && error.message === 'LAST_ACTIVE_TENANT_ADMIN_REQUIRED') {
+        req.flash('error', 'Cannot disable the last active company administrator.');
+        return res.redirect('/auth/staff');
+      }
+      next(error);
+    }
+  });
 }
 
 return router;

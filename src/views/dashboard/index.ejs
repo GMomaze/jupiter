@@ -1,5 +1,14 @@
 <%- include('../partials/header') %>
 
+<%
+  const _roleCodes = (user && Array.isArray(user.roles))
+    ? user.roles.map(function (r) { return typeof r === 'string' ? r : (r && r.code); }).filter(Boolean)
+    : [];
+  const accessLabel = _roleCodes.includes('ADMIN')
+    ? 'Administrator'
+    : (_roleCodes.length ? _roleCodes.join(', ') : 'Read only');
+%>
+
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link
@@ -534,7 +543,7 @@
 
       <div class="jd-chips">
         <span class="chip-green"><span class="live"></span>Live</span>
-        <span class="chip">Read only</span>
+        <span class="chip"><%= accessLabel %></span>
         <span class="chip">Fleet + Workpacks</span>
       </div>
     </div>
@@ -597,7 +606,7 @@
 
             <div class="sc">
               <p class="sc-k">Mode</p>
-              <p class="sc-v">Read only</p>
+              <p class="sc-v"><%= accessLabel %></p>
             </div>
 
             <div class="sc">

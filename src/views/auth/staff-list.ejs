@@ -1,35 +1,164 @@
-<main class="p-6">
-  <h1 class="text-2xl font-bold mb-6">Staff Management</h1>
+<%- include('../partials/header') %>
 
-  <table class="w-full border shadow-sm rounded">
+<main class="p-6 max-w-7xl mx-auto">
+  <div class="mb-6 flex flex-wrap items-center justify-between gap-3">
+    <h1 class="text-2xl font-bold">Staff Management</h1>
+    <% if (typeof activeOrganisationUi !== 'undefined' && activeOrganisationUi) { %>
+      <span class="text-sm text-gray-500">
+        Company:
+        <strong><%= activeOrganisationUi.current.tenantDisplayName %></strong>
+        (<%= activeOrganisationUi.current.tenantCode %>)
+      </span>
+    <% } %>
+  </div>
+
+  <% if (messages && messages.success && messages.success.length) { %>
+    <div class="mb-4 rounded bg-green-100 p-3 text-green-800">
+      <%= messages.success.join(' ') %>
+    </div>
+  <% } %>
+  <% if (messages && messages.error && messages.error.length) { %>
+    <div class="mb-4 rounded bg-red-100 p-3 text-red-800">
+      <%= messages.error.join(' ') %>
+    </div>
+  <% } %>
+
+  <section class="mb-8 rounded border bg-white p-4 shadow-sm">
+    <h2 class="mb-3 text-lg font-semibold">Invite User</h2>
+    <form method="POST" action="/auth/staff/invite" class="flex flex-wrap items-end gap-3">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <div>
+        <label for="invite-email" class="block text-xs text-gray-600">Email</label>
+        <input id="invite-email" type="email" name="email" required
+               class="rounded border border-gray-300 px-3 py-2">
+      </div>
+      <div>
+        <label for="invite-fullName" class="block text-xs text-gray-600">Full name</label>
+        <input id="invite-fullName" type="text" name="fullName" required
+               class="rounded border border-gray-300 px-3 py-2">
+      </div>
+      <div>
+        <label for="invite-reason" class="block text-xs text-gray-600">Reason</label>
+        <input id="invite-reason" type="text" name="reason" required
+               class="rounded border border-gray-300 px-3 py-2">
+      </div>
+      <button type="submit" class="rounded bg-slate-800 px-4 py-2 text-white hover:bg-slate-600">
+        Send invitation
+      </button>
+    </form>
+  </section>
+
+  <div id="role-toggle-error" class="mb-4 hidden rounded bg-red-100 p-3 text-red-800" role="alert"></div>
+
+  <table class="w-full border bg-white shadow-sm rounded">
     <thead>
-      <tr class="bg-gray-100 border-b">
+      <tr class="border-b bg-gray-100">
         <th class="p-3 text-left">Name</th>
         <th class="p-3 text-left">Email</th>
-        <% allRoles.forEach(role => { %>
+        <% allRoles.forEach(function (role) { %>
           <th class="p-3 text-center text-xs uppercase"><%= role.label %></th>
         <% }) %>
+        <th class="p-3 text-center">Access</th>
       </tr>
     </thead>
     <tbody>
-      <% users.forEach(user => { %>
+      <% users.forEach(function (staff) { %>
         <tr class="border-b hover:bg-gray-50">
-          <td class="p-3 font-semibold"><%= user.full_name %></td>
-          <td class="p-3 text-gray-600"><%= user.email %></td>
-          
-          <% allRoles.forEach(role => { %>
+          <td class="p-3 font-semibold"><%= staff.full_name %></td>
+          <td class="p-3 text-gray-600"><%= staff.email %></td>
+          <% allRoles.forEach(function (role) { %>
             <td class="p-3 text-center">
-              <input type="checkbox" 
-                     name="roleId" 
+              <input type="checkbox"
+                     class="staff-role-toggle"
+                     name="roleId"
                      value="<%= role.id %>"
-                     hx-post="/auth/staff/toggle-role"
-                     hx-vals='{"userId": "<%= user.id %>", "roleId": "<%= role.id %>"}'
-                     hx-headers='{"x-csrf-token": "<%= csrfToken %>"}'
-                     <%= user.roles && user.roles.includes(role.code) ? 'checked' : '' %>>
+                     data-user-id="<%= staff.id %>"
+                     data-role-id="<%= role.id %>"
+                     <%= staff.roles && staff.roles.includes(role.code) ? 'checked' : '' %>>
             </td>
           <% }) %>
+          <td class="p-3 text-center">
+            <% if (staff.is_active) { %>
+              <form method="POST" action="/auth/staff/<%= staff.id %>/disable" class="inline"
+                    onsubmit="return confirm('Disable access for <%= staff.full_name %>?');">
+                <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                <input type="hidden" name="reason" value="Disabled by company administrator">
+                <button type="submit"
+                        class="rounded bg-red-600 px-3 py-1 text-xs text-white hover:bg-red-500">
+                  Disable
+                </button>
+              </form>
+            <% } else { %>
+              <form method="POST" action="/auth/staff/<%= staff.id %>/reinstate" class="inline">
+                <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                <input type="hidden" name="reason" value="Reinstated by company administrator">
+                <button type="submit"
+                        class="rounded bg-green-600 px-3 py-1 text-xs text-white hover:bg-green-500">
+                  Reinstate
+                </button>
+              </form>
+            <% } %>
+          </td>
         </tr>
       <% }) %>
     </tbody>
   </table>
 </main>
+
+<%- include('../partials/footer') %>
+
+<script>
+(function () {
+  var csrf = '<%= csrfToken %>';
+  var errorBox = document.getElementById('role-toggle-error');
+
+  function showError(message) {
+    if (!errorBox) return;
+    errorBox.textContent = message;
+    errorBox.classList.remove('hidden');
+  }
+
+  function clearError() {
+    if (!errorBox) return;
+    errorBox.textContent = '';
+    errorBox.classList.add('hidden');
+  }
+
+  function wireToggle(checkbox) {
+    checkbox.addEventListener('change', async function () {
+      var requested = checkbox.checked;
+      var previous = !requested;
+      checkbox.disabled = true;
+      try {
+        var response = await fetch('/auth/staff/toggle-role', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-csrf-token': csrf
+          },
+          body: JSON.stringify({
+            userId: checkbox.dataset.userId,
+            roleId: checkbox.dataset.roleId
+          })
+        });
+        if (response.ok) {
+          clearError();
+        } else {
+          checkbox.checked = previous;
+          showError(response.status === 409
+            ? 'The Administrator role of the last active company administrator cannot be removed.'
+            : 'The role change was not applied.');
+        }
+      } catch (err) {
+        checkbox.checked = previous;
+        showError('The role change could not be applied (network error).');
+      } finally {
+        checkbox.disabled = false;
+      }
+    });
+  }
+
+  var boxes = document.querySelectorAll('.staff-role-toggle');
+  Array.prototype.forEach.call(boxes, wireToggle);
+})();
+</script>

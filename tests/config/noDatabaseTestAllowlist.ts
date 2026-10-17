@@ -40,6 +40,7 @@ export const NO_DATABASE_TEST_ALLOWLIST = [
   'src/modules/tenancy/tenant-root-repository.types.test.ts',
   'src/modules/tenancy/tenant-rbac-preservation.test.ts',
   'src/modules/auth/staff-route-security.test.ts',
+  'src/modules/auth/staff-management-ui.test.ts',
   'src/modules/auth/staff-tenant-boundary.test.ts',
   'src/modules/auth/mp2-r1a1-identity-membership.test.ts',
   'src/modules/auth/initial-admin-onboarding-notification.test.ts',
