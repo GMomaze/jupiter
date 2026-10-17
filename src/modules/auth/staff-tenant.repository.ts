@@ -17,17 +17,29 @@ export class PostgresStaffTenantRepository implements StaffTenantRepository {
   private get queryable() { return this.transactionClient ?? this.database; }
   async listStaff(authority: TenantQueryAuthority): Promise<readonly TenantStaffRow[]> {
     assertTenantQueryAuthority(authority);
-    const result = await this.queryable.query(
-      `SELECT u.id, u.email, u.full_name, u.is_active,
-              COALESCE(array_agg(r.code ORDER BY r.code)
-                FILTER (WHERE r.id IS NOT NULL AND tmr.revoked_at IS NULL), ARRAY[]::varchar[]) AS roles
-         FROM tenant_memberships tm JOIN users u ON u.id = tm.user_id
-         LEFT JOIN tenant_membership_roles tmr ON tmr.membership_id = tm.id
-         LEFT JOIN rf_role r ON r.id = tmr.role_id AND r.is_active = true
-        WHERE tm.tenant_id = $1 AND tm.status = 'ACTIVE'
-        GROUP BY tm.id, u.id, u.email, u.full_name, u.is_active
-        ORDER BY u.full_name ASC, u.id ASC`, [authority.tenantId]);
-    return result.rows;
+    const client = this.transactionClient ?? await this.database.connect();
+    const ownsTransaction = !this.transactionClient;
+    try {
+      if (ownsTransaction) await client.query('BEGIN');
+      // tenant_memberships and tenant_membership_roles are FORCE RLS. Establish the
+      // tenant context so the RLS policy admits this tenant's own rows.
+      await client.query(`SELECT set_config('jupiter.tenant_id', $1, true)`, [authority.tenantId]);
+      const result = await client.query(
+        `SELECT u.id, u.email, u.full_name, u.is_active,
+                COALESCE(array_agg(r.code ORDER BY r.code)
+                  FILTER (WHERE r.id IS NOT NULL AND tmr.revoked_at IS NULL), ARRAY[]::varchar[]) AS roles
+           FROM tenant_memberships tm JOIN users u ON u.id = tm.user_id
+           LEFT JOIN tenant_membership_roles tmr ON tmr.membership_id = tm.id
+           LEFT JOIN rf_role r ON r.id = tmr.role_id AND r.is_active = true
+          WHERE tm.tenant_id = $1 AND tm.status = 'ACTIVE'
+          GROUP BY tm.id, u.id, u.email, u.full_name, u.is_active
+          ORDER BY u.full_name ASC, u.id ASC`, [authority.tenantId]);
+      if (ownsTransaction) await client.query('COMMIT');
+      return result.rows;
+    } catch (error) {
+      if (ownsTransaction) await client.query('ROLLBACK');
+      throw error;
+    } finally { if (ownsTransaction) client.release(); }
   }
   async listAssignableRoles(authority: TenantQueryAuthority): Promise<readonly SharedRoleRow[]> {
     assertTenantQueryAuthority(authority);
@@ -41,6 +53,9 @@ export class PostgresStaffTenantRepository implements StaffTenantRepository {
     const ownsTransaction = !this.transactionClient;
     try {
       if (ownsTransaction) await client.query('BEGIN');
+      // tenant_memberships and tenant_membership_roles are FORCE RLS; establish the
+      // tenant context so RLS admits this tenant's rows for the lock, reads and writes below.
+      await client.query(`SELECT set_config('jupiter.tenant_id', $1, true)`, [authority.tenantId]);
       await client.query(`SELECT pg_advisory_xact_lock(hashtextextended($1::text, ${TENANT_LIFECYCLE_LOCK_NAMESPACE}::bigint))`, [authority.tenantId]);
       const membership = await this.lockTargetMembership(client, authority.tenantId, targetUserId);
       const role = await client.query(`SELECT id,code FROM rf_role WHERE id = $1 AND is_active = true FOR SHARE`, [roleId]);
