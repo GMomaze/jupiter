@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
 import {
   NON_PRODUCTION_RESET_ERROR,
   validateNonProductionResetConfiguration,
   validateNonProductionResetIdentity,
   assertBackupPathAvailable,
+  assertBackupArchiveValid,
   buildResetReconciliationSql,
   assertResetReconciliation,
   REQUIRED_OPERATIONAL_ROLES,
@@ -225,5 +227,81 @@ describe('reset reconciliation', () => {
     expect(sql).toContain('has_schema_privilege');
     expect(sql).toContain('platform_principals');
     expect(sql).toContain('platform_capability_grants');
+  });
+});
+
+describe('credential variable contract', () => {
+  it('requires DB_ADMIN_PASSWORD, not the historical DB_MIGRATION_PASSWORD', () => {
+    expect(() =>
+      validateNonProductionResetConfiguration(
+        validEnv({ DB_ADMIN_PASSWORD: '', DB_MIGRATION_PASSWORD: 'secret' }),
+      ),
+    ).toThrow(NON_PRODUCTION_RESET_ERROR);
+  });
+
+  it('documents DB_ADMIN_PASSWORD (not DB_MIGRATION_PASSWORD) as the operator credential', () => {
+    const runbook = readFileSync('docs/runbooks/NON_PRODUCTION_RESET.md', 'utf8');
+    expect(runbook).toContain('DB_ADMIN_PASSWORD=');
+    expect(runbook).not.toContain('DB_MIGRATION_PASSWORD=');
+  });
+});
+
+describe('backup archive validation', () => {
+  const toc = '; TOC Entries: 543\n5; 2615 SCHEMA - public postgres\n';
+
+  it('accepts a readable custom-format archive listing', () => {
+    expect(() =>
+      assertBackupArchiveValid({ exitCode: 0, stdout: toc, stderr: '' }),
+    ).not.toThrow();
+  });
+
+  it('rejects a non-zero pg_restore exit (corrupt/truncated/invalid archive)', () => {
+    expect(() =>
+      assertBackupArchiveValid({ exitCode: 1, stdout: '', stderr: 'input file is too short' }),
+    ).toThrow(/not a valid PostgreSQL custom-format archive/);
+  });
+
+  it('rejects a spawn failure (null exit code)', () => {
+    expect(() =>
+      assertBackupArchiveValid({ exitCode: null, stdout: '', stderr: 'spawn pg_restore ENOENT' }),
+    ).toThrow(/not a valid PostgreSQL custom-format archive/);
+  });
+
+  it('rejects an empty listing even on exit code 0', () => {
+    expect(() =>
+      assertBackupArchiveValid({ exitCode: 0, stdout: '', stderr: '' }),
+    ).toThrow(/empty or unreadable/);
+  });
+
+  it('rejects a listing missing the custom-archive table of contents header', () => {
+    expect(() =>
+      assertBackupArchiveValid({ exitCode: 0, stdout: 'not a toc', stderr: '' }),
+    ).toThrow(/missing table of contents/);
+  });
+});
+
+describe('reset orchestration ordering', () => {
+  const source = readFileSync('src/scripts/resetNonProductionDatabase.ts', 'utf8');
+
+  it('validates the backup archive with pg_restore --list', () => {
+    expect(source).toContain('pg_restore');
+    expect(source).toContain("'--list'");
+  });
+
+  it('validates the backup before starting the destructive rebuild', () => {
+    const backupIdx = source.indexOf('await backup(config)');
+    const validateIdx = source.indexOf('await verifyBackupArchive(config.backupPath)');
+    const rebuildIdx = source.indexOf("runTsx('src/scripts/developmentRebuild.ts'");
+    expect(backupIdx).toBeGreaterThanOrEqual(0);
+    expect(validateIdx).toBeGreaterThanOrEqual(0);
+    expect(rebuildIdx).toBeGreaterThanOrEqual(0);
+    expect(backupIdx).toBeLessThan(validateIdx);
+    expect(validateIdx).toBeLessThan(rebuildIdx);
+  });
+
+  it('backup archive validation failure propagates as an error (never swallowed)', () => {
+    expect(() =>
+      assertBackupArchiveValid({ exitCode: 1, stdout: '', stderr: 'bad' }),
+    ).toThrow();
   });
 });

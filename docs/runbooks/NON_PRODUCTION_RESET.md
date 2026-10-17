@@ -47,16 +47,46 @@ DB_MIGRATION_NAME=jupiter_db \
 CONFIRM_NON_PRODUCTION_RESET_DATABASE=jupiter_db \
 NON_PRODUCTION_RESET_BACKUP_PATH=/secure/path/jupiter_db_pre_reset_<ts>.dump \
 DB_MIGRATION_USER=postgres \
-DB_MIGRATION_PASSWORD='<secret>' \
+DB_ADMIN_PASSWORD='<secret>' \
 DB_MIGRATION_HOST="$DB_HOST" \
 DB_MIGRATION_PORT="$DB_PORT" \
 npm run reset:non-production
 ```
 
-The command: verifies identity → takes a verified `pg_dump` backup → runs the
-existing guarded rebuild (`developmentRebuild.ts`: DROP SCHEMA → migrate →
-required seeds → privilege hardening) → runs the canonical System Owner
-bootstrap → prints the reconciliation summary and the restoration command.
+The command: verifies identity → takes a verified `pg_dump` backup → validates
+the archive with `pg_restore --list` → runs the existing guarded rebuild
+(`developmentRebuild.ts`: DROP SCHEMA → migrate → required seeds → privilege
+hardening) → runs the canonical System Owner bootstrap → prints the
+reconciliation summary and the restoration command.
+
+## Credential propagation
+
+The single operator-supplied database credential is `DB_ADMIN_PASSWORD` (the
+PostgreSQL `postgres` superuser password), read by the reset safety gate. It is
+propagated as follows, without ever being printed to stdout, logs, or error
+messages:
+
+- **Reset orchestration** — `DB_ADMIN_PASSWORD` → `config.password`, used for the
+  `pg_dump` backup (`PGPASSWORD`) and the identity/reconciliation `pg` clients.
+- **Guarded rebuild + migrations + hardening** — the orchestration maps
+  `DB_ADMIN_PASSWORD` to `DB_MIGRATION_PASSWORD` for the existing guarded
+  rebuild (`buildDevelopmentRebuildCommandEnvironment`).
+- **System Owner bootstrap** — the bootstrap scripts read `DB_HOST`/`DB_PORT`/
+  `DB_NAME`/`DB_USER`/`DB_PASSWORD` from the inherited application environment
+  (the app `.env`, loaded by `dotenv/config`); the reset orchestration adds no
+  password to that stage.
+
+## Backup validation
+
+After the pre-reset `pg_dump` completes, the command runs
+`pg_restore --list` against the new archive. A successful listing (exit code 0
+with a non-empty `; TOC Entries:` header) proves the archive is a readable
+PostgreSQL custom-format dump; a corrupt, truncated, empty, or unreadable
+archive is rejected **before** any destructive step begins.
+
+This listing establishes archive **readability only** — it is not proof that a
+complete database restoration has been tested. A separate rehearsed
+`pg_restore` (see `RESTORE.md`) is required to prove full restorability.
 
 ## Post-reset state
 

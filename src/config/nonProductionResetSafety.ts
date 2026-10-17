@@ -145,6 +145,37 @@ export function assertBackupPathAvailable(
   }
 }
 
+export interface BackupArchiveListing {
+  readonly exitCode: number | null;
+  readonly stdout: string;
+  readonly stderr: string;
+}
+
+/**
+ * Validates the result of `pg_restore --list` against the freshly written
+ * pre-reset backup. A successful listing (exit code 0 and a non-empty table of
+ * contents carrying the custom-archive `; TOC Entries:` header) proves the
+ * archive is a readable PostgreSQL custom-format dump. It is NOT a test of a
+ * complete database restoration — that requires a separate rehearsed
+ * `pg_restore` run and is deliberately out of scope here.
+ */
+export function assertBackupArchiveValid(listing: BackupArchiveListing): void {
+  if (listing.exitCode !== 0) {
+    throw new Error(
+      'NON_PRODUCTION_RESET: backup archive is not a valid PostgreSQL custom-format archive (pg_restore --list failed)',
+    );
+  }
+  const toc = listing.stdout.trim();
+  if (toc.length === 0) {
+    throw new Error('NON_PRODUCTION_RESET: backup archive listing is empty or unreadable');
+  }
+  if (!toc.includes('; TOC Entries:')) {
+    throw new Error(
+      'NON_PRODUCTION_RESET: backup archive is not a valid PostgreSQL custom-format archive (missing table of contents)',
+    );
+  }
+}
+
 export const REQUIRED_OPERATIONAL_ROLES = Object.freeze([
   'ADMIN',
   'ENGINEER',

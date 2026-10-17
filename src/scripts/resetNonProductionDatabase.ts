@@ -10,6 +10,7 @@ import {
   validateNonProductionResetIdentity,
   resolveNonProductionResetHost,
   assertBackupPathAvailable,
+  assertBackupArchiveValid,
   buildResetReconciliationSql,
   assertResetReconciliation,
   type NonProductionResetConfig,
@@ -74,11 +75,53 @@ async function backup(config: NonProductionResetConfig): Promise<void> {
   );
 }
 
-function verifyBackup(backupPath: string): void {
+interface ArchiveListing {
+  exitCode: number | null;
+  stdout: string;
+  stderr: string;
+}
+
+function runArchiveListing(backupPath: string): Promise<ArchiveListing> {
+  return new Promise<ArchiveListing>((resolvePromise) => {
+    const child = spawn('pg_restore', ['--list', backupPath], {
+      cwd: process.cwd(),
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    let stdout = '';
+    let stderr = '';
+    child.stdout?.on('data', (chunk: Buffer) => {
+      stdout += chunk.toString();
+    });
+    child.stderr?.on('data', (chunk: Buffer) => {
+      stderr += chunk.toString();
+    });
+    child.once('error', (error) => {
+      resolvePromise({
+        exitCode: null,
+        stdout,
+        stderr: error instanceof Error ? error.message : String(error),
+      });
+    });
+    child.once('exit', (code) => {
+      resolvePromise({ exitCode: code, stdout, stderr });
+    });
+  });
+}
+
+/**
+ * Verifies the pre-reset backup is a readable PostgreSQL custom-format archive
+ * BEFORE any destructive step. It first confirms the file exists and is
+ * non-empty, then asks `pg_restore --list` to read the archive's table of
+ * contents. A non-zero exit, an empty listing, or a listing without the
+ * custom-archive header throws and prevents the schema rebuild from starting.
+ */
+async function verifyBackupArchive(backupPath: string): Promise<void> {
   const stat = statSync(backupPath);
   if (!stat.isFile() || stat.size === 0) {
     throw new Error('NON_PRODUCTION_RESET: backup file is missing or empty');
   }
+  const listing = await runArchiveListing(backupPath);
+  assertBackupArchiveValid(listing);
 }
 
 async function main(): Promise<void> {
@@ -121,9 +164,10 @@ async function main(): Promise<void> {
   // copy of historical audit evidence.
   assertBackupPathAvailable(config.backupPath, existsSync);
 
-  // Verified pre-reset backup (preserves historical audit evidence).
+  // Verified pre-reset backup (preserves historical audit evidence). The archive
+  // is validated with pg_restore --list before any destructive step begins.
   await backup(config);
-  verifyBackup(config.backupPath);
+  await verifyBackupArchive(config.backupPath);
   console.log(`Backup verified: ${config.backupPath}`);
 
   // Reuse the existing guarded rebuild (RESET → MIGRATE → REQUIRED SEEDS → HARDEN)
