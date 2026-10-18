@@ -26,11 +26,9 @@ export class PostgresStaffTenantRepository implements StaffTenantRepository {
       await client.query(`SELECT set_config('jupiter.tenant_id', $1, true)`, [authority.tenantId]);
       const result = await client.query(
         `SELECT u.id, u.email, u.full_name, u.is_active,
-                COALESCE(array_agg(r.code ORDER BY r.code)
-                  FILTER (WHERE r.id IS NOT NULL AND tmr.revoked_at IS NULL), ARRAY[]::varchar[]) AS roles
+                COALESCE(array_agg(sr.role_code ORDER BY sr.role_code), ARRAY[]::varchar[]) AS roles
            FROM tenant_memberships tm JOIN users u ON u.id = tm.user_id
-           LEFT JOIN tenant_membership_roles tmr ON tmr.membership_id = tm.id
-           LEFT JOIN rf_role r ON r.id = tmr.role_id AND r.is_active = true
+           LEFT JOIN public.resolve_tenant_membership_roles() sr ON sr.membership_id = tm.id
           WHERE tm.tenant_id = $1 AND tm.status = 'ACTIVE'
           GROUP BY tm.id, u.id, u.email, u.full_name, u.is_active
           ORDER BY u.full_name ASC, u.id ASC`, [authority.tenantId]);
@@ -61,23 +59,22 @@ export class PostgresStaffTenantRepository implements StaffTenantRepository {
       const role = await client.query(`SELECT id,code FROM rf_role WHERE id = $1 AND is_active = true FOR SHARE`, [roleId]);
       if (role.rowCount !== 1) throw new Error(STAFF_TENANT_TARGET_UNAVAILABLE);
       const current = await client.query(
-        `SELECT id FROM tenant_membership_roles WHERE membership_id = $1 AND role_id = $2 AND revoked_at IS NULL FOR UPDATE`,
+        `SELECT assignment_id FROM public.resolve_tenant_membership_roles()
+          WHERE membership_id = $1 AND role_id = $2`,
         [membership.id, roleId]);
       let outcome: 'ASSIGNED' | 'REVOKED';
       if (current.rowCount === 1) {
         if (role.rows[0].code === 'ADMIN') {
           const otherAdmin = await client.query(
-            `SELECT 1 FROM tenant_memberships tm
-               JOIN tenant_membership_roles tmr ON tmr.membership_id = tm.id AND tmr.revoked_at IS NULL
-               JOIN rf_role r ON r.id = tmr.role_id AND r.code = 'ADMIN' AND r.is_active = true
-             WHERE tm.tenant_id = $1 AND tm.status = 'ACTIVE' AND tm.id <> $2 LIMIT 1`,
-            [authority.tenantId, membership.id]);
+            `SELECT 1 FROM public.resolve_tenant_membership_roles()
+              WHERE role_code = 'ADMIN' AND membership_id <> $1 LIMIT 1`,
+            [membership.id]);
           if (otherAdmin.rowCount === 0) throw new Error('LAST_ACTIVE_TENANT_ADMIN_REQUIRED');
         }
         await client.query(
           `UPDATE tenant_membership_roles SET revoked_at = CURRENT_TIMESTAMP, revoked_by_user_id = $2,
              revocation_reason = 'Removed through tenant staff administration', updated_at = CURRENT_TIMESTAMP
-           WHERE id = $1 AND revoked_at IS NULL`, [current.rows[0].id, actorUserId]);
+           WHERE id = $1 AND revoked_at IS NULL`, [current.rows[0].assignment_id, actorUserId]);
         outcome = 'REVOKED';
       } else {
         await client.query(
