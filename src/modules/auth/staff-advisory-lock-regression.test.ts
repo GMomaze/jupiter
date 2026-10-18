@@ -44,6 +44,7 @@ describe('tenant advisory-lock type regression (invitation/role-toggle deadlock)
   it('invite uses the shared tenant work lock, not the exclusive lifecycle lock', async () => {
     const { queries, pool, client } = capturingClient((sql) => {
       if (sql.includes('FOR SHARE') && sql.includes('tenant_memberships')) return { rowCount: 1, rows: [{ id: 'm1' }] };
+      if (sql.includes('resolve_tenant_membership_roles') && sql.includes('role_code')) return { rowCount: 1, rows: [{ role_code: 'ADMIN' }] };
       if (sql.includes('display_name')) return { rows: [{ display_name: 'Test Co' }] };
       return { rows: [] };
     });
@@ -54,6 +55,25 @@ describe('tenant advisory-lock type regression (invitation/role-toggle deadlock)
     });
     expect(queries.some((q) => q.includes('pg_advisory_xact_lock_shared'))).toBe(true);
     expect(queries.some((q) => q.includes('pg_advisory_xact_lock('))).toBe(false);
+    // The actor's ADMIN role is resolved through the SECURITY DEFINER resolver, never by
+    // a direct read of tenant_membership_roles (which jupiter_app is denied SELECT on).
+    expect(queries.some((q) => q.includes('resolve_tenant_membership_roles'))).toBe(true);
+    expect(queries.join('\n')).not.toMatch(/FROM\s+tenant_membership_roles|JOIN\s+tenant_membership_roles/);
+    expect(client.release).toHaveBeenCalled();
+  });
+
+  it('setMembershipStatus resolves last-admin checks through the resolver, not direct reads', async () => {
+    const { queries, pool, client } = capturingClient((sql) => {
+      if (sql.includes('FOR SHARE') && sql.includes('tenant_memberships')) return { rowCount: 1, rows: [{ id: 'm1' }] };
+      if (sql.includes('FOR UPDATE') && sql.includes('tenant_memberships')) return { rowCount: 1, rows: [{ id: 'm9', status: 'ACTIVE', joined_at: null }] };
+      if (sql.includes('resolve_tenant_membership_roles') && sql.includes('membership_id = $1')) return { rowCount: 1, rows: [{ role_code: 'ADMIN' }] };
+      if (sql.includes('resolve_tenant_membership_roles') && sql.includes('membership_id <> $1')) return { rowCount: 1, rows: [{ role_code: 'ADMIN' }] };
+      return { rows: [] };
+    });
+    const repository = new StaffMembershipAdministrationRepository(pool as never);
+    await repository.setMembershipStatus(authority(), 'u9', 'DISABLED', 'u1', 'reason', 'corr');
+    expect(queries.join('\n')).toContain('resolve_tenant_membership_roles');
+    expect(queries.join('\n')).not.toMatch(/FROM\s+tenant_membership_roles|JOIN\s+tenant_membership_roles/);
     expect(client.release).toHaveBeenCalled();
   });
 });

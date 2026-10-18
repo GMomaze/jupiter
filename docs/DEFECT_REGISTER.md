@@ -70,6 +70,15 @@ owned by `postgres`, with `EXECUTE` granted to the runtime roles.
 - Updated `toggleRole` to resolve the current assignment and the "other active ADMIN"
   check via the resolver, eliminating all direct `SELECT`/`JOIN` on
   `tenant_membership_roles`.
+- **Recurrence repaired** (staff invitation / membership-status administration):
+  `staff-membership-administration.ts` (`StaffMembershipAdministrationRepository`)
+  performed the same direct reads in `actor()` (invoked by `invite` and
+  `setMembershipStatus`) and in the `setMembershipStatus` "target admin"/"other admin"
+  last-admin checks. All three reads now go through `resolve_tenant_membership_roles()`.
+  The actor's membership `FOR SHARE` lock is preserved and serialises against the
+  `FOR UPDATE` locks in `toggleRole` (`lockTargetMembership`) and `setMembershipStatus`
+  (target row), so no stale administrator authority can be exercised during a
+  concurrent revocation or disablement.
 
 No broad privileges, `BYPASSRLS`, superuser rights or schema access were granted.
 FORCE RLS and tenant isolation are preserved (the resolver is keyed by the validated
@@ -80,20 +89,29 @@ tenant authority and returns no cross-tenant rows).
 - `src/modules/auth/staff-tenant.repository.test.ts` — asserts `listStaff` and
   `toggleRole` read role assignments only through `resolve_tenant_membership_roles`
   and never via direct `FROM/JOIN tenant_membership_roles`.
+- `src/modules/auth/staff-advisory-lock-regression.test.ts` — asserts `invite` and
+  `setMembershipStatus` resolve ADMIN roles only through `resolve_tenant_membership_roles`
+  (never direct `FROM/JOIN tenant_membership_roles`) and use the shared work lock.
 - Existing `src/modules/auth/staff-tenant-two-tenant.database.test.ts` and
   `staff-last-admin-protection.database.test.ts` (guarded) continue to prove
   authorised access and tenant isolation.
 
 ### Verification results
 
-- Focused unit tests: `staff-tenant.repository.test.ts` 4/4 pass.
+- Focused unit tests: `staff-tenant.repository.test.ts` 4/4 pass;
+  `staff-advisory-lock-regression.test.ts` 3/3 pass (38/38 across the staff auth suite).
 - `tsc --noEmit` and `npm run build` pass.
+- Concurrency review: the preserved membership `FOR SHARE` lock conflicts with the
+  `FOR UPDATE` locks used by role revocation and membership disablement, so the actor's
+  resolver read is serialised against concurrent revocation/disablement — no stale
+  administrator-authority race identified.
 - Guarded database verification against a narrowed-privilege runtime role is pending
   (not run in this environment; the Windows `jupiter_db` still grants `SELECT`).
 
-### Associated commit
+### Associated commits
 
-Not yet committed (repair pending Project Owner review per task 58).
+- `9b3b186` — `fix: resolve staff role assignments under restricted database privileges` (`staff-tenant.repository.ts`).
+- `fix: use authorised resolver for staff administration` (`staff-membership-administration.ts`; this change).
 
 ---
 

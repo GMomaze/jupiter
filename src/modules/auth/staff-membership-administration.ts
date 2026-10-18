@@ -77,8 +77,18 @@ export class StaffMembershipAdministrationRepository {
   }
   private async actor(client: PoolClient, authority: TenantQueryAuthority, actorUserId: string) {
     assertTenantQueryAuthority(authority);
-    const row = await client.query(`SELECT tm.id FROM tenant_memberships tm JOIN tenant_membership_roles tmr ON tmr.membership_id=tm.id AND tmr.revoked_at IS NULL JOIN rf_role r ON r.id=tmr.role_id AND r.code='ADMIN' AND r.is_active=true WHERE tm.tenant_id=$1 AND tm.user_id=$2 AND tm.status='ACTIVE' FOR SHARE`, [authority.tenantId, actorUserId]);
-    if (row.rowCount !== 1) throw unavailable();
+    // Lock the actor's membership (FOR SHARE) and verify it is ACTIVE, then verify the
+    // ADMIN role through the SECURITY DEFINER resolver — jupiter_app is denied SELECT on
+    // tenant_membership_roles (migration 602), so the role assignment must not be read
+    // directly. The resolver returns only the transaction-local tenant's assignments.
+    const membership = await client.query(
+      `SELECT id FROM tenant_memberships WHERE tenant_id = $1 AND user_id = $2 AND status = 'ACTIVE' FOR SHARE`,
+      [authority.tenantId, actorUserId]);
+    if (membership.rowCount !== 1) throw unavailable();
+    const admin = await client.query(
+      `SELECT 1 FROM public.resolve_tenant_membership_roles() WHERE membership_id = $1 AND role_code = 'ADMIN' LIMIT 1`,
+      [membership.rows[0].id]);
+    if (admin.rowCount !== 1) throw unavailable();
   }
   private async audit(client: PoolClient, data: { tenantId: string; membershipId: string; actorUserId: string; actorKind: 'TENANT_ADMIN'|'PLATFORM_HUMAN'|'INVITEE'; action: string; reason: string; correlationId: string; before: unknown; after: unknown }) {
     await client.query(`INSERT INTO tenant_membership_authority_audit(id,tenant_id,membership_id,actor_user_id,actor_kind,action,reason,correlation_id,old_values,new_values) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb,$10::jsonb)`, [randomUUID(),data.tenantId,data.membershipId,data.actorUserId,data.actorKind,data.action,data.reason,data.correlationId,JSON.stringify(data.before),JSON.stringify(data.after)]);
@@ -167,17 +177,14 @@ export class StaffMembershipAdministrationRepository {
       const row=target.rows[0]; if (!row || (status==='DISABLED' ? row.status!=='ACTIVE' : row.status!=='DISABLED')) throw unavailable();
       if(status==='DISABLED'){
         const targetAdmin = await client.query(
-          `SELECT 1 FROM tenant_membership_roles tmr
-             JOIN rf_role r ON r.id = tmr.role_id AND r.code = 'ADMIN' AND r.is_active = true
-           WHERE tmr.membership_id = $1 AND tmr.revoked_at IS NULL LIMIT 1`,
+          `SELECT 1 FROM public.resolve_tenant_membership_roles()
+             WHERE membership_id = $1 AND role_code = 'ADMIN' LIMIT 1`,
           [row.id]);
         if (targetAdmin.rowCount === 1) {
           const otherAdmin = await client.query(
-            `SELECT 1 FROM tenant_memberships tm
-               JOIN tenant_membership_roles tmr ON tmr.membership_id = tm.id AND tmr.revoked_at IS NULL
-               JOIN rf_role r ON r.id = tmr.role_id AND r.code = 'ADMIN' AND r.is_active = true
-             WHERE tm.tenant_id = $1 AND tm.status = 'ACTIVE' AND tm.id <> $2 LIMIT 1`,
-            [authority.tenantId, row.id]);
+            `SELECT 1 FROM public.resolve_tenant_membership_roles()
+              WHERE role_code = 'ADMIN' AND membership_id <> $1 LIMIT 1`,
+            [row.id]);
           if (otherAdmin.rowCount === 0) throw new Error('LAST_ACTIVE_TENANT_ADMIN_REQUIRED');
         }
         await client.query(`UPDATE tenant_memberships SET status='DISABLED',disabled_at=CURRENT_TIMESTAMP,disabled_by_user_id=$2,status_reason=$3,updated_at=CURRENT_TIMESTAMP,updated_by_user_id=$2 WHERE id=$1`,[row.id,actorUserId,reason]);
