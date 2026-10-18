@@ -65,7 +65,12 @@ export class StaffMembershipAdministrationRepository {
     finally { client.release(); }
   }
   private async lock(client: PoolClient, tenantId: string) {
-    await client.query(`SELECT pg_advisory_xact_lock(hashtextextended($1::text, ${TENANT_LIFECYCLE_LOCK_NAMESPACE}::bigint))`, [tenantId]);
+    // Shared (work) lock, NOT the exclusive lifecycle lock: normal tenant
+    // membership/invitation mutations must remain compatible with the request's
+    // own session-level shared access lease, otherwise the exclusive transaction
+    // lock would wait on its own request's shared lease (circular wait / deadlock).
+    // Suspension still blocks these mutations via the exclusive lifecycle lock.
+    await client.query(`SELECT pg_advisory_xact_lock_shared(hashtextextended($1::text, ${TENANT_LIFECYCLE_LOCK_NAMESPACE}::bigint))`, [tenantId]);
   }
   private async tenantContext(client: PoolClient, tenantId: string) {
     await client.query(`SELECT set_config('jupiter.tenant_id', $1, true)`, [tenantId]);

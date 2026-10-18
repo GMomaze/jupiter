@@ -97,4 +97,60 @@ Not yet committed (repair pending Project Owner review per task 58).
 
 ---
 
+## JUPITER-DEFECT-002 — Staff invitation / role-toggle advisory-lock deadlock
+
+| Field | Value |
+| --- | --- |
+| Defect ID | `JUPITER-DEFECT-002` |
+| Discovery date | 2026-10-17 |
+| Affected release | `0c6cbf9f2fb785baa27a5b1cd523ff042f6d302b` |
+| Status | `FIXED` — AWAITING DEPLOYMENT VERIFICATION |
+| Severity | High |
+| Component | `staff-membership-administration.ts` (`lock`), `staff-tenant.repository.ts` (`toggleRole`) |
+
+### Symptoms
+
+"Send Invitation" (and role toggle) hung indefinitely. PostgreSQL: PID 17286 held a
+session-level **shared** advisory lock; PID 17288 waited on an **exclusive**
+transaction-level advisory lock on the **same** identifier; `pg_blocking_pids(17288)
+= {17286}`; blocked > 12 minutes.
+
+### Confirmed root cause
+
+The tenant access lease (`TenantSuspensionAccessCoordinator.acquire`) takes
+`pg_advisory_lock_shared` (session-level SHARED) on
+`hashtextextended(tenantId, TENANT_LIFECYCLE_LOCK_NAMESPACE)` and holds it until the
+HTTP response ends. The invitation/role-toggle path then took
+`pg_advisory_xact_lock` (transaction-level **EXCLUSIVE**) on the **same** key. The
+exclusive request conflicts with the request's own shared lease, producing a
+circular wait (the request waits for its own lease to release).
+
+### Corrective action
+
+Changed both tenant-admin mutations to the **shared work lock**
+(`pg_advisory_xact_lock_shared`), which is compatible with the session-level shared
+lease. Suspension coordination is preserved: the shared work lock still conflicts
+with the exclusive lifecycle lock (`pg_advisory_xact_lock`) used by suspension, so
+mutations remain blocked during a suspension. Same-row serialisation is retained by
+existing `FOR UPDATE` row locks and the DB-level last-admin trigger.
+
+### Permanent regression tests
+
+- `src/modules/auth/staff-advisory-lock-regression.test.ts` — executable mock-client
+  tests asserting `invite` and `toggleRole` use `pg_advisory_xact_lock_shared` and
+  never `pg_advisory_xact_lock(`.
+
+### Verification results
+
+- Focused unit tests pass; `tsc --noEmit` and `npm run build` pass.
+- Guarded real-PostgreSQL concurrency verification (invitation vs suspension, lock
+  release on abort/disconnect) is pending (no disposable database in this
+  environment).
+
+### Associated commit
+
+Not yet committed (repair pending Project Owner review per task 63).
+
+---
+
 <!-- Append future defects above, each as a `## JUPITER-DEFECT-NNN` section. -->

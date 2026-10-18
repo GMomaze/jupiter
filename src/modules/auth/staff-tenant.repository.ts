@@ -54,7 +54,13 @@ export class PostgresStaffTenantRepository implements StaffTenantRepository {
       // tenant_memberships and tenant_membership_roles are FORCE RLS; establish the
       // tenant context so RLS admits this tenant's rows for the lock, reads and writes below.
       await client.query(`SELECT set_config('jupiter.tenant_id', $1, true)`, [authority.tenantId]);
-      await client.query(`SELECT pg_advisory_xact_lock(hashtextextended($1::text, ${TENANT_LIFECYCLE_LOCK_NAMESPACE}::bigint))`, [authority.tenantId]);
+      // Shared (work) lock, NOT the exclusive lifecycle lock: the role toggle must
+      // remain compatible with the request's own session-level shared access lease,
+      // otherwise the exclusive transaction lock waits on its own request's shared
+      // lease (circular wait / deadlock). Suspension still blocks via the exclusive
+      // lifecycle lock; same-membership races remain serialised by the FOR UPDATE row
+      // lock and the DB-level last-admin trigger.
+      await client.query(`SELECT pg_advisory_xact_lock_shared(hashtextextended($1::text, ${TENANT_LIFECYCLE_LOCK_NAMESPACE}::bigint))`, [authority.tenantId]);
       const membership = await this.lockTargetMembership(client, authority.tenantId, targetUserId);
       const role = await client.query(`SELECT id,code FROM rf_role WHERE id = $1 AND is_active = true FOR SHARE`, [roleId]);
       if (role.rowCount !== 1) throw new Error(STAFF_TENANT_TARGET_UNAVAILABLE);
