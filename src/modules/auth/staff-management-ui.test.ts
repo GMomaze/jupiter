@@ -109,3 +109,22 @@ describe('staff role checkbox state correction', () => {
     expect(routes).toContain('res.status(409).send()');
   });
 });
+
+describe('staff membership status visibility', () => {
+  it('keys disable/reinstate to tenant membership status, not global account status', () => {
+    expect(staffList).toContain("staff.membership_status === 'DISABLED'");
+    expect(staffList).toContain("staff.membership_status === 'ACTIVE'");
+    expect(staffList).not.toMatch(/if \(staff\.is_active\)/);
+  });
+
+  it('labels and greys out DISABLED memberships', () => {
+    expect(staffList).toContain('>Disabled</span>');
+    expect(staffList).toContain('opacity-60');
+    expect(staffList).toContain('>Account inactive</span>');
+  });
+
+  it('disables role checkboxes for non-ACTIVE memberships (safe by default)', () => {
+    expect(staffList).toContain("<%= active ? '' : 'disabled' %>");
+    expect(staffList).toContain('if (checkbox.disabled) return;');
+  });
+});

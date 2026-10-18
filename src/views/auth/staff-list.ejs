@@ -63,8 +63,17 @@
     </thead>
     <tbody>
       <% users.forEach(function (staff) { %>
-        <tr class="border-b hover:bg-gray-50">
-          <td class="p-3 font-semibold"><%= staff.full_name %></td>
+        <% var active = staff.membership_status === 'ACTIVE'; %>
+        <% var disabled = staff.membership_status === 'DISABLED'; %>
+        <tr class="border-b <%= disabled ? 'bg-gray-50 opacity-60' : 'hover:bg-gray-50' %>">
+          <td class="p-3 font-semibold">
+            <%= staff.full_name %>
+            <% if (disabled) { %>
+              <span class="ml-2 rounded bg-gray-300 px-2 py-0.5 text-xs font-normal text-gray-700">Disabled</span>
+            <% } else if (active && !staff.is_active) { %>
+              <span class="ml-2 rounded bg-amber-100 px-2 py-0.5 text-xs font-normal text-amber-700">Account inactive</span>
+            <% } %>
+          </td>
           <td class="p-3 text-gray-600"><%= staff.email %></td>
           <% allRoles.forEach(function (role) { %>
             <td class="p-3 text-center">
@@ -74,11 +83,12 @@
                      value="<%= role.id %>"
                      data-user-id="<%= staff.id %>"
                      data-role-id="<%= role.id %>"
+                     <%= active ? '' : 'disabled' %>
                      <%= staff.roles && staff.roles.includes(role.code) ? 'checked' : '' %>>
             </td>
           <% }) %>
           <td class="p-3 text-center">
-            <% if (staff.is_active) { %>
+            <% if (active) { %>
               <form method="POST" action="/auth/staff/<%= staff.id %>/disable" class="inline"
                     onsubmit="return confirm('Disable access for <%= staff.full_name %>?');">
                 <input type="hidden" name="_csrf" value="<%= csrfToken %>">
@@ -88,7 +98,7 @@
                   Disable
                 </button>
               </form>
-            <% } else { %>
+            <% } else if (disabled) { %>
               <form method="POST" action="/auth/staff/<%= staff.id %>/reinstate" class="inline">
                 <input type="hidden" name="_csrf" value="<%= csrfToken %>">
                 <input type="hidden" name="reason" value="Reinstated by company administrator">
@@ -125,6 +135,7 @@
   }
 
   function wireToggle(checkbox) {
+    if (checkbox.disabled) return; // DISABLED memberships cannot have roles modified
     checkbox.addEventListener('change', async function () {
       var requested = checkbox.checked;
       var previous = !requested;

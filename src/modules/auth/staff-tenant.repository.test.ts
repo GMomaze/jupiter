@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { PostgresStaffTenantRepository } from './staff-tenant.repository.js';
+import { PostgresStaffTenantRepository, STAFF_TENANT_TARGET_UNAVAILABLE } from './staff-tenant.repository.js';
 import { createTenantQueryAuthority } from '../tenancy/tenant-query-authority.js';
 
 function authority() {
@@ -93,5 +93,59 @@ describe('PostgresStaffTenantRepository role-assignment reads (SQLSTATE 42501 re
     expect(allSql).toContain('resolve_tenant_membership_roles');
     expect(allSql).not.toMatch(/FROM\s+tenant_membership_roles/);
     expect(allSql).not.toMatch(/JOIN\s+tenant_membership_roles/);
+  });
+});
+
+describe('PostgresStaffTenantRepository membership-status visibility', () => {
+  it('lists ACTIVE and DISABLED memberships for the current tenant, not only ACTIVE', async () => {
+    const queries: string[] = [];
+    const client = {
+      query: vi.fn(async (sql: string) => { queries.push(String(sql)); return { rows: [] }; }),
+      release: vi.fn(),
+    };
+    const pool = { connect: vi.fn().mockResolvedValue(client) };
+    const repository = new PostgresStaffTenantRepository(pool as never);
+
+    await repository.listStaff(authority());
+
+    const listSql = queries.find((q) => q.includes('tenant_memberships') && q.includes('users'));
+    expect(listSql).toBeDefined();
+    expect(listSql).toContain("tm.status IN ('ACTIVE','DISABLED')");
+    expect(listSql).not.toContain("tm.status = 'ACTIVE'");
+  });
+
+  it('selects the tenant membership status from the membership row', async () => {
+    const queries: string[] = [];
+    const client = {
+      query: vi.fn(async (sql: string) => { queries.push(String(sql)); return { rows: [] }; }),
+      release: vi.fn(),
+    };
+    const pool = { connect: vi.fn().mockResolvedValue(client) };
+    const repository = new PostgresStaffTenantRepository(pool as never);
+
+    await repository.listStaff(authority());
+
+    const listSql = queries.find((q) => q.includes('tenant_memberships') && q.includes('users'));
+    expect(listSql).toBeDefined();
+    expect(listSql).toContain('membership_status');
+  });
+
+  it('rejects role changes on DISABLED memberships server-side (lock filters ACTIVE)', async () => {
+    const queries: string[] = [];
+    const client = {
+      query: vi.fn(async (sql: string) => {
+        queries.push(String(sql));
+        if (String(sql).includes('FOR UPDATE') && String(sql).includes('tenant_memberships')) return { rowCount: 0, rows: [] };
+        return { rowCount: 0, rows: [] };
+      }),
+      release: vi.fn(),
+    };
+    const pool = { connect: vi.fn().mockResolvedValue(client) };
+    const repository = new PostgresStaffTenantRepository(pool as never);
+
+    await expect(repository.toggleRole(authority(), 'u2', 'r1', 'u1')).rejects.toThrow(STAFF_TENANT_TARGET_UNAVAILABLE);
+
+    const lockSql = queries.find((q) => q.includes('FOR UPDATE') && q.includes('tenant_memberships'));
+    expect(lockSql).toContain("status = 'ACTIVE'");
   });
 });

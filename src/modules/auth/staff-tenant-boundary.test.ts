@@ -27,7 +27,7 @@ describe('tenant-local staff service and query boundary', () => {
     const source = readFileSync(resolve(process.cwd(), 'src/modules/auth/staff-tenant.repository.ts'), 'utf8');
     expect(source).toMatch(/FROM tenant_memberships tm/);
     expect(source).toMatch(/tm\.tenant_id = \$1/);
-    expect(source).toContain("tm.status = 'ACTIVE'");
+    expect(source).toContain("tm.status IN ('ACTIVE','DISABLED')");
     expect(source).toContain('INSERT INTO tenant_membership_roles');
     expect(source).toContain('revoked_by_user_id');
     expect(source).not.toMatch(/(?:INSERT INTO|DELETE FROM|UPDATE)\s+user_roles/i);

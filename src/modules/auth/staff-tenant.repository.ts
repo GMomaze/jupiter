@@ -4,7 +4,7 @@ import { randomUUID } from 'node:crypto';
 import { TENANT_LIFECYCLE_LOCK_NAMESPACE } from '../tenancy/tenant-lifecycle-coordination.js';
 
 export const STAFF_TENANT_TARGET_UNAVAILABLE = 'STAFF_TENANT_TARGET_UNAVAILABLE';
-export interface TenantStaffRow { readonly id: string; readonly email: string; readonly full_name: string; readonly is_active: boolean; readonly roles: readonly string[]; }
+export interface TenantStaffRow { readonly id: string; readonly email: string; readonly full_name: string; readonly is_active: boolean; readonly membership_status: 'ACTIVE' | 'DISABLED'; readonly roles: readonly string[]; }
 export interface SharedRoleRow { readonly id: string; readonly code: string; readonly label: string; }
 export interface StaffTenantRepository {
   listStaff(authority: TenantQueryAuthority): Promise<readonly TenantStaffRow[]>;
@@ -26,11 +26,12 @@ export class PostgresStaffTenantRepository implements StaffTenantRepository {
       await client.query(`SELECT set_config('jupiter.tenant_id', $1, true)`, [authority.tenantId]);
       const result = await client.query(
         `SELECT u.id, u.email, u.full_name, u.is_active,
+                tm.status AS membership_status,
                 COALESCE(array_agg(sr.role_code ORDER BY sr.role_code), ARRAY[]::varchar[]) AS roles
            FROM tenant_memberships tm JOIN users u ON u.id = tm.user_id
            LEFT JOIN public.resolve_tenant_membership_roles() sr ON sr.membership_id = tm.id
-          WHERE tm.tenant_id = $1 AND tm.status = 'ACTIVE'
-          GROUP BY tm.id, u.id, u.email, u.full_name, u.is_active
+          WHERE tm.tenant_id = $1 AND tm.status IN ('ACTIVE','DISABLED')
+          GROUP BY tm.id, u.id, u.email, u.full_name, u.is_active, tm.status
           ORDER BY u.full_name ASC, u.id ASC`, [authority.tenantId]);
       if (ownsTransaction) await client.query('COMMIT');
       return result.rows;
