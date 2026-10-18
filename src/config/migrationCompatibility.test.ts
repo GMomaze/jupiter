@@ -101,6 +101,32 @@ describe('migration compatibility (temporary jupiter_test)', () => {
     ).toBe(true);
   });
 
+  it('revokes the migration-627 tenant membership roles resolver EXECUTE grant during cleanup', async () => {
+    const client = mockClient([
+      { sql: /pg_shdescription/, rows: [lockedRole()] },
+      { sql: /owns_database/, rows: [{ owns_database: false, owns_schema: false, owns_relation: false, owns_function: false, has_membership: false, history_privilege: false, resolver_execute: false, role_resolver_execute: false, tenant_roles_resolver_execute: false }] },
+      { sql: /still_exists/, rows: [{ still_exists: false }] },
+    ]) as MigrationCompatibilityQueryable & { calls: string[] };
+    await finalizeMigrationCompatibility(client, 'production');
+    expect(
+      client.calls.some((sql) => sql.includes('resolve_tenant_membership_roles') && sql.includes('REVOKE EXECUTE')),
+    ).toBe(true);
+    expect(
+      client.calls.some((sql) => sql.includes('resolve_tenant_membership_roles') && sql.includes('tenant_roles_resolver_execute')),
+    ).toBe(true);
+  });
+
+  it('fails closed when the migration-627 tenant membership roles resolver EXECUTE residue remains', async () => {
+    const client = mockClient([
+      { sql: /pg_shdescription/, rows: [lockedRole()] },
+      { sql: /owns_database/, rows: [{ owns_database: false, owns_schema: false, owns_relation: false, owns_function: false, has_membership: false, history_privilege: false, resolver_execute: false, role_resolver_execute: false, tenant_roles_resolver_execute: true }] },
+    ]) as MigrationCompatibilityQueryable & { calls: string[] };
+    await expect(finalizeMigrationCompatibility(client, 'production')).rejects.toThrow(
+      /residue detected/,
+    );
+    expect(client.calls.some((sql) => sql.includes('DROP ROLE'))).toBe(false);
+  });
+
   it('fails closed and refuses to drop when residue remains', async () => {
     const client = mockClient([
       { sql: /pg_shdescription/, rows: [lockedRole()] },
