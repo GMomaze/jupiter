@@ -79,7 +79,8 @@ import { createPlatformUserInvitationAcceptanceRouter } from './modules/platform
 import { SmtpPlatformUserInvitationDelivery } from './modules/email/smtp-platform-user-invitation-delivery.js';
 import { createHealthRouter } from './modules/observability/health.routes.js';
 import { assertProductionRuntimeSafety } from './config/productionRuntimeSafety.js';
-import { emitOperationalEvent } from './modules/observability/operational-event.js';
+import { correlationId } from './middleware/correlation-id.middleware.js';
+import { createApplicationErrorHandler } from './middleware/application-error-handler.middleware.js';
 
 console.log('IP_WHITELIST_ENABLED:', process.env.IP_WHITELIST_ENABLED);
 assertProductionRuntimeSafety();
@@ -162,6 +163,9 @@ app.set('trust proxy', isProduction ? Number(process.env.TRUST_PROXY) : 1);
 // ===============================
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
+
+// Correlation ID — establishes one request identity for the diagnostic pipeline.
+app.use(correlationId);
 
 const publicStatic = express.static(publicDir);
 app.use((req, res, next) => {
@@ -606,10 +610,6 @@ sequelize.query('SELECT current_user').then(([rows]) => {
   console.log('DB USER:', rows);
 });
 
-app.use((error: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
-  const csrfFailure = error instanceof Error && (error as Error & { code?: string }).code === 'EBADCSRFTOKEN';
-  emitOperationalEvent({code:csrfFailure?'CSRF_REFUSED':'APPLICATION_FAILURE',severity:csrfFailure?'WARN':'ERROR',outcome:csrfFailure?'DENIED':'FAILED',operation:csrfFailure?'CSRF':'HTTP_REQUEST',error});
-  return csrfFailure ? res.status(403).send('Request unavailable.') : res.status(500).send('Internal server error.');
-});
+app.use(createApplicationErrorHandler());
 
 export default app;
