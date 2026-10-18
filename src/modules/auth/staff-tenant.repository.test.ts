@@ -96,6 +96,34 @@ describe('PostgresStaffTenantRepository role-assignment reads (SQLSTATE 42501 re
   });
 });
 
+describe('PostgresStaffTenantRepository role revocation (column-level SELECT repair)', () => {
+  it('revokes roles via a direct UPDATE restricted to the approved columns, not a function', async () => {
+    const queries: string[] = [];
+    const client = {
+      query: vi.fn(async (sql: string) => {
+        queries.push(String(sql));
+        if (String(sql).includes('FOR UPDATE') && String(sql).includes('tenant_memberships')) return { rowCount: 1, rows: [{ id: 'm1' }] };
+        if (String(sql).includes('FROM rf_role')) return { rowCount: 1, rows: [{ id: 'r1', code: 'ENGINEER' }] };
+        if (String(sql).includes('resolve_tenant_membership_roles') && String(sql).includes('role_id')) return { rowCount: 1, rows: [{ assignment_id: 'a1' }] };
+        if (String(sql).includes('resolve_tenant_membership_roles')) return { rowCount: 0, rows: [] };
+        return { rowCount: 0, rows: [] };
+      }),
+      release: vi.fn(),
+    };
+    const pool = { connect: vi.fn().mockResolvedValue(client) };
+    const repository = new PostgresStaffTenantRepository(pool as never);
+
+    await repository.toggleRole(authority(), 'u2', 'r1', 'u1');
+
+    const allSql = queries.join('\n');
+    // Revocation is a direct UPDATE restricted to the approved columns (id, revoked_at)
+    // via migration 628's column-level SELECT grant — no privileged mutation function.
+    expect(allSql).toContain('UPDATE tenant_membership_roles');
+    expect(allSql).toContain('WHERE id = $1 AND revoked_at IS NULL');
+    expect(allSql).not.toContain('revoke_tenant_membership_role');
+  });
+});
+
 describe('PostgresStaffTenantRepository membership-status visibility', () => {
   it('lists ACTIVE and DISABLED memberships for the current tenant, not only ACTIVE', async () => {
     const queries: string[] = [];

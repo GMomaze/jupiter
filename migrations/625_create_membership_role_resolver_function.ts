@@ -3,8 +3,9 @@
 import { QueryInterface, QueryTypes } from 'sequelize';
 
 // SECURITY DEFINER resolver for the active-tenant RBAC hydration.
-// tenant_membership_roles is FORCE RLS and jupiter_app is denied SELECT on it
-// (migration 602 + privilege baseline), so the hydration middleware cannot read
+// tenant_membership_roles is FORCE RLS and jupiter_app is denied SELECT on it except a
+// narrow column-level (id, revoked_at) grant (migration 628), so the hydration middleware
+// cannot read
 // the authenticated user's roles directly. This function returns only the
 // authenticated user's roles and permissions for one exact membership, mirroring
 // migration 620's resolver pattern. It exposes no cross-tenant data.

@@ -36,6 +36,8 @@ const passing: DatabasePrivilegeVerification = {
   runtime_missing_table_privilege_count: 0,
   runtime_unsafe_table_privilege_count: 0,
   runtime_restricted_table_privilege_violation_count: 0,
+  runtime_unexpected_column_select_count: 0,
+  runtime_missing_approved_column_select_count: 0,
   runtime_missing_sequence_privilege_count: 0,
   runtime_unsafe_sequence_privilege_count: 0,
   runtime_missing_view_select_count: 0,
@@ -87,6 +89,19 @@ describe('database privilege baseline', () => {
     expect(() => assertDatabasePrivilegeVerification(passing)).not.toThrow();
   });
 
+  it('rejects unexpected and missing column-level SELECT on tenant_membership_roles', () => {
+    const sql = buildDatabasePrivilegeVerificationSql();
+    // Effective-privilege check (has_column_privilege) flags SELECT on any column other
+    // than id/revoked_at, including inheritance via role membership or PUBLIC and
+    // table-level SELECT.
+    expect(sql).toContain('runtime_unexpected_column_select_count');
+    expect(sql).toContain('has_column_privilege');
+    expect(sql).toContain("c.column_name NOT IN ('id', 'revoked_at')");
+    // Missing-grant check flags when the required id/revoked_at SELECT is absent.
+    expect(sql).toContain('runtime_missing_approved_column_select_count');
+    expect(sql).toContain("unnest(ARRAY['id', 'revoked_at'])");
+  });
+
   it.each([
     ['public_schema_create', true],
     ['governance_owner_schema_create', true],
@@ -101,6 +116,8 @@ describe('database privilege baseline', () => {
     ['runtime_missing_table_privilege_count', 1],
     ['runtime_unsafe_table_privilege_count', 1],
     ['runtime_restricted_table_privilege_violation_count', 1],
+    ['runtime_unexpected_column_select_count', 1],
+    ['runtime_missing_approved_column_select_count', 1],
     ['runtime_missing_sequence_privilege_count', 1],
     ['runtime_unsafe_sequence_privilege_count', 1],
     ['runtime_missing_view_select_count', 1],

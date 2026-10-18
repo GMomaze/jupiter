@@ -31,6 +31,17 @@ export const RESTRICTED_RUNTIME_TABLE_PRIVILEGES: ReadonlyArray<
   ['staff_password_recovery_audit', ['SELECT', 'INSERT']],
 ];
 
+/**
+ * Approved column-level SELECT exceptions on otherwise SELECT-restricted tables.
+ * Migration 628 grants `SELECT (id, revoked_at)` on tenant_membership_roles to
+ * jupiter_app so the revocation UPDATE can reference its WHERE columns without a
+ * table-level SELECT grant. The verifier treats any column-level SELECT outside these
+ * lists as a violation.
+ */
+export const APPROVED_COLUMN_SELECT_PRIVILEGES: ReadonlyArray<
+  readonly [table: string, columns: readonly string[]]
+> = [['tenant_membership_roles', ['id', 'revoked_at']]];
+
 const RESTRICTED_RUNTIME_TABLE_NAMES = RESTRICTED_RUNTIME_TABLE_PRIVILEGES.map(
   ([table]) => table,
 );
@@ -151,6 +162,8 @@ export interface DatabasePrivilegeVerification extends Record<string, unknown> {
   runtime_missing_table_privilege_count: number;
   runtime_unsafe_table_privilege_count: number;
   runtime_restricted_table_privilege_violation_count: number;
+  runtime_unexpected_column_select_count: number;
+  runtime_missing_approved_column_select_count: number;
   runtime_missing_sequence_privilege_count: number;
   runtime_unsafe_sequence_privilege_count: number;
   runtime_missing_view_select_count: number;
@@ -185,6 +198,33 @@ export function buildDatabasePrivilegeVerificationSql(
   const forbiddenValues = FORBIDDEN_RUNTIME_TABLE_PRIVILEGES.map(
     ([table, privilege]) => `('${table}', '${privilege}')`,
   ).join(', ');
+  const columnSelectExceptions = APPROVED_COLUMN_SELECT_PRIVILEGES.map(
+    ([table, columns]) => ({
+      table,
+      list: columns.map((column) => `'${column}'`).join(', '),
+    }),
+  );
+  // Effective-privilege checks (has_column_privilege) so that SELECT inherited via role
+  // membership or PUBLIC, or table-level SELECT, is also detected on the non-approved
+  // columns — not just direct grants.
+  const unexpectedColumnSelectSql = columnSelectExceptions
+    .map(
+      ({ table, list }) => `(SELECT count(*)::int
+    FROM information_schema.columns c
+    CROSS JOIN unnest(ARRAY[${roleArray}]) AS runtime(role_name)
+    WHERE c.table_schema = 'public' AND c.table_name = '${table}'
+      AND c.column_name NOT IN (${list})
+      AND has_column_privilege(runtime.role_name, 'public.${table}'::regclass, c.column_name, 'SELECT'))`,
+    )
+    .join(' + ');
+  const missingColumnSelectSql = columnSelectExceptions
+    .map(
+      ({ table, list }) => `(SELECT count(*)::int
+    FROM unnest(ARRAY[${list}]) AS approved(column_name)
+    CROSS JOIN unnest(ARRAY[${roleArray}]) AS runtime(role_name)
+    WHERE NOT has_column_privilege(runtime.role_name, 'public.${table}'::regclass, approved.column_name, 'SELECT'))`,
+    )
+    .join(' + ');
 
   return `SELECT
   has_schema_privilege('public', 'public', 'CREATE') AS public_schema_create,
@@ -238,6 +278,10 @@ ${roleSchemaChecks}
       restricted.privilege_type
     ))
     AS runtime_restricted_table_privilege_violation_count,
+  ${unexpectedColumnSelectSql}
+    AS runtime_unexpected_column_select_count,
+  ${missingColumnSelectSql}
+    AS runtime_missing_approved_column_select_count,
   (SELECT count(*)::int
     FROM pg_class c
     JOIN pg_namespace n ON n.oid = c.relnamespace
@@ -304,6 +348,8 @@ export function assertDatabasePrivilegeVerification(
     result.runtime_missing_table_privilege_count === 0 &&
     result.runtime_unsafe_table_privilege_count === 0 &&
     result.runtime_restricted_table_privilege_violation_count === 0 &&
+    result.runtime_unexpected_column_select_count === 0 &&
+    result.runtime_missing_approved_column_select_count === 0 &&
     result.runtime_missing_sequence_privilege_count === 0 &&
     result.runtime_unsafe_sequence_privilege_count === 0 &&
     result.runtime_missing_view_select_count === 0 &&

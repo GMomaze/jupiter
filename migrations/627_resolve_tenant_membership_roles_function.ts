@@ -3,8 +3,9 @@
 import { QueryInterface, QueryTypes } from 'sequelize';
 
 // SECURITY DEFINER resolver for tenant staff listing and role toggling.
-// tenant_membership_roles is FORCE RLS and jupiter_app is denied SELECT on it
-// (migration 602 grants only INSERT/UPDATE). The staff repository must not read
+// tenant_membership_roles is FORCE RLS and jupiter_app is denied SELECT on it except a
+// narrow column-level (id, revoked_at) grant (migration 628). The staff repository must
+// not read
 // role assignments directly (SQLSTATE 42501); it reads them through this narrow
 // resolver. The resolver takes NO caller-supplied tenant id: it derives the tenant
 // from the transaction-local `jupiter.tenant_id` setting established by the
