@@ -61,7 +61,11 @@ owned by `postgres`, with `EXECUTE` granted to the runtime roles.
   `current_setting('jupiter.tenant_id', true)` (set from the validated
   `TenantQueryAuthority` via `set_config`), so it accepts no caller-supplied tenant
   UUID and cannot be used to request another tenant's assignments. `EXECUTE` is
-  granted to `jupiter_app`/`jupiter_test` only.
+  granted to `jupiter_app` (and `jupiter_test` only when that role exists).
+- Migration 627 portability repair: `jupiter_test` is optional — the migration no
+  longer fails with `MIGRATION_627_ROLES_MISSING` on operational/commissioning
+  installations lacking the test role. `postgres` (owner) and `jupiter_app` remain
+  mandatory and fail closed when absent; no test role is created.
 - Updated `listStaff` to aggregate `role_code` via a `LEFT JOIN` on the resolver.
 - Updated `toggleRole` to resolve the current assignment and the "other active ADMIN"
   check via the resolver, eliminating all direct `SELECT`/`JOIN` on

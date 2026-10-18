@@ -15,7 +15,6 @@ import { QueryInterface, QueryTypes } from 'sequelize';
 const FUNCTION_NAME = 'resolve_tenant_membership_roles';
 const SIGNATURE = `public.${FUNCTION_NAME}()`;
 const OWNER = 'postgres';
-const RUNTIME_ROLES = ['jupiter_app', 'jupiter_test'] as const;
 
 export default {
   async up(queryInterface: QueryInterface) {
@@ -30,7 +29,9 @@ export default {
                 EXISTS(SELECT 1 FROM pg_roles WHERE rolname = 'jupiter_test') AS runtime_test`,
         { replacements: { owner: OWNER }, type: QueryTypes.SELECT, transaction },
       );
-      if (!roles?.owner || !roles.runtime_app || !roles.runtime_test) {
+      // postgres (owner) and jupiter_app are mandatory; jupiter_test is optional
+      // (operational/commissioning installations may not have a test-only role).
+      if (!roles?.owner || !roles.runtime_app) {
         throw new Error('MIGRATION_627_ROLES_MISSING');
       }
 
@@ -64,9 +65,13 @@ export default {
         `REVOKE ALL ON FUNCTION ${SIGNATURE} FROM PUBLIC`,
         { transaction },
       );
-      for (const role of RUNTIME_ROLES) {
+      await queryInterface.sequelize.query(
+        `GRANT EXECUTE ON FUNCTION ${SIGNATURE} TO jupiter_app`,
+        { transaction },
+      );
+      if (roles.runtime_test) {
         await queryInterface.sequelize.query(
-          `GRANT EXECUTE ON FUNCTION ${SIGNATURE} TO ${role}`,
+          `GRANT EXECUTE ON FUNCTION ${SIGNATURE} TO jupiter_test`,
           { transaction },
         );
       }
@@ -84,7 +89,10 @@ export default {
                   WHERE p.oid = to_regprocedure(:signature) AND r.rolname = :owner) AS owner_ok,
            (SELECT p.prosecdef FROM pg_proc p WHERE p.oid = to_regprocedure(:signature)) AS security_definer,
            has_function_privilege('jupiter_app', :signature, 'EXECUTE') AS runtime_app_execute,
-           has_function_privilege('jupiter_test', :signature, 'EXECUTE') AS runtime_test_execute`,
+           CASE WHEN EXISTS(SELECT 1 FROM pg_roles WHERE rolname = 'jupiter_test')
+                THEN has_function_privilege('jupiter_test', :signature, 'EXECUTE')
+                ELSE true
+           END AS runtime_test_execute`,
         {
           replacements: { signature: SIGNATURE, owner: OWNER },
           type: QueryTypes.SELECT,
@@ -97,7 +105,7 @@ export default {
         !verified.owner_ok ||
         !verified.security_definer ||
         !verified.runtime_app_execute ||
-        !verified.runtime_test_execute
+        (roles.runtime_test && !verified.runtime_test_execute)
       ) {
         throw new Error('MIGRATION_627_VERIFICATION_FAILED');
       }

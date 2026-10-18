@@ -41,4 +41,17 @@ describe('migration 627 — tenant-scoped staff role resolver', () => {
     expect(migration).toContain("tm.status = 'ACTIVE'");
     expect(migration).not.toMatch(/EXECUTE\s*\(|format\(|sp_executesql/i);
   });
+
+  it('makes jupiter_test optional without creating roles or weakening privileges', () => {
+    // postgres (owner) and jupiter_app are mandatory; jupiter_test is optional.
+    expect(migration).toContain('!roles?.owner || !roles.runtime_app');
+    expect(migration).not.toMatch(/!roles\?\.runtime_test/);
+    // jupiter_test EXECUTE is granted conditionally, only when the role exists.
+    expect(migration).toContain('if (roles.runtime_test)');
+    // No test-only role is created by the migration.
+    expect(migration).not.toMatch(/CREATE\s+ROLE/i);
+    // PUBLIC EXECUTE remains revoked and only the runtime roles are granted.
+    expect(migration).toContain('REVOKE ALL ON FUNCTION');
+    expect(migration).toContain('GRANT EXECUTE ON FUNCTION');
+  });
 });
