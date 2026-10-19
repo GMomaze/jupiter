@@ -2,6 +2,11 @@ import { randomUUID } from "node:crypto";
 import type { Pool, PoolClient } from "pg";
 import { verifyRepositoryMigrationLedger } from "../../scripts/migrationLedgerComparison.js";
 import {
+  SYSTEM_OWNER_USER_ID,
+  SYSTEM_OWNER_EMAIL,
+  buildSystemOwnerReconciliationToken,
+} from "../../config/systemOwnerCanonical.js";
+import {
   type PlatformAuthority,
   PLATFORM_AUDIT_VIEW,
   PLATFORM_AUTHORITY_MANAGE,
@@ -33,14 +38,7 @@ const BOOTSTRAP_CAPABILITIES = Object.freeze([
   "TENANT_REINSTATE",
   "TENANT_SUSPEND",
 ] as const);
-const SYSTEM_OWNER_CAPABILITIES = Object.freeze([
-  PLATFORM_AUTHORITY_MANAGE,
-  PLATFORM_AUDIT_VIEW,
-  "TENANT_PROVISION",
-  "TENANT_ACTIVATE",
-  "TENANT_SUSPEND",
-  "TENANT_REINSTATE",
-] as const);
+const SYSTEM_OWNER_CAPABILITIES = BOOTSTRAP_CAPABILITIES;
 const repositoryIssuedAuthorities = new WeakSet<object>();
 export type TerminalBootstrapCleanupInput = Readonly<{
   fixtureRootId: string; expectedDatabase: "jupiter_test"; confirmationToken: string;
@@ -800,6 +798,82 @@ export class PlatformAuthorityRepository {
         { userId: input.userId },
       );
       return principalId;
+    });
+  }
+  async reconcileSystemOwnerCapabilities(
+    authority: PlatformAuthority,
+    input: { expectedDatabase: string; confirmationToken: string; reason: string },
+  ): Promise<{ granted: readonly string[]; alreadyGranted: number }> {
+    return this.transaction(async (q) => {
+      await q.query(
+        `SELECT pg_advisory_xact_lock(hashtext('JUPITER_PLATFORM_AUTHORITY_MANAGE'))`,
+      );
+      assertRepositoryIssuedPlatformAuthority(authority);
+      if (authority.principalType !== "HUMAN")
+        throw new Error("HUMAN_SYSTEM_OWNER_REQUIRED");
+      await this.revalidate(q, authority, PLATFORM_AUTHORITY_MANAGE);
+      const db = await q.query("SELECT current_database() name");
+      if (db.rows[0]?.name !== input.expectedDatabase)
+        throw new Error("RECONCILIATION_DATABASE_MISMATCH");
+      const expected = buildSystemOwnerReconciliationToken(
+        input.expectedDatabase,
+      );
+      if (input.confirmationToken !== expected)
+        throw new Error("RECONCILIATION_CONFIRMATION_MISMATCH");
+      const canonical = await q.query(
+        `SELECT u.id,u.email,u.is_active,u.retired_at
+         FROM platform_principals pp JOIN users u ON u.id=pp.user_id
+         WHERE pp.id=$1 AND pp.principal_type='HUMAN' AND pp.status='ACTIVE'`,
+        [authority.principalId],
+      );
+      if (canonical.rowCount !== 1)
+        throw new Error("RECONCILIATION_CANONICAL_OWNER_REQUIRED");
+      const row = canonical.rows[0];
+      if (
+        row.id !== SYSTEM_OWNER_USER_ID ||
+        row.email.toLowerCase() !== SYSTEM_OWNER_EMAIL.toLowerCase() ||
+        row.is_active !== true ||
+        row.retired_at !== null
+      )
+        throw new Error("RECONCILIATION_CANONICAL_OWNER_MISMATCH");
+      const current = await q.query(
+        `SELECT pc.code FROM platform_capability_grants pg JOIN platform_capabilities pc ON pc.id=pg.capability_id AND pc.is_active=true WHERE pg.principal_id=$1 AND pg.revoked_at IS NULL`,
+        [authority.principalId],
+      );
+      const held = new Set(current.rows.map((r: any) => r.code as string));
+      const missing = [...SYSTEM_OWNER_CAPABILITIES].filter(
+        (code) => !held.has(code),
+      );
+      const alreadyGranted = SYSTEM_OWNER_CAPABILITIES.length - missing.length;
+      if (missing.length === 0) return { granted: [], alreadyGranted };
+      const caps = await q.query(
+        `SELECT id,code FROM platform_capabilities WHERE code=ANY($1::text[]) AND is_active=true`,
+        [missing],
+      );
+      if (caps.rowCount !== missing.length)
+        throw new Error("RECONCILIATION_CAPABILITY_MISSING");
+      for (const cap of caps.rows) {
+        const id = randomUUID();
+        await q.query(
+          `INSERT INTO platform_capability_grants(id,principal_id,capability_id,granted_by_principal_id,grant_reason) VALUES($1,$2,$3,$2,$4)`,
+          [id, authority.principalId, cap.id, input.reason],
+        );
+        await this.audit(
+          q,
+          authority,
+          "CAPABILITY_GRANTED",
+          "platform_capability_grant",
+          id,
+          input.reason,
+          null,
+          {
+            targetPrincipalId: authority.principalId,
+            capabilityCode: cap.code,
+            source: "SYSTEM_OWNER_RECONCILIATION",
+          },
+        );
+      }
+      return { granted: missing, alreadyGranted };
     });
   }
 }

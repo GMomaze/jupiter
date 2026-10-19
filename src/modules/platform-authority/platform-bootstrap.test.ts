@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { enumerateMigrationFiles } from '../../scripts/migrationLedgerComparison.js';
+import { SYSTEM_OWNER_CAPABILITY_CODES } from '../../config/systemOwnerCanonical.js';
 import { PlatformAuthorityRepository } from './platform-authority.repository.js';
 
 const input = {
@@ -23,7 +24,7 @@ function fake(options: { db?: string; ledger?: string[]; schema?: boolean; capab
     if (sql.includes("action='SYSTEM_OWNER_BOOTSTRAP_TERMINATED'")) return { rows: options.terminated ? [{id:'terminal'}] : [], rowCount: options.terminated ? 1 : 0 };
     if (sql.includes('pc.code=$1') && sql.includes('pg.revoked_at IS NULL')) return { rows: options.owner ? [{}] : [], rowCount: options.owner ? 1 : 0 };
     if (sql.includes('FROM users WHERE')) return { rows: [{ id: input.userId, email: input.expectedEmail, full_name: 'Owner', is_active: options.active ?? true }], rowCount: 1 };
-    if (sql.includes('FROM platform_capabilities WHERE code=ANY')) return { rows: [{ id: 'c1', code: 'PLATFORM_AUTHORITY_MANAGE' }, { id: 'c2', code: 'PLATFORM_AUDIT_VIEW' }, { id: 'c3', code: 'TENANT_PROVISION' }, { id: 'c4', code: 'TENANT_ACTIVATE' }, { id: 'c5', code: 'TENANT_SUSPEND' }, { id: 'c6', code: 'TENANT_REINSTATE' }], rowCount: 6 };
+    if (sql.includes('FROM platform_capabilities WHERE code=ANY')) return { rows: SYSTEM_OWNER_CAPABILITY_CODES.map((code, i) => ({ id: `c${i + 1}`, code })), rowCount: SYSTEM_OWNER_CAPABILITY_CODES.length };
     return { rows: [], rowCount: 1 };
   });
   const client = { query, release: vi.fn() };
@@ -50,18 +51,18 @@ describe('guarded initial System Owner bootstrap', () => {
     await expect(new PlatformAuthorityRepository(fixture.pool as any).bootstrap(input)).resolves.toEqual(expect.any(String));
     expect(fixture.query.mock.calls.some(([sql]) => String(sql).includes('SYSTEM_OWNER_BOOTSTRAPPED'))).toBe(true);
   });
-  it('bootstraps exactly the six canonical System Owner capabilities with no wildcard', async () => {
+  it('bootstraps exactly the twenty-three canonical System Owner capabilities with no wildcard', async () => {
     const fixture = fake();
     await new PlatformAuthorityRepository(fixture.pool as any).bootstrap(input);
     const capCall = fixture.query.mock.calls.find(([sql]) => String(sql).includes('FROM platform_capabilities WHERE code=ANY'));
     expect(capCall).toBeTruthy();
     const codes = (capCall as any)[1][0] as string[];
-    expect([...codes].sort()).toEqual(['PLATFORM_AUTHORITY_MANAGE', 'PLATFORM_AUDIT_VIEW', 'TENANT_PROVISION', 'TENANT_ACTIVATE', 'TENANT_SUSPEND', 'TENANT_REINSTATE'].sort());
+    expect([...codes].sort()).toEqual([...SYSTEM_OWNER_CAPABILITY_CODES].sort());
+    expect(codes).toHaveLength(23);
     expect(codes).not.toContain('*');
-    expect(codes).not.toContain('TENANT_ADMIN_RECOVER');
-    expect(codes).not.toContain('TENANT_EXPORT');
+    expect(codes).not.toContain('ALL');
     const grantInserts = fixture.query.mock.calls.filter(([sql]) => String(sql).includes('INSERT INTO platform_capability_grants'));
-    expect(grantInserts).toHaveLength(6);
+    expect(grantInserts).toHaveLength(23);
   });
   it('refuses a ledger containing only 598', () => expectLedgerRefusal(['598_create_platform_authority_foundation.ts']));
   it('refuses a missing earlier migration', () => expectLedgerRefusal(repositoryMigrations.filter((_, index) => index !== 1)));

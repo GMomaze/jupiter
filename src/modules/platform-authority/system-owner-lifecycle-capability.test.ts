@@ -1,31 +1,43 @@
 import { describe, expect, it } from 'vitest';
 import fs from 'node:fs';
 import { TENANT_LIFECYCLE_OPERATION_POLICY } from '../tenancy/tenant-lifecycle-policy.js';
+import { SYSTEM_OWNER_CAPABILITY_CODES } from '../../config/systemOwnerCanonical.js';
 
 const read = (p: string) => fs.readFileSync(p, 'utf8');
 
-describe('System Owner lifecycle capability contract', () => {
-  it('bootstraps the six explicit capabilities without wildcard or implicit expansion', () => {
+describe('System Owner full capability contract', () => {
+  it('bootstraps the full twenty-three capability set without wildcard or implicit expansion', () => {
     const s = read('src/modules/platform-authority/platform-authority.repository.ts');
-    const constant = s.slice(s.indexOf('const SYSTEM_OWNER_CAPABILITIES'), s.indexOf('const repositoryIssuedAuthorities'));
-    // Two foundation capabilities are imported identifiers; the four lifecycle
-    // capabilities are explicit string literals (never derived from PLATFORM_AUTHORITY_MANAGE).
-    expect(constant).toContain('PLATFORM_AUTHORITY_MANAGE');
-    expect(constant).toContain('PLATFORM_AUDIT_VIEW');
-    for (const code of ['TENANT_PROVISION', 'TENANT_ACTIVATE', 'TENANT_SUSPEND', 'TENANT_REINSTATE'])
-      expect(constant).toContain(`"${code}"`);
-    // No wildcard/ALL authority, and no lifecycle capability collapsed into PLATFORM_AUTHORITY_MANAGE.
-    expect(constant).not.toMatch(/['"]\*['"]|['"]ALL['"]/);
-    expect(constant).not.toContain('TENANT_ADMIN_RECOVER');
-    expect(constant).not.toContain('TENANT_EXPORT');
+    // The owner set is the same frozen twenty-three capability list that bootstrap
+    // verifies, never a wildcard/ALL authority and never an implicit superuser.
+    expect(s).toContain(
+      'const SYSTEM_OWNER_CAPABILITIES = BOOTSTRAP_CAPABILITIES;',
+    );
+    const bootstrap = s.slice(
+      s.indexOf('const BOOTSTRAP_CAPABILITIES'),
+      s.indexOf('const SYSTEM_OWNER_CAPABILITIES'),
+    );
+    expect(SYSTEM_OWNER_CAPABILITY_CODES).toHaveLength(23);
+    for (const code of SYSTEM_OWNER_CAPABILITY_CODES)
+      expect(bootstrap).toContain(`"${code}"`);
+    expect(SYSTEM_OWNER_CAPABILITY_CODES).not.toContain('*');
+    expect(SYSTEM_OWNER_CAPABILITY_CODES).not.toContain('ALL');
   });
 
   it('keeps lifecycle capabilities granular and independent of PLATFORM_AUTHORITY_MANAGE', () => {
-    // PLATFORM_AUTHORITY_MANAGE is NOT itself a lifecycle capability: the four
-    // TENANT_* capabilities must remain individually checked by the policy.
-    expect(Object.keys(TENANT_LIFECYCLE_OPERATION_POLICY)).not.toContain('PLATFORM_AUTHORITY_MANAGE');
-    for (const capability of ['TENANT_PROVISION', 'TENANT_ACTIVATE', 'TENANT_SUSPEND', 'TENANT_REINSTATE']) {
-      const policy = TENANT_LIFECYCLE_OPERATION_POLICY[capability as keyof typeof TENANT_LIFECYCLE_OPERATION_POLICY];
+    expect(Object.keys(TENANT_LIFECYCLE_OPERATION_POLICY)).not.toContain(
+      'PLATFORM_AUTHORITY_MANAGE',
+    );
+    for (const capability of [
+      'TENANT_PROVISION',
+      'TENANT_ACTIVATE',
+      'TENANT_SUSPEND',
+      'TENANT_REINSTATE',
+    ]) {
+      const policy =
+        TENANT_LIFECYCLE_OPERATION_POLICY[
+          capability as keyof typeof TENANT_LIFECYCLE_OPERATION_POLICY
+        ];
       expect(policy[0]).toBe(capability);
       expect(policy[1]).toEqual(['HUMAN']);
     }

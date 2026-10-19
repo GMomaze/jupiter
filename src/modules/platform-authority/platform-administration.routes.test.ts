@@ -133,6 +133,31 @@ describe("MP2-R2 HUMAN platform administration", () => {
       expect.objectContaining({ principalType: "HUMAN", userId: "human" }),
     );
   });
+  it("shows a meaningful self-grant message instead of a generic failure", async () => {
+    const r = repo();
+    r.resolveHuman.mockResolvedValue({ principalType: "HUMAN" });
+    r.grant.mockRejectedValue(new Error("PLATFORM_SELF_GRANT_FORBIDDEN"));
+    let flashMessage: string | undefined;
+    const value = express();
+    value.use(express.json());
+    value.use(express.urlencoded({ extended: true }));
+    value.use((req: any, _res, next) => {
+      req.user = { id: "user" };
+      req.flash = (_key: string, msg?: string) => {
+        if (msg !== undefined) flashMessage = msg;
+        return [];
+      };
+      next();
+    });
+    value.use("/platform", createPlatformAdministrationRouter(r));
+    const response = await request(value)
+      .post("/platform/grants")
+      .send({ principalId: "self", capabilityCode: "C", reason: "approved" });
+    expect(response.status).toBe(303);
+    expect(flashMessage).toBe(
+      "You cannot grant a capability to yourself. Use the approved System Owner reconciliation procedure.",
+    );
+  });
   it("is mounted behind global CSRF and authentication in app source", async () => {
     const fs = await import("node:fs");
     const source = fs.readFileSync("src/app.ts", "utf8");
