@@ -1,9 +1,20 @@
 import { isIP } from 'node:net';
 import { lookup } from 'node:dns/promises';
-import {
-  COMMISSIONING_DESIGNATION,
-  PRODUCTION_DESIGNATION,
-} from './commissioningResetSafety.js';
+
+/**
+ * Canonical installation-designation values. These are the single committed
+ * source of truth for the commissioning/production designation used by the
+ * reconciliation gate. They intentionally match the commissioning-reset
+ * architecture so the reconciliation does not invent a competing designation
+ * mechanism, but they are declared here (rather than imported from the
+ * commissioning-reset module) so the committed reconciliation has no dependency
+ * on files that are not yet part of the repository.
+ */
+export const COMMISSIONING_DESIGNATION = 'commissioning';
+export const PRODUCTION_DESIGNATION = 'production';
+export const DEFAULT_INSTALLATION_DESIGNATION_PATH =
+  '/opt/jupiter/.jupiter-installation-designation';
+
 
 /**
  * Guarded System Owner capability-reconciliation target gate.

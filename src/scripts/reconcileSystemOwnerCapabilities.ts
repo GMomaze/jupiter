@@ -12,7 +12,7 @@ import {
   resolveSystemOwnerReconciliationHost,
   type SystemOwnerReconciliationIdentity,
 } from "../config/systemOwnerReconciliationSafety.js";
-import { DEFAULT_INSTALLATION_DESIGNATION_PATH } from "../config/commissioningResetSafety.js";
+import { DEFAULT_INSTALLATION_DESIGNATION_PATH } from "../config/systemOwnerReconciliationSafety.js";
 
 const IDENTITY_SQL = `SELECT current_database() AS database_name,
   host(inet_server_addr()) AS server_address,
