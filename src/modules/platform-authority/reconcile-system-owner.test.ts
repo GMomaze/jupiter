@@ -100,6 +100,24 @@ describe("System Owner capability reconciliation", () => {
     expect(auditInserts).toHaveLength(21);
   });
 
+  it("reconciles the commissioning database target with the same idempotent grant set", async () => {
+    const { repo, clientQuery } = makeRepo({ db: "jupiter_db" });
+    const owner = await resolveOwner(repo);
+    const result = await repo.reconcileSystemOwnerCapabilities(owner, {
+      expectedDatabase: "jupiter_db",
+      confirmationToken: buildSystemOwnerReconciliationToken("jupiter_db"),
+      reason,
+    });
+    expect(result.granted.sort()).toEqual(
+      SYSTEM_OWNER_CAPABILITY_CODES.filter((c) => !FOUNDATION.includes(c)).sort(),
+    );
+    expect(result.alreadyGranted).toBe(FOUNDATION.length);
+    const grantInserts = clientQuery.mock.calls.filter(([sql]) =>
+      String(sql).includes("INSERT INTO platform_capability_grants"),
+    );
+    expect(grantInserts).toHaveLength(21);
+  });
+
   it("is idempotent and grants nothing when the full set is already held", async () => {
     const { repo, clientQuery } = makeRepo({ heldCodes: [...SYSTEM_OWNER_CAPABILITY_CODES] });
     const owner = await resolveOwner(repo);

@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { pool } from "../config/database.js";
 import { PlatformAuthorityRepository } from "../modules/platform-authority/platform-authority.repository.js";
 import {
@@ -5,17 +6,42 @@ import {
   SYSTEM_OWNER_EMAIL,
   buildSystemOwnerReconciliationToken,
 } from "../config/systemOwnerCanonical.js";
+import {
+  validateSystemOwnerReconciliationConfiguration,
+  assertSystemOwnerReconciliationIdentityMatches,
+  resolveSystemOwnerReconciliationHost,
+  type SystemOwnerReconciliationIdentity,
+} from "../config/systemOwnerReconciliationSafety.js";
+import { DEFAULT_INSTALLATION_DESIGNATION_PATH } from "../config/commissioningResetSafety.js";
 
-const TARGET_DATABASE = "jupiter_test";
+const IDENTITY_SQL = `SELECT current_database() AS database_name,
+  host(inet_server_addr()) AS server_address,
+  inet_server_port() AS server_port`;
+
+function readInstallationDesignation(): string | null {
+  try {
+    return readFileSync(DEFAULT_INSTALLATION_DESIGNATION_PATH, 'utf8');
+  } catch {
+    return null;
+  }
+}
 
 async function main() {
-  if (process.env.NODE_ENV !== "test")
-    throw new Error("SYSTEM_OWNER_RECONCILIATION_REQUIRES_TEST_ENV");
-  if (process.env.ALLOW_SYSTEM_OWNER_CAPABILITY_RECONCILIATION !== "YES")
-    throw new Error("SYSTEM_OWNER_RECONCILIATION_NOT_AUTHORIZED");
-  const db = await pool.query(`SELECT current_database() name`);
-  if (db.rows[0]?.name !== TARGET_DATABASE)
-    throw new Error("SYSTEM_OWNER_RECONCILIATION_DB_MISMATCH");
+  // Commissioning designation comes only from the marker file (never an
+  // environment variable). It is required for the commissioning target and is
+  // absent/invalid for every other environment.
+  const designation = readInstallationDesignation();
+  const target = validateSystemOwnerReconciliationConfiguration(
+    process.env,
+    designation,
+  );
+
+  const identity = (
+    await pool.query(IDENTITY_SQL)
+  ).rows[0] as SystemOwnerReconciliationIdentity | undefined;
+  if (!identity) throw new Error("SYSTEM_OWNER_RECONCILIATION_IDENTITY_UNAVAILABLE");
+  const addresses = await resolveSystemOwnerReconciliationHost(target.host);
+  assertSystemOwnerReconciliationIdentityMatches(target, identity, addresses);
 
   const repository = new PlatformAuthorityRepository(pool);
 
@@ -40,7 +66,7 @@ async function main() {
   )
     throw new Error("SYSTEM_OWNER_IDENTITY_MISMATCH");
 
-  const expected = buildSystemOwnerReconciliationToken(TARGET_DATABASE);
+  const expected = buildSystemOwnerReconciliationToken(target.database);
   if (process.env.SYSTEM_OWNER_RECONCILIATION_CONFIRMATION !== expected)
     throw new Error("SYSTEM_OWNER_RECONCILIATION_CONFIRMATION_MISMATCH");
 
@@ -49,7 +75,7 @@ async function main() {
     "System Owner full-capability reconciliation";
 
   const result = await repository.reconcileSystemOwnerCapabilities(owner, {
-    expectedDatabase: TARGET_DATABASE,
+    expectedDatabase: target.database,
     confirmationToken: expected,
     reason,
   });
